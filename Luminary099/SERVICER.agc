@@ -76,6 +76,16 @@ GOREADAX	TC	GNUTFAZ5
 # Page 858
 # ************* READACCS ****************
 
+# =========================================================================================
+# NOTE(SERV3): THE 2-SECOND HEARTBEAT.  (Modern annotation, not part of 1969 code.)
+# READACCS is the waitlist task dispatched by T3RUPT (NOTE(WAIT2)).
+# It reads the accelerometers (TC PIPASR below), schedules the big SERVICER job (NOTE(SERV4)),
+# then unconditionally re-schedules ITSELF 2 seconds ahead (CA 2SECS / TC VARDELAY, via
+# MAKEACCS/GOREADAX above).  Nothing here checks whether the PREVIOUS SERVICER finished --
+# per George Cherry: the clock "ineluctably counts down to the time for the next repetition
+# of a job to begin whether the previous repetition is complete or not."
+# NEXT: NOTE(SERV4), the FINDVAC call just below.
+# =========================================================================================
 READACCS	CS	OCT37771	# THIS PIECE OF CODING ATTEMPTS TO
 		AD	TIME5		# SYNCHRONIZE READACCS WITH THE DIGITAL
 		CCS	A		# AUTOPILOT SO THAT A PAXIS RUPT WILL
@@ -94,6 +104,17 @@ PIPSDONE	CA	FIVE
 REDO5.5		CAF	ONE
 		TS	PIPAGE
 
+# =========================================================================================
+# NOTE(SERV4): THE LEAK.  (Modern annotation, not part of 1969 code.)
+# Every 2 seconds this call asks the Executive for a BRAND NEW copy of SERVICER
+# (priority 20, lowest and longest job of the landing).  With ~15% of the CPU stolen
+# (NOTE(ERAS1)) plus the crew's V16N68 monitor and P64's redesignation load, the previous
+# SERVICER had often NOT reached ENDOFJOB -- so it still owned a core set and a VAC area.
+# The old copy becomes a "stub" that will never run again, and its memory stays claimed.
+# One extra stub leaks roughly every cycle until the pool (8 core sets / 5 VAC areas) runs
+# dry inside the Executive's allocator.
+# NEXT: NOTE(EXEC5), FINDVAC2 in EXECUTIVE.agc.
+# =========================================================================================
 		CA	PRIO20
 		TC	FINDVAC
 		EBANK=	DVCNTR
@@ -591,6 +612,16 @@ REPIP4		EXTEND			# COMPUTE GUIDANCE PERIOD
 		TC	Q
 
 # Page 871
+# =========================================================================================
+# NOTE(SERV12): WHY NOTHING WAS LOST.  (Modern annotation, not part of 1969 code.)
+# REREADAC is the task the restart tables re-schedule (NOTE(RSTAB11)).
+# The PIPA accelerometer registers are HARDWARE counters (like the radar CDUs of NOTE(ERAS1),
+# but doing honest work): they kept integrating velocity increments straight through the
+# restart.  REREADAC re-reads them, so the ~1 second of chaos cost the navigation state
+# nothing.  Net effect of one full pass through NOTES EXEC5..SERV12: PROG lamp + code on the
+# DSKY, queues cleaned, essential jobs rebuilt, zero data lost -- and Eagle kept flying.
+# Houston's verdict each time: "We're GO on that alarm."
+# =========================================================================================
 REREADAC	CCS	PIPAGE
 		TCF	READACCS	# PIP READING NOT STARTED.  GO TO BEGINNING
 

@@ -140,6 +140,14 @@ BAILOUT		INHINT
 		TC	BORTENT
 OCT40400	OCT	40400
 
+# =========================================================================================
+# NOTE(ALARM8): PULLING THE RIPCORD.  (Modern annotation, not part of 1969 code.)
+# WHIMPER deliberately triggers the same recovery path as a hardware
+# glitch: it jumps (via POSTJUMP) to ENEMA in FRESH_START_AND_RESTART.agc -- a SOFTWARE
+# RESTART.  This is the design, largely driven by restart-protection work done a year
+# before the flight, that turned a fatal-looking overload into a ~1-second hiccup.
+# NEXT: NOTE(START9), ENEMA in FRESH_START_AND_RESTART.agc.
+# =========================================================================================
 		INHINT
 WHIMPER		CA	TWO
 		AD	Z
@@ -186,6 +194,15 @@ OCT217		OCT	00217
 # Page 1384
 		TC	ALMCADR		# RETURN TO USER
 
+# =========================================================================================
+# NOTE(ALARM7): RECORDING THE ALARM.  (Modern annotation, not part of 1969 code.)
+# The Executive lands here when it cannot allocate (NOTE(EXEC5)/NOTE(EXEC6)).  The
+# INDEX Q / CAF 0 sequence picks up the OCT 1201 / OCT 1202 word placed right after the
+# caller's TC BAILOUT1.  Control then runs CHKFAIL1 (above): the code is stored in the
+# first free FAILREG register and PROGLARM sets the alarm bit in DSPTAB +11D -- THAT is
+# the moment the yellow PROG lamp lit in front of Aldrin.  The crew read the code back
+# with VERB 05 NOUN 09.  Execution then proceeds to WHIMPER (NOTE(ALARM8)) to force restart.
+# =========================================================================================
 BAILOUT1	INHINT
 		DXCH	ALMCADR
 		CAF	ADR40400
