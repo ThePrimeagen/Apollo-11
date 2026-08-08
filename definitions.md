@@ -68,54 +68,210 @@ hard-coded number you don't recognize, it should be in one of the tables below.
 
 ---
 
-## 3. Assembly instructions encountered (yaYUL / AGC Block II)
+## 3. Assembly instructions, thoroughly (yaYUL / AGC Block II)
 
-The AGC accumulator is called **A**; **L** and **Q** are other special registers; **Z** is the
-program counter. Times are in memory cycles (MCT ≈ 11.72 µs).
+This section covers **every instruction, pseudo-instruction, and instruction-like call** that
+appears in the three tours and in the code snippets of the companion documents.
 
-| Mnemonic | Name | Plain meaning |
-| :------- | :--- | :------------ |
-| `CA k` | Clear and Add | Load the contents of memory `k` into A. (Copy `k` → A.) |
-| `CAF k` | Clear and Add Fixed | Same as `CA`, but `k` is in fixed (ROM) memory. Commonly used to load constants. |
-| `CS k` | Clear and Subtract | Load the *complement* (negation) of `k` into A. `CS ZERO` yields −0. |
-| `TS k` | Transfer to Storage | Store A into memory `k`. (Copy A → `k`.) |
-| `XCH k` | Exchange | Swap the contents of A and `k`. |
-| `LXCH k` | L Exchange | Swap the contents of L and `k`. |
-| `DXCH k` | Double Exchange | Swap a 2-word (double-precision) value between A,L and `k`,`k+1`. |
-| `QXCH k` | Q Exchange | Swap the contents of Q and `k`. |
-| `AD k` | Add | Add contents of `k` to A. |
-| `ADS k` | Add to Storage | Add A to `k`, storing the sum back in `k` (and A). |
-| `MASK k` | Mask (logical AND) | Bitwise-AND A with `k`. Used to isolate bit fields. |
-| `TC k` | Transfer Control | Call/jump to `k`, saving the return address in Q. (A subroutine call.) |
-| `TCF k` | Transfer Control to Fixed | Jump to `k` in fixed memory (no return saved). (A `goto`.) |
-| `CCS k` | Count, Compare, and Skip | The AGC's branch: examine `k`'s sign/value and take one of four following instructions (the classic "+ / +0 / − / −0" 4-way branch). Also loads `abs(k)−1` into A. |
-| `BZF k` | Branch Zero to Fixed | Branch to `k` if A = 0. (Extended instruction.) |
-| `BZMF k` | Branch Zero or Minus to Fixed | Branch to `k` if A ≤ 0. (Extended.) |
-| `INDEX k` | Index | Add the contents of `k` to the *next* instruction before executing it (computed addressing / jump tables). |
-| `EXTEND` | Extend | Prefix that switches the next opcode to the "extended" instruction set (e.g. `DCA`, `MP`, `BZF`, `ROR`). |
-| `INHINT` | Inhibit Interrupts | Disable interrupts (enter a critical section). |
-| `RELINT` | Release Interrupts | Re-enable interrupts. |
-| `RESUME` | Resume | Return from an interrupt to the interrupted program (via the `BRUPT`/`ZRUPT` save regs). |
-| `DCA k` | Double Clear and Add | Load a 2-word value from `k`,`k+1` into A,L. (Extended.) |
-| `ZL` | Zero L | Set the L register to +0. |
-| `COM` | Complement | Bitwise-complement (negate) A. |
-| `DOUBLE` | Double | Add A to itself (multiply by 2). |
-| `ROR ch` | Read OR | OR A with the contents of I/O channel `ch`. (Extended; here used to read the "superbank".) |
-| `WOR ch` | Write OR | OR A into I/O channel `ch` (set output bits). (Extended.) |
-| `WAND ch` | Write AND | AND A into I/O channel `ch` (clear output bits). (Extended.) |
-| `RAND ch` | Read AND | AND A with I/O channel `ch`. (Extended.) |
-| `RXOR ch` | Read XOR | XOR A with I/O channel `ch`. (Extended.) |
+### 3.1 The registers (and why `TS Q` and `DXCH Z` make sense)
 
-### Assembler directives (not CPU instructions — they tell yaYUL how to build the program)
+The AGC's "registers" are **memory-mapped**: they live at the lowest erasable addresses, so
+any instruction that takes a memory operand can operate on them directly.
+
+| Register | Address (octal) | Role |
+| :------- | :-------------- | :--- |
+| `A` | 0 | The accumulator. Almost every instruction reads or writes it. |
+| `L` | 1 | "Low" register: second word of double-precision values; low half of products. |
+| `Q` | 2 | Holds the return address after `TC`. Between calls it is fair game as a scratch register — code in the trace really does `TS Q`. |
+| `EB` | 3 | Erasable-bank selector. |
+| `FB` | 4 | Fixed-bank selector. |
+| `Z` | 5 | **The program counter.** Because it is addressable, writing to `Z` *is* a jump — see the `DXCH Z` idiom below. |
+| `BB` | 6 | Both-banks register (EB and FB together, saved/restored across calls). |
+| `ZERO` | 7 | Always reads as +0. |
+
+Interrupt handling has a parallel save set: `ARUPT`, `LRUPT`, `QRUPT`, `ZRUPT`, `BBRUPT`, and
+**`BRUPT`** — the word that will be *executed as the first instruction* when `RESUME` returns
+from the interrupt. `WHIMPER` exploits exactly that (idiom 4 below).
+
+### 3.2 Basic machine instructions
+
+Timing is in memory cycles (1 MCT ≈ 11.72 µs), from the standard Block II instruction set
+documentation. Instructions marked **ext.** must be preceded by `EXTEND`.
+
+**Loading and storing:**
+
+| Mnemonic | Name | MCT | Plain meaning |
+| :------- | :--- | :-- | :------------ |
+| `CA k` | Clear and Add | 2 | Copy the contents of `k` into A. |
+| `CAF k` | Clear and Add Fixed | 2 | Same as `CA`; the yaYUL spelling when `k` is in fixed (ROM) memory — used for constants. |
+| `CAE k` | Clear and Add Erasable | 2 | Same as `CA`; the spelling when `k` is in erasable (RAM) memory. |
+| `CS k` | Clear and Subtract | 2 | Copy the ones'-complement (negation) of `k` into A. `CS ZERO` yields −0, the "free" sentinel. |
+| `DCA k` | Double Clear and Add (ext.) | 3 | Copy the 2-word value at `k`,`k+1` into A,L. |
+| `DCS k` | Double Clear and Subtract (ext.) | 3 | Copy the negated 2-word value at `k`,`k+1` into A,L. |
+| `TS k` | Transfer to Storage | 2 | Copy A into `k`. (On overflow it also skips one instruction — not relied on in our trace.) |
+| `XCH k` | Exchange | 2 | Swap A and `k`. |
+| `LXCH k` | L Exchange | 2 | Swap L and `k`. |
+| `QXCH k` | Q Exchange (ext.) | 2 | Swap Q and `k` — how subroutines save their return address (`RRZEROSB` does `QXCH RRRET`). |
+| `DXCH k` | Double Exchange | 3 | Swap A,L with `k`,`k+1`. `DXCH Z` is a jump (idiom 3). |
+| `ZL` | Zero L | 2 | Set L to +0 (it is `LXCH ZERO`). |
+
+**Arithmetic and logic** (ones'-complement, 15-bit words):
+
+| Mnemonic | Name | MCT | Plain meaning |
+| :------- | :--- | :-- | :------------ |
+| `AD k` | Add | 2 | A := A + contents of `k`. |
+| `ADS k` | Add to Storage | 2 | `k` := `k` + A; the sum is also left in A. Used to set bits: `ADS DSPTAB +11D`. |
+| `DAS k` | Double Add to Storage | 3 | 2-word add of A,L into `k`,`k+1`. |
+| `INCR k` | Increment | 2 | `k` := `k` + 1 (e.g. `INCR REDOCTR` counts restarts). |
+| `COM` | Complement | 2 | Negate A (it is `CS A`). |
+| `DOUBLE` | Double | 2 | A := 2 × A (it is `AD A`). |
+| `MASK k` | Mask | 2 | A := A AND `k` — isolate bit fields. |
+| `MP k` | Multiply (ext.) | 3 | A,L := A × `k` (double-length product). |
+| `DV k` | Divide (ext.) | 6 | A := (A,L) ÷ `k`, remainder in L. The slowest basic instruction. |
+
+**Control flow:**
+
+| Mnemonic | Name | MCT | Plain meaning |
+| :------- | :--- | :-- | :------------ |
+| `TC k` | Transfer Control | 1 | Call `k`: jump there and leave the return address in Q. Also used for plain jumps when no return is needed. |
+| `TCF k` | Transfer Control to Fixed | 1 | Jump to `k` **without** touching Q — a pure `goto`. |
+| `CCS k` | Count, Compare, and Skip | 2 | The AGC's conditional branch. See the dedicated explanation below. |
+| `BZF k` | Branch Zero to Fixed (ext.) | 1 or 2 | Jump to `k` if A is ±0 (1 MCT when the branch is taken, 2 when not). |
+| `BZMF k` | Branch Zero or Minus to Fixed (ext.) | 1 or 2 | Jump to `k` if A is zero or negative. |
+| `INDEX k` | Index | 2 | Add the contents of `k` to the **next instruction's word** before executing it — computed addressing (idioms 1 and 2). |
+| `EXTEND` | Extend | 1 | Prefix selecting the extended opcode set for the next instruction. |
+| `INHINT` | Inhibit Interrupts | 1 | Disable interrupts (enter a critical section). |
+| `RELINT` | Release Interrupts | 1 | Re-enable interrupts. |
+| `RESUME` | Resume | 2 | Return from an interrupt: restore `Z` from `ZRUPT` and execute the word in `BRUPT` as the first instruction back. |
+
+**I/O channel instructions** (all extended; channels are a separate small address space for
+hardware wires — see `CHAN12`/`CHAN30`/`CHAN33` in section 4):
+
+| Mnemonic | Name | MCT | Plain meaning |
+| :------- | :--- | :-- | :------------ |
+| `ROR ch` | Read and OR | 2 | A := A OR channel `ch` (read input bits). |
+| `RAND ch` | Read and AND | 2 | A := A AND channel `ch`. |
+| `RXOR ch` | Read and XOR | 2 | A := A XOR channel `ch` — how `RRAUTCHK` detects a *changed* radar-mode bit. |
+| `WOR ch` | Write OR | 2 | Channel `ch` := `ch` OR A (set output bits, e.g. "zero the RR CDUs"). |
+| `WAND ch` | Write AND | 2 | Channel `ch` := `ch` AND A (clear output bits). |
+
+### `CCS`, the four-way branch, in full
+
+`CCS k` is the strangest and most important instruction in the trace. It examines `k`, stores
+the **diminished absolute value** (`abs(k) − 1`, minimum +0) into A, and then continues at one
+of the **four following instruction slots** depending on what `k` was:
+
+```text
+        CCS  k
+slot 1:  ...          taken if k was  > +0   (positive, nonzero)
+slot 2:  ...          taken if k was  = +0
+slot 3:  ...          taken if k was  <  0   (negative, nonzero)
+slot 4:  ...          taken if k was  = -0
+```
+
+Three uses matter here:
+
+- **Resource scanning.** `CCS VAC1USE / TCF VACFOUND`: a free VAC area holds a positive value,
+  so slot 1 (`TCF VACFOUND`) is taken; a busy one holds +0, so slot 2 — the *next `CCS`* — runs
+  instead. Five of these in a row make the whole 1201 scan. In the core-set scan, a free set
+  holds **−0** (slot 4 falls through into `CORFOUND`) and a busy one holds a positive priority
+  (slot 1, `TCF NEXTCORE`).
+- **Loop counting.** `CCS EXECTEM2 / TCF NOVAC3`: because A receives `abs(k) − 1`, storing A
+  back each pass counts 7, 6, 5 … 0 — which is how `NO.CORES DEC 7` yields exactly eight
+  probes.
+- **Testing the accumulator.** `CCS A` is the idiom for "branch on what is currently in A"
+  (e.g. "is this flag bit set?").
+
+### 3.3 Interpreter pseudo-instructions (the vector virtual machine)
+
+Some trace-adjacent code (inside `SERVICER` and `NORMLIZE`) is not machine code at all.
+`TC INTPRET` hands control to the **Interpreter**, which reads *packed pseudo-instructions*
+(up to two per word, operands on the following lines) and executes vector/matrix math using a
+push-down stack in the job's **VAC area** — this is exactly why `SERVICER` needs one. `EXIT`
+returns to native code, with results left in `MPAC`.
+
+Pseudo-ops you will see near the tour stops:
+
+| Pseudo-op | Meaning |
+| :-------- | :------ |
+| `VLOAD x` | Load vector `x` into the multi-purpose accumulator (`MPAC`). |
+| `ABVAL` | Replace the vector in `MPAC` with its length (absolute value). |
+| `STORE x` | Store `MPAC` into `x`. |
+| `STOVL x` | `STORE`, then `VLOAD` the next operand. |
+| `STCALL x` | `STORE`, then call an interpretive subroutine. |
+| `PUSH` | Push `MPAC` onto the VAC-area stack. |
+| `DSU x` | Double-precision subtract: `MPAC` := `MPAC` − `x`. |
+| `VXV x` | Vector cross product. |
+| `MXV x` | Matrix × vector. |
+| `VSL6` | Shift the vector left 6 bit positions (rescaling). |
+| `BOFF x, y` | Branch to `y` if flag bit `x` is off. |
+| `CLEAR x` | Clear flag bit `x`. |
+| `EXIT` | Leave the Interpreter; resume native instructions. |
+
+A single interpretive vector operation costs on the order of **milliseconds** (a cross product
+≈ 5 ms ≈ 425 MCT), which is why `SERVICER` is so long compared to the 1–2 MCT native
+instructions around it.
+
+### 3.4 Things that look like instructions but are subroutine calls
+
+These appear as `TC NAME` and are operating-system services, not opcodes. (The scheduler-level
+ones — `FINDVAC`, `NOVAC`, `ENDOFJOB`, `WAITLIST` — are described in section 2.)
+
+| Call | What it does |
+| :--- | :----------- |
+| `VARDELAY` | Schedule the calling task to run again after the delay in A (centiseconds). The 2-second re-arm is `CA 2SECS / TC VARDELAY`. |
+| `FIXDELAY` | Same, but the delay is the `DEC` word following the call (`TC FIXDELAY / DEC 100` = wait 1.00 s). |
+| `LONGCALL` | Like `WAITLIST`, for delays longer than 162.5 s. |
+| `TASKOVER` | Ends a waitlist task (the task's counterpart of `ENDOFJOB`). |
+| `PHASCHNG`, `GNUTFAZ5`, `QUIKFAZ5` | Register a restart-protection checkpoint ("if we restart now, resume from here") in the phase tables. The `OCT` words after `PHASCHNG` encode the phase. |
+| `BANKCALL` / `IBNKCALL` | Call a routine in another fixed-memory bank (the `CADR` after the call names it); needed because a plain `TC` only reaches the current bank. |
+| `POSTJUMP` | Jump (no return) to another bank — how `WHIMPER` reaches `ENEMA`. |
+| `SWCALL` / `BANKJUMP` | Other cross-bank call/jump helpers (target address arrives in A). |
+| `INTPRET` | Enter the Interpreter (section 3.3). |
+| `PIPASR` | Read the three PIPA accelerometer counters. |
+| `MAGSUB` / `SETTRKF` | Radar helpers: magnitude test of a CDU angle; update the tracker-fail lamp. |
+
+### 3.5 Idioms — how these combine in the trace
+
+1. **Inline data after a call.** `TC BAILOUT1` is followed by `OCT 1201`. Inside `BAILOUT1`,
+   `INDEX Q / CAF 0` computes "load the word at address 0 + Q" — and Q holds the return
+   address, which points *at the `OCT` word*. That is how a call site passes its alarm code
+   without any argument registers.
+2. **Computed go-to.** `MULTEXIT` does `XCH ITEMP1 / INDEX A / TC 1`: the target address sits
+   in A, and `INDEX` adds it into the `TC 1`, producing "jump to A + 1." This is how the alarm
+   path returns to different continuations for different callers.
+3. **Jumping by writing the program counter.** Because `Z` is memory-mapped,
+   `DCA AVGEXIT / DXCH Z` loads a 2-word address and swaps it into the program counter —
+   `SERVICER` exits through exactly this.
+4. **Redirecting an interrupt return.** `WHIMPER` runs with a saved interrupt context.
+   `CA TWO / AD Z / TS BRUPT / RESUME` writes "current location + 2" into `BRUPT`, so `RESUME`
+   — instead of returning to the interrupted program — executes the `TC POSTJUMP / CADR ENEMA`
+   two words down. A controlled hijack of the interrupt-return machinery, used to enter the
+   software restart cleanly.
+5. **`CCS` scan chains and countdown loops** — see the `CCS` explanation above; this single
+   instruction implements both the 1201 and the 1202 detection scans.
+6. **Registers as variables.** `CAF DONEADR / TS Q` (in `REREADAC`) forges a return address so
+   a shared subroutine will "return" to a place chosen by the caller; `TS Q` elsewhere simply
+   uses Q as spare storage between calls.
+7. **A constant that is also an instruction.** The word at label `OCT10002` in `SERVICER.agc`
+   is the instruction `DV Q` — whose encoding equals octal 10002 — and other code uses that
+   same word as a bit mask (`MASK OCT10002`). Memory was scarce enough that instructions did
+   double duty as data.
+8. **`PINC`/`MINC` are not instructions.** They are hardware bus cycles ("unprogrammed
+   sequences") that increment a counter behind the software's back. You will never see them in
+   a listing — which is precisely why the radar theft was invisible.
+
+### 3.6 Assembler directives (not CPU instructions — they tell yaYUL how to build the program)
 
 | Directive | Meaning |
 | :-------- | :------ |
 | `EQUALS` / `=` | Define a symbol to equal a value or another symbol (like `#define`). E.g. `CDUT EQUALS 35`. |
-| `ERASE` | Reserve erasable (RAM) words. `ERASE +83D` reserves 84 words. |
+| `ERASE` | Reserve erasable (RAM) words. `ERASE +83D` reserves 84 words (offsets 0–83). |
 | `DEC n` | Emit a decimal numeric constant. `NO.CORES DEC 7`. |
 | `OCT n` | Emit an octal numeric constant. `OCT 1201` is the literal alarm code. |
-| `2CADR` / `CADR` | Emit a 2-word / 1-word address-of-code reference (so `TC`/`FINDVAC` know the target and its bank). |
-| `ADRES` / `GENADR` / `FCADR` | Other forms of address constants. |
+| `2CADR` / `CADR` | Emit a 2-word / 1-word "complete address" of a routine (address + bank bits) for schedulers and cross-bank calls. |
+| `-2CADR` | The same 2-word address stored **complemented**. In the restart tables the sign is the type flag: negative entries restart **tasks** (via `WAITLIST`), positive entries restart **jobs** (via `FINDVAC`/`NOVAC`). `5.4SPOT` uses one of each. |
+| `ADRES` / `GENADR` / `FCADR` | Other forms of single-word address constants (different bank encodings). |
 | `EBANK= / FBANK / BBANK` | Set/track the erasable-bank / fixed-bank / both-bank so the 15-bit machine can reach its full memory via banking. |
 | `BANK` / `SETLOC` | Select a fixed-memory bank / set the assembly location. |
 | `COUNT*` | Bookkeeping directive that tags following code to a named log section (`$$/EXEC`, `$$/SERV`, …). |
@@ -127,9 +283,14 @@ program counter. Times are in memory cycles (MCT ≈ 11.72 µs).
 
 | Symbol / literal | Value | Meaning |
 | :--------------- | :---- | :------ |
-| `CDUT` | address **35** (octal) | Rendezvous-radar **trunnion** angle counter — one of the two hardware counters the radar spammed. |
+| `CDUT` | address **35** (octal) | Rendezvous-radar **trunnion** angle counter — one of the two hardware counters the radar spammed. (Radar code comments sometimes call the pair `OPTY`/`OPTX`.) |
 | `CDUS` | address **36** (octal) | Rendezvous-radar **shaft** angle counter — the other spammed counter. |
 | `TIME3` | address **26** | The WAITLIST hardware clock counter; its overflow fires `T3RUPT`. |
+| `TIME4` | address **27** | Clock for `T4RUPT`, the housekeeping interrupt that drives DSKY updates and the radar monitors (`RRAUTCHK`/`RRCDUCHK` run on a 480 ms cadence). |
+| `CHAN12` | output channel 12 | Hardware command bits: bit 1 = zero the RR CDUs, bit 2 = enable RR error counters, bit 14 = RR auto track enable. |
+| `CHAN30` | input channel 30 | Hardware status bits: bit 7 = RR CDU fail. |
+| `CHAN33` | input channel 33 | Hardware status bits: bit 2 = RR auto/power on — the bit `RRAUTCHK` samples. |
+| `RADMODES` | erasable flagword | The radar mode/status word (turn-on in progress, CDUs being zeroed, antenna mode, auto-mode, CDU-fail, etc.). |
 | `PIPAX/PIPAY/PIPAZ` | 37 / 40 / 41 | Accelerometer velocity-increment hardware counters (kept counting through restarts). |
 | `PRIORITY` | erasable, 8 slots 12 words apart | Each core set's control word. Holds the running job's priority, or **−0** when the set is free. |
 | `VAC1USE … VAC5USE` | erasable, 5 flags | The five VAC-area "in use" flags. Positive = free; **0** = claimed/busy. |
@@ -144,6 +305,11 @@ program counter. Times are in memory cycles (MCT ≈ 11.72 µs).
 | `ALMCADR` | erasable | Stores the address of the code that raised the alarm (for diagnostics/downlink). |
 | `LST1 / LST2` | erasable lists | WAITLIST's task time-list and task-address-list; wiped and rebuilt on restart. |
 | `5.4SPOT` | in `RESTART_TABLES.agc` | The phase-table recipe for the landing's SERVICER group: rebuild one `REREADAC` task + one `SERVICER` job. |
+| `NEG1/2` | constant −1/2 | The filler the restart writes into empty `LST1` delta-time slots ("no task waiting"). |
+| `POSMAX` | constant +16383 | The largest positive word; used to park timers (e.g. disable `TIME6`). |
+| `ENDTASK` | fixed address | Stored (complemented) into empty `LST2` slots so an empty waitlist slot "runs" a harmless end-of-task. |
+| `OCT40400` | bit mask | The DSKY lamp-table bits `PROGLARM` sets: bit 9 (PROG lamp) plus the table's update-request bit 15. |
+| `REDOCTR` | erasable counter | Counts restarts (`INCR REDOCTR` in `GOPROG`); telemetry evidence of how many times the computer restarted. |
 
 > **The "eight core sets, twelve registers" clarification.** A comment in `EXECUTIVE.agc`
 > reads `# SEVEN SETS OF ELEVEN REGISTERS EACH`. That comment is **stale/incorrect** for this
