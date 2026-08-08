@@ -613,12 +613,12 @@ REPIP4		EXTEND			# COMPUTE GUIDANCE PERIOD
 
 # Page 871
 # =========================================================================================
-# NOTE(SERV12): WHY NOTHING WAS LOST.  (Modern annotation, not part of 1969 code.)
-# REREADAC is the task the restart tables re-schedule (NOTE(RSTAB11)).
+# NOTE(SERV14): WHY NOTHING WAS LOST.  (Modern annotation, not part of 1969 code.)
+# REREADAC is the task the restart tables re-schedule (NOTE(RSTAB13)).
 # The PIPA accelerometer registers are HARDWARE counters (like the radar CDUs of NOTE(ERAS1),
 # but doing honest work): they kept integrating velocity increments straight through the
 # restart.  REREADAC re-reads them, so the ~1 second of chaos cost the navigation state
-# nothing.  Net effect of one full pass through NOTES EXEC5..SERV12: PROG lamp + code on the
+# nothing.  Net effect of one full pass through NOTES EXEC5..SERV14: PROG lamp + code on the
 # DSKY, queues cleaned, essential jobs rebuilt, zero data lost -- and Eagle kept flying.
 # Houston's verdict each time: "We're GO on that alarm."
 # =========================================================================================
