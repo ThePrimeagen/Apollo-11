@@ -77,14 +77,14 @@ GOREADAX	TC	GNUTFAZ5
 # ************* READACCS ****************
 
 # =========================================================================================
-# [1201/1202 ALARM TRACE -- STEP 3 OF 12]  (Modern annotation -- not part of the 1969 code.)
-# THE 2-SECOND HEARTBEAT.  READACCS is the waitlist task dispatched by T3RUPT (STEP 2).
-# It reads the accelerometers (TC PIPASR below), schedules the big SERVICER job (STEP 4),
+# NOTE(SERV3): THE 2-SECOND HEARTBEAT.  (Modern annotation, not part of 1969 code.)
+# READACCS is the waitlist task dispatched by T3RUPT (NOTE(WAIT2)).
+# It reads the accelerometers (TC PIPASR below), schedules the big SERVICER job (NOTE(SERV4)),
 # then unconditionally re-schedules ITSELF 2 seconds ahead (CA 2SECS / TC VARDELAY, via
 # MAKEACCS/GOREADAX above).  Nothing here checks whether the PREVIOUS SERVICER finished --
 # per George Cherry: the clock "ineluctably counts down to the time for the next repetition
 # of a job to begin whether the previous repetition is complete or not."
-# NEXT: STEP 4, the FINDVAC call just below.
+# NEXT: NOTE(SERV4), the FINDVAC call just below.
 # =========================================================================================
 READACCS	CS	OCT37771	# THIS PIECE OF CODING ATTEMPTS TO
 		AD	TIME5		# SYNCHRONIZE READACCS WITH THE DIGITAL
@@ -105,15 +105,15 @@ REDO5.5		CAF	ONE
 		TS	PIPAGE
 
 # =========================================================================================
-# [1201/1202 ALARM TRACE -- STEP 4 OF 12]  (Modern annotation -- not part of the 1969 code.)
-# THE LEAK.  Every 2 seconds this call asks the Executive for a BRAND NEW copy of SERVICER
+# NOTE(SERV4): THE LEAK.  (Modern annotation, not part of 1969 code.)
+# Every 2 seconds this call asks the Executive for a BRAND NEW copy of SERVICER
 # (priority 20, lowest and longest job of the landing).  With ~15% of the CPU stolen
-# (STEP 1) plus the crew's V16N68 monitor and P64's redesignation load, the previous
+# (NOTE(ERAS1)) plus the crew's V16N68 monitor and P64's redesignation load, the previous
 # SERVICER had often NOT reached ENDOFJOB -- so it still owned a core set and a VAC area.
 # The old copy becomes a "stub" that will never run again, and its memory stays claimed.
 # One extra stub leaks roughly every cycle until the pool (8 core sets / 5 VAC areas) runs
 # dry inside the Executive's allocator.
-# NEXT: STEP 5, FINDVAC2 in EXECUTIVE.agc.
+# NEXT: NOTE(EXEC5), FINDVAC2 in EXECUTIVE.agc.
 # =========================================================================================
 		CA	PRIO20
 		TC	FINDVAC
@@ -613,12 +613,12 @@ REPIP4		EXTEND			# COMPUTE GUIDANCE PERIOD
 
 # Page 871
 # =========================================================================================
-# [1201/1202 ALARM TRACE -- STEP 12 OF 12]  (Modern annotation -- not part of the 1969 code)
-# WHY NOTHING WAS LOST.  REREADAC is the task the restart tables re-schedule (STEP 11).
-# The PIPA accelerometer registers are HARDWARE counters (like the radar CDUs of STEP 1,
+# NOTE(SERV12): WHY NOTHING WAS LOST.  (Modern annotation, not part of 1969 code.)
+# REREADAC is the task the restart tables re-schedule (NOTE(RSTAB11)).
+# The PIPA accelerometer registers are HARDWARE counters (like the radar CDUs of NOTE(ERAS1),
 # but doing honest work): they kept integrating velocity increments straight through the
 # restart.  REREADAC re-reads them, so the ~1 second of chaos cost the navigation state
-# nothing.  Net effect of one full pass through STEPS 5..12: PROG lamp + alarm code on the
+# nothing.  Net effect of one full pass through NOTES EXEC5..SERV12: PROG lamp + code on the
 # DSKY, queues cleaned, essential jobs rebuilt, zero data lost -- and Eagle kept flying.
 # Houston's verdict each time: "We're GO on that alarm."
 # =========================================================================================

@@ -38,33 +38,39 @@ this repository (`Luminary099/`, the actual flight software), with the timing ar
 
 ## Walking the trace directly in the source
 
-The twelve locations involved are annotated **in the `.agc` files themselves** with numbered,
+The twelve locations involved are annotated **in the `.agc` files themselves** with
 clearly-marked comment blocks (they are modern annotations, ignored by the yaYUL assembler
-and flagged as "not part of the 1969 code"). Find them all with:
+and flagged as "not part of 1969 code"). Each is tagged `NOTE(<SECTION><n>):` where
+`<SECTION>` is the module's own internal log-section name (the `$$/…` in its `COUNT*`
+directive) and `<n>` is the overall order of execution 1→12. Find them all with:
 
 ```bash
-grep -rn "ALARM TRACE -- STEP" Luminary099/
+grep -rn "NOTE(" Luminary099/*.agc
 ```
 
-Walk them in this order:
+Walk them in this order (the number is the global execution order; the section tag tells
+you which module you're in):
 
-| Step | File | Location | What happens there |
-| :--- | :--- | :------- | :----------------- |
-| 1 | `ERASABLE_ASSIGNMENTS.agc` | `CDUT`/`CDUS` | The radar counters where 15% of the CPU was stolen |
-| 2 | `WAITLIST.agc` | `T3RUPT` | The 10 ms hardware clock that never slowed down |
-| 3 | `SERVICER.agc` | `READACCS` | The punctual 2-second task |
-| 4 | `SERVICER.agc` | `CA PRIO20 / TC FINDVAC` | A new SERVICER requested every 2 s — the leak |
-| 5 | `EXECUTIVE.agc` | `FINDVAC2` | VAC-area scan → **`OCT 1201`** |
-| 6 | `EXECUTIVE.agc` | `NOVAC2`/`NEXTCORE` | Core-set scan → **`OCT 1202`** |
-| 7 | `ALARM_AND_ABORT.agc` | `BAILOUT1` | Alarm code stored, PROG lamp lit |
-| 8 | `ALARM_AND_ABORT.agc` | `WHIMPER` | The ripcord — jump to the software restart |
-| 9 | `FRESH_START_AND_RESTART.agc` | `ENEMA` | Software-restart entry point |
-| 10 | `FRESH_START_AND_RESTART.agc` | queue wipe | All core sets/VAC areas freed; stubs annihilated |
-| 11 | `RESTART_TABLES.agc` | `5.4SPOT` | The rebuild recipe: one `REREADAC` + one `SERVICER` |
-| 12 | `SERVICER.agc` | `REREADAC` | Hardware accelerometer counters re-read — no data lost |
+| Note | File (section) | Location | What happens there |
+| :--- | :------------- | :------- | :----------------- |
+| `NOTE(ERAS1)` | `ERASABLE_ASSIGNMENTS.agc` | `CDUT`/`CDUS` | The radar counters where 15% of the CPU was stolen |
+| `NOTE(WAIT2)` | `WAITLIST.agc` (`$$/WAIT`) | `T3RUPT` | The 10 ms hardware clock that never slowed down |
+| `NOTE(SERV3)` | `SERVICER.agc` (`$$/SERV`) | `READACCS` | The punctual 2-second task |
+| `NOTE(SERV4)` | `SERVICER.agc` (`$$/SERV`) | `CA PRIO20 / TC FINDVAC` | A new SERVICER requested every 2 s — the leak |
+| `NOTE(EXEC5)` | `EXECUTIVE.agc` (`$$/EXEC`) | `FINDVAC2` | VAC-area scan → **`OCT 1201`** |
+| `NOTE(EXEC6)` | `EXECUTIVE.agc` (`$$/EXEC`) | `NOVAC2`/`NEXTCORE` | Core-set scan → **`OCT 1202`** |
+| `NOTE(ALARM7)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `BAILOUT1` | Alarm code stored, PROG lamp lit |
+| `NOTE(ALARM8)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `WHIMPER` | The ripcord — jump to the software restart |
+| `NOTE(START9)` | `FRESH_START_AND_RESTART.agc` (`$$/START`) | `ENEMA` | Software-restart entry point |
+| `NOTE(START10)` | `FRESH_START_AND_RESTART.agc` (`$$/START`) | queue wipe | All core sets/VAC areas freed; stubs annihilated |
+| `NOTE(RSTAB11)` | `RESTART_TABLES.agc` (`$$/RSTAB`) | `5.4SPOT` | The rebuild recipe: one `REREADAC` + one `SERVICER` |
+| `NOTE(SERV12)` | `SERVICER.agc` (`$$/SERV`) | `REREADAC` | Hardware accelerometer counters re-read — no data lost |
 
-(Steps 7 and 8 appear in reverse physical order inside `ALARM_AND_ABORT.agc`; follow the
-step numbers, not the file order.)
+Note that execution is *interwoven*: it enters `SERVICER` (notes 3–4), jumps into
+`EXECUTIVE` (5–6), `ALARM_AND_ABORT` (7–8), `FRESH_START_AND_RESTART` (9–10),
+`RESTART_TABLES` (11), then lands back in `SERVICER` (12). Also, `NOTE(ALARM7)` and
+`NOTE(ALARM8)` appear in reverse physical order inside `ALARM_AND_ABORT.agc`; follow the
+note numbers, not the file order.
 
 ---
 

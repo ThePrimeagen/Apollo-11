@@ -279,13 +279,13 @@ SETINFL		CS	INTFLBIT
 		TCF	GOPROG3
 
 # =========================================================================================
-# [1201/1202 ALARM TRACE -- STEP 9 OF 12]  (Modern annotation -- not part of the 1969 code.)
-# THE SOFTWARE RESTART.  ENEMA is the entry point for restarts requested BY the software
+# NOTE(START9): THE SOFTWARE RESTART.  (Modern annotation, not part of 1969 code.)
+# ENEMA is the entry point for restarts requested BY the software
 # (vs. GOPROG above, entered from fixed address 4000 on a hardware "GOJAM").  STARTSB1/
 # STARTSB2 re-initialize the machine but deliberately DO NOT touch engine on/off, IMU
 # modes, or gyro enables -- the spacecraft keeps flying its last commands during the
-# rebuild.  Execution flows into the queue wipe (STEP 10) and then GOPROG3, which
-# verifies the phase tables and re-creates only what they demand (STEP 11).
+# rebuild.  Execution flows into the queue wipe (NOTE(START10)) and then GOPROG3, which
+# verifies the phase tables and re-creates only what they demand (NOTE(RSTAB11)).
 # =========================================================================================
 ENEMA		INHINT
 		TC	STARTSB1
@@ -482,13 +482,13 @@ STARTSB2	CAF	OCT30001	# DURING SOFTWARE RESTART, DO NOT DISTURB
 		TS	EBANK		# SET FOR E3
 
 # =========================================================================================
-# [1201/1202 ALARM TRACE -- STEP 10 OF 12]  (Modern annotation -- not part of the 1969 code)
-# ANNIHILATING THE QUEUES.  This block wipes the waitlist (LST1/LST2) and then frees ALL
+# NOTE(START10): ANNIHILATING THE QUEUES.  (Modern annotation, not part of 1969 code.)
+# This block wipes the waitlist (LST1/LST2) and then frees ALL
 # EIGHT core sets (PRIORITY +0 through +84D, 12 apart) and ALL FIVE VAC areas (VAC1USE..
 # VAC5USE).  Every zombie SERVICER stub that was hoarding memory dies here -- and so do
 # non-essential jobs like the crew's V16N68 monitor, which is why the DSKY snapped back
 # from NOUN 68 to NOUN 63 after each P63 alarm.  Accidental but effective load-shedding.
-# NEXT: STEP 11, the group-5 rebuild recipe at 5.4SPOT in RESTART_TABLES.agc.
+# NEXT: NOTE(RSTAB11), the group-5 rebuild recipe at 5.4SPOT in RESTART_TABLES.agc.
 # =========================================================================================
 		CAF	NEG1/2		# INITIALIZE WAITLIST DELTA-TS.
 		TS	LST1 +7

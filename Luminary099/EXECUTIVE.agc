@@ -131,14 +131,14 @@ FAKEPRET	ADRES	MPAC -36D	# LOC(MPAC +6) - LOC(QPRET)
 		BANK	01
 		COUNT*	$$/EXEC
 # =========================================================================================
-# [1201/1202 ALARM TRACE -- STEP 5 OF 12]  (Modern annotation -- not part of the 1969 code.)
-# FAILURE POINT #1 -- ALARM 1201.  A VAC job (like SERVICER) arrives here first.  The five
+# NOTE(EXEC5): FAILURE POINT #1 -- ALARM 1201.  (Modern annotation, not part of 1969 code.)
+# A VAC job (like SERVICER) arrives here first.  The five
 # CCS instructions below scan the VAC-area "use" flags (VAC1USE..VAC5USE); a positive value
 # means free.  If ALL FIVE are in use -- as happened once, at 102:42:18, ~3,000 ft above
 # the Moon -- the scan falls through to TC BAILOUT1 with code OCT 1201 ("NO VAC AREAS").
 # Note the order: VAC areas are checked BEFORE core sets, which is why a VAC-starved
 # request raises 1201 rather than 1202.
-# NEXT: STEP 6, NOVAC2 below (the core-set scan and alarm 1202).
+# NEXT: NOTE(EXEC6), NOVAC2 below (the core-set scan and alarm 1202).
 # =========================================================================================
 FINDVAC2	TS	EXECTEM1	# (SAVE CALLER'S BANK FIRST.)
 		CCS	VAC1USE
@@ -163,15 +163,15 @@ VACFOUND	AD	TWO		# RESERVE THIS VAC AREA BY STORING A ZERO
 		ADS	NEWPRIO
 
 # =========================================================================================
-# [1201/1202 ALARM TRACE -- STEP 6 OF 12]  (Modern annotation -- not part of the 1969 code.)
-# FAILURE POINT #2 -- ALARM 1202.  Every job needs one of the EIGHT core sets (12 words
+# NOTE(EXEC6): FAILURE POINT #2 -- ALARM 1202.  (Modern annotation, not part of 1969 code.)
+# Every job needs one of the EIGHT core sets (12 words
 # each).  The loop below probes each set's PRIORITY register (12 apart; -0 = free) --
 # NO.CORES = DEC 7 gives one initial probe plus 7 repeats = 8 sets scanned.  (The "SEVEN
 # SETS" comment below is stale; see COREINC = DEC 12 and the "EIGHT SETS OF 12 REGISTERS
 # EACH" declaration in ERASABLE_ASSIGNMENTS.agc.)  When all 8 were held -- four times
 # during the descent, first at 102:38:22 at ~33,500 ft -- NEXTCORE falls through to
 # TC BAILOUT1 with code OCT 1202 ("NO CORE SETS").
-# NEXT: STEP 7, BAILOUT1 in ALARM_AND_ABORT.agc.
+# NEXT: NOTE(ALARM7), BAILOUT1 in ALARM_AND_ABORT.agc.
 # =========================================================================================
 NOVAC2		CAF	ZERO		# NOVAC ENTERS HERE.  FIND A CORE SET.
 		TS	LOCCTR
