@@ -154,7 +154,42 @@ program counter. Times are in memory cycles (MCT ≈ 11.72 µs).
 
 ---
 
-## 5. Number bases and notation
+## 5. What a "word" is, and how big everything is
+
+The AGC does not use bytes. Its native unit is the **word**.
+
+| Property | Value |
+| :------- | :---- |
+| Data bits per word | **15** |
+| Parity bit | 1 (error checking; not usable by programs) |
+| Physical bits stored | **16** = 2 bytes |
+| Number representation | ones' complement: 1 sign bit + 14 magnitude bits |
+| Range of one word | −16383 to +16383, with both `+0` and `−0` |
+| Erasable memory (RAM) | 2,048 words = about 4 KB |
+| Fixed memory (ROM/rope) | 36,864 words = about 72 KB |
+
+A "double precision" value uses 2 words (28 magnitude bits), which is why vector and matrix
+math is expensive and needs the larger VAC workspace.
+
+### Sizes of the two scheduler resources
+
+Verified directly from this repository:
+
+| Resource | Size | Count | Source evidence |
+| :------- | :--- | :---- | :-------------- |
+| Core set | **12 words** | **8** | `COREINC DEC 12`; `ERASE +83D` marked "EIGHT SETS OF 12 REGISTERS EACH" |
+| VAC workspace | **43 words** | **5** | `VACn ERASE +42D` (offsets 0 through 42) |
+| VAC use flag | 1 word | 5 | `VACnUSE ERASE` |
+| VAC slot total | **44 words** | 5 | 5 slots × 44 = 220, matching the "(220D)" section comment |
+
+So one `SERVICER` copy holds **12 + 43 = 55 words** of working memory (56 words if you also
+count the one-word VAC use flag that marks the slot busy).
+
+In modern units, 55 words is about **103 bytes** of data, or **110 bytes** of physical storage
+including parity bits. The whole scheduler pool is 96 + 220 = **316 words**, roughly **15% of
+all 2,048 words of erasable memory**.
+
+## 6. Number bases and notation
 
 - Numbers written plainly in AGC source are **octal** (base 8). A trailing **`D`** means
   **decimal**: `+83D` = 83 decimal; `+84D` = 84 decimal.
@@ -165,7 +200,7 @@ program counter. Times are in memory cycles (MCT ≈ 11.72 µs).
 
 ---
 
-## 6. The three annotation trails in the source
+## 7. The three annotation trails in the source
 
 All are comment-only (ignored by the assembler) and can be listed with `grep`:
 

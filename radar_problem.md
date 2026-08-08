@@ -32,6 +32,21 @@ The exact loss was approximately:
 
 The flight software had been tested for roughly 10% unexplained time loss (`TLOSS`), not 15%.
 
+## What this cost was, and what it was not
+
+This is the single most misread part of the story, so state it precisely:
+
+- The radar consumed **time**: one 11.72-µs memory cycle per counter request.
+- The radar consumed **no memory**: each request incremented one already-existing counter word
+  (`CDUT` or `CDUS`). Nothing was allocated, so **zero words** leaked here.
+
+A `PINC`/`MINC` request is not a software instruction and not an interrupt. The processor
+simply pauses for one memory cycle while hardware updates the counter, then resumes. Nothing in
+the program can observe that the pause happened.
+
+All memory exhaustion came later, from unfinished jobs holding resources; see
+[`memory_leak.md`](memory_leak.md).
+
 ## Source trail
 
 Run:

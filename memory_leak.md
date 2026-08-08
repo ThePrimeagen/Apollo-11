@@ -17,9 +17,114 @@ Open the matching Vim tour with `:luafile memory_leak.lua`.
 Each `SERVICER` copy needs:
 
 - one of **8 core sets** (12 words each), and
-- one of **5 VAC areas** (44 words each), because it uses the Interpreter.
+- one of **5 VAC areas** (43-word workspace in a 44-word slot), because it uses the Interpreter.
 
 The only normal release happens after that copy finishes and reaches `ENDOFJOB`.
+
+## Why losing 15% of the CPU stopped a job from finishing
+
+### The radar stole time, not memory
+
+The radar counter traffic allocated **nothing**. Each `PINC`/`MINC` request incremented one
+existing fixed counter word (`CDUT` or `CDUS`) and consumed one 11.72-µs memory cycle. Memory
+use from the radar was exactly **zero words**. It was purely a *time* cost.
+
+All of the memory pressure came from the second mechanism on this page: unfinished jobs holding
+resources they had legitimately been given.
+
+### The duty-cycle budget
+
+"Duty cycle" here means the fraction of each 2-second period consumed by all jobs, tasks, and
+interrupts. Don Eyles gives the margins by flight phase:
+
+| Phase | Software duty cycle | Margin left |
+| :---- | :------------------ | :---------- |
+| P63 braking, before landing-radar lock | under 85% | over 15% |
+| After landing radar acquired | about 87% | about 13% |
+| With the crew's V16 N68 monitor added | about 90% or more | 10% or less |
+| P64 with landing-site redesignation | over 90% | under 10% |
+
+The radar drain was about **15%** of available computation time (MIT conservatively modeled
+13%). Put those together:
+
+```text
+software demand   90%  (P63 with the V16 N68 monitor running)
+radar time theft +15%
+                 ----
+total demand     105%   -> more work than the 2-second period contains
+```
+
+That is the entire answer to "why did it stop finishing." The demand for CPU time exceeded
+100% of real time. Something had to be late.
+
+### Why `SERVICER` specifically, and not any other job
+
+The overload did not target `SERVICER`. Priority scheduling decided who absorbed it.
+
+`SERVICER` runs at priority 20, the **lowest** of the landing jobs. Radar reads (32), keyboard
+input (30), the monitor display (about 30), and gyro compensation (21) all preempt it. Those
+higher-priority jobs are also short. So they continued to finish on time, and the entire
+shortfall landed on the one job at the bottom.
+
+Eyles states this directly: `SERVICER` "got last crack at the available computation time."
+
+### The same idea in seconds
+
+Illustrative arithmetic for one 2-second cycle at roughly 90% software demand and 15% theft
+(the percentages are sourced; this per-cycle breakdown is derived to make them concrete):
+
+```text
+wall-clock period                      2.000 s
+stolen by radar counter requests      -0.300 s   (15%)
+                                       -------
+time actually available to software    1.700 s
+work the software needed              ~1.800 s   (90%)
+                                       -------
+shortfall carried by SERVICER         ~0.100 s per cycle
+```
+
+A 0.1-second shortfall by itself would only make `SERVICER` finish slightly late. The failure
+comes from what happens at the 2.000-second mark: the timer fires regardless and allocates a
+**new** copy, while the late copy still holds its 55 words. The deficit is therefore paid in
+**allocations**, not merely in lateness, and it compounds every cycle.
+
+## Exact memory breakdown
+
+### Per unfinished copy
+
+| Item | Words | Bits (15 data) | Bytes (16 bits stored) |
+| :--- | ----: | -------------: | ---------------------: |
+| Core set | 12 | 180 | 24 |
+| VAC workspace | 43 | 645 | 86 |
+| **Held per copy** | **55** | **825** | **110** |
+
+Counting the one-word VAC use flag that is marked busy, the slot footprint is 56 words.
+
+### The whole pool
+
+| Pool | Calculation | Words |
+| :--- | :---------- | ----: |
+| Core sets | 8 × 12 | 96 |
+| VAC slots | 5 × 44 | 220 |
+| **Total scheduler pool** | | **316** |
+| All erasable memory | | 2,048 |
+
+The scheduler pool is about **15%** of the computer's entire RAM.
+
+### How exhaustion arrives
+
+Because `SERVICER` needs both resource types, **VAC areas are the tighter constraint**: only
+five copies can coexist. In practice the balance between the two determines which alarm fires:
+
+- a request that cannot get a VAC area raises **1201** (this happened once);
+- a request that cannot get a core set raises **1202** (this happened four times).
+
+Core sets are also consumed by other jobs, which is why core-set exhaustion was the more common
+outcome even though there are eight core sets and only five VAC areas.
+
+Growth is roughly one extra held pair per overloaded cycle. Starting from a few resources in
+normal use, only a handful of consecutive overloaded cycles are needed to exhaust the pool —
+consistent with the first 1202 arriving roughly 40 seconds after the crew keyed up V16 N68.
 
 ## Source trail
 
