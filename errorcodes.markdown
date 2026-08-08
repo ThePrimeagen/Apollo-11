@@ -36,6 +36,36 @@
 The rest of this document is a full trace of the exact execution path through the code in
 this repository (`Luminary099/`, the actual flight software), with the timing arithmetic.
 
+## Walking the trace directly in the source
+
+The twelve locations involved are annotated **in the `.agc` files themselves** with numbered,
+clearly-marked comment blocks (they are modern annotations, ignored by the yaYUL assembler
+and flagged as "not part of the 1969 code"). Find them all with:
+
+```bash
+grep -rn "ALARM TRACE -- STEP" Luminary099/
+```
+
+Walk them in this order:
+
+| Step | File | Location | What happens there |
+| :--- | :--- | :------- | :----------------- |
+| 1 | `ERASABLE_ASSIGNMENTS.agc` | `CDUT`/`CDUS` | The radar counters where 15% of the CPU was stolen |
+| 2 | `WAITLIST.agc` | `T3RUPT` | The 10 ms hardware clock that never slowed down |
+| 3 | `SERVICER.agc` | `READACCS` | The punctual 2-second task |
+| 4 | `SERVICER.agc` | `CA PRIO20 / TC FINDVAC` | A new SERVICER requested every 2 s — the leak |
+| 5 | `EXECUTIVE.agc` | `FINDVAC2` | VAC-area scan → **`OCT 1201`** |
+| 6 | `EXECUTIVE.agc` | `NOVAC2`/`NEXTCORE` | Core-set scan → **`OCT 1202`** |
+| 7 | `ALARM_AND_ABORT.agc` | `BAILOUT1` | Alarm code stored, PROG lamp lit |
+| 8 | `ALARM_AND_ABORT.agc` | `WHIMPER` | The ripcord — jump to the software restart |
+| 9 | `FRESH_START_AND_RESTART.agc` | `ENEMA` | Software-restart entry point |
+| 10 | `FRESH_START_AND_RESTART.agc` | queue wipe | All core sets/VAC areas freed; stubs annihilated |
+| 11 | `RESTART_TABLES.agc` | `5.4SPOT` | The rebuild recipe: one `REREADAC` + one `SERVICER` |
+| 12 | `SERVICER.agc` | `REREADAC` | Hardware accelerometer counters re-read — no data lost |
+
+(Steps 7 and 8 appear in reverse physical order inside `ALARM_AND_ABORT.agc`; follow the
+step numbers, not the file order.)
+
 ---
 
 ## 1. The clock: what a "memory cycle" actually is

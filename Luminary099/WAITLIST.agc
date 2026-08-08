@@ -375,7 +375,15 @@ WTLST2		TS	WAITTEMP	# C(A) = -(TD - T + 1)
 #	C(LST2+10)	=	2CADR TASK6
 
 # Page 1128
-# ENTERS HERE ON T3 RUPT TO DISPATCH WAITLISTED TASK.
+# =========================================================================================
+# [1201/1202 ALARM TRACE -- STEP 2 OF 12]  (Modern annotation -- not part of the 1969 code.)
+# THE CLOCK THAT KEPT PERFECT TIME.  TIME3 is a hardware counter ticking every 10 ms; when
+# it overflows, this T3RUPT interrupt fires and dispatches the next due waitlist task.
+# The radar theft (STEP 1) slowed down JOBS, but hardware counters are unaffected -- so
+# READACCS (STEP 3) kept being dispatched punctually every 2.000 seconds while the work
+# it scheduled fell further and further behind.
+# NEXT: STEP 3, READACCS in SERVICER.agc.
+# =========================================================================================
 
 T3RUPT		EXTEND
 		ROR	SUPERBNK	# READ CURRENT SUPERBANK VALUE AND

@@ -117,6 +117,18 @@ TIME6		EQUALS	31
 CDUX		EQUALS	32
 CDUY		EQUALS	33
 CDUZ		EQUALS	34
+# =========================================================================================
+# [1201/1202 ALARM TRACE -- STEP 1 OF 12]  (Modern annotation -- not part of the 1969 code.)
+# WHERE THE CPU TIME WAS STOLEN.  CDUT/CDUS below are HARDWARE COUNTERS: the rendezvous
+# radar coupling data units increment them via unprogrammed PINC/MINC sequences that seize
+# the memory bus for one memory cycle (11.72 microseconds) each -- no interrupt, invisible
+# to software.  With the RR mode switch in AUTO/SLEW, a random 800 Hz phase mismatch drove
+# both counters at their max rate of 6,400 pulses/sec each:
+#     2 x 6,400 x 11.72 us = 0.15 sec stolen per second = 15% of the computer.
+# No code in this listing "executes" the theft -- that is why it was so hard to diagnose.
+# NEXT: STEP 2, T3RUPT in WAITLIST.agc (the clock that never slowed down).
+# Full walkthrough: errorcodes.markdown.
+# =========================================================================================
 CDUT		EQUALS	35		# REND RADAR TRUNNION CDU
 CDUS		EQUALS	36		# REND RADAR SHAFT CDU
 PIPAX		EQUALS	37
