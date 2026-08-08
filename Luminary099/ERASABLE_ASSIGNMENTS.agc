@@ -117,18 +117,17 @@ TIME6		EQUALS	31
 CDUX		EQUALS	32
 CDUY		EQUALS	33
 CDUZ		EQUALS	34
-# =========================================================================================
-# NOTE(ERAS1): WHERE THE CPU TIME WAS STOLEN.  (Modern annotation, not part of 1969 code.)
-# CDUT/CDUS below are HARDWARE COUNTERS: the rendezvous
-# radar coupling data units increment them via unprogrammed PINC/MINC sequences that seize
-# the memory bus for one memory cycle (11.72 microseconds) each -- no interrupt, invisible
-# to software.  With the RR mode switch in AUTO/SLEW, a random 800 Hz phase mismatch drove
-# both counters at their max rate of 6,400 pulses/sec each:
-#     2 x 6,400 x 11.72 us = 0.15 sec stolen per second = 15% of the computer.
-# No code in this listing "executes" the theft -- that is why it was so hard to diagnose.
-# NEXT: NOTE(WAIT2), T3RUPT in WAITLIST.agc (the clock that never slowed down).
-# Full walkthrough: errorcodes.markdown.
-# =========================================================================================
+# -----------------------------------------------------------------------------------------
+# RADAR_PROBLEM4: THE COUNTERS THAT RECEIVED THE BOGUS PULSES.  (Modern annotation.)
+# CDUT and CDUS are hardware counters for the rendezvous-radar trunnion and shaft angles.
+# The out-of-phase ECDUs drove each counter at up to 6,400 PINC/MINC requests per second.
+# Each request stole one 11.72-us memory cycle without running a software instruction:
+#     2 counters x 6,400 requests/s x 11.72 us = 0.15 s/s = about 15% of the CPU.
+# This is the final source location in the radar trail.  The pulse generation itself is
+# external hardware, so there is no next instruction to point to in this repository.
+# NEXT STORY: MEMORY_LEAK1 in SERVICER.agc -- fixed demand meets the missing CPU time.
+# Explanation: radar_problem.md.  Navigation: radar_problem.lua.
+# -----------------------------------------------------------------------------------------
 CDUT		EQUALS	35		# REND RADAR TRUNNION CDU
 CDUS		EQUALS	36		# REND RADAR SHAFT CDU
 PIPAX		EQUALS	37

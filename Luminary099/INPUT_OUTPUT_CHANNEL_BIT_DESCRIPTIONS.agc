@@ -72,6 +72,15 @@
 
 #	CHANNEL 12	CHAN12; OUTPUT CHANNEL; BITS USED TO DRIVE NAVIGATION AND SPAECRAFT HARDWARE
 #
+# -----------------------------------------------------------------------------------------
+# RADAR_PROBLEM1: THE SOFTWARE/HARDWARE CONTROL WIRES.  (Modern annotation.)
+# Channel 12 bit 1 commands the rendezvous-radar CDUs to zero; bit 2 enables their error
+# counters.  These bits prove that the radar angle conversion happened outside normal code:
+# software could gate or zero the hardware, but the external ECDUs generated the individual
+# PINC/MINC counter requests.  Apollo 11's software did not know that AUTO/SLEW could expose
+# the ECDUs to two frequency-locked but phase-mismatched 800-Hz references.
+# NEXT: RADAR_PROBLEM2, RRAUTCHK in T4RUPT_PROGRAM.agc.
+# -----------------------------------------------------------------------------------------
 #	  BIT 1		ZERO RR CDU; CDU'S GIVE RRADAR INFORMATION FOR LM
 #	  BIT 2		ENABLE CDU RADAR ERROR COUNTERS
 #	  BIT 3		NOT USED

@@ -278,15 +278,15 @@ SETINFL		CS	INTFLBIT
 		WOR	DSALMOUT	# TURN ENGINE OFF
 		TCF	GOPROG3
 
-# =========================================================================================
-# NOTE(START11): THE SOFTWARE RESTART.  (Modern annotation, not part of 1969 code.)
+# -----------------------------------------------------------------------------------------
+# ALARM_RECOVERY9: ENTER THE SOFTWARE RESTART.  (Modern annotation.)
 # ENEMA is the entry point for restarts requested BY the software
 # (vs. GOPROG above, entered from fixed address 4000 on a hardware "GOJAM").  STARTSB1/
 # STARTSB2 re-initialize the machine but deliberately DO NOT touch engine on/off, IMU
 # modes, or gyro enables -- the spacecraft keeps flying its last commands during the
-# rebuild.  Execution flows into the queue wipe (NOTE(START12)) and then GOPROG3, which
-# verifies the phase tables and re-creates only what they demand (NOTE(RSTAB13)).
-# =========================================================================================
+# rebuild.  Execution flows into the queue wipe and then GOPROG3.
+# NEXT: ALARM_RECOVERY10, the queue/resource wipe below.
+# -----------------------------------------------------------------------------------------
 ENEMA		INHINT
 		TC	STARTSB1
 		TCF	GOPROG2A
@@ -481,15 +481,15 @@ STARTSB2	CAF	OCT30001	# DURING SOFTWARE RESTART, DO NOT DISTURB
 		CAF	STARTEB
 		TS	EBANK		# SET FOR E3
 
-# =========================================================================================
-# NOTE(START12): ANNIHILATING THE QUEUES.  (Modern annotation, not part of 1969 code.)
+# -----------------------------------------------------------------------------------------
+# ALARM_RECOVERY10: WIPE THE QUEUES AND FREE EVERY RESOURCE.  (Modern annotation.)
 # This block wipes the waitlist (LST1/LST2) and then frees ALL
 # EIGHT core sets (PRIORITY +0 through +84D, 12 apart) and ALL FIVE VAC areas (VAC1USE..
 # VAC5USE).  Every zombie SERVICER stub that was hoarding memory dies here -- and so do
 # non-essential jobs like the crew's V16N68 monitor, which is why the DSKY snapped back
 # from NOUN 68 to NOUN 63 after each P63 alarm.  Accidental but effective load-shedding.
-# NEXT: NOTE(RSTAB13), the group-5 rebuild recipe at 5.4SPOT in RESTART_TABLES.agc.
-# =========================================================================================
+# NEXT: ALARM_RECOVERY11, 5.4SPOT in RESTART_TABLES.agc.
+# -----------------------------------------------------------------------------------------
 		CAF	NEG1/2		# INITIALIZE WAITLIST DELTA-TS.
 		TS	LST1 +7
 		TS	LST1 +6

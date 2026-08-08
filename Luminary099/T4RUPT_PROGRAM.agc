@@ -1109,6 +1109,15 @@ GLOCKOK		EQUALS	RESUME
 #
 # EXIT:  RRCDUCHK, NORRGMON
 
+# -----------------------------------------------------------------------------------------
+# RADAR_PROBLEM2: SOFTWARE SEES "RR AUTO/POWER ON," NOT THE PHASE ERROR.  (Modern annotation.)
+# Every 480 ms RRAUTCHK compares the remembered radar-mode bit with channel 33 bit 2.  It can
+# detect on/off or AUTO-mode changes, update RADMODES, and start the normal zero/turn-on
+# sequence.  It cannot measure the phase relationship between the ATCA's 800-Hz excitation
+# and the PSA/CDU 800-Hz reference -- the hidden condition that created the bogus pulses.
+# Thus all software-visible status could look valid while the ECDUs stole CPU cycles.
+# NEXT: RADAR_PROBLEM3, RRZEROSB in P20-P25.agc.
+# -----------------------------------------------------------------------------------------
 RRAUTCHK	CA	RADMODES			# SEE IF CHANGE IN RR AUTO MODE BIT.
 		EXTEND
 		RXOR	CHAN33
