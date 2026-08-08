@@ -69,6 +69,14 @@ BIBIBIAS	TC	PIPASR +3	# CLEAR + READ PIPS LAST TIME IN FRE5+F133
 		2CADR	NORMLIZE
 
 		CA	TWO		# 5.2SPOT FOR REREADAC AND NORMLIZE
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK1: THE RELENTLESS DEMAND.  (Modern annotation, not part of 1969 code.)
+# CA 2SECS / TC VARDELAY (just below) re-arms the READACCS task to fire again in exactly
+# 2.00 seconds.  This is UNCONDITIONAL -- it never waits for, or even checks, the SERVICER
+# job the previous cycle started.  So the RATE of new-job requests is fixed by the clock, no
+# matter how far behind the actual computation has fallen.  This steady demand feeds the leak.
+# NEXT (leak): MEMORY_LEAK2, the FINDVAC request for a fresh SERVICER (in READACCS below).
+# -----------------------------------------------------------------------------------------
 GOREADAX	TC	GNUTFAZ5
 		CA	2SECS		# WAIT TWO SECONDS FOR READACCS
 		TC	VARDELAY
@@ -115,6 +123,13 @@ REDO5.5		CAF	ONE
 # dry inside the Executive's allocator.
 # NEXT: NOTE(EXEC5), FINDVAC2 in EXECUTIVE.agc.
 # =========================================================================================
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK2: ALLOCATE A BRAND-NEW JOB EVERY CYCLE.  (Modern annotation, not 1969 code.)
+# Each READACCS calls FINDVAC to create a FRESH copy of SERVICER.  FINDVAC will give this new
+# copy its own private memory (a VAC area + a core set).  Nothing here reuses, or waits for,
+# the previous copy's memory -- if that copy has not finished, its memory is simply still held.
+# NEXT (leak): MEMORY_LEAK3, FINDVAC reserving the VAC area (VACFOUND in EXECUTIVE.agc).
+# -----------------------------------------------------------------------------------------
 		CA	PRIO20
 		TC	FINDVAC
 		EBANK=	DVCNTR
@@ -613,12 +628,12 @@ REPIP4		EXTEND			# COMPUTE GUIDANCE PERIOD
 
 # Page 871
 # =========================================================================================
-# NOTE(SERV12): WHY NOTHING WAS LOST.  (Modern annotation, not part of 1969 code.)
-# REREADAC is the task the restart tables re-schedule (NOTE(RSTAB11)).
+# NOTE(SERV14): WHY NOTHING WAS LOST.  (Modern annotation, not part of 1969 code.)
+# REREADAC is the task the restart tables re-schedule (NOTE(RSTAB13)).
 # The PIPA accelerometer registers are HARDWARE counters (like the radar CDUs of NOTE(ERAS1),
 # but doing honest work): they kept integrating velocity increments straight through the
 # restart.  REREADAC re-reads them, so the ~1 second of chaos cost the navigation state
-# nothing.  Net effect of one full pass through NOTES EXEC5..SERV12: PROG lamp + code on the
+# nothing.  Net effect of one full pass through NOTES EXEC5..SERV14: PROG lamp + code on the
 # DSKY, queues cleaned, essential jobs rebuilt, zero data lost -- and Eagle kept flying.
 # Houston's verdict each time: "We're GO on that alarm."
 # =========================================================================================

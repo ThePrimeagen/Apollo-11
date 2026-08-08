@@ -63,6 +63,14 @@ PRIOENT		CA	BBANK
 LARMENT		CA	Q		# STORE RETURN FOR ALARM
 		TS	ITEMP1
 
+# =========================================================================================
+# NOTE(ALARM8): STORE THE CODE.  (Modern annotation, not part of 1969 code.)
+# CHKFAIL1 scans the three FAILREG alarm registers for a free slot and drops the code (in L)
+# into the first empty one -- so up to three distinct alarms can be remembered and read out
+# by the crew with VERB 05 NOUN 09.  On the first alarm FAILREG is empty, so it stores and
+# jumps to PROGLARM.  (Reached from NOTE(ALARM7), which is BELOW this block near line 221.)
+# NEXT: NOTE(ALARM9), PROGLARM (below) -- light the PROG lamp.
+# =========================================================================================
 CHKFAIL1	CCS	FAILREG		# IS ANYTHING IN FAILREG
 		TCF	CHKFAIL2	# YES TRY NEXT REG
 		LXCH	FAILREG
@@ -82,6 +90,13 @@ FAIL3		CA	FAILREG +2
 
 # Page 1382
 
+# =========================================================================================
+# NOTE(ALARM9): LIGHT THE PROG LAMP.  (Modern annotation, not part of 1969 code.)
+# PROGLARM sets the alarm bit in the DSKY lamp table (DSPTAB +11D) -- THIS is the instant
+# the yellow PROG light came on in front of Aldrin.  Control then falls into MULTEXIT, whose
+# INDEX A / TC 1 return lands back at WHIMPER (below) to force the software restart.
+# NEXT: NOTE(ALARM10), WHIMPER -- pull the ripcord (further down the file, near line 167).
+# =========================================================================================
 PROGLARM	CS	DSPTAB +11D
 		MASK	OCT40400
 		ADS	DSPTAB +11D
@@ -141,12 +156,12 @@ BAILOUT		INHINT
 OCT40400	OCT	40400
 
 # =========================================================================================
-# NOTE(ALARM8): PULLING THE RIPCORD.  (Modern annotation, not part of 1969 code.)
-# WHIMPER deliberately triggers the same recovery path as a hardware
-# glitch: it jumps (via POSTJUMP) to ENEMA in FRESH_START_AND_RESTART.agc -- a SOFTWARE
-# RESTART.  This is the design, largely driven by restart-protection work done a year
-# before the flight, that turned a fatal-looking overload into a ~1-second hiccup.
-# NEXT: NOTE(START9), ENEMA in FRESH_START_AND_RESTART.agc.
+# NOTE(ALARM10): PULLING THE RIPCORD.  (Modern annotation, not part of 1969 code.)
+# Reached from NOTE(ALARM9) via MULTEXIT.  WHIMPER deliberately triggers the same recovery
+# path as a hardware glitch: it jumps (via POSTJUMP) to ENEMA in FRESH_START_AND_RESTART.agc
+# -- a SOFTWARE RESTART.  This is the design, largely driven by restart-protection work done
+# a year before the flight, that turned a fatal-looking overload into a ~1-second hiccup.
+# NEXT: NOTE(START11), ENEMA in FRESH_START_AND_RESTART.agc.
 # =========================================================================================
 		INHINT
 WHIMPER		CA	TWO
@@ -195,13 +210,13 @@ OCT217		OCT	00217
 		TC	ALMCADR		# RETURN TO USER
 
 # =========================================================================================
-# NOTE(ALARM7): RECORDING THE ALARM.  (Modern annotation, not part of 1969 code.)
+# NOTE(ALARM7): CATCH THE ALARM CODE.  (Modern annotation, not part of 1969 code.)
 # The Executive lands here when it cannot allocate (NOTE(EXEC5)/NOTE(EXEC6)).  The
 # INDEX Q / CAF 0 sequence picks up the OCT 1201 / OCT 1202 word placed right after the
-# caller's TC BAILOUT1.  Control then runs CHKFAIL1 (above): the code is stored in the
-# first free FAILREG register and PROGLARM sets the alarm bit in DSPTAB +11D -- THAT is
-# the moment the yellow PROG lamp lit in front of Aldrin.  The crew read the code back
-# with VERB 05 NOUN 09.  Execution then proceeds to WHIMPER (NOTE(ALARM8)) to force restart.
+# caller's TC BAILOUT1, leaving the alarm code in L, then jumps to CHKFAIL1.
+# (Heads up: the next two locations, CHKFAIL1 and PROGLARM, sit PHYSICALLY ABOVE this block
+# near lines 74 and 100 -- follow the NOTE numbers, not the file order.)
+# NEXT: NOTE(ALARM8), CHKFAIL1 (above) -- store the code.
 # =========================================================================================
 BAILOUT1	INHINT
 		DXCH	ALMCADR

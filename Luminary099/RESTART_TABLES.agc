@@ -255,14 +255,14 @@ SIZETAB		TC	1.2SPOT -12006
 	       -2CADR	REREADAC
 
 # =========================================================================================
-# NOTE(RSTAB11): THE REBUILD RECIPE.  (Modern annotation, not part of 1969 code.)
+# NOTE(RSTAB13): THE REBUILD RECIPE.  (Modern annotation, not part of 1969 code.)
 # During landing, restart group 5 sits at phase 5.4 (registered by
-# READACCS itself).  After the queue wipe (NOTE(START10)), GOPROG3 walks the phase tables and
+# READACCS itself).  After the queue wipe (NOTE(START12)), GOPROG3 walks the phase tables and
 # re-creates EXACTLY this:  one REREADAC waitlist task due in 200 centiseconds (2.00 s,
 # the DEC 200 below), and ONE fresh SERVICER job at priority 20 (the OCT 20000 below).
 # All the accumulated stubs are simply... not in the recipe.  Guidance resumes with the
 # newest data and a clean queue.
-# NEXT: NOTE(SERV12), REREADAC in SERVICER.agc (why no navigation data was lost).
+# NEXT: NOTE(SERV14), REREADAC in SERVICER.agc (why no navigation data was lost).
 # =========================================================================================
 5.4SPOT		DEC	200
 		EBANK=	DVCNTR

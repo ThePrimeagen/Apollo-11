@@ -38,15 +38,21 @@ this repository (`Luminary099/`, the actual flight software), with the timing ar
 
 ## Walking the trace directly in the source
 
-The twelve locations involved are annotated **in the `.agc` files themselves** with
+The fourteen locations involved are annotated **in the `.agc` files themselves** with
 clearly-marked comment blocks (they are modern annotations, ignored by the yaYUL assembler
 and flagged as "not part of 1969 code"). Each is tagged `NOTE(<SECTION><n>):` where
 `<SECTION>` is the module's own internal log-section name (the `$$/…` in its `COUNT*`
-directive) and `<n>` is the overall order of execution 1→12. Find them all with:
+directive) and `<n>` is the overall order of execution 1→14. Find them all with:
 
 ```bash
 grep -rn "NOTE(" Luminary099/*.agc
 ```
+
+> There is also a **separate, narrower trail** that annotates *only* the resource leak (the
+> jobs-not-finishing mechanic), tagged `MEMORY_LEAK1`…`MEMORY_LEAK5`. To follow just that
+> action in isolation, run `grep -rn "MEMORY_LEAK[0-9]" Luminary099/*.agc`. For a jargon-free
+> overview see [`walkthrough.md`](walkthrough.md), and for every term/instruction/constant see
+> [`definitions.md`](definitions.md).
 
 Walk them in this order (the number is the global execution order; the section tag tells
 you which module you're in):
@@ -59,18 +65,22 @@ you which module you're in):
 | `NOTE(SERV4)` | `SERVICER.agc` (`$$/SERV`) | `CA PRIO20 / TC FINDVAC` | A new SERVICER requested every 2 s — the leak |
 | `NOTE(EXEC5)` | `EXECUTIVE.agc` (`$$/EXEC`) | `FINDVAC2` | VAC-area scan → **`OCT 1201`** |
 | `NOTE(EXEC6)` | `EXECUTIVE.agc` (`$$/EXEC`) | `NOVAC2`/`NEXTCORE` | Core-set scan → **`OCT 1202`** |
-| `NOTE(ALARM7)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `BAILOUT1` | Alarm code stored, PROG lamp lit |
-| `NOTE(ALARM8)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `WHIMPER` | The ripcord — jump to the software restart |
-| `NOTE(START9)` | `FRESH_START_AND_RESTART.agc` (`$$/START`) | `ENEMA` | Software-restart entry point |
-| `NOTE(START10)` | `FRESH_START_AND_RESTART.agc` (`$$/START`) | queue wipe | All core sets/VAC areas freed; stubs annihilated |
-| `NOTE(RSTAB11)` | `RESTART_TABLES.agc` (`$$/RSTAB`) | `5.4SPOT` | The rebuild recipe: one `REREADAC` + one `SERVICER` |
-| `NOTE(SERV12)` | `SERVICER.agc` (`$$/SERV`) | `REREADAC` | Hardware accelerometer counters re-read — no data lost |
+| `NOTE(ALARM7)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `BAILOUT1` | Catch the alarm code (from the word after the caller's `TC`) |
+| `NOTE(ALARM8)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `CHKFAIL1` | Store the code in the first free `FAILREG` slot |
+| `NOTE(ALARM9)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `PROGLARM` | Light the PROG lamp on the DSKY |
+| `NOTE(ALARM10)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `WHIMPER` | The ripcord — jump to the software restart |
+| `NOTE(START11)` | `FRESH_START_AND_RESTART.agc` (`$$/START`) | `ENEMA` | Software-restart entry point |
+| `NOTE(START12)` | `FRESH_START_AND_RESTART.agc` (`$$/START`) | queue wipe | All core sets/VAC areas freed; stubs annihilated |
+| `NOTE(RSTAB13)` | `RESTART_TABLES.agc` (`$$/RSTAB`) | `5.4SPOT` | The rebuild recipe: one `REREADAC` + one `SERVICER` |
+| `NOTE(SERV14)` | `SERVICER.agc` (`$$/SERV`) | `REREADAC` | Hardware accelerometer counters re-read — no data lost |
 
 Note that execution is *interwoven*: it enters `SERVICER` (notes 3–4), jumps into
-`EXECUTIVE` (5–6), `ALARM_AND_ABORT` (7–8), `FRESH_START_AND_RESTART` (9–10),
-`RESTART_TABLES` (11), then lands back in `SERVICER` (12). Also, `NOTE(ALARM7)` and
-`NOTE(ALARM8)` appear in reverse physical order inside `ALARM_AND_ABORT.agc`; follow the
-note numbers, not the file order.
+`EXECUTIVE` (5–6), `ALARM_AND_ABORT` (7–10), `FRESH_START_AND_RESTART` (11–12),
+`RESTART_TABLES` (13), then lands back in `SERVICER` (14). Inside `ALARM_AND_ABORT.agc` the
+notes are *not* in file order: execution enters at `NOTE(ALARM7)` (`BAILOUT1`, low in the
+file), jumps up to `NOTE(ALARM8)` (`CHKFAIL1`) and `NOTE(ALARM9)` (`PROGLARM`) near the top,
+then returns to `NOTE(ALARM10)` (`WHIMPER`) in the middle. Follow the note numbers, not the
+file order.
 
 ---
 

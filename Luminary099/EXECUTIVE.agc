@@ -114,6 +114,16 @@ PRIOCHNG	INHINT			# NEW PRIORITY ARRIVES IN A.  RETURNS TO
 
 # TO REMOVE A JOB FROM EXECUTIVE CONSIDERATIONS:
 
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK5: THE RELEASE THAT ARRIVES TOO LATE.  (Modern annotation, not 1969 code.)
+# ENDOFJOB is the ONLY way a job hands its memory back.  It jumps to ENDJOB1 (line ~392),
+# where XCH PRIORITY sets this core set's PRIORITY back to -0 (free) and the VAC use-flag is
+# restored to a positive (free) value.  THE LEAK IS SIMPLY THIS: a SERVICER that has not
+# finished has not reached here, so its VAC area (MEMORY_LEAK3) and core set (MEMORY_LEAK4)
+# stay claimed.  Each overloaded 2-second cycle leaks one more set.  When the free pool hits
+# zero, the next MEMORY_LEAK2 request cannot be filled -> alarm 1201/1202 (NOTE(EXEC5/EXEC6)).
+# END OF LEAK TRACE.
+# -----------------------------------------------------------------------------------------
 ENDOFJOB	CAF	EXECBANK
 		TS	FBANK
 		TCF	ENDJOB1
@@ -156,6 +166,13 @@ FINDVAC2	TS	EXECTEM1	# (SAVE CALLER'S BANK FIRST.)
 		TC	BAILOUT1
 		OCT	1201		# NO VAC AREAS.
 
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK3: RESERVE (CLAIM) A VAC AREA.  (Modern annotation, not part of 1969 code.)
+# The scan above found a free VAC area.  VACFOUND now CLAIMS it by writing 0 into its use-flag
+# (VACnUSE), marking it busy.  From this instant the VAC area belongs to this SERVICER copy
+# and will not be handed out again until the copy releases it at ENDOFJOB (MEMORY_LEAK5).
+# NEXT (leak): MEMORY_LEAK4, reserving the core set (CORFOUND below).
+# -----------------------------------------------------------------------------------------
 VACFOUND	AD	TWO		# RESERVE THIS VAC AREA BY STORING A ZERO
 		ZL			# IN ITS VAC USE REGISTER AND STORE THE
 		INDEX	A		# ADDRESS OF THE FIRST WORD OF IT IN THE
@@ -185,6 +202,13 @@ NO.CORES	DEC	7
 					# BUT A DORMANT JOB'S PRIORITY IS NEGATIVE
 
 # Page 1107
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK4: RESERVE (CLAIM) A CORE SET.  (Modern annotation, not part of 1969 code.)
+# CORFOUND writes this job's (positive) priority into the core set's PRIORITY register,
+# marking that 12-word block busy.  The copy now holds BOTH resources (VAC area + core set).
+# In steady state it would soon reach ENDOFJOB and give them back; under overload it does not.
+# NEXT (leak): MEMORY_LEAK5, the release path at ENDOFJOB -- the step that fails to run in time.
+# -----------------------------------------------------------------------------------------
 CORFOUND	CA	NEWPRIO		# SET THE PRIORITY OF THIS JOB IN THE CORE
 		INDEX	LOCCTR		# SET'S PRIORITY REGISTER AND SET THE
 		TS	PRIORITY	# JOB'S PUSH-DOWN POINTER AT THE BEGINNING
