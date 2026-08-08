@@ -69,6 +69,14 @@ BIBIBIAS	TC	PIPASR +3	# CLEAR + READ PIPS LAST TIME IN FRE5+F133
 		2CADR	NORMLIZE
 
 		CA	TWO		# 5.2SPOT FOR REREADAC AND NORMLIZE
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK1: THE RELENTLESS DEMAND.  (Modern annotation, not part of 1969 code.)
+# CA 2SECS / TC VARDELAY (just below) re-arms the READACCS task to fire again in exactly
+# 2.00 seconds.  This is UNCONDITIONAL -- it never waits for, or even checks, the SERVICER
+# job the previous cycle started.  So the RATE of new-job requests is fixed by the clock, no
+# matter how far behind the actual computation has fallen.  This steady demand feeds the leak.
+# NEXT (leak): MEMORY_LEAK2, the FINDVAC request for a fresh SERVICER (in READACCS below).
+# -----------------------------------------------------------------------------------------
 GOREADAX	TC	GNUTFAZ5
 		CA	2SECS		# WAIT TWO SECONDS FOR READACCS
 		TC	VARDELAY
@@ -115,6 +123,13 @@ REDO5.5		CAF	ONE
 # dry inside the Executive's allocator.
 # NEXT: NOTE(EXEC5), FINDVAC2 in EXECUTIVE.agc.
 # =========================================================================================
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK2: ALLOCATE A BRAND-NEW JOB EVERY CYCLE.  (Modern annotation, not 1969 code.)
+# Each READACCS calls FINDVAC to create a FRESH copy of SERVICER.  FINDVAC will give this new
+# copy its own private memory (a VAC area + a core set).  Nothing here reuses, or waits for,
+# the previous copy's memory -- if that copy has not finished, its memory is simply still held.
+# NEXT (leak): MEMORY_LEAK3, FINDVAC reserving the VAC area (VACFOUND in EXECUTIVE.agc).
+# -----------------------------------------------------------------------------------------
 		CA	PRIO20
 		TC	FINDVAC
 		EBANK=	DVCNTR

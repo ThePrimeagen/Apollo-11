@@ -48,6 +48,12 @@ directive) and `<n>` is the overall order of execution 1→14. Find them all wit
 grep -rn "NOTE(" Luminary099/*.agc
 ```
 
+> There is also a **separate, narrower trail** that annotates *only* the resource leak (the
+> jobs-not-finishing mechanic), tagged `MEMORY_LEAK1`…`MEMORY_LEAK5`. To follow just that
+> action in isolation, run `grep -rn "MEMORY_LEAK[0-9]" Luminary099/*.agc`. For a jargon-free
+> overview see [`walkthrough.md`](walkthrough.md), and for every term/instruction/constant see
+> [`definitions.md`](definitions.md).
+
 Walk them in this order (the number is the global execution order; the section tag tells
 you which module you're in):
 
