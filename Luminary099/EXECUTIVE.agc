@@ -114,16 +114,6 @@ PRIOCHNG	INHINT			# NEW PRIORITY ARRIVES IN A.  RETURNS TO
 
 # TO REMOVE A JOB FROM EXECUTIVE CONSIDERATIONS:
 
-# -----------------------------------------------------------------------------------------
-# MEMORY_LEAK5: THE RELEASE THAT ARRIVES TOO LATE.  (Modern annotation, not 1969 code.)
-# ENDOFJOB is the ONLY way a job hands its memory back.  It jumps to ENDJOB1 (line ~392),
-# where XCH PRIORITY sets this core set's PRIORITY back to -0 (free) and the VAC use-flag is
-# restored to a positive (free) value.  THE LEAK IS SIMPLY THIS: a SERVICER that has not
-# finished has not reached here, so its VAC area (MEMORY_LEAK3) and core set (MEMORY_LEAK4)
-# stay claimed.  Each overloaded 2-second cycle leaks one more set.  When the free pool hits
-# zero, the next MEMORY_LEAK2 request cannot be filled -> alarm 1201/1202 (NOTE(EXEC5/EXEC6)).
-# END OF LEAK TRACE.
-# -----------------------------------------------------------------------------------------
 ENDOFJOB	CAF	EXECBANK
 		TS	FBANK
 		TCF	ENDJOB1
@@ -140,16 +130,14 @@ FAKEPRET	ADRES	MPAC -36D	# LOC(MPAC +6) - LOC(QPRET)
 
 		BANK	01
 		COUNT*	$$/EXEC
-# =========================================================================================
-# NOTE(EXEC5): FAILURE POINT #1 -- ALARM 1201.  (Modern annotation, not part of 1969 code.)
-# A VAC job (like SERVICER) arrives here first.  The five
-# CCS instructions below scan the VAC-area "use" flags (VAC1USE..VAC5USE); a positive value
-# means free.  If ALL FIVE are in use -- as happened once, at 102:42:18, ~3,000 ft above
-# the Moon -- the scan falls through to TC BAILOUT1 with code OCT 1201 ("NO VAC AREAS").
-# Note the order: VAC areas are checked BEFORE core sets, which is why a VAC-starved
-# request raises 1201 rather than 1202.
-# NEXT: NOTE(EXEC6), NOVAC2 below (the core-set scan and alarm 1202).
-# =========================================================================================
+# -----------------------------------------------------------------------------------------
+# ALARM_RECOVERY1: ALTERNATIVE A -- SCAN ALL FIVE VAC AREAS.  (Modern annotation.)
+# A VAC job enters FINDVAC2 first.  Each CCS tests one VACnUSE flag.  A positive value means
+# free and branches to VACFOUND.  If all five tests fail, execution falls through to the
+# 1201 path.  Only one alternative occurs per failed request: VAC exhaustion (steps 1-2) or
+# core-set exhaustion (steps 3-4); both join at ALARM_RECOVERY5.
+# NEXT: ALARM_RECOVERY2, the OCT 1201 inline alarm code below.
+# -----------------------------------------------------------------------------------------
 FINDVAC2	TS	EXECTEM1	# (SAVE CALLER'S BANK FIRST.)
 		CCS	VAC1USE
 		TCF	VACFOUND
@@ -161,17 +149,23 @@ FINDVAC2	TS	EXECTEM1	# (SAVE CALLER'S BANK FIRST.)
 		TCF	VACFOUND
 		CCS	VAC5USE
 		TCF	VACFOUND
+# -----------------------------------------------------------------------------------------
+# ALARM_RECOVERY2: ALTERNATIVE A -- REPORT "NO VAC AREAS" AS 1201.  (Modern annotation.)
+# Reaching this line proves all five VAC areas are busy.  TC BAILOUT1 calls the shared alarm
+# path; the following OCT 1201 is inline data that BAILOUT1 reads as the alarm code.
+# CONTINUE: ALARM_RECOVERY5, BAILOUT1 in ALARM_AND_ABORT.agc.
+# -----------------------------------------------------------------------------------------
 		LXCH	EXECTEM1
 		CA	Q
 		TC	BAILOUT1
 		OCT	1201		# NO VAC AREAS.
 
 # -----------------------------------------------------------------------------------------
-# MEMORY_LEAK3: RESERVE (CLAIM) A VAC AREA.  (Modern annotation, not part of 1969 code.)
+# MEMORY_LEAK5: RESERVE (CLAIM) A VAC AREA.  (Modern annotation.)
 # The scan above found a free VAC area.  VACFOUND now CLAIMS it by writing 0 into its use-flag
 # (VACnUSE), marking it busy.  From this instant the VAC area belongs to this SERVICER copy
-# and will not be handed out again until the copy releases it at ENDOFJOB (MEMORY_LEAK5).
-# NEXT (leak): MEMORY_LEAK4, reserving the core set (CORFOUND below).
+# and will not be handed out again until the copy releases it at MEMORY_LEAK9.
+# NEXT: MEMORY_LEAK6, CORFOUND below reserves the core set.
 # -----------------------------------------------------------------------------------------
 VACFOUND	AD	TWO		# RESERVE THIS VAC AREA BY STORING A ZERO
 		ZL			# IN ITS VAC USE REGISTER AND STORE THE
@@ -179,17 +173,13 @@ VACFOUND	AD	TWO		# RESERVE THIS VAC AREA BY STORING A ZERO
 		LXCH	0 	-1	# LOW NINE BITS OF THE PRIORITY WORD.
 		ADS	NEWPRIO
 
-# =========================================================================================
-# NOTE(EXEC6): FAILURE POINT #2 -- ALARM 1202.  (Modern annotation, not part of 1969 code.)
-# Every job needs one of the EIGHT core sets (12 words
-# each).  The loop below probes each set's PRIORITY register (12 apart; -0 = free) --
-# NO.CORES = DEC 7 gives one initial probe plus 7 repeats = 8 sets scanned.  (The "SEVEN
-# SETS" comment below is stale; see COREINC = DEC 12 and the "EIGHT SETS OF 12 REGISTERS
-# EACH" declaration in ERASABLE_ASSIGNMENTS.agc.)  When all 8 were held -- four times
-# during the descent, first at 102:38:22 at ~33,500 ft -- NEXTCORE falls through to
-# TC BAILOUT1 with code OCT 1202 ("NO CORE SETS").
-# NEXT: NOTE(ALARM7), BAILOUT1 in ALARM_AND_ABORT.agc.
-# =========================================================================================
+# -----------------------------------------------------------------------------------------
+# ALARM_RECOVERY3: ALTERNATIVE B -- SCAN ALL EIGHT CORE SETS.  (Modern annotation.)
+# Every job needs one 12-word core set.  NOVAC3 tests the PRIORITY word at each 12-word
+# offset; -0 means free.  NO.CORES = 7 means one initial test plus seven repeats: eight sets.
+# If all are busy, NEXTCORE falls through to the 1202 path.
+# NEXT: ALARM_RECOVERY4, the OCT 1202 inline alarm code below.
+# -----------------------------------------------------------------------------------------
 NOVAC2		CAF	ZERO		# NOVAC ENTERS HERE.  FIND A CORE SET.
 		TS	LOCCTR
 		CAF	NO.CORES	# SEVEN SETS OF ELEVEN REGISTERS EACH.
@@ -203,11 +193,11 @@ NO.CORES	DEC	7
 
 # Page 1107
 # -----------------------------------------------------------------------------------------
-# MEMORY_LEAK4: RESERVE (CLAIM) A CORE SET.  (Modern annotation, not part of 1969 code.)
+# MEMORY_LEAK6: RESERVE (CLAIM) A CORE SET.  (Modern annotation.)
 # CORFOUND writes this job's (positive) priority into the core set's PRIORITY register,
 # marking that 12-word block busy.  The copy now holds BOTH resources (VAC area + core set).
-# In steady state it would soon reach ENDOFJOB and give them back; under overload it does not.
-# NEXT (leak): MEMORY_LEAK5, the release path at ENDOFJOB -- the step that fails to run in time.
+# In steady state it reaches ENDOFJOB and gives them back; under overload it may not.
+# NEXT: MEMORY_LEAK7, SERVICER in SERVICER.agc begins the long priority-20 job.
 # -----------------------------------------------------------------------------------------
 CORFOUND	CA	NEWPRIO		# SET THE PRIORITY OF THIS JOB IN THE CORE
 		INDEX	LOCCTR		# SET'S PRIORITY REGISTER AND SET THE
@@ -247,6 +237,12 @@ NEXTCORE	CAF	COREINC
 		ADS	LOCCTR
 		CCS	EXECTEM2
 		TCF	NOVAC3
+# -----------------------------------------------------------------------------------------
+# ALARM_RECOVERY4: ALTERNATIVE B -- REPORT "NO CORE SETS" AS 1202.  (Modern annotation.)
+# Reaching this line proves all eight core sets are busy.  TC BAILOUT1 calls the shared alarm
+# path; the following OCT 1202 is inline data that BAILOUT1 reads as the alarm code.
+# CONTINUE: ALARM_RECOVERY5, BAILOUT1 in ALARM_AND_ABORT.agc.
+# -----------------------------------------------------------------------------------------
 		LXCH	EXECTEM1
 		CA	Q
 		TC	BAILOUT1	# NO CORE SETS AVAILABLE.
@@ -413,6 +409,14 @@ PRIOCH2		TS	LOC
 # Page 1113
 # RELEASE THIS CORE SET AND VAC AREA AND SCAN FOR THE JOB OF HIGHEST ACTIVE PRIORITY.
 
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK9: THE ACTUAL RELEASE -- REACHED ONLY AFTER SERVICER FINISHES.  (Modern note.)
+# ENDOFJOB transfers here.  XCH PRIORITY replaces this core set's priority with -0 (free).
+# For a VAC job, the computed indexed TS 0 below restores the VAC use-word to a positive
+# free value.  If an old SERVICER has not reached this routine when the next cycle allocates
+# another copy, both of its resources remain claimed: that is the entire leak.
+# END OF MEMORY-LEAK TRACE.  NEXT STORY: ALARM_RECOVERY1/3 when allocation finally fails.
+# -----------------------------------------------------------------------------------------
 ENDJOB1		INHINT
 		CS	ZERO
 		TS	BUF 	+1

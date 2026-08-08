@@ -375,15 +375,15 @@ WTLST2		TS	WAITTEMP	# C(A) = -(TD - T + 1)
 #	C(LST2+10)	=	2CADR TASK6
 
 # Page 1128
-# =========================================================================================
-# NOTE(WAIT2): THE CLOCK THAT KEPT PERFECT TIME.  (Modern annotation, not part of 1969 code.)
-# TIME3 is a hardware counter ticking every 10 ms; when
-# it overflows, this T3RUPT interrupt fires and dispatches the next due waitlist task.
-# The radar theft (NOTE(ERAS1)) slowed down JOBS, but hardware counters are unaffected -- so
-# READACCS (NOTE(SERV3)) kept being dispatched punctually every 2.000 seconds while the work
-# it scheduled fell further and further behind.
-# NEXT: NOTE(SERV3), READACCS in SERVICER.agc.
-# =========================================================================================
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK2: THE TIMER DISPATCHES ON SCHEDULE.  (Modern annotation.)
+# TIME3 is a hardware counter ticking every 10 ms.  Its overflow enters T3RUPT and dispatches
+# the due WAITLIST task.  The radar stole instruction time, not timer ticks, so this dispatch
+# remained punctual: READACCS was called every 2.00 seconds even when the old SERVICER job
+# still had unfinished work and still owned its memory.
+# PREVIOUS: MEMORY_LEAK1, the 2-second re-arm in SERVICER.agc.
+# NEXT: MEMORY_LEAK3, READACCS in SERVICER.agc.
+# -----------------------------------------------------------------------------------------
 
 T3RUPT		EXTEND
 		ROR	SUPERBNK	# READ CURRENT SUPERBANK VALUE AND

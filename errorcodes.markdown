@@ -36,51 +36,21 @@
 The rest of this document is a full trace of the exact execution path through the code in
 this repository (`Luminary099/`, the actual flight software), with the timing arithmetic.
 
-## Walking the trace directly in the source
+## Focused source trails
 
-The fourteen locations involved are annotated **in the `.agc` files themselves** with
-clearly-marked comment blocks (they are modern annotations, ignored by the yaYUL assembler
-and flagged as "not part of 1969 code"). Each is tagged `NOTE(<SECTION><n>):` where
-`<SECTION>` is the module's own internal log-section name (the `$$/…` in its `COUNT*`
-directive) and `<n>` is the overall order of execution 1→14. Find them all with:
+This document is the older consolidated technical reference. For learning the source, use the
+new three-part order in [`table_of_contents.md`](table_of_contents.md):
 
-```bash
-grep -rn "NOTE(" Luminary099/*.agc
-```
+1. [`radar_problem.md`](radar_problem.md) + `radar_problem.lua`:
+   `RADAR_PROBLEM1…4`;
+2. [`memory_leak.md`](memory_leak.md) + `memory_leak.lua`:
+   `MEMORY_LEAK1…9`;
+3. [`alarm_recovery.md`](alarm_recovery.md) + `alarm_recovery.lua`:
+   `ALARM_RECOVERY1…12`.
 
-> There is also a **separate, narrower trail** that annotates *only* the resource leak (the
-> jobs-not-finishing mechanic), tagged `MEMORY_LEAK1`…`MEMORY_LEAK5`. To follow just that
-> action in isolation, run `grep -rn "MEMORY_LEAK[0-9]" Luminary099/*.agc`. For a jargon-free
-> overview see [`walkthrough.md`](walkthrough.md), and for every term/instruction/constant see
-> [`definitions.md`](definitions.md).
-
-Walk them in this order (the number is the global execution order; the section tag tells
-you which module you're in):
-
-| Note | File (section) | Location | What happens there |
-| :--- | :------------- | :------- | :----------------- |
-| `NOTE(ERAS1)` | `ERASABLE_ASSIGNMENTS.agc` | `CDUT`/`CDUS` | The radar counters where 15% of the CPU was stolen |
-| `NOTE(WAIT2)` | `WAITLIST.agc` (`$$/WAIT`) | `T3RUPT` | The 10 ms hardware clock that never slowed down |
-| `NOTE(SERV3)` | `SERVICER.agc` (`$$/SERV`) | `READACCS` | The punctual 2-second task |
-| `NOTE(SERV4)` | `SERVICER.agc` (`$$/SERV`) | `CA PRIO20 / TC FINDVAC` | A new SERVICER requested every 2 s — the leak |
-| `NOTE(EXEC5)` | `EXECUTIVE.agc` (`$$/EXEC`) | `FINDVAC2` | VAC-area scan → **`OCT 1201`** |
-| `NOTE(EXEC6)` | `EXECUTIVE.agc` (`$$/EXEC`) | `NOVAC2`/`NEXTCORE` | Core-set scan → **`OCT 1202`** |
-| `NOTE(ALARM7)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `BAILOUT1` | Catch the alarm code (from the word after the caller's `TC`) |
-| `NOTE(ALARM8)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `CHKFAIL1` | Store the code in the first free `FAILREG` slot |
-| `NOTE(ALARM9)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `PROGLARM` | Light the PROG lamp on the DSKY |
-| `NOTE(ALARM10)` | `ALARM_AND_ABORT.agc` (`$$/ALARM`) | `WHIMPER` | The ripcord — jump to the software restart |
-| `NOTE(START11)` | `FRESH_START_AND_RESTART.agc` (`$$/START`) | `ENEMA` | Software-restart entry point |
-| `NOTE(START12)` | `FRESH_START_AND_RESTART.agc` (`$$/START`) | queue wipe | All core sets/VAC areas freed; stubs annihilated |
-| `NOTE(RSTAB13)` | `RESTART_TABLES.agc` (`$$/RSTAB`) | `5.4SPOT` | The rebuild recipe: one `REREADAC` + one `SERVICER` |
-| `NOTE(SERV14)` | `SERVICER.agc` (`$$/SERV`) | `REREADAC` | Hardware accelerometer counters re-read — no data lost |
-
-Note that execution is *interwoven*: it enters `SERVICER` (notes 3–4), jumps into
-`EXECUTIVE` (5–6), `ALARM_AND_ABORT` (7–10), `FRESH_START_AND_RESTART` (11–12),
-`RESTART_TABLES` (13), then lands back in `SERVICER` (14). Inside `ALARM_AND_ABORT.agc` the
-notes are *not* in file order: execution enters at `NOTE(ALARM7)` (`BAILOUT1`, low in the
-file), jumps up to `NOTE(ALARM8)` (`CHKFAIL1`) and `NOTE(ALARM9)` (`PROGLARM`) near the top,
-then returns to `NOTE(ALARM10)` (`WHIMPER`) in the middle. Follow the note numbers, not the
-file order.
+Each marker identifies one precise source location. The three separate quickfix lists prevent
+the initiating radar fault, the job-resource leak, and the alarm/restart response from being
+mixed into a single traversal.
 
 ---
 
@@ -232,9 +202,9 @@ Now put §2, §3 and §4 together. This is the precise loop that generated each 
    at ~30, gyro compensation at 21) — all of which are also running ~15% slow.
 3. At T+2.00 exactly (hardware clock, unaffected by TLOSS), `READACCS` fires again and
    calls `FINDVAC` → SERVICER copy **B** gets a *second* core set and VAC area, because
-   copy A **has not reached `ENDOFJOB` and still owns its memory**. Copy A is now a zombie
-   "stub": at priority 20 it will never again out-rank the fresh copy B working on newer
-   data.
+   copy A **has not reached `ENDOFJOB` and still owns its memory**. Copy A is now a stale
+   "stub": newer work is more relevant, but the old copy remains queued and retains its
+   resources (and under some later scheduling conditions could resume).
 4. Each cycle the deficit repeats. With the landing load at ~87–90% + 15% stolen ≈ 102–105%
    of real time, every 2-second cycle leaks roughly one more held-but-unfinished allocation.
    Within tens of seconds the free pool (8 core sets / 5 VAC areas, minus those legitimately

@@ -1681,6 +1681,15 @@ RRTURNON	TC	RRZEROSB
 #
 # EXIT:  L +1 (ALWAYS)
 
+# -----------------------------------------------------------------------------------------
+# RADAR_PROBLEM3: NORMAL ZEROING ENDS; EXTERNAL COUNTER INPUTS ARE LIVE.  (Modern annotation.)
+# RRZEROSB asserts channel 12 bit 1, clears CDUT/CDUS, then removes the zero command at the
+# WAND CHAN12 below.  That is normal radar startup.  Once zeroing is removed, the ECDUs may
+# update the angle counters.  In AUTO/SLEW on Apollo 11, the mismatched 800-Hz references
+# made those external updates race at their maximum rate even though no useful angle change
+# existed.  Luminary 099 has no guard here for that phase-mismatch condition.
+# NEXT: RADAR_PROBLEM4, CDUT/CDUS in ERASABLE_ASSIGNMENTS.agc.
+# -----------------------------------------------------------------------------------------
 RRZEROSB	EXTEND
 		QXCH	RRRET
 		CAF	BIT1		# BIT 13 OF RADMODES MUST BE SET BEFORE

@@ -75,7 +75,7 @@ BIBIBIAS	TC	PIPASR +3	# CLEAR + READ PIPS LAST TIME IN FRE5+F133
 # 2.00 seconds.  This is UNCONDITIONAL -- it never waits for, or even checks, the SERVICER
 # job the previous cycle started.  So the RATE of new-job requests is fixed by the clock, no
 # matter how far behind the actual computation has fallen.  This steady demand feeds the leak.
-# NEXT (leak): MEMORY_LEAK2, the FINDVAC request for a fresh SERVICER (in READACCS below).
+# NEXT: MEMORY_LEAK2, T3RUPT in WAITLIST.agc dispatches that scheduled task.
 # -----------------------------------------------------------------------------------------
 GOREADAX	TC	GNUTFAZ5
 		CA	2SECS		# WAIT TWO SECONDS FOR READACCS
@@ -84,16 +84,14 @@ GOREADAX	TC	GNUTFAZ5
 # Page 858
 # ************* READACCS ****************
 
-# =========================================================================================
-# NOTE(SERV3): THE 2-SECOND HEARTBEAT.  (Modern annotation, not part of 1969 code.)
-# READACCS is the waitlist task dispatched by T3RUPT (NOTE(WAIT2)).
-# It reads the accelerometers (TC PIPASR below), schedules the big SERVICER job (NOTE(SERV4)),
-# then unconditionally re-schedules ITSELF 2 seconds ahead (CA 2SECS / TC VARDELAY, via
-# MAKEACCS/GOREADAX above).  Nothing here checks whether the PREVIOUS SERVICER finished --
-# per George Cherry: the clock "ineluctably counts down to the time for the next repetition
-# of a job to begin whether the previous repetition is complete or not."
-# NEXT: NOTE(SERV4), the FINDVAC call just below.
-# =========================================================================================
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK3: READACCS STARTS ANOTHER GUIDANCE CYCLE.  (Modern annotation.)
+# T3RUPT dispatches this short task on schedule.  READACCS reads the PIPA accelerometer
+# counters, then asks the Executive to create another SERVICER.  It does not look for an
+# older SERVICER or ask whether that older copy reached ENDOFJOB.
+# PREVIOUS: MEMORY_LEAK2, T3RUPT in WAITLIST.agc.
+# NEXT: MEMORY_LEAK4, the TC FINDVAC call below.
+# -----------------------------------------------------------------------------------------
 READACCS	CS	OCT37771	# THIS PIECE OF CODING ATTEMPTS TO
 		AD	TIME5		# SYNCHRONIZE READACCS WITH THE DIGITAL
 		CCS	A		# AUTOPILOT SO THAT A PAXIS RUPT WILL
@@ -112,23 +110,12 @@ PIPSDONE	CA	FIVE
 REDO5.5		CAF	ONE
 		TS	PIPAGE
 
-# =========================================================================================
-# NOTE(SERV4): THE LEAK.  (Modern annotation, not part of 1969 code.)
-# Every 2 seconds this call asks the Executive for a BRAND NEW copy of SERVICER
-# (priority 20, lowest and longest job of the landing).  With ~15% of the CPU stolen
-# (NOTE(ERAS1)) plus the crew's V16N68 monitor and P64's redesignation load, the previous
-# SERVICER had often NOT reached ENDOFJOB -- so it still owned a core set and a VAC area.
-# The old copy becomes a "stub" that will never run again, and its memory stays claimed.
-# One extra stub leaks roughly every cycle until the pool (8 core sets / 5 VAC areas) runs
-# dry inside the Executive's allocator.
-# NEXT: NOTE(EXEC5), FINDVAC2 in EXECUTIVE.agc.
-# =========================================================================================
 # -----------------------------------------------------------------------------------------
-# MEMORY_LEAK2: ALLOCATE A BRAND-NEW JOB EVERY CYCLE.  (Modern annotation, not 1969 code.)
+# MEMORY_LEAK4: ALLOCATE A BRAND-NEW JOB EVERY CYCLE.  (Modern annotation.)
 # Each READACCS calls FINDVAC to create a FRESH copy of SERVICER.  FINDVAC will give this new
 # copy its own private memory (a VAC area + a core set).  Nothing here reuses, or waits for,
 # the previous copy's memory -- if that copy has not finished, its memory is simply still held.
-# NEXT (leak): MEMORY_LEAK3, FINDVAC reserving the VAC area (VACFOUND in EXECUTIVE.agc).
+# NEXT: MEMORY_LEAK5, VACFOUND in EXECUTIVE.agc reserves the VAC area.
 # -----------------------------------------------------------------------------------------
 		CA	PRIO20
 		TC	FINDVAC
@@ -208,6 +195,14 @@ OCT37771	OCT	37771
 # Page 860
 # ************* SERVICER ****************
 
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK7: THE LONG, LOW-PRIORITY JOB BEGINS.  (Modern annotation.)
+# This new SERVICER owns the VAC area and core set claimed at MEMORY_LEAK5/6.  It must run
+# navigation, guidance, throttle/attitude output, and displays.  Priority 20 lets radar,
+# keyboard, and other higher-priority work preempt it.  With 15% of CPU time already stolen,
+# this copy may still be running when the next 2-second cycle starts another copy.
+# NEXT: MEMORY_LEAK8, SERVEXIT -- the finish point it is trying to reach.
+# -----------------------------------------------------------------------------------------
 SERVICER	TC	PHASCHNG	# RESTART REREADAC + SERVICER
 		OCT	16035
 		OCT	20000
@@ -477,6 +472,13 @@ SVEXTADR	2CADR	SERVEXIT
 SERVEXIT	TC	PHASCHNG
 		OCT	00035
 
+# -----------------------------------------------------------------------------------------
+# MEMORY_LEAK8: SERVICER'S INTENDED FINISH.  (Modern annotation.)
+# A completed SERVICER reaches this TCF ENDOFJOB.  Under overload, an older copy can fail to
+# reach this line before MEMORY_LEAK1..4 creates a newer copy.  Until it reaches this call,
+# its core set and VAC area cannot be returned to the Executive.
+# NEXT: MEMORY_LEAK9, ENDOFJOB/ENDJOB1 in EXECUTIVE.agc performs the actual release.
+# -----------------------------------------------------------------------------------------
 +2		TCF	ENDOFJOB
 
 		BANK	23
@@ -627,16 +629,13 @@ REPIP4		EXTEND			# COMPUTE GUIDANCE PERIOD
 		TC	Q
 
 # Page 871
-# =========================================================================================
-# NOTE(SERV14): WHY NOTHING WAS LOST.  (Modern annotation, not part of 1969 code.)
-# REREADAC is the task the restart tables re-schedule (NOTE(RSTAB13)).
-# The PIPA accelerometer registers are HARDWARE counters (like the radar CDUs of NOTE(ERAS1),
-# but doing honest work): they kept integrating velocity increments straight through the
-# restart.  REREADAC re-reads them, so the ~1 second of chaos cost the navigation state
-# nothing.  Net effect of one full pass through NOTES EXEC5..SERV14: PROG lamp + code on the
-# DSKY, queues cleaned, essential jobs rebuilt, zero data lost -- and Eagle kept flying.
-# Houston's verdict each time: "We're GO on that alarm."
-# =========================================================================================
+# -----------------------------------------------------------------------------------------
+# ALARM_RECOVERY12: RE-READ THE ACCELEROMETERS; NO NAVIGATION DATA WAS LOST.  (Modern note.)
+# The restart table re-schedules REREADAC.  PIPAX/Y/Z are hardware counters and continued
+# accumulating velocity increments during the restart.  This code reads those accumulated
+# values and resumes the 2-second guidance cycle with a clean queue and current sensor data.
+# END OF ALARM/RECOVERY TRACE.
+# -----------------------------------------------------------------------------------------
 REREADAC	CCS	PIPAGE
 		TCF	READACCS	# PIP READING NOT STARTED.  GO TO BEGINNING
 

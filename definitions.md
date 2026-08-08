@@ -1,10 +1,10 @@
 # Definitions — Everything You Need to Read the Apollo 11 Alarm Trace
 
-This is a glossary for the 1201/1202 alarm investigation. It is meant to be read alongside
-[`errorcodes.markdown`](errorcodes.markdown) (the code trace), [`walkthrough.md`](walkthrough.md)
-(the plain-English overview), and the `NOTE(...)`/`MEMORY_LEAK...` comments in
-`Luminary099/*.agc`. If you hit a word, an acronym, an assembly instruction, or a hard-coded
-number you don't recognize, it should be in one of the tables below.
+This is the first required document in the
+[`table_of_contents.md`](table_of_contents.md) reading order. It is the glossary for all three
+focused traces: [`radar_problem.md`](radar_problem.md), [`memory_leak.md`](memory_leak.md), and
+[`alarm_recovery.md`](alarm_recovery.md). If you hit a word, acronym, assembly instruction, or
+hard-coded number you don't recognize, it should be in one of the tables below.
 
 ---
 
@@ -118,7 +118,7 @@ program counter. Times are in memory cycles (MCT ≈ 11.72 µs).
 | `ADRES` / `GENADR` / `FCADR` | Other forms of address constants. |
 | `EBANK= / FBANK / BBANK` | Set/track the erasable-bank / fixed-bank / both-bank so the 15-bit machine can reach its full memory via banking. |
 | `BANK` / `SETLOC` | Select a fixed-memory bank / set the assembly location. |
-| `COUNT*` | Bookkeeping directive that tags following code to a named log section (`$$/EXEC`, `$$/SERV`, …). These names are the source of the `NOTE(<SECTION><n>)` tags. |
+| `COUNT*` | Bookkeeping directive that tags following code to a named log section (`$$/EXEC`, `$$/SERV`, …). |
 | `BLOCK` | Selects a memory block for the following code. |
 
 ---
@@ -154,7 +154,42 @@ program counter. Times are in memory cycles (MCT ≈ 11.72 µs).
 
 ---
 
-## 5. Number bases and notation
+## 5. What a "word" is, and how big everything is
+
+The AGC does not use bytes. Its native unit is the **word**.
+
+| Property | Value |
+| :------- | :---- |
+| Data bits per word | **15** |
+| Parity bit | 1 (error checking; not usable by programs) |
+| Physical bits stored | **16** = 2 bytes |
+| Number representation | ones' complement: 1 sign bit + 14 magnitude bits |
+| Range of one word | −16383 to +16383, with both `+0` and `−0` |
+| Erasable memory (RAM) | 2,048 words = about 4 KB |
+| Fixed memory (ROM/rope) | 36,864 words = about 72 KB |
+
+A "double precision" value uses 2 words (28 magnitude bits), which is why vector and matrix
+math is expensive and needs the larger VAC workspace.
+
+### Sizes of the two scheduler resources
+
+Verified directly from this repository:
+
+| Resource | Size | Count | Source evidence |
+| :------- | :--- | :---- | :-------------- |
+| Core set | **12 words** | **8** | `COREINC DEC 12`; `ERASE +83D` marked "EIGHT SETS OF 12 REGISTERS EACH" |
+| VAC workspace | **43 words** | **5** | `VACn ERASE +42D` (offsets 0 through 42) |
+| VAC use flag | 1 word | 5 | `VACnUSE ERASE` |
+| VAC slot total | **44 words** | 5 | 5 slots × 44 = 220, matching the "(220D)" section comment |
+
+So one `SERVICER` copy holds **12 + 43 = 55 words** of working memory (56 words if you also
+count the one-word VAC use flag that marks the slot busy).
+
+In modern units, 55 words is about **103 bytes** of data, or **110 bytes** of physical storage
+including parity bits. The whole scheduler pool is 96 + 220 = **316 words**, roughly **15% of
+all 2,048 words of erasable memory**.
+
+## 6. Number bases and notation
 
 - Numbers written plainly in AGC source are **octal** (base 8). A trailing **`D`** means
   **decimal**: `+83D` = 83 decimal; `+84D` = 84 decimal.
@@ -165,11 +200,12 @@ program counter. Times are in memory cycles (MCT ≈ 11.72 µs).
 
 ---
 
-## 6. The two annotation trails in the source
+## 7. The three annotation trails in the source
 
-Both are comment-only (ignored by the assembler) and can be listed with `grep`:
+All are comment-only (ignored by the assembler) and can be listed with `grep`:
 
 | Trail | Grep | What it traces |
 | :---- | :--- | :------------- |
-| `NOTE(<SECTION><n>)` | `grep -rn "NOTE(" Luminary099/*.agc` | The full 14-step path from radar theft → alarm → restart → recovery. |
-| `MEMORY_LEAK<n>` | `grep -rn "MEMORY_LEAK[0-9]" Luminary099/*.agc` | **Only** the resource-leak mechanic: demand → allocate → claim VAC → claim core set → (missing) release. |
+| `RADAR_PROBLEM<n>` | `grep -rn "RADAR_PROBLEM[0-9]" Luminary099/*.agc` | External radar control, mode monitoring, zero release, and the counters receiving bogus pulses. |
+| `MEMORY_LEAK<n>` | `grep -rn "MEMORY_LEAK[0-9]" Luminary099/*.agc` | Fixed demand → dispatch → allocate → claim VAC/core → late release. |
+| `ALARM_RECOVERY<n>` | `grep -rn "ALARM_RECOVERY[0-9]" Luminary099/*.agc` | Resource scans → 1201/1202 → alarm display → restart → recovery. |
