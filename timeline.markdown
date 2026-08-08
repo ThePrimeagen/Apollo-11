@@ -4,6 +4,10 @@ This is a second-by-second reconstruction of the five guidance-computer program 
 during the Apollo 11 lunar landing on **20 July 1969**, including the exact air-to-ground
 voice exchanges, altitudes, and descent rates.
 
+For the causal/source-code reading order, start with
+[`table_of_contents.md`](table_of_contents.md). This file is the mission-time companion to the
+three focused technical explanations.
+
 ## How to read the times
 
 - **GET** = *Ground Elapsed Time* (mission time), format `HH:MM:SS`, counted from launch

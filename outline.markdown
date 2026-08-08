@@ -1,5 +1,8 @@
 # Repository Outline: Apollo-11
 
+For the focused Apollo 11 1201/1202 alarm investigation, begin with
+[`table_of_contents.md`](table_of_contents.md).
+
 ## What this repository is
 
 This is the **original Apollo 11 Guidance Computer (AGC) source code** — the actual assembly

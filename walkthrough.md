@@ -1,9 +1,10 @@
 # High-Level Walkthrough — What Actually Happened to the Apollo 11 Computer
 
-This is the plain-English overview. No assembly required. If a term is unfamiliar, it's
-defined in [`definitions.md`](definitions.md). For the line-by-line code trace see
-[`errorcodes.markdown`](errorcodes.markdown); for the minute-by-minute timeline see
-[`timeline.markdown`](timeline.markdown).
+This is the plain-English overview. No assembly required. For the intended learning sequence,
+start at [`table_of_contents.md`](table_of_contents.md), then read
+[`definitions.md`](definitions.md), [`radar_problem.md`](radar_problem.md),
+[`memory_leak.md`](memory_leak.md), and [`alarm_recovery.md`](alarm_recovery.md). For the
+minute-by-minute mission timeline, see [`timeline.markdown`](timeline.markdown).
 
 ---
 
@@ -69,14 +70,15 @@ launch a **new** `SERVICER` before the **previous** one had finished.
 
 ### 3. The memory leak
 
-Here is the heart of it (traced in the source under `MEMORY_LEAK1`…`MEMORY_LEAK5`):
+Here is the heart of it (traced in the source under `MEMORY_LEAK1`…`MEMORY_LEAK9`):
 
 - A job only gives back its core set and VAC area when it **finishes** (reaches a point called
   `ENDOFJOB`).
 - An overloaded `SERVICER` hadn't finished — so it still **held** its core set and VAC area.
 - The timer launched a fresh `SERVICER` anyway, which grabbed **another** core set and VAC area.
-- The old, unfinished copy became a useless "stub" that would never run again but never let go
-  of its memory.
+- The old, unfinished copy became a stale "stub" that retained its memory. It could remain
+  queued (and under some later load patterns could even resume), but it had not completed the
+  current guidance cycle before a newer copy was created.
 
 Every overloaded 2-second cycle leaked one more set of scratchpad memory. It was only a matter
 of time before the pool ran dry.
@@ -137,16 +139,16 @@ team owned — amplified into a computer overload. The fixes were equally system
 
 ---
 
-## The two trails in the code
+## The three focused trails in the code
 
-You can walk the actual flight software two ways. Both are comment-only annotations added for
-this exploration (they don't change how the program assembles), and both are greppable:
+The source annotations are divided by concern. They don't change how the program assembles:
 
 | Goal | Command | You'll see |
 | :--- | :------ | :--------- |
-| The **whole story**, radar → alarm → restart → recovery (14 steps) | `grep -rn "NOTE(" Luminary099/*.agc` | `NOTE(ERAS1)` … `NOTE(SERV14)` |
-| **Only the memory leak** (5 steps) | `grep -rn "MEMORY_LEAK[0-9]" Luminary099/*.agc` | `MEMORY_LEAK1` … `MEMORY_LEAK5` |
+| Radar/time-theft cause | `grep -rn "RADAR_PROBLEM[0-9]" Luminary099/*.agc` | `RADAR_PROBLEM1` … `RADAR_PROBLEM4` |
+| Unfinished-job memory leak | `grep -rn "MEMORY_LEAK[0-9]" Luminary099/*.agc` | `MEMORY_LEAK1` … `MEMORY_LEAK9` |
+| Exhaustion detection, alarm, restart, recovery | `grep -rn "ALARM_RECOVERY[0-9]" Luminary099/*.agc` | `ALARM_RECOVERY1` … `ALARM_RECOVERY12` |
 
-Reading order for the full picture: this file → [`definitions.md`](definitions.md) →
-[`errorcodes.markdown`](errorcodes.markdown) (code trace) → [`timeline.markdown`](timeline.markdown)
-(the minute-by-minute events and the famous "We're Go on that alarm" exchange).
+Each has a matching quickfix file: `radar_problem.lua`, `memory_leak.lua`, and
+`alarm_recovery.lua`. The canonical reading order is in
+[`table_of_contents.md`](table_of_contents.md).
