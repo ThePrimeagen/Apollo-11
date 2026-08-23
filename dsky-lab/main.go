@@ -1,14 +1,14 @@
 // dsky-lab: a standalone terminal DSKY, replaying the Apollo 11 descent
 // displays so you can watch the monitor work:
 //
-//   d — the crew keys V37E 63E: P63 engages, V06 N63 shows velocity,
-//       altitude-rate and altitude ticking once per second; ALT + VEL burn
-//       until the landing radar locks
-//   n — Buzz keys V16N68E: R1 slant range, R2 time-to-go, R3 DELTAH
-//       refreshing at 1Hz with COMP ACTY pulsing on each computation
-//   a — executive overflow: PROG lights, RESTART flashes, the unprotected
-//       monitor is dropped and the display snaps back to V06 N63
-//   r — RSET clears the caution lamps · q — quit
+//	d — the crew keys V37E 63E: P63 engages, V06 N63 shows velocity,
+//	    altitude-rate and altitude ticking once per second; ALT + VEL burn
+//	    until the landing radar locks
+//	n — Buzz keys V16N68E: R1 slant range, R2 time-to-go, R3 DELTAH
+//	    refreshing at 1Hz with COMP ACTY pulsing on each computation
+//	a — executive overflow: PROG lights, RESTART flashes, the unprotected
+//	    monitor is dropped and the display snaps back to V06 N63
+//	r — RSET clears the caution lamps · q — quit
 package main
 
 import (
