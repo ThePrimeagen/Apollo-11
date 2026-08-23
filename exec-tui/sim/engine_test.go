@@ -569,8 +569,10 @@ func TestHistoricalScenario(t *testing.T) {
 		e.AdvanceAGC(2000)
 		e.AcquireLandingRadar()
 		e.AdvanceAGC(2000)
+		// Aldrin types at a human pace: one key every ~200ms.
 		for _, k := range []byte("V16N68E") {
 			e.PressKey(k)
+			e.AdvanceAGC(200)
 		}
 		e.AdvanceAGC(4000)
 		if len(e.Alarms()) != 0 {
