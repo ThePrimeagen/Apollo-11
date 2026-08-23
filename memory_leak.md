@@ -124,7 +124,8 @@ outcome even though there are eight core sets and only five VAC areas.
 
 Growth is roughly one extra held pair per overloaded cycle. Starting from a few resources in
 normal use, only a handful of consecutive overloaded cycles are needed to exhaust the pool —
-consistent with the first 1202 arriving roughly 40 seconds after the crew keyed up V16 N68.
+consistent with the first 1202 arriving roughly **12–18 seconds** (six to nine 2-second
+cycles) after the crew keyed up V16 N68 (keyed ~102:38:04, alarm at 102:38:22).
 
 ## Source trail
 

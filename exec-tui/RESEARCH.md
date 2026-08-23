@@ -72,7 +72,7 @@ alarms only while the monitor (or extra typing) was up, quiet after each restart
 `EXECUTIVE.agc` `SETLOC` lets a new job preempt only a *strictly greater* priority, and
 the `EJSCAN` rescan runs at every job completion. The simulation resolves equal-priority
 rescans in favor of the **most recently scheduled** copy. Justification: the flight
-timeline (V16N68 keyed ≈102:38:10, first 1202 at 102:38:22 — about six 2-second cycles)
+timeline (V16N68 keyed ≈102:38:04, first 1202 at 102:38:22 — six to nine 2-second cycles)
 requires roughly one leaked core-set/VAC pair per overloaded cycle, which only happens
 when new SERVICERs win and old stubs starve — precisely the accumulation of "uncompleted
 SERVICER 'stubs'" Eyles describes the restart flushing. A strict FIFO/backlog model would
@@ -119,7 +119,7 @@ velocity data is lost [Repo] alarm_recovery.md.
 ## Flight timeline anchors ([Repo] timeline.markdown; NASA SP-4029; [Cherry])
 
 Five alarms: 1202 (102:38:22, ~33,500 ft), 1202 (102:39:02), 1201 (102:42:18, ~3,000 ft),
-1202 (102:42:43), 1202 (102:42:58, ~770 ft). V16N68 keyed ~102:38:10. P64 at 102:41:32
+1202 (102:42:43), 1202 (102:42:58, ~770 ft). V16N68 keyed ~102:38:04. P64 at 102:41:32
 (7,400 ft). ATT HOLD 102:43:08. Touchdown 102:45:40.
 
 ## Time scale
