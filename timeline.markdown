@@ -49,7 +49,7 @@ three focused technical explanations.
 | 102:43:01 | 20:15:01 | +596 s | Duke: *"Roger. 1202. We copy it."* (acknowledging the 5th alarm) | 750 ft | 23 ft/s |
 | 102:43:08 | 20:15:08 | +603 s | Armstrong switches **AUTO → ATT HOLD**, taking semi-manual control (sheds computer load; no further alarms) | ~650 ft | ~20 ft/s |
 | 102:43:20 | 20:15:20 | +615 s | Armstrong enters **P66** (Rate-of-Descent mode) via the ROD switch | ~430 ft | ~15 ft/s |
-| 102:44:45 | 20:16:45 | +700 s | Low-fuel quantity light latches; ~5.6% propellant left ("Bingo" countdown starts) | 100 ft | 3.5 ft/s |
+| 102:44:31 | 20:16:31 | +686 s | Propellant low-level sensor latches (~5.6% left; slosh tripped it ~30 s early) — 94 s "Bingo" countdown starts. Aldrin calls *"Five percent. Quantity light"* at 102:44:45 (100 ft, 3.5 ft/s) | ~160 ft | ~6.5 ft/s |
 | **102:45:40** | **20:17:40** | **+755 s** | **TOUCHDOWN** — *Eagle* lands in the Sea of Tranquility | 0 ft | 0 |
 | 102:45:58 | 20:17:58 | +773 s | Armstrong: *"Houston, Tranquility Base here. **The Eagle has landed.**"* | — | — |
 

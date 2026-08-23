@@ -82,10 +82,12 @@ modification** to prove the TUI's behavior did not change.
 - [ ] `TestSeekEqualsContinuousRun` — happy: seek (nearest earlier keyframe +
   deterministic replay) to GET *t* equals the state of an uninterrupted run at *t*;
   unhappy: seeking outside the scenario window clamps to the window edges.
-- [ ] `TestRedesignationInput` — happy: an ACA click in P64 while LPD time remains queues
-  redesignation work in the next SERVICER pass and shifts the LPD angle by the configured
-  quantum; unhappy: clicks in P63, in P66, or after LPD time expires change nothing and
-  emit a "redesignation unavailable" event instead.
+- [ ] `TestRedesignationInput` — happy: an ACA click in P64 (after the flashing-V06N64
+  PRO) while TREDES remains shifts the landing site by the flight quanta — 0.5°
+  elevation per pitch click, 2° azimuth per roll click (`ELEACH`/`AZEACH`) — and queues
+  retargeting work in the next SERVICER pass; unhappy: clicks in P63, in P66, in ATT
+  HOLD (REDESMON's channel-31 BIT13 skip), before PRO, or after TREDES expires change
+  nothing and emit a "redesignation unavailable" event instead.
 - [ ] `TestRODSwitchClicks` — happy: in P66 each ROD click changes commanded descent rate
   by exactly ±1 ft/s and costs the documented compute; unhappy: ROD clicks outside P66 are
   ignored and logged, never scheduled.
@@ -369,13 +371,14 @@ interpolated/approximate.
 
 | GET | T+PDI | Program | Event / DSKY activity | Altitude | ḢDOT |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| ~102:27:00 | −365 s | P63 | Crew keys **V37E 63E**; P63 ignition algorithm runs (exact GET: M0 item) | ~50,000 ft | ~0 |
-| pre-PDI | — | P63 | **Alarm code 500** (LR antenna position discrete); crew cycles switches, clears (exact GET: M0 item) | — | — |
+| ~102:24 | ~−540 s | P63 | Crew keys **V37E 63E**; P63 ignition algorithm runs (exact first-keystroke GET: M0 item; it precedes the code-500 report "early in the program") | ~50,000 ft | ~0 |
+| ≤102:26:55 | ≤−370 s | P63 | **Alarm code 500** (LR antenna position) — crew sets the LR antenna switch to Descent 1, keys **PRO**, returns it to Auto; Aldrin reports it to Houston at 102:26:55 (ALSJ) | — | — |
 | 102:32:30 | −35 s | P63 | **V06 N62** blanks (5 s), returns at T−30 s — Average-G running | ~49,971 ft | ~0 |
 | 102:32:58 | −7.5 s | P63 | Ullage — RCS settles propellant | — | — |
 | 102:33:00 | −5 s | P63 | Display flashes for crew go; **Aldrin keys PRO** | — | — |
 | 102:33:05.01 | +0 s | P63 | **PDI** — ignition at 10%; **V06 N63**: R1 +5559.7 (velocity), R2 −2.2 (ḢDOT), R3 +49971 (alt) | 49,971 ft | 2.2 ft/s |
 | 102:33:31 | +26 s | P63 | Throttle up to FTP (~9,870 lb); guidance enabled | ~49,000 ft | — |
+| 102:35:38 | +153 s | P63 | Armstrong moves the **RR mode switch AUTO TRACK → SLEW** (onboard: *"You're Slew? Okay."*); the switch had been in AUTO TRACK since a post-DOI ranging test — the ECDU theft is active in both non-LGC modes throughout the burn (ALSJ/Fjeld) | — | — |
 | 102:36:55 | +230 s | P63 | Armstrong yaws face-up (rate switch 5→25 deg/s); Earth in the windows | — | — |
 | ~102:37:53 | ~+288 s | P63 | Landing radar **"data good"** | ~35,000 ft | — |
 | ~102:38:04 | ~+299 s | P63 | **Aldrin keys V16 N68 E** — DELTAH monitor; R3 −02900 (callout 102:38:06) | ~34,000 ft | — |
@@ -386,16 +389,19 @@ interpolated/approximate.
 | **102:39:02** | **+357 s** | P63 | **ALARM 2 — 1202**; V05 N09 readback again | **~29,000 ft** | ~125 ft/s |
 | 102:39:14 | +369 s | P63 | Aldrin: *"…it appears to come up when we have a 1668 up."* | ~27,000 ft | — |
 | 102:39:31 | +386 s | P63 | **Throttle down** — on time (*"better than the simulator"*) | ~24,500 ft | — |
-| 102:41:32 | +507 s | **P64** | **High gate.** Pitch-over; **V06 N64**: R1 = LPD time-left + LPD angle, R3 alt. LPD/redesignation logic active | **7,400 ft** | 125 ft/s |
+| 102:41:32 | +507 s | **P64** | **High gate.** Pitch-over; **flashing V06 N64** comes up (R1 = TREDES + LPD angle packed, R2 ḢDOT, R3 alt). Crew keys **PRO** (`P64CEED`) — this zeroes the click counters and sets REDFLAG, enabling redesignation. Armstrong's *"P64."* call logged 102:41:35 (Table 5‑I: 102:41:32) | **7,400 ft** | 125 ft/s |
 | 102:42:10 | +545 s | P64 | Duke: *"You're Go for landing."* | ~3,500 ft | — |
+| 102:42:32 | +567 s | P64 | Armstrong: *"Give me an LPD."* — Aldrin reads the reticle series **47° → 35° → 33° → 30°** over the next ~45 s (the site animates the reticle from these) | ~1,900 ft | — |
 | **102:42:18** | **+553 s** | P64 | **ALARM 3 — 1201** (no VAC areas) | **~3,000 ft** | ~60 ft/s |
 | **102:42:43** | **+578 s** | P64 | **ALARM 4 — 1202** | **~2,000 ft** | ~50 ft/s |
 | late P64 | — | P64 | One **inadvertent LPD redesignation** (Eyles/debriefing; exact GET unknown — M0 item) | — | — |
 | **102:42:58** | **+593 s** | P64 | **ALARM 5 — 1202** (last) | **770 ft** | 27 ft/s |
 | 102:43:08 | +603 s | P64 | **AUTO → ATT HOLD** — Armstrong takes attitude, sheds load; no further alarms | ~650 ft | ~20 ft/s |
 | 102:43:20 | +615 s | **P66** | **ROD switch flick enters P66**; joystick = rate-command attitude, ROD = ±1 ft/s per click | ~430 ft | ~15 ft/s |
-| ~102:44:40 | ~+695 s | P66 | Quantity light; *"100 feet, 3½ down, 9 forward. Five percent."* | ~100 ft | 3.5 ft/s |
-| 102:45:40 | +755 s | P66 | **Contact light / TOUCHDOWN** in the Sea of Tranquility | 0 ft | 0 |
+| 102:44:13 | +668 s | P66 | LR **altitude & velocity lights** — radar dropouts in the low, dusty final approach | ~230 ft | — |
+| 102:44:31 | +686 s | P66 | **Propellant low-level sensor latches** (~5.6% left; slosh tripped it ~30 s early — Fjeld); 94 s "Bingo" countdown starts. Aldrin calls *"Five percent. Quantity light"* at 102:44:45 (100 ft) | ~160 ft | ~6.5 ft/s |
+| 102:45:02 | +717 s | P66 | Duke: *"60 seconds"* (to the Bingo land-in-20-s-or-abort call); *"30 seconds"* follows at 102:45:31 | ~55 ft | — |
+| 102:45:40 | +755 s | P66 | **Contact light / TOUCHDOWN** in the Sea of Tranquility; Armstrong *"Shutdown"* 102:45:43, Aldrin *"Engine Stop… ACA out of Detent"* 102:45:44–45 | 0 ft | 0 |
 | 102:45:58 | +773 s | — | *"Houston, Tranquility Base here. The Eagle has landed."* | — | — |
 
 Alarm cross-check embedded in `events.json` and enforced by `events.test.ts`: Cherry PDI
@@ -418,10 +424,38 @@ callouts as low-altitude constraints. Attitude: windows-down ≈ face-prone thro
 102:36:55, then face-up; pitch ≈ 77° off-vertical early P63 → ~45° at high gate → near
 vertical in P66 (digitize from Bennett AIAA 70-1028 / Klumpp R-695 in M0).
 
-**M0 completes this table** by transcribing every Aldrin altitude/rate callout from the
-ALSJ transcript between 102:43:01 (*"750, 23"*) and touchdown (~20 additional anchors:
-700/21, 600/19, 540/15, 400/9, 350/4, 300/3.5, 270, 250/2.5, 220, 200/4.5, 160/6.5,
-100/3.5, 75, 60/2.5, 40/2.5, 30/2.5, 20/0.5, contact).
+The P64/P66 fine-grain anchors are transcribed from the ALSJ corrected transcript
+(crew callouts; blank = not called):
+
+| GET | Alt (ft) | ḢDOT (ft/s) | Fwd (ft/s) | LPD | Note |
+| :--- | ---: | ---: | ---: | ---: | :--- |
+| 102:42:13 | 3,000 | 70 | | | Armstrong onboard |
+| 102:42:24 | 2,000 | 50 | | | Armstrong onboard |
+| ~102:42:50 | 1,000 | 30 | | 47° | spoken during the pause after 102:42:37 |
+| 102:43:01 | 750 | 23 | | 35° | |
+| 102:43:07 | 700 | 21 | | 33° | |
+| 102:43:11 | 600 | 19 | | | |
+| 102:43:16 | 540 | 15 | | 30° | |
+| 102:43:26 | 400 | 9 | 58 | | |
+| 102:43:33 | 350 | 4 | | | |
+| 102:43:35 | 330 | 3.5 | | | |
+| 102:43:46 | 300 | 3.5 | 47 | | *"Slow it up"* |
+| 102:43:52 | 270 | 1.5 | | | *"Ease her down"* |
+| 102:44:07 | 250 | 2.5 | 19 | | |
+| 102:44:16 | 220 | 3.5 | 13 | | |
+| 102:44:24 | 200 | 4.5 | | | 5.5 down at :26 |
+| 102:44:31 | 160 | 6.5 | | | quantity sensor latches |
+| 102:44:33 | | 5.5 | 9 | | |
+| 102:44:40 | 120 | | | | |
+| 102:44:45 | 100 | 3.5 | 9 | | *"Five percent. Quantity light."* |
+| 102:44:54 | 75 | 0.5 | 6 | | |
+| 102:45:17 | 40 | 2.5 | | | *"Picking up some dust"* |
+| 102:45:21 | 30 | 2.5 | | | |
+| 102:45:25 | 20 | 0.5 | 4 | | *"Drifting to the right a little"* |
+| 102:45:40 | ~3 | | | | probe contact light |
+
+Remaining trajectory M0 work: P63 mid-phase altitude points and the pitch profile
+(digitize from Bennett AIAA 70-1028 / Klumpp R-695).
 
 ### 4.3 Computer-state truth (from the engine, not hand-authored)
 
@@ -430,9 +464,19 @@ free-compute %, duty breakdown, stub count, and restart events all come from
 `exec-tui/sim` frames — the constants are already sourced in `exec-tui/RESEARCH.md`
 (15.0% RR theft = 2 × 6,400 × 11.72 µs; duty margins >15% → ≈13% → ≤10% → <10%;
 SERVICER 1,320 ms base; monitor 30 ms/s; P64 +60 ms/cycle; restart 20 ms + 20 ms
-REREADAC). The DSKY noun register layouts for N62/N63/N64/N68 (and P66's noun) are
-extracted in M0 from `Luminary099/PINBALL_NOUN_TABLES.agc` so the replica shows exactly
-what Luminary 099 defined.
+REREADAC).
+
+**DSKY noun layouts — resolved** from `Luminary099/PINBALL_NOUN_TABLES.agc` (mixed-noun
+table) and `ASSEMBLY_AND_OPERATION_INFORMATION.agc`; the replica renders exactly these:
+
+| Noun | R1 | R2 | R3 | Where it appears |
+| :--- | :--- | :--- | :--- | :--- |
+| **N62** | `ABVEL` — \|V\| (xxxx.x ft/s) | `TTOGO` — time from ignition (min/s) | `DVTOTAL` — accumulated ΔV (ft/s) | BURNBABY pre-ignition countdown |
+| **N63** | `ABVEL` — \|V\| | `HDOTDISP` — altitude rate | `HCALC1` — computed altitude | P63 (matches the PDI downlink: +5559.7 / −2.2 / +49971) |
+| **N64** | `FUNNYDSP` — TREDES + LPD angle packed as two 2-digit ints (`xxBxx`) | `HDOTDISP` | `HCALC` | P64 (flashing until PRO) |
+| **N60** | `VHORIZ` — horizontal velocity | `HDOTDISP` | `HCALC` | P66 (`VERTDISP` → V06 N60) |
+| **N68** | `RANGEDSP` — slant range to site (xxxx.x n mi) | `TTFDISP` — time-to-go in braking (min/s) | `DELTAH` — LR−computed altitude | Aldrin's monitor (Eyles: "third register showed DELTAH" ✓) |
+| **N09** | `FAILREG` | `FAILREG +1` | `FAILREG +2` | V05 N09 alarm readback |
 
 ---
 
@@ -593,16 +637,25 @@ Every command is acknowledged with the next frame or `{"op":"error","reason":"�
 
 The physical controls Armstrong used, and what each input costs the computer:
 
-- **P64 (102:41:32 → 102:43:08), LPD redesignation.** N64 R1 shows LPD time-left and the
-  LPD angle Armstrong sighted along his window reticle. While time remains, each ACA
-  click redesignates the site — pitch clicks shift it along-track, roll clicks
-  cross-track (published quanta ≈ 0.5° elevation / 2° azimuth per click; confirm from
-  Klumpp R-695 in M0). **Each click queues extra guidance retargeting in the next
-  SERVICER pass** — joystick activity adds computation, and P64's redesignation logic is
-  precisely the protected load that made its alarms unshedable. In Mode B, clicking
-  during the overload measurably deepens the knife edge. The site renders the reticle +
-  site marker moving per click; the historical script includes the one inadvertent
-  redesignation (M0 pins its time or marks it "late P64").
+- **P64 (102:41:32 → 102:43:08), LPD redesignation.** N64 R1 shows TREDES (redesignation
+  time left) and the LPD angle Armstrong sighted along his window reticle (flight series:
+  47° → 35° → 33° → 30°). Redesignation goes live only after the crew keys **PRO** on the
+  flashing V06 N64 (`P64CEED` zeroes the counters and sets REDFLAG). The click quanta are
+  **confirmed from the flight source**, not estimated: pitch clicks shift the site
+  **0.5° in elevation** and roll clicks **2° in azimuth** per click —
+  `Luminary099/LUNAR_LANDING_GUIDANCE_EQUATIONS.agc`: `ELEACH DEC .00873 # 1/2 DEGREE`,
+  `AZEACH DEC .03491 # 2 DEGREES`. The pipeline the site reproduces: each stick click
+  raises the **RUPT10 (`PITFALL`) interrupt**, which reads channel 31 (BIT1/BIT2 =
+  ∓elevation, BIT5/BIT6 = ±azimuth) and schedules the **REDESMON** waitlist task to count
+  clicks into `ELINCR1`/`AZINCR1`; the next SERVICER guidance pass (`REDESIG`) moves the
+  LAND vector by interpretive vector math, with a `DEPRCRIT` guard against redesignating
+  too near the horizon. So **each click costs an interrupt + a monitor task + extra
+  guidance retargeting** — joystick activity adds computation, and P64's redesignation
+  logic is precisely the protected load that made its alarms unshedable. In Mode B,
+  clicking during the overload measurably deepens the knife edge. Two source-mandated
+  edge cases: REDESMON runs only in P64 (`CHECKMM DEC 64`), and it **skips counting in
+  ATT HOLD** (channel 31 BIT13) — the widget mirrors both. The historical script includes
+  the one inadvertent redesignation (M0 pins its GET or marks it "late P64").
 - **ATT HOLD (102:43:08).** Joystick becomes rate-command/attitude-hold: deflection
   commands a rate, release holds attitude. Autopilot cost drops (the engine's ATT HOLD
   DAP model) — visibly recovering free-compute on the duty bar, which is *why* the alarms
@@ -644,7 +697,7 @@ require confirmation; unknown persisted keys from older versions are ignored
 
 | # | Deliverable | Contents |
 | :--- | :--- | :--- |
-| M0 | Data | `events.json`, `trajectory.json` from §4; noun layouts from `PINBALL_NOUN_TABLES.agc`; ALSJ P66 callout transcription; resolve open facts (P63 selection GET, code-500 GET, LPD quanta, inadvertent-redesignation time); validation script wired into CI |
+| M0 | Data | `events.json`, `trajectory.json` from §4 (noun layouts, LPD quanta, code-500 context, RR-SLEW time, and the P64/P66 callout series are already resolved in-spec from Luminary099 + ALSJ); remaining research: exact V37E63E GET, inadvertent-redesignation GET, P63 mid-phase altitude + pitch profile (Bennett AIAA 70-1028 / Klumpp R-695); validation script wired into CI |
 | M1 | Engine | GET clock, flight-script driver, **happy/actual scenarios**, **event breakpoints**, **allocation forensics log**, snapshot/restore, determinism, ACA/ROD/redesignation inputs (tests §1.2) |
 | M2 | Director + companion | **Director refactor** (TUI passes existing `ui` tests unchanged), `--serve` WebSocket in `exec-tui`, headless `cmd/bridge`, `cmd/record` → `flight-actual.json` + `flight-happy.json` (tests §1.3) |
 | M3 | Web scene | Vite scaffold, loaders, playback clock, **600×2160 portrait layout system**, vertical descent scene from `flight-actual.json` (tests §1.4: events, trajectory, layout, playback, lander) |
@@ -682,5 +735,7 @@ one. New code lives in `descent-web/` and `exec-tui/cmd/`; `exec-tui/sim` and
   document in the site's "accuracy" page.
 - **Mode B trajectory divergence** (user flies differently than history) is approximate
   by design; the banner + docs must be honest about it.
-- **LPD click quanta and the inadvertent redesignation's GET** need M0 source
-  confirmation before the joystick ships.
+- **The inadvertent redesignation's GET** still needs M0 confirmation (and Fjeld notes
+  propellant slosh had made the LPD "essentially useless" by late P66 — the site's
+  accuracy page should say so). The click quanta themselves are confirmed from the
+  Luminary 099 source (`ELEACH`/`AZEACH`), so this no longer blocks the joystick.
