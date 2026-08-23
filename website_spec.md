@@ -54,7 +54,7 @@ modification** to prove the TUI's behavior did not change.
 | Switch-panel tests: `switches_test.go` (`TestSwitchPanelRender`, `TestSwitchFlip` incl. the typing-mode-swallows-space case, `TestPauseMovedToDot`), `active_state_test.go` (key-bar active states) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** Switch flips queue DSKY keys through the same pending-key path the Director absorbs; `.`-pause semantics carry into the Director |
 | `button-lab` component tests (`button/button_test.go`, `lab_test.go`) | `button-lab/` | Unchanged — the reusable cockpit toggle; the web widgets mirror its look (§7), not its code |
 | `dsky-lab` component tests (`TestGeometry`, `TestSevenSegmentDigits`, `TestVerbNounFlash`, `TestLights`) and `dsky_panel_test.go` (`TestDSKYStateMapping`, `TestDSKYPanelEmbedded`, `TestEngineLampAccessors`) | `dsky-lab/`, `exec-tui/ui` | Unchanged — pin the DSKY layout, flash semantics, and the engine's `RestartRecently`/`CompActy` lamp accessors the web replica consumes |
-| Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs, `color_test.go`) | `exec-tui/ui` | Unchanged — TUI rendering untouched |
+| Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs, `color_test.go`, and the compact-layout suite `layout_test.go`/`layout2_test.go`/`layout3_test.go`/`zoom_test.go`) | `exec-tui/ui` | Unchanged — TUI rendering untouched by this feature |
 | `timeline-tui` render tests | `timeline-tui` | Unchanged — not part of this feature |
 | `npm run lint` (markdownlint) | root | Must pass for this spec and all new docs |
 
@@ -258,7 +258,7 @@ subject: altitude *is* the vertical axis.
 | 3 | DSKY | 300 px | PROG/VERB/NOUN + R1–R3 in seven-segment digits, COMP ACTY, verb/noun **flash**, and the four story lights (**PROG, RESTART, ALT, VEL**) — the same compact layout as `dsky-lab/dsky`; keyboard with replay key-lighting |
 | 4 | Executive board | 420 px | 8 core-set + 5 VAC cells (owner/prio, with running/**sleeping**/stub states distinct), free-compute bar, duty rows, restart counter — same semantics as the TUI panels; **ghost overlay** of the happy case in compare mode; forensics drawer expands from here |
 | 5 | Hand controls | 200 px | ACA joystick, ROD switch, AUTO/ATT HOLD mode switch |
-| 6 | Event feed / captions | 200 px | Air-to-ground captions at logged GETs (light-delay toggle), clickable event index |
+| 6 | Event feed / captions | 200 px | Air-to-ground captions at logged GETs (light-delay toggle), clickable event index — the TUI's compact layout dropped its own event log, so in companion mode this feed is the narrative record |
 | 7 | Transport | 110 px | Play/pause, rate presets 0.1–16×, −10 ms/+10 ms/+2 s steps, scrub bar with event pips (alarms red, keystrokes amber, program changes cyan, voice grey) |
 | — | **Cog** | 48 px floating | Bottom-right, floating above zones 6–7; opens the options sheet (§8) |
 
@@ -364,7 +364,7 @@ the existing `ui` test suite passes unchanged (§1.1).
 | :--- | :--- | :--- |
 | AGC time, pause, rate, scenario, breakpoints, DSKY/joystick/ROD inputs, scripted keystrokes | **Director** (shared) | Changing it anywhere changes it everywhere; broadcast in every frame's `control` block |
 | Cog display preferences (zone visibility, font scale, light-delay toggle, compare-ghost on/off) | Website only (`localStorage`) | Never sent to the Director |
-| TUI-only view state (flash counters, switch-panel focus, layout) | TUI model | Unchanged |
+| TUI-only view state (flash counters, switch-panel focus, timeline zoom `z`, layout) | TUI model | Unchanged |
 
 Sync rules: commands are applied in arrival order; late-joining clients get current
 control state + the latest frame immediately; a slow client drops its own frames but can
