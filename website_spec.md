@@ -53,6 +53,7 @@ modification** to prove the TUI's behavior did not change.
 | Pause/typing/keybinding tests: `ui_test.go` (pause freeze, state preservation across pause, keybindings) and `typing_test.go` (cadence, speed scaling, paused-holds-keys) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** They assert through `m.Paused()` / `m.PendingKeys()` / `Update(FrameMsg{})`; after the Director refactor these delegate but behave identically |
 | Switch-panel tests: `switches_test.go` (`TestSwitchPanelRender`, `TestSwitchFlip` incl. the typing-mode-swallows-space case, `TestPauseMovedToDot`), `active_state_test.go` (key-bar active states) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** Switch flips queue DSKY keys through the same pending-key path the Director absorbs; `.`-pause semantics carry into the Director |
 | `button-lab` component tests (`button/button_test.go`, `lab_test.go`) | `button-lab/` | Unchanged — the reusable cockpit toggle; the web widgets mirror its look (§7), not its code |
+| `dsky-lab` component tests (`TestGeometry`, `TestSevenSegmentDigits`, `TestVerbNounFlash`, `TestLights`) and `dsky_panel_test.go` (`TestDSKYStateMapping`, `TestDSKYPanelEmbedded`, `TestEngineLampAccessors`) | `dsky-lab/`, `exec-tui/ui` | Unchanged — pin the DSKY layout, flash semantics, and the engine's `RestartRecently`/`CompActy` lamp accessors the web replica consumes |
 | Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs, `color_test.go`) | `exec-tui/ui` | Unchanged — TUI rendering untouched |
 | `timeline-tui` render tests | `timeline-tui` | Unchanged — not part of this feature |
 | `npm run lint` (markdownlint) | root | Must pass for this spec and all new docs |
@@ -193,8 +194,10 @@ modification** to prove the TUI's behavior did not change.
   choice (scenario reset asks for confirmation); unknown persisted keys from an older
   version are ignored, not fatal.
 - [ ] `dsky.test.ts` — happy: at 102:38:04 the keystroke script renders `V16 N68` with
-  R3 = −02900, at 102:38:22 the PROG lamp lights and the display reverts to `V06 N63`,
-  V05 N09 readback shows `01202`; unhappy: an unknown verb/noun in a frame renders blanks
+  R3 = −02900; at 102:38:22 the PROG lamp lights, the RESTART lamp holds through its
+  window, and the display reverts to `V06 N63`; V05 N09 readback shows `01202`; the P64
+  V06 N64 arrives **flashing** and stops on PRO; the ALT/VEL lights come on at the
+  102:44:13 radar-dropout event; unhappy: an unknown verb/noun in a frame renders blanks
   and logs a warning instead of crashing.
 - [ ] `lander.test.ts` — happy: sprite altitude/pitch track the trajectory (yaw-around
   begins 102:36:55; pitch-over at high gate 102:41:32; vertical by touchdown); unhappy: a
@@ -252,7 +255,7 @@ subject: altitude *is* the vertical axis.
 | :--- | :--- | :--- | :--- |
 | 1 | Mission clocks | 90 px | GET (large), UTC, T+PDI, phase badge P63/P64/P66, scenario badge (ACTUAL/HAPPY/SANDBOX) |
 | 2 | Descent scene | 840 px | Vertical star-field column; LM descends the column against a log-scale altitude ladder; terrain + West Crater + site marker at the bottom; Earth appears after the 102:36:55 yaw-around; plume ∝ throttle; dust < 100 ft; alarm flash overlay |
-| 3 | DSKY | 300 px | PROG/VERB/NOUN, R1–R3, PROG + COMP ACTY lamps, keyboard with replay key-lighting |
+| 3 | DSKY | 300 px | PROG/VERB/NOUN + R1–R3 in seven-segment digits, COMP ACTY, verb/noun **flash**, and the four story lights (**PROG, RESTART, ALT, VEL**) — the same compact layout as `dsky-lab/dsky`; keyboard with replay key-lighting |
 | 4 | Executive board | 420 px | 8 core-set + 5 VAC cells (owner/prio, with running/**sleeping**/stub states distinct), free-compute bar, duty rows, restart counter — same semantics as the TUI panels; **ghost overlay** of the happy case in compare mode; forensics drawer expands from here |
 | 5 | Hand controls | 200 px | ACA joystick, ROD switch, AUTO/ATT HOLD mode switch |
 | 6 | Event feed / captions | 200 px | Air-to-ground captions at logged GETs (light-delay toggle), clickable event index |
@@ -634,7 +637,9 @@ keyboard lights replay realistically.
                "pauseOn": ["alarm"], "haltedBy": "alarm-1202-1" },
   "dsky": { "prog": "63", "verb": "16", "noun": "68",
             "r1": "+00513", "r2": "+0310", "r3": "-02900",
-            "progLamp": true, "compActy": true, "typing": false },
+            "progLamp": true, "restartLamp": false, "altLamp": false,
+            "velLamp": false, "compActy": true, "flash": false,
+            "typing": false },
   "failreg": ["01202"],
   "exec": { "coreSets": [{"owner": "SERVICER", "prio": 20, "stub": true}],
             "vacs": [{"owner": "SERVICER", "stub": false}],
