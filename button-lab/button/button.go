@@ -42,7 +42,7 @@ const (
 	ColorOnShade    = 166 // darker orange (pressed-in lower face)
 	ColorOnTip      = 214 // bright lever tip
 	ColorOnGlow     = 130 // dim glow in a vacated slot
-	ColorLeverOff   = 131 // dull reddish metal lever
+	ColorLeverOff   = 88  // held-down lever: ~50% darker red (was dull pink 131)
 )
 
 // Button is one control. The zero value is unusable; use New.

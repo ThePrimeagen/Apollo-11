@@ -228,12 +228,20 @@ func sideBezelPrefix(b Button) string { return "" }
 // ---------------------------------------------------------------------------
 
 func TestSwitchLever(t *testing.T) {
-	t.Run("happy: off, the lever sits at the bottom in dull red", func(t *testing.T) {
+	t.Run("happy: off, the lever sits at the bottom in the ~50%-darker red", func(t *testing.T) {
 		b := New("X", Switch)
 		lines := gridOf(t, b)
 		bottom := lines[len(lines)-2] + lines[len(lines)-1]
 		if !strings.Contains(bottom, fgCode(ColorLeverOff)) {
-			t.Fatal("off lever (dull red) must occupy the lower rows")
+			t.Fatal("off lever must occupy the lower rows")
+		}
+		// The held-down lever is a proper dark red (xterm 88 ≈ half the
+		// brightness of the original dull pink 131), per design review.
+		if !strings.Contains(bottom, fgCode(88)) {
+			t.Fatal("off lever must be the darkened red (xterm 88)")
+		}
+		if strings.Contains(b.Render(), fgCode(131)) {
+			t.Fatal("the old brighter dull-pink lever (xterm 131) must be gone")
 		}
 		if strings.Contains(b.Render(), fgCode(ColorOn)) {
 			t.Fatal("an off switch must show no lit orange")
