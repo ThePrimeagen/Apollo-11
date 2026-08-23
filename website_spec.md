@@ -138,7 +138,7 @@ modification** to prove the TUI's behavior did not change.
   indexing so the client can switch between them at any GET; unhappy: an engine/script
   mismatch (e.g. missing alarm) fails the run with a diff report, not a silent file.
 - [ ] `TestStateFrameSchema` — happy: every emitted frame validates against the StateFrame
-  schema (§7.2), including the `control` and `forensics` blocks; unhappy: a hand-mutated
+  schema (§6.2), including the `control` and `forensics` blocks; unhappy: a hand-mutated
   invalid frame fails validation with the offending field named.
 - [ ] `TestBridgeControlCommands` — happy: `play`, `pause`, `rate`, `stepMs:10`,
   `seekGet`, `reset`, `key`, `joyClick`, `rod`, `scenario`, `pauseOn`, `forensics` each
@@ -273,8 +273,8 @@ collapse. Every collapsed zone can be re-pinned from the cog.
 │─── terrain ─│
 │ DSKY  16 68 │  zone 3 · PROG lamp lit, R3 −02900
 │ R3 −02900 ⚠ │
-│ CORE ██████░░ 8/8 │ zone 4 · exec board + ghost
-│ VAC  █████ 5/5 → 1202 │ + forensics drawer
+│ CORE ████████ 8/8 → 1202 │ zone 4 · exec board
+│ VAC  █████ 5/5   + ghost + forensics drawer │
 │ [ACA] [ROD] │  zone 5
 │ 102:38:42 “Give us a reading…” │ zone 6
 │ ⏮ ⏯ ⏭ .1×…16× −10ms +10ms │ zone 7
@@ -292,7 +292,7 @@ collapse. Every collapsed zone can be re-pinned from the cog.
 | Step +2 s | One full guidance cycle (`]` on the cycle boundary) |
 | Scrub bar | Whole window 102:32:00 → 102:46:10, event pips, snap-to-pip |
 | Jump to event | Prev/next event buttons + clickable event index |
-| **Auto-pause** | Cog toggles: pause on alarms / restarts / program changes / keystrokes — playback halts on the exact event frame and opens its explainer card (§6) |
+| **Auto-pause** | Cog toggles: pause on alarms / restarts / program changes / keystrokes — playback halts on the exact event frame and opens its explainer card (§5.3) |
 
 ---
 
@@ -327,7 +327,7 @@ One object owns everything two frontends must agree on:
 - **breakpoints** (`pauseOn` event kinds) — evaluated *inside* the advance loop so a halt
   lands on the exact event frame, not the next UI tick,
 - the **frame broadcaster**: after each advance it publishes an immutable `StateFrame`
-  (§7.2) to all subscribers (TUI model, WebSocket clients, recorder).
+  (§6.2) to all subscribers (TUI model, WebSocket clients, recorder).
 
 The Bubble Tea model shrinks to a view: `FrameMsg` becomes "ask the Director to advance
 and hand me the latest frame"; every keybinding and **toggle card** maps to the **same
@@ -407,8 +407,8 @@ interpolated/approximate.
 | 102:39:31 | +386 s | P63 | **Throttle down** — on time (*"better than the simulator"*) | ~24,500 ft | — |
 | 102:41:32 | +507 s | **P64** | **High gate.** Pitch-over; **flashing V06 N64** comes up (R1 = TREDES + LPD angle packed, R2 ḢDOT, R3 alt). Crew keys **PRO** (`P64CEED`) — this zeroes the click counters and sets REDFLAG, enabling redesignation. Armstrong's *"P64."* call logged 102:41:35 (Table 5‑I: 102:41:32) | **7,400 ft** | 125 ft/s |
 | 102:42:10 | +545 s | P64 | Duke: *"You're Go for landing."* | ~3,500 ft | — |
-| 102:42:32 | +567 s | P64 | Armstrong: *"Give me an LPD."* — Aldrin reads the reticle series **47° → 35° → 33° → 30°** over the next ~45 s (the site animates the reticle from these) | ~1,900 ft | — |
 | **102:42:18** | **+553 s** | P64 | **ALARM 3 — 1201** (no VAC areas) | **~3,000 ft** | ~60 ft/s |
+| 102:42:32 | +567 s | P64 | Armstrong: *"Give me an LPD."* — Aldrin reads the reticle series **47° → 35° → 33° → 30°** over the next ~45 s (the site animates the reticle from these) | ~2,000 ft | — |
 | **102:42:43** | **+578 s** | P64 | **ALARM 4 — 1202** | **~2,000 ft** | ~50 ft/s |
 | late P64 | — | P64 | One **inadvertent LPD redesignation** (Eyles/debriefing; exact GET unknown — M0 item) | — | — |
 | **102:42:58** | **+593 s** | P64 | **ALARM 5 — 1202** (last) | **770 ft** | 27 ft/s |
@@ -626,7 +626,7 @@ keyboard lights replay realistically.
   "control": { "paused": true, "rate": 1.0, "scenario": "actual",
                "pauseOn": ["alarm"], "haltedBy": "alarm-1202-1" },
   "dsky": { "prog": "63", "verb": "16", "noun": "68",
-            "r1": "+05559", "r2": "-00120", "r3": "-02900",
+            "r1": "+00513", "r2": "+0310", "r3": "-02900",
             "progLamp": true, "compActy": true, "typing": false },
   "failreg": ["01202"],
   "exec": { "coreSets": [{"owner": "SERVICER", "prio": 20, "stub": true}],
