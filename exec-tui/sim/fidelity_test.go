@@ -259,6 +259,34 @@ func TestP63TypingGives1202(t *testing.T) {
 //        for ~5 minutes before the monitor went up)
 // ---------------------------------------------------------------------------
 
+// t41b — UsedMs: the per-consumer trailing-2s accounting the UI shows next
+// to each timeline row.
+func TestUsedMs(t *testing.T) {
+	t.Run("happy: an idle machine charges the window to CIdle", func(t *testing.T) {
+		e := New()
+		e.AdvanceAGC(4100)
+		if got := e.UsedMs(CIdle); got < 1900 {
+			t.Fatalf("idle should hold ~2000ms of the window, got %v", got)
+		}
+	})
+	t.Run("happy: during descent SERVICER dominates the window", func(t *testing.T) {
+		e := New()
+		e.StartDescent()
+		e.AdvanceAGC(4100)
+		if got := e.UsedMs(CServicer); got < 1000 {
+			t.Fatalf("SERVICER should exceed 1000ms per window, got %v", got)
+		}
+	})
+	t.Run("unhappy: a fresh engine reports zero everywhere", func(t *testing.T) {
+		e := New()
+		for c := Consumer(0); c < numConsumers; c++ {
+			if e.UsedMs(c) != 0 {
+				t.Fatalf("consumer %v must start at zero", c)
+			}
+		}
+	})
+}
+
 func TestBoundaryAlignmentNoFalseAlarm(t *testing.T) {
 	t.Run("happy: aligned knife edge stays alarm-free for 120s", func(t *testing.T) {
 		e := New()
