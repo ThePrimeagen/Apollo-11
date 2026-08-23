@@ -17,7 +17,7 @@ import (
 func TestStubSlotMarking(t *testing.T) {
 	t.Run("happy: overload marks old copies as stubs, exactly one live SERVICER", func(t *testing.T) {
 		e := overloadedP63(t)
-		e.AdvanceAGC(6500) // >=3 cycles: >=2 stubs + 1 live copy
+		e.AdvanceAGC(6500) // >=3 overloaded cycles: >=2 stubs + 1 live copy
 
 		stubCores, liveCores, stubVacs := 0, 0, 0
 		for _, c := range e.CoreSets() {

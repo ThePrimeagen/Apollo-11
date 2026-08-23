@@ -143,10 +143,6 @@ func TestKeybindings(t *testing.T) {
 		if e.Phase() != sim.P63 {
 			t.Fatalf("d should enter P63, got %v", e.Phase())
 		}
-		m = key(m, 'l')
-		if !e.LandingRadarAcquired() {
-			t.Fatal("l should acquire the landing radar")
-		}
 		m = key(m, 'r')
 		if !e.RadarBug() {
 			t.Fatal("r should enable the RR bug")
@@ -170,6 +166,16 @@ func TestKeybindings(t *testing.T) {
 		m = key(m, 'x')
 		if e.Phase() != sim.P00 {
 			t.Fatalf("x should reset to idle, got %v", e.Phase())
+		}
+	})
+	t.Run("happy: h and l move the card selection, not the radar", func(t *testing.T) {
+		e, m := newTestModel()
+		m = key(m, 'l')
+		if e.LandingRadarAcquired() {
+			t.Fatal("l is selection movement; the landing radar locks on its own during descent")
+		}
+		if m.Selected() != 1 {
+			t.Fatalf("l should move the selection, got %d", m.Selected())
 		}
 	})
 	t.Run("happy: n fake-types V16N68 over time", func(t *testing.T) {
@@ -265,7 +271,7 @@ func TestInstructionBar(t *testing.T) {
 	t.Run("happy: every control is listed", func(t *testing.T) {
 		_, m := newTestModel()
 		v := m.View()
-		for _, want := range []string{"[d]", "[l]", "[n]", "[t]", "[r]", "[p]", "[6]", "[a]", "[x]", "[q]"} {
+		for _, want := range []string{"[h/l]", "[enter]", "[t]", "[p]", "[6]", "[a]", "[space]", "[x]", "[q]"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("instruction bar missing %s", want)
 			}

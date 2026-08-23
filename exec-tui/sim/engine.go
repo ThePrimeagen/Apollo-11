@@ -33,32 +33,79 @@ const (
 	miscCounterFraction = 0.005
 
 	// Costs, in AGC milliseconds.
-	servicerBaseMs   = 1320.0 // P63 braking-phase SERVICER per 2s cycle (~66%)
-	servicerLRMs     = 40.0   // extra body->nav conversion once LR is locked
-	servicerP64Ms    = 60.0   // landing-site redesignation processing (P64)
-	servicerP66Ms    = 900.0  // rate-of-descent mode: much lighter
-	dapPeriodMs      = 100.0  // digital autopilot interrupt cadence
-	dapPoweredMs     = 12.0   // ~12% duty in powered flight
-	dapAttHoldMs     = 5.0    // ATT HOLD / P66: eased burden
-	t4PeriodMs       = 120.0  // T4RUPT_PROGRAM.agc: 120MS
-	t4CostMs         = 0.96   // ~0.8% housekeeping
-	t4DsptabExtraMs  = 0.5    // one DSPTAB relay word per pass
-	downPeriodMs     = 20.0   // DOWNRUPT: 50 telemetry words/s
-	downCostMs       = 0.2    // ~1%
-	gyroPeriodMs     = 1000.0
-	gyroCostMs       = 7.0 // priority-21 gyro compensation
-	lrReadPeriodMs   = 1000.0
-	lrReadCostMs     = 20.0   // priority-32 landing-radar read job
-	monitorPeriodMs  = 1000.0 // PINBALL: monitors update once per second
-	monitorCostMs    = 30.0   // V16N68 DELTAH monitor: 30ms/s = ~3% (margin 13% -> ~10%)
-	charinCostMs     = 5.0    // priority-30 keystroke job
-	keyruptCostMs    = 0.1    // the interrupt itself
-	readaccsCostMs   = 1.0    // "deliberately short" waitlist task
-	rrReadCostMs     = 80.0   // 'ping the radar' one-shot burst
-	restartCostMs    = 20.0   // BAILOUT -> ENEMA software restart overhead
-	rereadacDelayMs  = 20.0   // phase-table rebuild lag before REREADAC
-	dsptabPerKey     = 2      // relay words queued per keystroke
-	dsptabPerMonitor = 3      // relay words queued per monitor refresh
+	servicerBaseMs = 1320.0 // P63 braking-phase SERVICER per 2s cycle (~66%)
+	servicerP64Ms  = 60.0   // landing-site redesignation processing (P64)
+	servicerP66Ms  = 900.0  // rate-of-descent mode: much lighter
+
+	// servicerLRMs: body->nav radar conversion once LR is locked. Eyles puts
+	// the LR-lock cost at ~2% (margin 15%->13%) against the flight's ~13%
+	// steal; the sim steals the theoretical 15.0%, so the conversion carries
+	// the difference to keep the aggregate faithful: P63+LR+bug lands just
+	// UNDER 100% demand — the flight's quiet pre-monitor knife edge (no
+	// alarms for ~5 minutes with the theft active). See RESEARCH.md.
+	servicerLRMs = 70.0
+
+	dapPeriodMs     = 100.0 // digital autopilot interrupt cadence
+	dapPoweredMs    = 12.0  // ~12% duty in powered flight
+	dapAttHoldMs    = 5.0   // ATT HOLD / P66: eased burden
+	t4PeriodMs      = 120.0 // T4RUPT_PROGRAM.agc: 120MS
+	t4CostMs        = 0.96  // ~0.8% housekeeping
+	t4DsptabExtraMs = 0.5   // one DSPTAB relay word per pass
+	downPeriodMs    = 20.0  // DOWNRUPT: 50 telemetry words/s
+	downCostMs      = 0.2   // ~1%
+	gyroPeriodMs    = 1000.0
+	gyroCostMs      = 7.0 // priority-21 gyro compensation
+
+	// gyroPhaseMs offsets the 1Hz gyro tick from the 2s READACCS boundary,
+	// the same anti-collision phasing the flight code used (SERVICER.agc
+	// deliberately offsets READACCS ~70ms from the DAP rupt). Without it a
+	// descent started exactly on a timer mark starves the almost-finished
+	// SERVICER at every boundary — an artifact, not flight behavior.
+	gyroPhaseMs = 137.0
+
+	// Landing-radar reads (Cherry job table; SERVICER.agc). Jobs of a
+	// millisecond or so that SLEEP while the radar gates data in — holding
+	// their core set the whole time. LRH fires 50ms before each READACCS
+	// ("50 MS PRIOR TO THE NEXT READACCS TASK") and its 80ms gate straddles
+	// the cycle boundary; LRV takes 5 samples over ~500ms mid-cycle.
+	lrhPhaseMs = 1950.0
+	lrhHeadMs  = 1.0
+	lrhSleepMs = 80.0
+	lrhTailMs  = 1.0
+	lrvPhaseMs = 1000.0
+	lrvHeadMs  = 1.0
+	lrvSleepMs = 500.0
+	lrvTailMs  = 1.0
+
+	monitorPeriodMs = 1000.0 // PINBALL: monitors update once per second
+	// MONDO refresh: 30ms CPU (~3% at 1Hz; margin 13% -> ~10%), split
+	// around a display-wait sleep (PINBALL: display users go to sleep
+	// holding their core set; duration est.).
+	monitorHeadMs  = 15.0
+	monitorSleepMs = 250.0
+	monitorTailMs  = 15.0
+
+	// CHARIN keystroke job: 5ms CPU split around the DSPTAB echo wait
+	// (PINBALL sleep semantics; duration est.). The sleep is why heavy DSKY
+	// activity pressured core sets on Apollo 11.
+	charinHeadMs  = 3.0
+	charinSleepMs = 150.0
+	charinTailMs  = 2.0
+
+	// HIGATJOB (Cherry job table): at high gate, command the LR antenna to
+	// position 2, then sleep — holding a VAC — until the position discrete
+	// arrives (antenna slew time est. seconds).
+	higatHeadMs  = 2.0
+	higatSleepMs = 8000.0
+	higatTailMs  = 2.0
+
+	keyruptCostMs    = 0.1  // the interrupt itself
+	readaccsCostMs   = 1.0  // "deliberately short" waitlist task
+	rrReadCostMs     = 80.0 // 'ping the radar' one-shot burst
+	restartCostMs    = 20.0 // BAILOUT -> ENEMA software restart overhead
+	rereadacDelayMs  = 20.0 // phase-table rebuild lag before REREADAC
+	dsptabPerKey     = 2    // relay words queued per keystroke
+	dsptabPerMonitor = 3    // relay words queued per monitor refresh
 
 	windowBuckets = 200  // accounting window: 200 x 10ms = one 2s cycle
 	BucketMs      = 10.0 // history bucket size
@@ -233,12 +280,20 @@ type DSKYState struct {
 type job struct {
 	name      string
 	prio      int
-	remaining float64
+	remaining float64 // CPU left in the current segment
 	needsVAC  bool
 	core      int
 	vac       int
 	seq       int // scheduling order; ties on priority favor the newest
 	consumer  Consumer
+
+	// Sleep segment (JOBSLEEP/JOBWAKE): after the head segment the job
+	// sleeps for sleepMs — holding its core set and VAC — then wakes to run
+	// tailMs more. Radar gates and display waits live here.
+	sleepMs  float64
+	tailMs   float64
+	sleeping bool
+	wakeAt   float64
 
 	// superseded is set once a newer copy of the same job is scheduled.
 	// It stays set even if the newer copies finish first (LIFO unwind), so
@@ -280,7 +335,7 @@ type Engine struct {
 	pipaDebt  float64
 
 	dapNext, t4Next, downNext float64
-	gyroNext, lrNext, monNext float64
+	gyroNext, monNext         float64
 
 	dsptab int
 
@@ -302,6 +357,7 @@ type Engine struct {
 	// DSKY entry state
 	verbBuf, nounBuf string
 	entering         byte // 'V', 'N' or 0
+	progSel          bool // V37E seen: the next nn E selects program nn
 
 	// accounting rings
 	bucketUse   [historySize][numConsumers]float32 // ms per consumer per bucket
@@ -325,8 +381,7 @@ func New() *Engine {
 	e.t4Next = t4PeriodMs
 	e.downNext = downPeriodMs
 	e.dapNext = dapPeriodMs
-	e.gyroNext = gyroPeriodMs
-	e.lrNext = lrReadPeriodMs
+	e.gyroNext = gyroPeriodMs + gyroPhaseMs
 	e.monNext = monitorPeriodMs
 	return e
 }
@@ -377,6 +432,7 @@ func (e *Engine) step() {
 	// Hardware timers fire punctually no matter what (T3RUPT et al.).
 	e.fireWaitlist()
 	e.fireRecurrences()
+	e.wakeSleepers()
 
 	// 1. Counter increments (PINC/MINC cycle stealing) pause everything.
 	if e.bug {
@@ -417,7 +473,16 @@ func (e *Engine) step() {
 		e.runningJob = j.name
 		e.account(j.consumer)
 		if j.remaining <= 1e-9 {
-			e.endOfJob(j)
+			if j.sleepMs > 0 {
+				// JOBSLEEP: head done; hold the memory, give up the CPU.
+				j.sleeping = true
+				j.wakeAt = e.t + j.sleepMs
+				j.remaining = j.tailMs
+				j.sleepMs, j.tailMs = 0, 0
+				e.cur = e.selectJob()
+			} else {
+				e.endOfJob(j)
+			}
 		}
 		return
 	}
@@ -468,17 +533,26 @@ func (e *Engine) fireRecurrences() {
 			e.scheduleJobInternal("GYRO COMP", prioGyro, gyroCostMs, false, CGyro)
 		}
 	}
-	if e.t >= e.lrNext {
-		e.lrNext += lrReadPeriodMs
-		if e.lrAcq && e.phase != P00 {
-			e.scheduleJobInternal("LR READ", prioRadar, lrReadCostMs, false, CLRRead)
-		}
-	}
 	if e.t >= e.monNext {
 		e.monNext += monitorPeriodMs
 		if e.monitor {
 			e.dsptab += dsptabPerMonitor
-			e.scheduleJobInternal("MONITOR", prioMonitor, monitorCostMs, false, CMonitor)
+			e.scheduleSegJob("MONITOR", prioMonitor,
+				monitorHeadMs, monitorSleepMs, monitorTailMs, false, CMonitor)
+		}
+	}
+}
+
+// wakeSleepers is JOBWAKE: sleeping jobs whose gate has passed become
+// runnable again and compete by priority (like a fresh schedule, a woken job
+// only preempts a strictly lower priority).
+func (e *Engine) wakeSleepers() {
+	for _, j := range e.jobs {
+		if j.sleeping && e.t >= j.wakeAt {
+			j.sleeping = false
+			if e.cur == nil || j.prio > e.cur.prio {
+				e.cur = j
+			}
 		}
 	}
 }
@@ -497,7 +571,7 @@ func consumerFor(name string) Consumer {
 		return CMonitor
 	case "RR READ":
 		return CRRRead
-	case "LR READ":
+	case "LR READ", "LRHJOB", "LRVJOB", "HIGATJOB":
 		return CLRRead
 	case "GYRO COMP":
 		return CGyro
@@ -513,7 +587,14 @@ func (e *Engine) ScheduleJob(name string, prio int, costMs float64, needsVAC boo
 }
 
 func (e *Engine) scheduleJobInternal(name string, prio int, costMs float64, needsVAC bool, c Consumer) bool {
-	j := &job{name: name, prio: prio, remaining: costMs, needsVAC: needsVAC, core: -1, vac: -1, consumer: c}
+	return e.scheduleSegJob(name, prio, costMs, 0, 0, needsVAC, c)
+}
+
+// scheduleSegJob schedules a job whose head segment is followed by a
+// resource-holding sleep and a tail segment (radar gate / display wait).
+func (e *Engine) scheduleSegJob(name string, prio int, headMs, sleepMs, tailMs float64, needsVAC bool, c Consumer) bool {
+	j := &job{name: name, prio: prio, remaining: headMs, sleepMs: sleepMs, tailMs: tailMs,
+		needsVAC: needsVAC, core: -1, vac: -1, consumer: c}
 
 	// FINDVAC scans the five VAC use-words first (EXECUTIVE.agc FINDVAC2).
 	if needsVAC {
@@ -563,12 +644,16 @@ func (e *Engine) scheduleJobInternal(name string, prio int, costMs float64, need
 	return true
 }
 
-// selectJob is EJSCAN: highest active priority. Ties favor the most recently
-// scheduled copy — which is how old SERVICER stubs starved on Apollo 11 and
-// leaked one core set + VAC pair per overloaded cycle (see RESEARCH.md).
+// selectJob is EJSCAN: highest active priority among runnable (non-sleeping)
+// jobs. Ties favor the most recently scheduled copy — which is how old
+// SERVICER stubs starved on Apollo 11 and leaked one core set + VAC pair per
+// overloaded cycle (see RESEARCH.md).
 func (e *Engine) selectJob() *job {
 	var best *job
 	for _, j := range e.jobs {
+		if j.sleeping {
+			continue
+		}
 		if best == nil || j.prio > best.prio || (j.prio == best.prio && j.seq > best.seq) {
 			best = j
 		}
@@ -647,7 +732,7 @@ func (e *Engine) bailout(code string) {
 	}
 	e.throttleText = map[EventKind]string{}
 	e.throttleAt = map[EventKind]float64{}
-	e.verbBuf, e.nounBuf, e.entering = "", "", 0
+	e.verbBuf, e.nounBuf, e.entering, e.progSel = "", "", 0, false
 
 	// Phase tables (5.4SPOT): rebuild one REREADAC task + one SERVICER.
 	if e.phase != P00 {
@@ -676,6 +761,7 @@ func (e *Engine) armReadaccs(due float64) {
 		// rebuild, so re-arming here would double the cycle demand.
 		if e.scheduleJobInternal("SERVICER", prioServicer, e.servicerCost(), true, CServicer) {
 			e.armReadaccs(e.t + CyclePeriodMs)
+			e.armLandingRadarReads()
 			// The copy that lost the equal-priority tie is now abandoned —
 			// this line IS the memory leak of July 20, 1969.
 			if n := e.StubCount(); n > 0 {
@@ -683,6 +769,26 @@ func (e *Engine) armReadaccs(due float64) {
 					"LEAK: %d unfinished SERVICER stub(s) hold %d core set(s) + %d VAC(s)", n, n, n),
 					CyclePeriodMs+200)
 			}
+		}
+	}})
+}
+
+// armLandingRadarReads schedules this cycle's radar read jobs (Cherry's job
+// table): LRVJOB mid-cycle (5 samples, ~500ms gate), and LRHTASK -> LRHJOB
+// 50ms before the next READACCS so its 80ms gate straddles the boundary.
+// Both are millisecond jobs that sleep holding a core set.
+func (e *Engine) armLandingRadarReads() {
+	if !e.lrAcq || e.phase == P00 {
+		return
+	}
+	e.waitlist = append(e.waitlist, wtask{"LRVTASK", e.t + lrvPhaseMs, func(e *Engine) {
+		if e.lrAcq && e.phase != P00 {
+			e.scheduleSegJob("LRVJOB", prioRadar, lrvHeadMs, lrvSleepMs, lrvTailMs, false, CLRRead)
+		}
+	}})
+	e.waitlist = append(e.waitlist, wtask{"LRHTASK", e.t + lrhPhaseMs, func(e *Engine) {
+		if e.lrAcq && e.phase != P00 {
+			e.scheduleSegJob("LRHJOB", prioRadar, lrhHeadMs, lrhSleepMs, lrhTailMs, false, CLRRead)
 		}
 	}})
 }
@@ -733,13 +839,16 @@ func (e *Engine) AcquireLandingRadar() {
 func (e *Engine) LandingRadarAcquired() bool { return e.lrAcq }
 
 // EnterP64 begins the approach phase (redesignation logic; restart cannot
-// shed this load).
+// shed this load). HIGATJOB (Cherry's table) commands the LR antenna to
+// position 2 and sleeps on a VAC until the position discrete arrives — the
+// VAC pressure behind the flight's 1201 at 102:42:17.
 func (e *Engine) EnterP64() {
 	if e.phase != P63 {
 		return
 	}
 	e.phase = P64
 	e.logEvent(EvPhase, "P64: high gate — redesignation load (protected)")
+	e.scheduleSegJob("HIGATJOB", prioRadar, higatHeadMs, higatSleepMs, higatTailMs, true, CLRRead)
 }
 
 // AttHold is Armstrong's move: AUTO -> ATT HOLD, then P66.
@@ -791,20 +900,46 @@ func (e *Engine) PressKey(k byte) {
 	e.logEvent(EvKey, "KEYRUPT: "+string(k))
 	e.intrQ = append(e.intrQ, intrWork{CKeyRupt, keyruptCostMs})
 	e.dsptab += dsptabPerKey
-	if !e.scheduleJobInternal("CHARIN", prioCharin, charinCostMs, false, CCharin) {
+	if !e.scheduleSegJob("CHARIN", prioCharin, charinHeadMs, charinSleepMs, charinTailMs, false, CCharin) {
 		return // the keystroke's job died in the overflow it caused
 	}
 	switch {
 	case k == 'V':
 		e.entering = 'V'
 		e.verbBuf = ""
+		e.progSel = false
 	case k == 'N':
 		e.entering = 'N'
 		e.nounBuf = ""
+		e.progSel = false
 	case k == 'C':
 		e.entering = 0
+		e.progSel = false
 	case k == 'E':
 		e.entering = 0
+		if e.progSel {
+			// V37E nnE — program change (Eyles: "The crew keyed in Verb 37
+			// Noun 63 to select P63").
+			e.progSel = false
+			if e.nounBuf == "63" && e.phase == P00 {
+				e.StartDescent()
+				// Landing radar "data good" arrives on its own during the
+				// braking phase (scripted flavor timing, cf. flight
+				// PDI+262s; compressed so one toggle tells the story).
+				e.waitlist = append(e.waitlist, wtask{"LRDATA", e.t + 6000, func(e *Engine) {
+					if e.phase != P00 {
+						e.AcquireLandingRadar()
+					}
+				}})
+			}
+			break
+		}
+		if e.verbBuf == "37" {
+			e.progSel = true
+			e.entering = 'N'
+			e.nounBuf = ""
+			break
+		}
 		if e.verbBuf == "16" && e.nounBuf == "68" {
 			if !e.monitor {
 				e.monitor = true
@@ -984,6 +1119,16 @@ func (e *Engine) logThrottled(k EventKind, text string, windowMs float64) {
 // freed its pair) within the trailing window — logged or throttled.
 func (e *Engine) RecoveredRecently(windowMs float64) bool {
 	return e.t-e.lastRecoverAt <= windowMs
+}
+
+// KnifeEdge reports the flight's quiet pre-monitor regime: the theft is
+// active and has consumed the entire margin (free compute pinned near zero)
+// but nothing has overrun yet — one more straw (the monitor, P64) breaks it.
+func (e *Engine) KnifeEdge() bool {
+	if !e.bug || e.phase == P00 || e.StubCount() > 0 {
+		return false
+	}
+	return e.Accounting().IdlePct < 2
 }
 
 // ---------------------------------------------------------------------------
