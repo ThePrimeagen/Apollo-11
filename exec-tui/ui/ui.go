@@ -466,7 +466,9 @@ func cellsFor(w, bpc int) int {
 const gridBGColor = "240"
 
 func (m Model) viewLeft() string {
-	labelW := 9
+	// 9 for the name + 6 for the zero-filled (NNNN) cost + 1 space: fixed,
+	// so the parentheticals can never shift the track.
+	labelW := 16
 	bucketsPerCell := m.bpc()
 	trackW := cellsFor(m.w, bucketsPerCell)
 	buckets := m.eng.History(trackW*bucketsPerCell + bucketsPerCell)
@@ -487,15 +489,39 @@ func (m Model) viewLeft() string {
 	// cover it, shades let it glow through, and blanks show it plainly
 	gridEvery := int(sim.CyclePeriodMs / (float64(bucketsPerCell) * sim.BucketMs))
 
+	e := m.eng
+	head := sDim.Render(fmt.Sprintf("%-*s", labelW, "")) +
+		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell · (ms per 2s cycle) · [z] zoom",
+			float64(trackW)*float64(bucketsPerCell)*sim.BucketMs/1000, float64(bucketsPerCell)*sim.BucketMs))
+	if fr := e.FailReg(); len(fr) > 0 {
+		head += " " + lipgloss.NewStyle().Foreground(cRed).Bold(true).Render("FAILREG "+strings.Join(fr, " "))
+	}
+	if m.typing {
+		head += " " + sAlarm.Render(" TYPING ")
+	}
+	if m.paused {
+		head += " " + sAlarm.Render(" PAUSED ")
+	}
+	if stubs := e.StubCount(); stubs > 0 {
+		head += lipgloss.NewStyle().Foreground(cRed).Bold(true).
+			Render(fmt.Sprintf(" ⚠ %d stubs leaked", stubs))
+	} else if e.KnifeEdge() {
+		head += lipgloss.NewStyle().Foreground(cYellow).Render(" ⚠ knife edge")
+	} else if e.RecoveredRecently(5000) {
+		head += lipgloss.NewStyle().Foreground(cYellow).Render(" ⟳ recovering")
+	}
+
 	var b strings.Builder
-	b.WriteString(sDim.Render(fmt.Sprintf("%-*s", labelW, "")) +
-		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell · ruler marks 2s · [z] zoom",
-			float64(trackW)*float64(bucketsPerCell)*sim.BucketMs/1000, float64(bucketsPerCell)*sim.BucketMs)))
+	b.WriteString(head)
 	b.WriteString("\n")
 	for _, r := range rows {
 		style := lipgloss.NewStyle().Foreground(r.color)
 		gridStyle := style.Background(lipgloss.Color(gridBGColor))
-		b.WriteString(style.Render(fmt.Sprintf("%-*s", labelW, r.label)))
+		used := e.UsedMs(r.c)
+		if used > 9999 {
+			used = 9999
+		}
+		b.WriteString(style.Render(fmt.Sprintf("%-9s(%04.0f) ", r.label, used)))
 		type cell struct {
 			ch   rune
 			grid bool
@@ -549,37 +575,7 @@ func (m Model) viewLeft() string {
 		flush()
 		b.WriteString("\n")
 	}
-
-	// the stats line closes the timeline block and carries the indicators
-	e := m.eng
-	stats := sDim.Render(fmt.Sprintf("cycles %d  copies %d  restarts %d  alarms %d",
-		e.CycleCount(), e.ServicerCopies(), e.RestartCount(), len(e.Alarms())))
-	if fr := e.FailReg(); len(fr) > 0 {
-		stats += " " + lipgloss.NewStyle().Foreground(cRed).Bold(true).Render("FAILREG "+strings.Join(fr, " "))
-	}
-	if e.MonitorActive() {
-		stats += " " + lipgloss.NewStyle().Foreground(cYellow).Render("MON 1Hz")
-	}
-	if m.typing {
-		stats += " " + sAlarm.Render(" TYPING ")
-	}
-	if m.paused {
-		stats += " " + sAlarm.Render(" PAUSED ")
-	}
-	if stubs := e.StubCount(); stubs > 0 {
-		stats += lipgloss.NewStyle().Foreground(cRed).Bold(true).
-			Render(fmt.Sprintf("  ⚠ %d stubs leaked (%d words)", stubs, stubs*55))
-	} else if e.KnifeEdge() {
-		// Flight truth: with the theft active but no monitor, Eagle flew a
-		// quiet knife edge for ~5 minutes — margin gone, nothing overrun.
-		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("  ⚠ knife edge: margin ≈ 0")
-	} else if e.RecoveredRecently(5000) {
-		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("  ⟳ overrun recovering")
-	}
-	b.WriteString(stats)
-	return b.String()
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func (m Model) boxFor(label string, s sim.SlotState, w int) string {
