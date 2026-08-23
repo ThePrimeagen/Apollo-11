@@ -340,8 +340,6 @@ func (m Model) View() string {
 	var b strings.Builder
 	b.WriteString(m.viewHeader())
 	b.WriteString("\n")
-	b.WriteString(m.viewCycleBar())
-	b.WriteString("\n")
 
 	left := lipgloss.JoinVertical(lipgloss.Left, m.viewLeft(), "", m.viewPools())
 	panel := dsky.Render(m.dskyState(), true)
@@ -404,109 +402,52 @@ func (m Model) viewSwitches() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, cols[0], " ", cols[1], " ", cols[2])
 }
 
-func fmtAGC(ms float64) string {
-	s := ms / 1000.0
-	return fmt.Sprintf("T+%06.2fs", s)
-}
-
+// viewHeader is ONE line: the effective free compute — idle minus deficit —
+// which goes NEGATIVE under overload. Below zero means broken. During an
+// alarm the line flashes the alarm banner instead.
 func (m Model) viewHeader() string {
-	e := m.eng
-	a := e.Accounting()
-	free := a.IdlePct
+	if m.flashLeft > 0 && (m.flashLeft/8)%2 == 0 {
+		what := "NO CORE SETS AVAILABLE"
+		if m.lastAlarm.Code == "1201" {
+			what = "NO VAC AREAS AVAILABLE"
+		}
+		return sAlarm.Render(fmt.Sprintf(" ⚠ PROG ALARM %s — EXECUTIVE OVERFLOW: %s — BAILOUT → RESTART ", m.lastAlarm.Code, what))
+	}
+
+	a := m.eng.Accounting()
+	free := a.IdlePct - a.DeficitPct
 
 	freeColor := cGreen
 	switch {
-	case free < 5:
+	case free < 0:
 		freeColor = cRed
 	case free < 15:
 		freeColor = cYellow
 	}
 	freeStyle := lipgloss.NewStyle().Foreground(freeColor).Bold(true)
 
-	// free compute mini-bar
-	barW := 20
-	fill := int(free/100*float64(barW) + 0.5)
+	barW := 30
+	fill := int(free / 100 * float64(barW))
 	if fill > barW {
 		fill = barW
+	}
+	if fill < 0 {
+		fill = 0
 	}
 	bar := freeStyle.Render(strings.Repeat("█", fill)) + sDim.Render(strings.Repeat("░", barW-fill))
-
-	speed := fmt.Sprintf("1s wall = %.0fms AGC", e.WallToAGC()*1000)
-	title := sTitle.Render("AGC EXECUTIVE · LUMINARY 099")
-	clock := sDim.Render(fmtAGC(e.AGCTimeMs())) + "  " + sTitle.Render(e.Phase().String())
-	// Armed-load badges: at a glance, which of the three overload
-	// ingredients are on (the V16N68 monitor shows as MON 1Hz by the DSKY).
-	if e.LandingRadarAcquired() {
-		clock += "  " + lipgloss.NewStyle().Foreground(cBlue).Bold(true).Render("LR LOCK")
+	line := freeStyle.Render(fmt.Sprintf("FREE COMPUTE %+6.1f%%", free)) + " " + bar
+	if free < 0 {
+		line += " " + sAlarm.Render(" BROKEN ")
 	}
-	if e.RadarBug() {
-		clock += "  " + lipgloss.NewStyle().Foreground(cRed).Bold(true).Render("RR BUG")
-	}
-	clock += "  " + sDim.Render(speed)
-	if m.paused {
-		clock += "  " + sAlarm.Render(" PAUSED ")
-	}
-
-	line1 := title + "   " + clock
-	deficitStyle := sDim
-	if a.DeficitPct > 0 {
-		deficitStyle = lipgloss.NewStyle().Foreground(cRed).Bold(true)
-	}
-	line2 := freeStyle.Render(fmt.Sprintf("FREE COMPUTE %5.1f%%", free)) + " " + bar +
-		sDim.Render(fmt.Sprintf("  duty %4.1f%%  steal %4.1f%%  ",
-			a.JobsPct+a.InterruptsPct+a.RestartPct, a.StealPct)) +
-		deficitStyle.Render(fmt.Sprintf("deficit %4.1f%%", a.DeficitPct))
-
-	if e.ProgLamp() {
-		line2 += "  " + sLamp.Render(" PROG ")
-	}
-	if fr := e.FailReg(); len(fr) > 0 {
-		line2 += " " + lipgloss.NewStyle().Foreground(cRed).Bold(true).Render("FAILREG "+strings.Join(fr, " "))
-	}
-
-	if m.flashLeft > 0 && (m.flashLeft/8)%2 == 0 {
-		what := "NO CORE SETS AVAILABLE"
-		if m.lastAlarm.Code == "1201" {
-			what = "NO VAC AREAS AVAILABLE"
-		}
-		line1 = sAlarm.Render(fmt.Sprintf(" ⚠ PROG ALARM %s — EXECUTIVE OVERFLOW: %s — BAILOUT → RESTART ", m.lastAlarm.Code, what))
-	}
-	return line1 + "\n" + line2
-}
-
-func (m Model) viewCycleBar() string {
-	e := m.eng
-	elapsed := e.CycleElapsedMs()
-	if elapsed > sim.CyclePeriodMs {
-		elapsed = sim.CyclePeriodMs
-	}
-	barW := clampi(m.w-60, 10, 50)
-	fill := int(elapsed / sim.CyclePeriodMs * float64(barW))
-	if fill > barW {
-		fill = barW
-	}
-	var bar string
-	if e.Phase() == sim.P00 {
-		bar = sDim.Render(strings.Repeat("·", barW)) + sDim.Render("  (no guidance cycle — idle)")
-	} else {
-		bar = lipgloss.NewStyle().Foreground(cGreen).Render(strings.Repeat("█", fill)) +
-			sDim.Render(strings.Repeat("─", barW-fill)) +
-			sDim.Render(fmt.Sprintf(" %4.2fs/2.00s", elapsed/1000))
-	}
-
-	badges := ""
-	if e.MonitorActive() {
-		badges += " " + lipgloss.NewStyle().Foreground(cYellow).Render("MON 1Hz")
-	}
-	if m.typing {
-		badges += " " + sAlarm.Render(" TYPING ")
-	}
-	return sDim.Render("2s CYCLE ") + bar + "  " + badges
+	return line
 }
 
 // trackWidth is the timeline cell count: half the screen minus the label
 // column. Halving the track doubles the time each cell represents.
 func trackWidth(w int) int { return clampi(w/2-9, 20, 160) }
+
+// gridBGColor is the ruler's background tint (xterm-256 index).
+const gridBGColor = "240"
 
 // bucketsPerCell: each rendered cell covers 4 history buckets (40ms).
 const bucketsPerCell = 4
@@ -526,58 +467,103 @@ func (m Model) viewLeft() string {
 		buckets = buckets[:len(buckets)-rem]
 	}
 
+	// absolute cell index of the first rendered group (for 2s gridlines)
+	absCell0 := (m.eng.BucketsClosed() - len(buckets)) / bucketsPerCell
+
+	// the 2s ruler: a lighter BACKGROUND behind the bars, so full blocks
+	// cover it, shades let it glow through, and blanks show it plainly
+	gridEvery := int(sim.CyclePeriodMs / (bucketsPerCell * sim.BucketMs)) // 50 cells
+
 	var b strings.Builder
 	b.WriteString(sDim.Render(fmt.Sprintf("%-*s", labelW, "")) +
-		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell",
+		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell · ruler marks 2s",
 			float64(trackW)*bucketsPerCell*sim.BucketMs/1000, bucketsPerCell*sim.BucketMs)))
 	b.WriteString("\n")
 	for _, r := range rows {
 		style := lipgloss.NewStyle().Foreground(r.color)
-		b.WriteString(lipgloss.NewStyle().Foreground(r.color).Render(fmt.Sprintf("%-*s", labelW, r.label)))
-		cells := make([]rune, 0, trackW)
+		gridStyle := style.Background(lipgloss.Color(gridBGColor))
+		b.WriteString(style.Render(fmt.Sprintf("%-*s", labelW, r.label)))
+		type cell struct {
+			ch   rune
+			grid bool
+		}
+		cells := make([]cell, 0, trackW)
 		// left-pad when history is younger than the track
 		missing := trackW - len(buckets)/bucketsPerCell
 		for i := 0; i < missing; i++ {
-			cells = append(cells, ' ')
+			cells = append(cells, cell{' ', false})
 		}
-		for i := 0; i+bucketsPerCell <= len(buckets); i += bucketsPerCell {
+		for i, ci := 0, 0; i+bucketsPerCell <= len(buckets); i, ci = i+bucketsPerCell, ci+1 {
 			mask := uint32(0)
 			dominant := false
 			for j := i; j < i+bucketsPerCell; j++ {
 				mask |= buckets[j].Mask
 				dominant = dominant || buckets[j].Dominant == r.c
 			}
+			onGrid := (absCell0+ci)%gridEvery == 0
 			switch {
 			case dominant:
-				cells = append(cells, '█') // owned most of this slice
+				cells = append(cells, cell{'█', onGrid}) // block covers the ruler
 			case mask&(1<<uint(r.c)) != 0:
-				cells = append(cells, '░') // ran, but only briefly
+				cells = append(cells, cell{'░', onGrid}) // ruler glows through the shade
 			default:
-				cells = append(cells, ' ')
+				cells = append(cells, cell{' ', onGrid}) // bare ruler
 			}
 		}
 		if len(cells) > trackW {
 			cells = cells[len(cells)-trackW:]
 		}
-		b.WriteString(style.Render(string(cells)))
+		// emit runs so ruler cells carry the background tint
+		run, runGrid := []rune{}, false
+		flush := func() {
+			if len(run) == 0 {
+				return
+			}
+			if runGrid {
+				b.WriteString(gridStyle.Render(string(run)))
+			} else {
+				b.WriteString(style.Render(string(run)))
+			}
+			run = run[:0]
+		}
+		for _, c := range cells {
+			if c.grid != runGrid {
+				flush()
+				runGrid = c.grid
+			}
+			run = append(run, c.ch)
+		}
+		flush()
 		b.WriteString("\n")
 	}
 
-	// the stats line closes the timeline block
+	// the stats line closes the timeline block and carries the indicators
 	e := m.eng
-	stats := sDim.Render(fmt.Sprintf("cycles %d   servicer copies %d   restarts %d   alarms %d",
+	stats := sDim.Render(fmt.Sprintf("cycles %d  copies %d  restarts %d  alarms %d",
 		e.CycleCount(), e.ServicerCopies(), e.RestartCount(), len(e.Alarms())))
+	if fr := e.FailReg(); len(fr) > 0 {
+		stats += " " + lipgloss.NewStyle().Foreground(cRed).Bold(true).Render("FAILREG "+strings.Join(fr, " "))
+	}
+	if e.MonitorActive() {
+		stats += " " + lipgloss.NewStyle().Foreground(cYellow).Render("MON 1Hz")
+	}
+	if m.typing {
+		stats += " " + sAlarm.Render(" TYPING ")
+	}
+	if m.paused {
+		stats += " " + sAlarm.Render(" PAUSED ")
+	}
 	if stubs := e.StubCount(); stubs > 0 {
 		stats += lipgloss.NewStyle().Foreground(cRed).Bold(true).
-			Render(fmt.Sprintf("   ⚠ %d stubs leaked (%d words never freed)", stubs, stubs*55))
+			Render(fmt.Sprintf("  ⚠ %d stubs leaked (%d words)", stubs, stubs*55))
 	} else if e.KnifeEdge() {
 		// Flight truth: with the theft active but no monitor, Eagle flew a
 		// quiet knife edge for ~5 minutes — margin gone, nothing overrun.
 		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("   ⚠ knife edge: margin ≈ 0 — one straw breaks it")
+			Render("  ⚠ knife edge: margin ≈ 0")
 	} else if e.RecoveredRecently(5000) {
 		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("   ⟳ overrun recovering — a superseded SERVICER finished late and freed its pair")
+			Render("  ⟳ overrun recovering")
 	}
 	b.WriteString(stats)
 	return b.String()

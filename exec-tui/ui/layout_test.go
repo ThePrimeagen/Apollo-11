@@ -87,13 +87,13 @@ func TestNoEventLog(t *testing.T) {
 }
 
 func TestCompactHeight(t *testing.T) {
-	t.Run("happy: the whole view fits in 37 lines", func(t *testing.T) {
+	t.Run("happy: the whole view fits in 35 lines", func(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.SetRadarBug(true)
 		e.AdvanceAGC(5000)
-		if got := len(strings.Split(m.View(), "\n")); got > 37 {
-			t.Fatalf("compact layout must fit in 37 lines, got %d", got)
+		if got := len(strings.Split(m.View(), "\n")); got > 35 {
+			t.Fatalf("compact layout must fit in 35 lines, got %d", got)
 		}
 	})
 	t.Run("happy: the DSKY panel sits on the right edge", func(t *testing.T) {
