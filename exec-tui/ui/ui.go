@@ -365,41 +365,36 @@ func (m Model) View() string {
 	return b.String()
 }
 
-// viewSwitches renders the three switches side by side (they live on the
-// right, under the DSKY). h/l selects, space (or enter) flicks.
+// viewSwitches renders the three switches as a tight bank that fits
+// completely under the 25-cell DSKY. State shows in the label color: light
+// gray when off, amber when on; focus shows on the switch frame itself.
+// h/l selects, space (or enter) flicks.
 func (m Model) viewSwitches() string {
 	e := m.eng
-	keying := len(m.pending) > 0
 	specs := []struct {
-		label, caption string
-		on             bool
+		label string
+		on    bool
 	}{
-		{"DESCENT", "V37E 63E", e.Phase() != sim.P00},
-		{"DELTAH", "V16 N68", e.MonitorActive()},
-		{"RR STEAL", "SLEW/AUTO", e.RadarBug()},
+		{"DESCENT", e.Phase() != sim.P00},
+		{"DELTAH", e.MonitorActive()},
+		{"RR STEAL", e.RadarBug()},
 	}
+	sGrayLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	sOnLabel := lipgloss.NewStyle().Foreground(cAmber).Bold(true)
 	cols := make([]string, 3)
 	for i, sp := range specs {
 		sw := button.NewSwitch(sp.label)
 		sw.On = sp.on
 		sw.Focused = i == m.sel
-		labelStyle, capStyle := sDim, sDim
-		if sw.Focused {
-			labelStyle = lipgloss.NewStyle().Foreground(cAmber).Bold(true)
+		style := sGrayLabel
+		if sp.on {
+			style = sOnLabel
 		}
-		state := sDim.Render("○ OFF")
-		switch {
-		case sp.on:
-			state = lipgloss.NewStyle().Foreground(cGreen).Bold(true).Render("● ON")
-		case keying && i != 2 && i == m.sel:
-			state = lipgloss.NewStyle().Foreground(cYellow).Render("keying…")
-		}
-		colW := 11
+		colW := len(sp.label)
 		center := func(s string) string { return lipgloss.PlaceHorizontal(colW, lipgloss.Center, s) }
 		cols[i] = lipgloss.JoinVertical(lipgloss.Left,
 			center(sw.Render()),
-			center(labelStyle.Render(sp.label)),
-			center(capStyle.Render(sp.caption)+" "+state),
+			center(style.Render(sp.label)),
 		)
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, cols[0], " ", cols[1], " ", cols[2])

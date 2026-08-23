@@ -271,9 +271,12 @@ func TestDSKYPanel(t *testing.T) {
 		for _, k := range []byte("V16N68E") {
 			e.PressKey(k)
 		}
-		v := m.View()
-		if !strings.Contains(v, "16") || !strings.Contains(v, "68") {
-			t.Fatal("DSKY should show VERB 16 NOUN 68")
+		st := m.dskyState()
+		if st.Verb != "16" || st.Noun != "68" {
+			t.Fatalf("DSKY should show VERB 16 NOUN 68, got V%q N%q", st.Verb, st.Noun)
+		}
+		if !strings.Contains(m.View(), "|_") {
+			t.Fatal("the panel must render the digits as seven-segment strokes")
 		}
 	})
 	t.Run("unhappy: alarm lights PROG and shows the code", func(t *testing.T) {
