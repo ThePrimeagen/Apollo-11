@@ -1235,6 +1235,13 @@ func (e *Engine) FreeComputePercent() float64 {
 	return e.Accounting().IdlePct
 }
 
+// UsedMs reports the AGC milliseconds consumer c received over the trailing
+// 2-second accounting window.
+func (e *Engine) UsedMs(c Consumer) float64 {
+	sums, _ := e.windowUse()
+	return sums[c]
+}
+
 // Accounting decomposes the trailing 2-second window.
 func (e *Engine) Accounting() Accounting {
 	sums, total := e.windowUse()

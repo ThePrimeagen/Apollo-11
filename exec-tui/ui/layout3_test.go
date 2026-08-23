@@ -24,18 +24,25 @@ func TestTopIsJustFree(t *testing.T) {
 		if !strings.Contains(top, "FREE COMPUTE") || !strings.Contains(top, "%") {
 			t.Fatalf("the top line must carry the free percentage, got %q", top)
 		}
-		for _, gone := range []string{"AGC EXECUTIVE", "duty", "steal", "1s wall", "T+0"} {
+		for _, gone := range []string{"AGC EXECUTIVE", "duty", "steal", "1s wall", "T+0", "BROKEN"} {
 			if strings.Contains(top, gone) {
 				t.Fatalf("the top line must drop %q", gone)
 			}
 		}
 	})
-	t.Run("happy: the 2s CYCLE counter line is gone", func(t *testing.T) {
+	t.Run("happy: the explainer text line is gone — rows start immediately", func(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(1000)
-		if strings.Contains(m.View(), "2s CYCLE") {
-			t.Fatal("the cycle counter line must be gone")
+		v := m.View()
+		for _, gone := range []string{"2s CYCLE", "of AGC time", "ms/cell", "ruler marks", "[z] zoom", "(ms per 2s cycle)"} {
+			if strings.Contains(v, gone) {
+				t.Fatalf("the explainer text must be gone, found %q", gone)
+			}
+		}
+		second := stripAnsi(strings.Split(v, "\n")[1])
+		if !strings.HasPrefix(second, "SERVICER") {
+			t.Fatalf("the rows must start right under the free line, got %q", second)
 		}
 	})
 	t.Run("unhappy: overload drives the free number below zero", func(t *testing.T) {
@@ -114,26 +121,25 @@ func TestCycleGridlines(t *testing.T) {
 }
 
 func TestStatsCarriesTheRest(t *testing.T) {
-	t.Run("happy: FAILREG codes show on the stats line after an alarm", func(t *testing.T) {
-		e, m := newTestModel()
-		for i := 0; i < 8; i++ {
-			e.ScheduleJob("HOG", 25, 1e9, false)
-		}
-		e.ScheduleJob("STRAW", 25, 10, false)
-		if !strings.Contains(m.View(), "FAILREG 1202") {
-			t.Fatal("the stats line must carry the FAILREG codes")
-		}
-	})
-	t.Run("happy: PAUSED and TYPING indicators survive the header removal", func(t *testing.T) {
+	t.Run("happy: PAUSED and TYPING chips live on the free line, only when active", func(t *testing.T) {
 		_, m := newTestModel()
 		m = key(m, '.')
-		if !strings.Contains(m.View(), "PAUSED") {
-			t.Fatal("pause must stay visible")
+		if !strings.Contains(strings.Split(m.View(), "\n")[0], "PAUSED") {
+			t.Fatal("pause must show on the free line")
 		}
 		m = key(m, '.')
 		m = key(m, 't')
-		if !strings.Contains(m.View(), "TYPING") {
-			t.Fatal("typing mode must stay visible")
+		if !strings.Contains(strings.Split(m.View(), "\n")[0], "TYPING") {
+			t.Fatal("typing mode must show on the free line")
+		}
+	})
+	t.Run("unhappy: no chips render when nothing is active", func(t *testing.T) {
+		_, m := newTestModel()
+		top := m.View()
+		for _, gone := range []string{"PAUSED", "TYPING", "FAILREG", "knife edge", "stubs leaked"} {
+			if strings.Contains(top, gone) {
+				t.Fatalf("idle view must carry no %q text", gone)
+			}
 		}
 	})
 }
@@ -142,7 +148,7 @@ func TestStatsCarriesTheRest(t *testing.T) {
 // tint, by walking the raw ANSI line and tracking the active background.
 func markerCols(t *testing.T, v, label string) []int {
 	t.Helper()
-	const labelW, trackW = 9, 48
+	const labelW, trackW = 16, 48
 	var line string
 	for _, l := range strings.Split(v, "\n") {
 		if strings.HasPrefix(l, "\x1b") {

@@ -20,14 +20,9 @@ var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 func stripAnsi(s string) string { return ansiPat.ReplaceAllString(s, "") }
 
 func TestTimelineHalfWidth(t *testing.T) {
-	t.Run("happy: the default track shows ~2.4s in 48 narrow bars", func(t *testing.T) {
-		_, m := newTestModel()
-		v := m.View()
-		if !strings.Contains(v, "50ms/cell") {
-			t.Fatal("the track header must state 50ms per cell")
-		}
-		if !strings.Contains(v, "2.4s of AGC time") {
-			t.Fatal("at width 140 the 48-cell track shows 2.4s of history")
+	t.Run("happy: the default track is 48 bars of 50ms (~2.4s) at width 140", func(t *testing.T) {
+		if got := cellsFor(140, 5); got != 48 {
+			t.Fatalf("cellsFor(140,5) = %d, want 48", got)
 		}
 	})
 }
@@ -60,27 +55,30 @@ func TestNoEventLog(t *testing.T) {
 			t.Fatal("the event log must not render anymore")
 		}
 	})
-	t.Run("unhappy: the knife-edge indicator still lives on the stats line", func(t *testing.T) {
+	t.Run("unhappy: the knife edge shows as a near-zero free number, no text", func(t *testing.T) {
 		e, m := newTestModel()
 		e.AdvanceAGC(170)
 		e.StartDescent()
 		e.AcquireLandingRadar()
 		e.SetRadarBug(true)
 		e.AdvanceAGC(10000)
-		if !strings.Contains(m.View(), "knife edge") {
-			t.Fatal("removing the log must not remove the knife-edge indicator")
+		if !e.KnifeEdge() {
+			t.Fatal("the engine must still report the knife edge")
+		}
+		if strings.Contains(m.View(), "knife edge") {
+			t.Fatal("no knife-edge text may render — the number tells it")
 		}
 	})
 }
 
 func TestCompactHeight(t *testing.T) {
-	t.Run("happy: the whole view fits in 35 lines", func(t *testing.T) {
+	t.Run("happy: the whole view fits in 33 lines", func(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.SetRadarBug(true)
 		e.AdvanceAGC(5000)
-		if got := len(strings.Split(m.View(), "\n")); got > 35 {
-			t.Fatalf("compact layout must fit in 35 lines, got %d", got)
+		if got := len(strings.Split(m.View(), "\n")); got > 33 {
+			t.Fatalf("compact layout must fit in 33 lines, got %d", got)
 		}
 	})
 	t.Run("happy: the DSKY panel sits on the right edge", func(t *testing.T) {
