@@ -14,8 +14,37 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/theprimeagen/apollo-11/button-lab/button"
+	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 )
+
+// dskyState maps the engine onto the DSKY panel: verb/noun as keyed, PROG
+// from the phase, registers from the flight values, PROG/RESTART lamps from
+// the alarms, ALT/VEL from the landing-radar lock.
+func (m Model) dskyState() dsky.State {
+	e := m.eng
+	d := e.DSKY()
+	st := dsky.State{Verb: d.Verb, Noun: d.Noun, CompActy: e.CompActy()}
+	ph := e.Phase()
+	switch ph {
+	case sim.P63:
+		st.Prog = "63"
+	case sim.P64:
+		st.Prog = "64"
+	case sim.P66:
+		st.Prog = "66"
+	}
+	if ph != sim.P00 {
+		st.R1, st.R2, st.R3 = d.R1, d.R2, d.R3
+	}
+	st.Lights = dsky.Lights{
+		Prog:    e.ProgLamp(),
+		Restart: e.RestartRecently(1500),
+		Alt:     ph != sim.P00 && !e.LandingRadarAcquired(),
+		Vel:     ph != sim.P00 && !e.LandingRadarAcquired(),
+	}
+	return st
+}
 
 // ForceColorIfRequested forces a 256-color profile when CLICOLOR_FORCE is
 // set — profile detection fails in detached ptys (tmux capture, CI), which
@@ -315,8 +344,9 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	left := m.viewLeft()
+	panel := dsky.Render(m.dskyState(), true)
 	right := m.viewBoxes()
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", panel, " ", right)
 	b.WriteString(body)
 	b.WriteString("\n")
 	b.WriteString(m.viewSwitches())
@@ -460,31 +490,19 @@ func (m Model) viewCycleBar() string {
 			sDim.Render(fmt.Sprintf(" %4.2fs/2.00s", elapsed/1000))
 	}
 
-	d := e.DSKY()
-	dsky := sTitle.Render("DSKY") + " " +
-		lipgloss.NewStyle().Foreground(cGreen).Bold(true).Render(fmt.Sprintf("V%-2s N%-2s", pad2(d.Verb), pad2(d.Noun)))
-	if d.R3 != "" {
-		dsky += lipgloss.NewStyle().Foreground(cGreen).Render("  R3 " + d.R3)
-	}
+	badges := ""
 	if e.MonitorActive() {
-		dsky += " " + lipgloss.NewStyle().Foreground(cYellow).Render("MON 1Hz")
+		badges += " " + lipgloss.NewStyle().Foreground(cYellow).Render("MON 1Hz")
 	}
 	if m.typing {
-		dsky += " " + sAlarm.Render(" TYPING ")
+		badges += " " + sAlarm.Render(" TYPING ")
 	}
-	return sDim.Render("2s CYCLE ") + bar + "   " + dsky
-}
-
-func pad2(s string) string {
-	for len(s) < 2 {
-		s += "–"
-	}
-	return s
+	return sDim.Render("2s CYCLE ") + bar + "  " + badges
 }
 
 func (m Model) viewLeft() string {
 	labelW := 9
-	rightW := 29
+	rightW := 29 + dsky.Width + 1
 	trackW := clampi(m.w-labelW-rightW-3, 20, 160)
 	buckets := m.eng.History(trackW*2 + 2)
 	// Anchor bucket pairs to ABSOLUTE parity and render only complete pairs:

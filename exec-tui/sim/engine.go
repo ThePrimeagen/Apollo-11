@@ -351,6 +351,8 @@ type Engine struct {
 	throttleAt   map[EventKind]float64
 
 	lastRecoverAt float64 // AGC time of the last stub recovery, log or not
+	lastRestartAt float64 // AGC time of the last software restart
+	compActy      bool    // last accounted step was non-idle (COMP ACTY lamp)
 
 	runningJob string
 
@@ -377,6 +379,7 @@ func New() *Engine {
 		throttleText:  map[EventKind]string{},
 		throttleAt:    map[EventKind]float64{},
 		lastRecoverAt: -1e18,
+		lastRestartAt: -1e18,
 	}
 	e.t4Next = t4PeriodMs
 	e.downNext = downPeriodMs
@@ -700,6 +703,7 @@ func (e *Engine) bailout(code string) {
 	}
 	e.progLamp = true
 	e.restarts++
+	e.lastRestartAt = e.t
 	what := "NO CORE SETS"
 	if code == "1201" {
 		what = "NO VAC AREAS"
@@ -983,7 +987,7 @@ func (e *Engine) DSKY() DSKYState {
 			alt = 0
 		}
 		d.R1 = fmt.Sprintf("%+06.0f", 5559.7-6.0*(e.t/1000.0))
-		d.R2 = fmt.Sprintf("%+05.0f", -84.0)
+		d.R2 = fmt.Sprintf("%+06.0f", -84.0)
 		d.R3 = fmt.Sprintf("%+06.0f", alt)
 		if e.monitor {
 			d.R3 = "-02900" // DELTAH as Aldrin saw it
@@ -1121,6 +1125,16 @@ func (e *Engine) RecoveredRecently(windowMs float64) bool {
 	return e.t-e.lastRecoverAt <= windowMs
 }
 
+// RestartRecently reports whether a software restart happened within the
+// trailing window — drives the DSKY RESTART lamp.
+func (e *Engine) RestartRecently(windowMs float64) bool {
+	return e.t-e.lastRestartAt <= windowMs
+}
+
+// CompActy reports whether the last accounted step did real work — the
+// DSKY COMP ACTY lamp.
+func (e *Engine) CompActy() bool { return e.compActy }
+
 // KnifeEdge reports the flight's quiet pre-monitor regime: the theft is
 // active and has consumed the entire margin (free compute pinned near zero)
 // but nothing has overrun yet — one more straw (the monitor, P64) breaks it.
@@ -1144,6 +1158,7 @@ func (e *Engine) outstanding() float64 {
 }
 
 func (e *Engine) account(c Consumer) {
+	e.compActy = c != CIdle
 	e.curUse[c] += stepMs
 	e.curFill += stepMs
 	if e.curFill+1e-9 >= BucketMs {
