@@ -8,6 +8,37 @@ hard-coded number you don't recognize, it should be in one of the tables below.
 
 ---
 
+## 0. Open Questions
+Were verbs / nouns typed in by the astronaughts as "display altitude" or was it really
+"V16 N68".  Did the astronaughts have to memorize all of the different codes?
+
+| **Memory cycle (MCT)** | Memory Cycle Time | The fundamental time unit:
+**11.72 µs**, the time to read/modify/write one word. Every instruction and
+every hardware counter increment costs whole MCTs. |
+
+Does this mean that a single cpu instruction cannot execute faster than 11.72us?
+
+What does "Every instruction and every hardware counter increment costs whole MCTs."
+
+GOJAM - What did the astronaughts see?  Did they see the 1201 as a number
+printed? red light?  What was it and what happened when the machine would
+cycle?  Would they lose control for some period of time?  If so, how long?
+
+Manual landing... does that mean Aldrin couldn't see the ground, he had to go
+off instruments and what the computer was outputing?  How did the restarting
+effect this?
+
+Nextcore -
+The algorithm, could you write it in plain Odin such that we can have the
+simplest version of the algorithm.
+
+Where is the data being stored?  Can you give me the offsets into the RAM that VACs and CoreSets are at?
+
+Lets create an animation that lines up with the code so i can step them through one at a time.
+
+T3RUPT runs in perfect timing regardless of load... how?
+
+
 ## 1. Core concepts (the "what is VAC?" table)
 
 | Term | Full name | What it actually means |
@@ -17,8 +48,7 @@ hard-coded number you don't recognize, it should be in one of the tables below.
 | **LUMINARY 099** | — | The specific software build (revision 99) that flew Apollo 11's Lunar Module. This repo's `Luminary099/` folder. |
 | **Core set** | — | A block of **12 words** of erasable memory that *every* job needs as its private scratchpad/registers while it runs. There are **8** of them. Think: one "thread control block." |
 | **VAC** | **V**ector **AC**cumulator area | A **larger** block (44 words) of erasable memory that a job needs *in addition* to a core set **if** it does vector/matrix math via the Interpreter. There are only **5**. "VAC area" = the workspace for double-precision vector arithmetic. This is the resource whose exhaustion caused the **1201** alarm. |
-| **Job** | — | A unit of work with a **priority**. The Executive runs the highest-priority ready job. Jobs can be suspended and resumed. Needs a core set (and maybe a VAC area). Example: `SERVICER`. |
-| **Task** | — | A short piece of work scheduled to run **at a specific time** (not a priority). Managed by WAITLIST, run from a timer interrupt. Must be very brief. Example: `READACCS`. |
+| **Job** | — | A unit of work with a **priority**. The Executive runs the highest-priority ready job. Jobs can be suspended and resumed. Needs a core set (and maybe a VAC area). Example: `SERVICER`. | | **Task** | — | A short piece of work scheduled to run **at a specific time** (not a priority). Managed by WAITLIST, run from a timer interrupt. Must be very brief. Example: `READACCS`. |
 | **Priority** | — | A number attached to a job; higher wins the CPU. `SERVICER` runs at 20 (low); radar/keyboard jobs at 30–32 (higher), so they interrupt `SERVICER`. |
 | **Executive** | — | The AGC's job scheduler (a mini operating system). Hands out core sets/VAC areas and picks which job runs. Lives in `EXECUTIVE.agc`. |
 | **WAITLIST** | — | The AGC's timer-based task scheduler. Runs tasks when their countdown hits zero. Lives in `WAITLIST.agc`. |
