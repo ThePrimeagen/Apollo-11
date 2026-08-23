@@ -51,16 +51,41 @@ func TestContinuousDescent(t *testing.T) {
 			t.Fatalf("velocity must interpolate too, got %v", s.VelFps)
 		}
 	})
-	t.Run("happy: no rotation — upright in flight, landed at the end", func(t *testing.T) {
+	t.Run("happy: zero rotation — one upright silhouette the whole flight", func(t *testing.T) {
 		m := newDemoModel()
-		m.advance(10 * 1000)
-		if got := m.state().Attitude; got != lander.Vertical {
-			t.Fatalf("the craft must stay upright in flight, got %v", got)
+		for i := 0; i < 36; i++ { // sample the entire flight second by second
+			m.advance(1000)
+			if s := m.state(); s.AltFt > 0 && s.Attitude != lander.Vertical {
+				t.Fatalf("at t=%.0fs the craft must be upright, got %v", s.TimeSec, s.Attitude)
+			}
 		}
-		m.advance(60 * 1000) // well past touchdown at 20x
+		m.advance(30 * 1000)
 		s := m.state()
 		if s.Attitude != lander.Landed || s.AltFt != 0 {
 			t.Fatalf("the flight must end landed at 0 ft, got %v at %v ft", s.Attitude, s.AltFt)
+		}
+	})
+	t.Run("happy: the state carries a live countdown to touchdown", func(t *testing.T) {
+		m := newDemoModel()
+		if got := m.state().LandInSec; got != 757 {
+			t.Fatalf("the countdown starts at 757s, got %v", got)
+		}
+		m.advance(1000) // 20 mission seconds
+		if got := m.state().LandInSec; got != 737 {
+			t.Fatalf("the countdown must tick with mission time, got %v", got)
+		}
+		m.advance(120 * 1000)
+		if got := m.state().LandInSec; got != 0 {
+			t.Fatalf("the countdown must clamp at zero, got %v", got)
+		}
+	})
+	t.Run("happy: the demo ticks the plume animation frame counter", func(t *testing.T) {
+		m := newDemoModel()
+		t0 := m.state().Tick
+		mm, _ := m.Update(frameMsg{})
+		m = mm.(demoModel)
+		if m.state().Tick == t0 {
+			t.Fatal("each frame must advance the animation tick")
 		}
 	})
 	t.Run("happy: alarms appear as their moments pass, all five by the end", func(t *testing.T) {
@@ -102,6 +127,17 @@ func TestPlaybackControls(t *testing.T) {
 		m.advance(5000)
 		if m.state().AltFt >= before {
 			t.Fatal("resuming must let the craft fall again")
+		}
+	})
+	t.Run("happy: r toggles true realtime (1x) and back", func(t *testing.T) {
+		m := newDemoModel()
+		m = key(m, 'r')
+		if m.scale != 1 {
+			t.Fatalf("r must drop to 1x realtime, got %v", m.scale)
+		}
+		m = key(m, 'r')
+		if m.scale != defaultScale {
+			t.Fatalf("r again must restore the default rate, got %v", m.scale)
 		}
 	})
 	t.Run("unhappy: rate clamps at sane bounds", func(t *testing.T) {

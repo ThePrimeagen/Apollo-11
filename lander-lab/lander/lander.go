@@ -42,13 +42,15 @@ type Alarm struct {
 
 // State is one instant of the descent.
 type State struct {
-	AltFt    float64
-	VelFps   float64
-	TimeSec  float64
-	Phase    string
-	Attitude Attitude
-	Event    string
-	Alarms   []Alarm
+	AltFt     float64
+	VelFps    float64
+	TimeSec   float64
+	LandInSec float64 // countdown to touchdown; 0 hides it
+	Tick      int     // animation frame counter (plume flicker)
+	Phase     string
+	Attitude  Attitude
+	Event     string
+	Alarms    []Alarm
 }
 
 // Palette (xterm-256).
@@ -206,11 +208,15 @@ func Render(s State) string {
 		}
 	}
 
-	// header: phase left, time right; telemetry below
+	// header: phase left, time right; telemetry + touchdown countdown below
 	put(0, 0, s.Phase, colPhase)
 	tstr := fmt.Sprintf("T+%.0fs", s.TimeSec)
 	put(0, Width-len(tstr), tstr, colDim)
 	put(1, 0, fmt.Sprintf("ALT %6.0fft", s.AltFt), colGreen)
+	if s.LandInSec > 0 {
+		cd := fmt.Sprintf("▼ %.0fs", s.LandInSec)
+		put(1, (Width-len([]rune(cd)))/2, cd, colPhase)
+	}
 	vstr := fmt.Sprintf("VEL %5dft/s", int(s.VelFps))
 	put(1, Width-len(vstr), vstr, colGreen)
 
@@ -254,7 +260,13 @@ func Render(s State) string {
 			color := materialColor(byte(maskRow[j]))
 			ch := r
 			if r == '~' {
-				ch = '≈'
+				// flicker the plume with the animation tick so the burn
+				// reads alive between the cell-quantized row steps
+				if (s.Tick+i+j)%2 == 0 {
+					ch = '≈'
+				} else {
+					ch = '~'
+				}
 			}
 			grid[row][col] = cell{ch, color}
 		}

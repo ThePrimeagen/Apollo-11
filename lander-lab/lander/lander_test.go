@@ -150,7 +150,7 @@ func TestAttitudes(t *testing.T) {
 		if !strings.Contains(v, "▟▄▙") {
 			t.Fatal("the vertical silhouette must show the descent engine bell")
 		}
-		if !strings.Contains(v, "≈≈≈") {
+		if strings.Count(v, "≈")+strings.Count(v, "~") < 3 {
 			t.Fatal("the vertical descent needs a straight-down plume under the bell")
 		}
 		if !strings.Contains(v, "▟▓████▓▙") {
@@ -260,6 +260,61 @@ func TestAlarmMarkers(t *testing.T) {
 // ---------------------------------------------------------------------------
 // captions
 // ---------------------------------------------------------------------------
+
+func TestCountdown(t *testing.T) {
+	t.Run("happy: the touchdown countdown renders and ticks with the state", func(t *testing.T) {
+		s := base()
+		s.LandInSec = 128
+		if !strings.Contains(plain(Render(s)), "▼ 128s") {
+			t.Fatal("the countdown must render as ▼ NNNs")
+		}
+		s.LandInSec = 127
+		if !strings.Contains(plain(Render(s)), "▼ 127s") {
+			t.Fatal("the countdown must follow the state")
+		}
+	})
+	t.Run("unhappy: a landed craft shows no countdown", func(t *testing.T) {
+		s := base()
+		s.AltFt = 0
+		s.Attitude = Landed
+		s.LandInSec = 0
+		if strings.Contains(plain(Render(s)), "▼") {
+			t.Fatal("no countdown after touchdown")
+		}
+	})
+}
+
+func TestPlumeFlicker(t *testing.T) {
+	t.Run("happy: the plume animates across ticks while the body holds still", func(t *testing.T) {
+		s := base()
+		s.Attitude = Vertical
+		s.Tick = 0
+		a := plain(Render(s))
+		s.Tick = 1
+		b := plain(Render(s))
+		if a == b {
+			t.Fatal("the plume must flicker frame to frame")
+		}
+		stripPlume := func(v string) string {
+			v = strings.ReplaceAll(v, "≈", " ")
+			return strings.ReplaceAll(v, "~", " ")
+		}
+		if stripPlume(a) != stripPlume(b) {
+			t.Fatal("only the plume may animate — the body must hold perfectly still")
+		}
+	})
+	t.Run("unhappy: a landed craft does not flicker", func(t *testing.T) {
+		s := base()
+		s.AltFt = 0
+		s.Attitude = Landed
+		s.Tick = 0
+		a := Render(s)
+		s.Tick = 1
+		if a != Render(s) {
+			t.Fatal("nothing may animate after engine cutoff")
+		}
+	})
+}
 
 func TestCaptions(t *testing.T) {
 	t.Run("happy: phase, time, altitude, velocity, and event render", func(t *testing.T) {

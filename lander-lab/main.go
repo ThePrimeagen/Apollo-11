@@ -50,6 +50,7 @@ type demoModel struct {
 	t      float64 // mission time, seconds
 	scale  float64 // mission seconds per wall second
 	paused bool
+	tick   int // animation frame counter
 }
 
 func newDemoModel() demoModel { return demoModel{scale: defaultScale} }
@@ -90,12 +91,15 @@ func (m demoModel) state() lander.State {
 			}
 		}
 	}
+	end := script[len(script)-1].timeSec
 	st := lander.State{
-		AltFt:   lerp(m.t, last.timeSec, next.timeSec, last.altFt, next.altFt),
-		VelFps:  lerp(m.t, last.timeSec, next.timeSec, last.velFps, next.velFps),
-		TimeSec: m.t,
-		Phase:   last.phase,
-		Event:   last.caption,
+		AltFt:     lerp(m.t, last.timeSec, next.timeSec, last.altFt, next.altFt),
+		VelFps:    lerp(m.t, last.timeSec, next.timeSec, last.velFps, next.velFps),
+		TimeSec:   m.t,
+		LandInSec: end - m.t,
+		Tick:      m.tick,
+		Phase:     last.phase,
+		Event:     last.caption,
 	}
 	st.Attitude = lander.Vertical
 	if st.AltFt <= 0 {
@@ -125,6 +129,7 @@ func (m demoModel) Init() tea.Cmd { return tick() }
 func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case frameMsg:
+		m.tick++
 		m.advance(frameMs)
 		return m, tick()
 	case tea.KeyMsg:
@@ -143,6 +148,12 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.scale < 320 {
 					m.scale *= 2
 				}
+			case 'r':
+				if m.scale == 1 {
+					m.scale = defaultScale
+				} else {
+					m.scale = 1
+				}
 			case '.':
 				m.paused = !m.paused
 			}
@@ -154,7 +165,7 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m demoModel) View() string {
 	dim := "\x1b[38;5;240m"
 	reset := "\x1b[0m"
-	status := fmt.Sprintf("%.0f× time · [ ] speed · [.] pause · [q] quit", m.scale)
+	status := fmt.Sprintf("%.0f× time · [ ] speed · [r] realtime · [.] pause · [q] quit", m.scale)
 	if m.paused {
 		status = "PAUSED · " + status
 	}
