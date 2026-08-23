@@ -142,7 +142,7 @@ func TestStatsCarriesTheRest(t *testing.T) {
 // tint, by walking the raw ANSI line and tracking the active background.
 func markerCols(t *testing.T, v, label string) []int {
 	t.Helper()
-	const labelW, trackW = 16, 48
+	const labelW, trackW = 18, 48
 	var line string
 	for _, l := range strings.Split(v, "\n") {
 		if strings.HasPrefix(l, "\x1b") {

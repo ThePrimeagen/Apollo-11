@@ -2,8 +2,8 @@ package ui
 
 // t51 — every timeline row carries a fixed-width parenthetical showing the
 // AGC milliseconds that item consumed over the trailing 2-second cycle,
-// zero-filled so the layout NEVER shifts: `SERVICER (1372)`. The old
-// cycles/restarts counter line is gone.
+// space-padded with an explicit unit so the layout NEVER shifts:
+// `SERVICER (1372ms)`. The old cycles/restarts counter line is gone.
 
 import (
 	"regexp"
@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-var costRE = regexp.MustCompile(`^([A-Z0-9 ]{9})\((\d{4})\) `)
+var costRE = regexp.MustCompile(`^([A-Z0-9 ]{9})\(( *\d+)ms\) `)
 
 // rowCost extracts the parenthetical ms value for a labeled row.
 func rowCost(t *testing.T, v, label string) int {
@@ -23,7 +23,7 @@ func rowCost(t *testing.T, v, label string) int {
 		if m == nil || !strings.HasPrefix(strings.TrimSpace(m[1]), label) {
 			continue
 		}
-		n, err := strconv.Atoi(m[2])
+		n, err := strconv.Atoi(strings.TrimSpace(m[2]))
 		if err != nil {
 			t.Fatalf("bad cost %q on row %q", m[2], label)
 		}
@@ -50,7 +50,7 @@ func TestRowCosts(t *testing.T) {
 			t.Fatalf("idle should hold ~2000ms of the 2s window, got %d", got)
 		}
 		if got := rowCost(t, v, "MONITOR"); got != 0 {
-			t.Fatalf("an off monitor must read (0000), got %04d", got)
+			t.Fatalf("an off monitor must read (   0ms), got %d", got)
 		}
 	})
 	t.Run("happy: the monitor at 1Hz reads ~60ms per 2s cycle", func(t *testing.T) {
@@ -108,8 +108,8 @@ func TestRowCosts(t *testing.T) {
 				}
 			}
 		}
-		if start != 16 {
-			t.Fatalf("label column must be exactly 16 cells (9 label + 6 cost + space), got %d", start)
+		if start != 18 {
+			t.Fatalf("label column must be exactly 18 cells (9 label + 8 cost + space), got %d", start)
 		}
 	})
 }

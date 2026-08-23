@@ -17,7 +17,7 @@ import (
 // panel joined to the right of the row is not part of the track).
 func rowCells(t *testing.T, v, label string) []rune {
 	t.Helper()
-	const labelW, trackW = 16, 48
+	const labelW, trackW = 18, 48
 	for _, line := range strings.Split(v, "\n") {
 		if strings.HasPrefix(line, label) {
 			r := []rune(line)
