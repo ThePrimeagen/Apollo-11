@@ -408,7 +408,7 @@ func (m Model) viewLeft() string {
 		e.CycleCount(), e.ServicerCopies(), e.RestartCount(), len(e.Alarms()))))
 	b.WriteString("\n\n")
 	evs := e.Events()
-	n := 5
+	n := clampi(m.h-22, 3, 20)
 	if len(evs) < n {
 		n = len(evs)
 	}
@@ -457,7 +457,7 @@ func (m Model) viewBoxes() string {
 	cores := e.CoreSets()
 	vacs := e.VACs()
 
-	compact := m.h < 38
+	compact := m.h < 31
 	boxW := 12
 
 	var coreCol, vacCol []string
@@ -521,10 +521,15 @@ func (m Model) viewKeyBar() string {
 	hint := func(k, what string) string {
 		return sDim.Render("─ ") + sTitle.Render("["+k+"]") + " " + sDim.Render(what) + " "
 	}
-	return hint("d", "descent") + hint("l", "radar lock") + hint("n", "neil types") +
+	line1 := hint("d", "descent") + hint("l", "radar lock") + hint("n", "neil types") +
 		hint("t", "you type") + hint("r", "RR bug") + hint("p", "ping radar") +
-		hint("6", "P64") + hint("a", "att-hold") + hint("space", "pause") +
-		hint("-", "slow") + hint("+", "fast") + hint("x", "reset") + hint("q", "quit")
+		hint("6", "P64") + hint("a", "att-hold")
+	line2 := hint("space", "pause") + hint("-", "slow") + hint("+", "fast") +
+		hint("x", "reset") + hint("q", "quit")
+	if m.w >= 175 {
+		return line1 + line2
+	}
+	return line1 + "\n" + line2
 }
 
 func clampi(v, lo, hi int) int {
