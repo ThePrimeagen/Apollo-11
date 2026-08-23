@@ -94,6 +94,9 @@ The first four markers include **two alternatives**. A failed allocation follows
 - [`errorcodes.markdown`](errorcodes.markdown) — the older single-document deep technical
   treatment; useful as a consolidated reference after the three focused parts.
 - [`outline.markdown`](outline.markdown) — orientation to the whole Apollo-11 repository.
+- [`website_spec.md`](website_spec.md) — implementation spec for the descent-replay
+  website (starfield scene, lander, DSKY, joystick, time controls) driven by the
+  `exec-tui` simulation engine.
 
 ## Source marker commands
 

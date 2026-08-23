@@ -29,14 +29,16 @@ three focused technical explanations.
 | :------------- | :----------- | :---- | :---- | :------- | :----------- |
 | 102:33:05.01 | 20:05:05 | +0 s | **PDI** — descent engine ignites at 10% throttle (P63, braking phase) | 49,971 ft | 2.2 ft/s |
 | 102:33:31 | 20:05:31 | +26 s | Throttle up to maximum (~9,870 lb); descent guidance enabled | ~49,000 ft | — |
-| ~102:37:53 | ~20:09:53 | ~+288 s | Landing radar "data good"; Delta‑H ≈ −2,900 ft | ~35,000 ft | — |
-| ~102:38:10 | ~20:10:10 | ~+305 s | Aldrin keys **V16 N68** (DELTA‑H monitor) — the extra load that tipped the computer over | ~34,000 ft | — |
+| 102:36:55 | 20:08:55 | +230 s | Armstrong yaws the LM face-up (windows away from the surface); he finds the rate switch at 5 deg/s and flips it to 25 | — | — |
+| ~102:37:53 | ~20:09:53 | ~+288 s | Landing radar locks on — "data good" — just as the yaw-around completes | ~35,000 ft | — |
+| ~102:38:04 | ~20:10:04 | ~+299 s | Aldrin keys **V16 N68** (DELTA‑H monitor) — the extra load that tipped the computer over. R3 shows **DELTAH ≈ −2,900 ft** (Aldrin's callout logged 102:38:06) | ~34,000 ft | — |
 | **102:38:22** | **20:10:22** | **+317 s** | **ALARM 1 — 1202** (Executive overflow, no core sets); PROG light on, DSKY reverts to V06 N63 | **~33,500 ft** | ~120 ft/s |
 | 102:38:42 | 20:10:42 | +337 s | Armstrong (heard at Houston): *"Give us a reading on the 1202 Program Alarm."* | ~32,000 ft | — |
 | 102:38:53 | 20:10:53 | +348 s | Duke (transmitted from Houston): *"We're Go on that alarm."* Crew hears it ~102:38:54 | ~31,000 ft | — |
-| 102:39:14 | 20:11:14 | +369 s | Aldrin: *"Same alarm, and it appears to come up when we have a 1668 up."* | ~27,000 ft | — |
+| ~102:38:55 | ~20:10:55 | ~+350 s | Aldrin keys **V57** (accept landing-radar updates — approved during the wait), then re-keys **V16 N68** and watches DELTAH shrink toward ~900 ft | ~30,000 ft | — |
 | **102:39:02** | **20:11:02** | **+357 s** | **ALARM 2 — 1202** (per Apollo 11 Mission Report, Table 5‑I) | ~29,000 ft | ~125 ft/s |
-| 102:39:35 | 20:11:35 | +390 s | **Throttle down** — right on time; strong confidence builder | ~24,000 ft | — |
+| 102:39:14 | 20:11:14 | +369 s | Aldrin: *"Same alarm, and it appears to come up when we have a 1668 up."* | ~27,000 ft | — |
+| 102:39:31 | 20:11:31 | +386 s | **Throttle down** — right on time (*"better than the simulator"*); strong confidence builder | ~24,500 ft | — |
 | 102:41:32 | 20:13:32 | +507 s | **High Gate** reached; **P64** (approach/visibility phase) begins, LM pitches forward | 7,400 ft | 125 ft/s |
 | 102:42:10 | 20:14:10 | +545 s | Duke: *"Eagle, Houston. You're Go for landing."* | ~3,500 ft | — |
 | **102:42:18** | **20:14:18** | **+553 s** | **ALARM 3 — 1201** (Executive overflow, no VAC areas) | **~3,000 ft** | ~60 ft/s |
@@ -111,6 +113,21 @@ cure the overload — it only stopped when Armstrong took manual attitude contro
 - **First-alarm time caveat:** the Apollo 11 Mission Report (Table 5‑I) gives the *first*
   1202 as 102:39:02; the SP‑4029 timeline and most secondary sources use 102:38:22. The table
   above lists both events; treat ±40 s uncertainty on the very first alarm's label.
+- **V16 N68 → first alarm gap:** the monitor was keyed shortly *before* Aldrin's "Delta-H is
+  minus 2900" callout (logged 102:38:06), so the first 1202 at 102:38:22 came roughly
+  **12–18 seconds** (six to nine 2-second guidance cycles) after the extra load was added.
+- **V57 and the second alarm:** Eyles records that during the half minute between the first
+  alarm and Houston's "Go", mission control approved the DELTAH, Aldrin keyed **V57** to let
+  navigation incorporate the landing-radar data, then re-keyed **V16 N68** and watched DELTAH
+  decrease to ~900 ft — and the second 1202 followed.
+- **Alarm readback keystrokes:** the crew read the alarm code out of `FAILREG` with
+  **V05 N09** (Tillman memo: "displayed on the DSKY (by V5N9E)"). Note that Eyles' 2004
+  paper misprints this as "Verb 90 Noun 50"; no such display exists in Luminary 099.
+- **Throttle down** is logged at 102:39:31 (Aldrin: *"Throttle down"*; Armstrong:
+  *"Throttle down on time!"*), per Eyles and the voice transcript.
+- **Joystick use:** Armstrong had said pre-flight he would not use P64's landing-point
+  designator, but per Eyles/the crew debriefing there was apparently **one inadvertent
+  redesignation** late in the visibility phase.
 - **Altitudes** are from the ALSJ narrative annotations and the crew's own callouts
   (33,500 ft at the first alarm; 7,400 ft at High Gate/P64; 3,000 ft, 2,000 ft, and 770 ft at
   the three P64 alarms) and from Eyles (770 ft / 27 ft/s at the final alarm). Values between

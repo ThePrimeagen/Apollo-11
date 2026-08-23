@@ -372,7 +372,7 @@ If Step 9 loses the race to Steps 1–6 every cycle, the board grows:
 
 ## Compounding — one extra held pair every overloaded 2 s
 
-Illustrative growth after V16 N68 tipped duty cycle past 100% (≈40 s to first 1202):
+Illustrative growth after V16 N68 tipped duty cycle past 100% (≈12–18 s to first 1202):
 
 ```text
 t+0s   CORE  S0 ·  ·  ·  ·  ·  ·  ·     VAC  0 · · · ·

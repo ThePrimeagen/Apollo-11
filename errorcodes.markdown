@@ -213,9 +213,9 @@ Now put §2, §3 and §4 together. This is the precise loop that generated each 
    the ninth core set (→ **1202**) or the sixth VAC area (→ **1201**). The Executive cannot
    comply, and jumps to `BAILOUT1` with the alarm code inline after the call.
 
-This matches the observed spacing: the first 1202 came at PDI+316 s, ~40 s after the crew
-keyed up the V16N68 monitor (Aldrin even noticed the correlation: "It appears to come up
-when we have a 1668 up").
+This matches the observed spacing: the first 1202 came at PDI+316 s, only ~12–18 s (six to
+nine 2-second cycles) after the crew keyed up the V16N68 monitor at ~PDI+300 s (Aldrin even
+noticed the correlation: "It appears to come up when we have a 1668 up").
 
 ## 6. The alarm and the save: `BAILOUT` → `WHIMPER` → `ENEMA` → phase-table restart
 
