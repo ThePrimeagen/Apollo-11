@@ -90,6 +90,15 @@ func TestSevenSegmentDigits(t *testing.T) {
 			t.Fatal("an all-blank DSKY must show no lit segments")
 		}
 	})
+	t.Run("happy: a blank-sign register renders digits with no sign glyph (alarm codes)", func(t *testing.T) {
+		out := Render(State{R1: " 01202"}, true)
+		if !strings.Contains(plain(out), "_") {
+			t.Fatal("alarm-code registers must render their digits")
+		}
+		if strings.Contains(plain(out), "+") || strings.Contains(plain(out), "−") {
+			t.Fatal("a blank-sign register must carry no sign glyph")
+		}
+	})
 	t.Run("unhappy: malformed register strings degrade to blanks, not panics", func(t *testing.T) {
 		for _, bad := range []string{"12", "+123456789", "abc", "+1a2b3"} {
 			out := Render(State{R1: bad}, true)

@@ -279,18 +279,18 @@ func TestDSKYPanel(t *testing.T) {
 			t.Fatal("the panel must render the digits as seven-segment strokes")
 		}
 	})
-	t.Run("unhappy: alarm lights PROG and shows the code", func(t *testing.T) {
+	t.Run("unhappy: alarm lights PROG and shows the code on the DSKY", func(t *testing.T) {
 		e, m := newTestModel()
 		for i := 0; i < 8; i++ {
 			e.ScheduleJob("HOG", 25, 1e9, false)
 		}
 		e.ScheduleJob("STRAW", 25, 10, false)
-		v := m.View()
-		if !strings.Contains(v, "PROG") {
-			t.Fatal("PROG lamp must be visible after an alarm")
+		st := m.dskyState()
+		if !st.Lights.Prog {
+			t.Fatal("PROG lamp must light after an alarm")
 		}
-		if !strings.Contains(v, "1202") {
-			t.Fatal("the alarm code must be visible")
+		if !strings.Contains(st.R1, "1202") {
+			t.Fatalf("the alarm code must be readable in R1, got %q", st.R1)
 		}
 	})
 }

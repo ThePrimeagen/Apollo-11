@@ -130,9 +130,10 @@ func twoDigits(s string, row int) string {
 	return SegRows(rs[0])[row] + " " + SegRows(rs[1])[row]
 }
 
-// validReg reports whether a register string is "+DDDDD" or "-DDDDD".
+// validReg reports whether a register string is "+DDDDD", "-DDDDD", or
+// " DDDDD" (blank sign — the real DSKY showed alarm codes unsigned).
 func validReg(s string) bool {
-	if len(s) != 6 || (s[0] != '+' && s[0] != '-') {
+	if len(s) != 6 || (s[0] != '+' && s[0] != '-' && s[0] != ' ') {
 		return false
 	}
 	for _, c := range s[1:] {
@@ -150,9 +151,10 @@ func regRow(v string, row int) string {
 	}
 	sign := "   "
 	if row == 1 {
-		if v[0] == '+' {
+		switch v[0] {
+		case '+':
 			sign = " + "
-		} else {
+		case '-':
 			sign = " − "
 		}
 	}

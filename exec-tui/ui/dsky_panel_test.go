@@ -79,6 +79,29 @@ func TestDSKYStateMapping(t *testing.T) {
 			t.Fatal("the RESTART lamp clears once the restart is done")
 		}
 	})
+	t.Run("happy: the alarm shows ON the DSKY as V05 N09 with the code in R1", func(t *testing.T) {
+		e, m := newTestModel()
+		e.StartDescent()
+		for i := 0; i < 8; i++ {
+			e.ScheduleJob("HOG", 25, 1e9, false)
+		}
+		e.ScheduleJob("STRAW", 25, 10, false)
+		st := m.dskyState()
+		if st.Verb != "05" || st.Noun != "09" {
+			t.Fatalf("the alarm must display as V05 N09, got V%q N%q", st.Verb, st.Noun)
+		}
+		if st.R1 != " 01202" {
+			t.Fatalf("R1 must carry the unsigned alarm code, got %q", st.R1)
+		}
+		e.AdvanceAGC(4000)
+		st = m.dskyState()
+		if st.Verb == "05" {
+			t.Fatal("the code display must yield back to the flight display")
+		}
+		if !st.Lights.Prog {
+			t.Fatal("PROG stays lit after the code display expires")
+		}
+	})
 	t.Run("unhappy: COMP ACTY is dark on an idle machine at least sometimes", func(t *testing.T) {
 		e, m := newTestModel()
 		sawDark := false
@@ -119,14 +142,18 @@ func TestDSKYPanelEmbedded(t *testing.T) {
 			t.Fatal("an idle DSKY must show no lit segments")
 		}
 	})
-	t.Run("happy: alarm code still visible via FAILREG in the header", func(t *testing.T) {
+	t.Run("happy: the alarm code reaches the panel registers, not header text", func(t *testing.T) {
 		e, m := newTestModel()
+		e.StartDescent()
 		for i := 0; i < 8; i++ {
 			e.ScheduleJob("HOG", 25, 1e9, false)
 		}
 		e.ScheduleJob("STRAW", 25, 10, false)
-		if !strings.Contains(m.View(), "1202") {
-			t.Fatal("the alarm code must remain visible")
+		if !strings.Contains(m.dskyState().R1, "1202") {
+			t.Fatal("the alarm code must be readable on the DSKY")
+		}
+		if strings.Contains(m.View(), "FAILREG") {
+			t.Fatal("no FAILREG text may render — the DSKY carries the codes")
 		}
 	})
 }

@@ -43,6 +43,18 @@ func (m Model) dskyState() dsky.State {
 		Alt:     ph != sim.P00 && !e.LandingRadarAcquired(),
 		Vel:     ph != sim.P00 && !e.LandingRadarAcquired(),
 	}
+	// Right after a restart the panel shows the failure the way the crew
+	// read it: V05 N09 with the FAILREG codes, unsigned, in the registers.
+	if fr := e.FailReg(); len(fr) > 0 && e.RestartRecently(2500) {
+		st.Verb, st.Noun = "05", "09"
+		regs := []*string{&st.R1, &st.R2, &st.R3}
+		for i := range regs {
+			*regs[i] = ""
+			if i < len(fr) {
+				*regs[i] = " 0" + fr[i]
+			}
+		}
+	}
 	return st
 }
 
@@ -78,10 +90,6 @@ type Model struct {
 	pending []pendingKey
 	sel     int // selected switch: 0 DESCENT, 1 DELTAH, 2 RR STEAL
 	zoom    int // timeline zoom level index (see zoomBPC)
-
-	seenAlarms int
-	flashLeft  int
-	lastAlarm  sim.Alarm
 }
 
 // NewModel wraps an engine.
@@ -159,13 +167,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.eng.PressKey(m.pending[0].key)
 				m.pending = m.pending[1:]
 			}
-		}
-		if n := len(m.eng.Alarms()); n > m.seenAlarms {
-			m.seenAlarms = n
-			m.lastAlarm = m.eng.Alarms()[n-1]
-			m.flashLeft = 90
-		} else if m.flashLeft > 0 {
-			m.flashLeft--
 		}
 		return m, frameTick()
 	case tea.KeyMsg:
@@ -255,8 +256,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case 'x':
 		m.eng.Reset()
 		m.pending = nil
-		m.seenAlarms = 0
-		m.flashLeft = 0
 	}
 	return m, nil
 }
@@ -401,17 +400,9 @@ func (m Model) viewSwitches() string {
 }
 
 // viewHeader is ONE line: the effective free compute — idle minus deficit —
-// which goes NEGATIVE under overload. Below zero means broken. During an
-// alarm the line flashes the alarm banner instead.
+// which goes NEGATIVE under overload. Breakage shows on the DSKY (PROG lamp
+// + V05 N09 alarm codes), not as header text.
 func (m Model) viewHeader() string {
-	if m.flashLeft > 0 && (m.flashLeft/8)%2 == 0 {
-		what := "NO CORE SETS AVAILABLE"
-		if m.lastAlarm.Code == "1201" {
-			what = "NO VAC AREAS AVAILABLE"
-		}
-		return sAlarm.Render(fmt.Sprintf(" ⚠ PROG ALARM %s — EXECUTIVE OVERFLOW: %s — BAILOUT → RESTART ", m.lastAlarm.Code, what))
-	}
-
 	a := m.eng.Accounting()
 	free := a.IdlePct - a.DeficitPct
 
@@ -434,8 +425,11 @@ func (m Model) viewHeader() string {
 	}
 	bar := freeStyle.Render(strings.Repeat("█", fill)) + sDim.Render(strings.Repeat("░", barW-fill))
 	line := freeStyle.Render(fmt.Sprintf("FREE COMPUTE %+6.1f%%", free)) + " " + bar
-	if free < 0 {
-		line += " " + sAlarm.Render(" BROKEN ")
+	if m.typing {
+		line += " " + sAlarm.Render(" TYPING ")
+	}
+	if m.paused {
+		line += " " + sAlarm.Render(" PAUSED ")
 	}
 	return line
 }
@@ -461,9 +455,6 @@ func cellsFor(w, bpc int) int {
 const gridBGColor = "240"
 
 func (m Model) viewLeft() string {
-	// 9 for the name + 6 for the space-padded NNNNms cost + 1 space:
-	// fixed, so the costs can never shift the track.
-	labelW := 16
 	bucketsPerCell := m.bpc()
 	trackW := cellsFor(m.w, bucketsPerCell)
 	buckets := m.eng.History(trackW*bucketsPerCell + bucketsPerCell)
@@ -485,30 +476,7 @@ func (m Model) viewLeft() string {
 	gridEvery := int(sim.CyclePeriodMs / (float64(bucketsPerCell) * sim.BucketMs))
 
 	e := m.eng
-	head := sDim.Render(fmt.Sprintf("%-*s", labelW, "")) +
-		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell · (ms per 2s cycle) · [z] zoom",
-			float64(trackW)*float64(bucketsPerCell)*sim.BucketMs/1000, float64(bucketsPerCell)*sim.BucketMs))
-	if fr := e.FailReg(); len(fr) > 0 {
-		head += " " + lipgloss.NewStyle().Foreground(cRed).Bold(true).Render("FAILREG "+strings.Join(fr, " "))
-	}
-	if m.typing {
-		head += " " + sAlarm.Render(" TYPING ")
-	}
-	if m.paused {
-		head += " " + sAlarm.Render(" PAUSED ")
-	}
-	if stubs := e.StubCount(); stubs > 0 {
-		head += lipgloss.NewStyle().Foreground(cRed).Bold(true).
-			Render(fmt.Sprintf(" ⚠ %d stubs leaked", stubs))
-	} else if e.KnifeEdge() {
-		head += lipgloss.NewStyle().Foreground(cYellow).Render(" ⚠ knife edge")
-	} else if e.RecoveredRecently(5000) {
-		head += lipgloss.NewStyle().Foreground(cYellow).Render(" ⟳ recovering")
-	}
-
 	var b strings.Builder
-	b.WriteString(head)
-	b.WriteString("\n")
 	for _, r := range rows {
 		style := lipgloss.NewStyle().Foreground(r.color)
 		gridStyle := style.Background(lipgloss.Color(gridBGColor))
