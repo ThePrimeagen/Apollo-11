@@ -9,15 +9,15 @@ import (
 )
 
 func TestHeaderBadges(t *testing.T) {
-	t.Run("happy: l lights an LR LOCK badge", func(t *testing.T) {
-		_, m := newTestModel()
+	t.Run("happy: landing-radar lock lights an LR LOCK badge", func(t *testing.T) {
+		e, m := newTestModel()
 		m = key(m, 'd')
 		if strings.Contains(m.View(), "LR LOCK") {
 			t.Fatal("LR LOCK badge must not show before the radar locks")
 		}
-		m = key(m, 'l')
+		e.AcquireLandingRadar()
 		if !strings.Contains(m.View(), "LR LOCK") {
-			t.Fatal("LR LOCK badge must show after pressing l")
+			t.Fatal("LR LOCK badge must show once the radar reports data good")
 		}
 	})
 	t.Run("happy: r lights an RR BUG badge, r again clears it", func(t *testing.T) {
@@ -35,9 +35,9 @@ func TestHeaderBadges(t *testing.T) {
 		}
 	})
 	t.Run("unhappy: reset clears every badge", func(t *testing.T) {
-		_, m := newTestModel()
+		e, m := newTestModel()
 		m = key(m, 'd')
-		m = key(m, 'l')
+		e.AcquireLandingRadar()
 		m = key(m, 'r')
 		m = key(m, 'x')
 		v := m.View()

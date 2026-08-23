@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+	ui.ForceColorIfRequested()
 	engine := sim.New()
 	p := tea.NewProgram(ui.NewModel(engine), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {

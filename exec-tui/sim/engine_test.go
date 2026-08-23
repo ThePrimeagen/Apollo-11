@@ -460,9 +460,16 @@ func TestKeystrokeCost(t *testing.T) {
 		if e.PendingDSPTAB() < 1 {
 			t.Fatal("keystroke should queue DSKY display (DSPTAB) updates")
 		}
+		// PINBALL sleep semantics: after its head segment CHARIN sleeps on
+		// the display echo, HOLDING its core set (that hold is real core-set
+		// pressure — the reason flight P63 hit the 8-core wall).
 		e.AdvanceAGC(10)
+		if core, _ := ownerHeld(e, "CHARIN"); !core {
+			t.Fatal("CHARIN must still hold its core set while awaiting the display echo")
+		}
+		e.AdvanceAGC(300)
 		if core, _ := ownerHeld(e, "CHARIN"); core {
-			t.Fatal("CHARIN should release its core set when done")
+			t.Fatal("CHARIN should release its core set after the echo completes")
 		}
 		e.AdvanceAGC(600)
 		if e.PendingDSPTAB() != 0 {

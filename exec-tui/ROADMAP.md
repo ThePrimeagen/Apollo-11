@@ -12,7 +12,7 @@ and its citation.
 
 ## 1. The wireframe, decoded
 
-```
+```text
 free compute text ────────►  ┌──────────────────────────────────────────────────┐
                              │ FREE COMPUTE: 14.2%   TLOSS 15.0%   P63  ALARMS  │
 long lines =                 ├───────────────────────────────┬───────┬──────────┤
@@ -59,14 +59,16 @@ dashes = keys you press ────►│ [d]escent [l]radar [n]eil types [r]bu
 
 | Row | What | When | Cost model (sourced, see RESEARCH.md) |
 | :-- | :--- | :--- | :--- |
-| SERVICER | Priority-20 job, needs core set + VAC | every 2.000 s during powered flight | ~1.30 s/cycle base; +40 ms with landing radar; +grows in P64 |
+| SERVICER | Priority-20 job, needs core set + VAC | every 2.000 s during powered flight | ~1.32 s/cycle base; +70 ms with landing radar; +60 ms in P64 |
 | READACCS | Waitlist task | every 2.000 s | ~1 ms; schedules SERVICER, re-arms itself |
 | DAP | Autopilot interrupt | every 100 ms in powered flight | ~12 ms per fire (≈12% duty) |
 | T4RUPT | Housekeeping interrupt | every 120 ms always | ~1 ms; +0.5 ms per queued DSKY digit change |
-| MONITOR | V16N68 display job, priority 30 | once per second while keyed up | ~60 ms per refresh (≈3% duty) |
-| CHARIN | Keystroke job, priority 30, core set only | per DSKY keypress | ~5 ms per key + display traffic |
+| MONITOR | V16N68 display job (MONDO), priority 30 | once per second while keyed up | 30 ms CPU split around a ~250 ms display-wait sleep (core set held) |
+| CHARIN | Keystroke job, priority 30, core set only | per DSKY keypress | ~5 ms CPU split around a ~150 ms echo-wait sleep (core set held) |
+| LRHJOB / LRVJOB | Priority-32 landing-radar reads | each cycle after "data good"; LRH fires 50 ms before READACCS | ~1 ms run + radar-gate sleep (80 ms / 500 ms, core set held) + ~1 ms run |
+| HIGATJOB | Priority-32 VAC job, one-shot | at P64 entry | ~2 ms, then sleeps ~8 s on the antenna discrete holding a VAC |
 | RADAR READ | Priority-32 one-shot job (your "ping") | on demand | ~80 ms burst |
-| GYRO COMP | Priority-21 job | every 1 s | ~7 ms |
+| GYRO COMP | Priority-21 job | every 1 s (phase-offset from the 2 s boundary) | ~7 ms |
 | DOWNRUPT | Telemetry interrupt | 50/s always | ~0.2 ms per fire (≈1%) |
 | PIPA/other counters | Normal counter traffic | powered flight | ≈0.5% |
 | **RR STEAL** | The bug: 2 CDU counters × 6400 pulses/s × 11.72 µs | when you enable it | **≈15.0% of everything** |
@@ -76,19 +78,27 @@ dashes = keys you press ────►│ [d]escent [l]radar [n]eil types [r]bu
 
 1. Baseline descent (P63) uses <85% → margin >15%. Everything finishes; pools stay at
    1–2 boxes busy; free-compute number is healthy.
-2. Landing radar lock (+~2%), then Aldrin keys **V16 N68** (+~3%) → margin ~10%.
-3. You flip the **radar bug** on: 15% of every second silently vanishes. Demand ≈ 105%.
+2. Landing radar lock (+~4%), then you flip the **radar bug** on: 15% of every second
+   silently vanishes. Demand ≈ 99.8% — the **quiet knife edge**: free compute pinned at
+   ~0, nothing overrun yet (the flight flew this for ~5 minutes). An amber indicator
+   names it.
+3. Aldrin keys **V16 N68** (+~3%): demand passes 100%.
 4. SERVICER (lowest priority, longest job) absorbs the entire shortfall — it's still
    running when the next READACCS fires punctually and FINDVACs a *new* SERVICER. The old
    copy legitimately keeps its core set + VAC. **The deficit is paid in allocations.**
-5. Watch the box columns fill: one extra core set + VAC pair per overloaded cycle.
-6. A request finds no VAC → **1201**; no core set → **1202**. BAILOUT: code into FAILREG,
-   **PROG lamp lights**, software restart wipes both box columns clean, rebuilds exactly
-   one SERVICER + one REREADAC, and **drops the unprotected V16N68 monitor** — the load
-   sheds itself and the DSKY snaps back to N63. That's why Houston could say "go."
-7. In **P64** the extra redesignation load is protected — restarts can't shed it, so the
-   alarms just keep coming (historically: three in 40 seconds) until the pilot reduces
-   the computer's job (ATT HOLD / P66).
+5. Watch the box columns fill: one extra core set + VAC pair per overloaded cycle —
+   alongside the sleepers (radar gates, display waits) briefly pinning core sets.
+6. A request finds no VAC → **1201**; no core set → **1202**. With the crew typing (as
+   in flight) a keystroke usually finds the eighth core set gone first → the historical
+   **1202**; with an idle keyboard the sixth READACCS hits the VAC wall → 1201. BAILOUT:
+   code into FAILREG, **PROG lamp lights**, software restart wipes both box columns
+   clean, rebuilds exactly one SERVICER + one REREADAC, and **drops the unprotected
+   V16N68 monitor** — the load sheds itself and the DSKY snaps back to N63. That's why
+   Houston could say "go."
+7. In **P64** the extra redesignation load is protected — restarts can't shed it — and
+   HIGATJOB parks on a VAC awaiting the antenna discrete, so the VAC wall trips first:
+   **1201** (flight: 102:42:17), then the alarms keep coming (historically: three in 40
+   seconds) until the pilot reduces the computer's job (ATT HOLD / P66).
 
 ## 5. Controls (the dashes)
 
