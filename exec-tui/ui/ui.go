@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
+	"github.com/theprimeagen/apollo-11/button-lab/button"
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 )
 
@@ -91,19 +92,24 @@ func (m *Model) queueKeys(keys string) {
 	}
 }
 
-// engage flips the selected toggle the way the crew would have.
+// engage flips the selected switch the way the crew would have.
 func (m *Model) engage() {
 	switch m.sel {
-	case 0: // SERVICER — select P63 on the DSKY (V37E 63E)
+	case 0: // DESCENT — select P63 on the DSKY (V37E 63E)
 		if m.eng.Phase() == sim.P00 && len(m.pending) == 0 {
 			m.queueKeys("V37E63E")
 		}
-	case 1: // RR mode switch — a panel switch, instant
-		m.eng.SetRadarBug(!m.eng.RadarBug())
-	case 2: // V16 N68 — Buzz keys the DELTAH monitor
-		if !m.eng.MonitorActive() && len(m.pending) == 0 {
-			m.queueKeys("V16N68E")
+	case 1: // DELTAH — Buzz's V16 N68 monitor; V34 flicks it back off
+		if len(m.pending) != 0 {
+			return
 		}
+		if !m.eng.MonitorActive() {
+			m.queueKeys("V16N68E")
+		} else {
+			m.queueKeys("V34E")
+		}
+	case 2: // RR STEAL — the mode switch, instant
+		m.eng.SetRadarBug(!m.eng.RadarBug())
 	}
 }
 
@@ -171,10 +177,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return m, tea.Quit
-	case tea.KeySpace:
-		m.paused = !m.paused
-		return m, nil
-	case tea.KeyEnter:
+	case tea.KeySpace, tea.KeyEnter:
 		m.engage()
 		return m, nil
 	case tea.KeyLeft:
@@ -190,8 +193,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Runes[0] {
 	case 'q':
 		return m, tea.Quit
-	case ' ':
+	case '.':
 		m.paused = !m.paused
+	case ' ':
+		m.engage()
 	case 'h':
 		m.sel = (m.sel + 2) % 3
 	case 'l':
@@ -199,7 +204,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case 'd':
 		m.eng.StartDescent()
 	case 'n':
-		m.sel = 2
+		m.sel = 1
 		m.engage()
 	case 't':
 		m.typing = true
@@ -308,94 +313,61 @@ func (m Model) View() string {
 	b.WriteString("\n")
 	b.WriteString(m.viewCycleBar())
 	b.WriteString("\n")
-	b.WriteString(m.viewCards())
-	b.WriteString("\n")
 
 	left := m.viewLeft()
 	right := m.viewBoxes()
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
 	b.WriteString(body)
 	b.WriteString("\n")
+	b.WriteString(m.viewSwitches())
+	b.WriteString("\n")
 	b.WriteString(m.viewKeyBar())
 	return b.String()
 }
 
-// viewCards renders the three story toggles: the whole Apollo 11 overload
-// in three switches. h/l selects, enter engages.
-func (m Model) viewCards() string {
+// viewSwitches renders the bottom switch panel: DESCENT and DELTAH on the
+// left, RR STEAL on the right. h/l selects, space (or enter) flicks.
+func (m Model) viewSwitches() string {
 	e := m.eng
-	type card struct {
-		title string
-		on    bool
-		state string
-		off   string
-		desc  [2]string
-	}
 	keying := len(m.pending) > 0
-	cards := []card{
-		{
-			title: "1 SERVICER — powered descent",
-			on:    e.Phase() != sim.P00,
-			state: "P63: READACCS + SERVICER every 2.000s",
-			off:   "idle — keys V37E 63E on the DSKY",
-			desc: [2]string{
-				"Guidance cycle every 2s: read PIPAs, nav,",
-				"guidance, throttle. LR locks on its own.",
-			},
-		},
-		{
-			title: "2 RR SLEW/AUTO — the mode switch",
-			on:    e.RadarBug(),
-			state: "SLEW/AUTO: stealing ~15% (as flown)",
-			off:   "LGC mode: clean (the idyllic case)",
-			desc: [2]string{
-				"Phase-mismatched CDUs spam 2×6,400 counts/s,",
-				"11.72µs each — invisible to the software.",
-			},
-		},
-		{
-			title: "3 V16 N68 — Buzz's monitor",
-			on:    e.MonitorActive(),
-			state: "refreshing 1Hz (~3% — the last straw)",
-			off:   "off — keys V16N68E on the DSKY",
-			desc: [2]string{
-				"Monitor R1 range, R2 time-to-go, R3 DELTAH",
-				"(LR alt − computed alt), updated 1/second.",
-			},
-		},
+	specs := []struct {
+		label, caption string
+		on             bool
+	}{
+		{"DESCENT", "V37E 63E", e.Phase() != sim.P00},
+		{"DELTAH", "V16 N68", e.MonitorActive()},
+		{"RR STEAL", "SLEW/AUTO", e.RadarBug()},
 	}
-	if keying && e.Phase() == sim.P00 {
-		cards[0].off = "keying V37E 63E…"
-	}
-	if keying && !e.MonitorActive() {
-		cards[2].off = "keying V16N68E…"
-	}
-
-	cardW := clampi((m.w-9)/3, 30, 52)
-	var rendered []string
-	for i, c := range cards {
-		title := "  " + c.title
-		border, titleStyle := cDim, sDim
-		if i == m.sel {
-			title = "▸ " + c.title
-			border, titleStyle = cAmber, sTitle
+	cols := make([]string, 3)
+	for i, sp := range specs {
+		sw := button.NewSwitch(sp.label)
+		sw.On = sp.on
+		sw.Focused = i == m.sel
+		labelStyle, capStyle := sDim, sDim
+		if sw.Focused {
+			labelStyle = lipgloss.NewStyle().Foreground(cAmber).Bold(true)
 		}
-		var state string
-		if c.on {
-			state = lipgloss.NewStyle().Foreground(cGreen).Bold(true).Render("● ON  ") +
-				lipgloss.NewStyle().Foreground(cGreen).Render(c.state)
-		} else {
-			state = sDim.Render("○ OFF ") + sDim.Render(c.off)
+		state := sDim.Render("○ OFF")
+		switch {
+		case sp.on:
+			state = lipgloss.NewStyle().Foreground(cGreen).Bold(true).Render("● ON")
+		case keying && i != 2 && i == m.sel:
+			state = lipgloss.NewStyle().Foreground(cYellow).Render("keying…")
 		}
-		content := titleStyle.Bold(true).Render(title) + "\n" +
-			state + "\n" +
-			sDim.Render(c.desc[0]) + "\n" +
-			sDim.Render(c.desc[1])
-		rendered = append(rendered,
-			lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).
-				Width(cardW).Render(content))
+		colW := 11
+		center := func(s string) string { return lipgloss.PlaceHorizontal(colW, lipgloss.Center, s) }
+		cols[i] = lipgloss.JoinVertical(lipgloss.Left,
+			center(sw.Render()),
+			center(labelStyle.Render(sp.label)),
+			center(capStyle.Render(sp.caption)+" "+state),
+		)
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, rendered[0], " ", rendered[1], " ", rendered[2])
+	left := lipgloss.JoinHorizontal(lipgloss.Top, cols[0], "  ", cols[1])
+	gap := m.w - lipgloss.Width(left) - lipgloss.Width(cols[2]) - 2
+	if gap < 2 {
+		gap = 2
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), cols[2])
 }
 
 func fmtAGC(ms float64) string {
@@ -583,7 +555,7 @@ func (m Model) viewLeft() string {
 	b.WriteString(stats)
 	b.WriteString("\n\n")
 	evs := e.Events()
-	n := clampi(m.h-28, 3, 20)
+	n := clampi(m.h-32, 3, 20)
 	if len(evs) < n {
 		n = len(evs)
 	}
@@ -723,11 +695,11 @@ func (m Model) viewKeyBar() string {
 		return hint(k, what)
 	}
 	phase := e.Phase()
-	line1 := hint("h/l", "select toggle") + hint("enter", "engage") +
+	line1 := hint("h/l", "select switch") + hint("space", "flip") +
 		hint("t", "you type") + hint("p", "ping radar") +
 		latched(phase == sim.P64, "6", "P64") +
 		latched(phase == sim.P66, "a", "att-hold")
-	line2 := hint("space", "pause") + hint("-", "slow") + hint("+", "fast") +
+	line2 := hint(".", "pause") + hint("-", "slow") + hint("+", "fast") +
 		hint("x", "reset") + hint("q", "quit")
 	if m.w >= 175 {
 		return line1 + line2
