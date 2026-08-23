@@ -68,12 +68,39 @@ type cell struct {
 	fg int
 }
 
-// sprites, 7 wide × 3 tall; '~' marks flame cells (colored separately).
-var sprites = map[Attitude][3]string{
-	Horizontal: {"  ▗██▖ ", "~~████▌", "  ▝██▘ "},
-	Tilted:     {"  ▗██▖ ", " ▟██▛  ", "~▞▘    "},
-	Vertical:   {"  ▄██▄ ", " ▐██▌  ", " ▞ ~ ▚ "},
-	Landed:     {"  ▄██▄ ", " ▐██▌  ", " ▞▔▔▔▚ "},
+// sprites, 13 wide × 5 tall (per the Sol design review): the angular ascent
+// cabin atop the wider foil descent stage, four splayed legs with footpads,
+// a discrete engine bell, and an attitude-correct plume. '~' marks flame
+// cells (colored separately).
+var sprites = map[Attitude][5]string{
+	Horizontal: {
+		"    ▁╲ ╱▁    ",
+		"   ◣▟▓▓▙▗▛▖  ",
+		"   ◤▓██▓░◣╲  ",
+		" ~~ ▜▓▓▛     ",
+		"~   ▁╱ ╲▁    ",
+	},
+	Tilted: {
+		"        ▗▛◣▖ ",
+		"      ▟░╲▜▙  ",
+		"  ▟▓████▓▙   ",
+		"╱ ◢▔▔▞▔▔◣ ╲  ",
+		"▁ ▁~~   ▁ ▁  ",
+	},
+	Vertical: {
+		"    ▗▛◣▖     ",
+		"   ▟░◣╲▜▙    ",
+		"  ▟▓████▓▙   ",
+		"╱ ◢▔▔▟▄▙▔▔◣ ╲",
+		"▁ ▁  ~~~  ▁ ▁",
+	},
+	Landed: {
+		"    ▗▛◣▖     ",
+		"   ▟░◣╲▜▙    ",
+		"  ▟▓████▓▙   ",
+		"╱ ◢▔▔▟▄▙▔▔◣ ╲",
+		"▁ ▁       ▁ ▁",
+	},
 }
 
 // surface is the lunar terrain strip, tiled across the width.
@@ -96,7 +123,7 @@ func rowFor(alt float64) int {
 		alt = maxAltFt
 	}
 	frac := 1 - math.Sqrt(alt/maxAltFt)
-	top := topRow + 2
+	top := topRow + 4 // room for the 5-row sprite under the header
 	span := float64(surfaceRow - 1 - top)
 	return top + int(frac*span+0.5)
 }
@@ -141,24 +168,32 @@ func Render(s State) string {
 	}
 	put(topRow, 0, "┬", colScale)
 
-	// alarm markers, at their own altitudes, hugging the right edge
+	// alarm markers, at their own altitudes, hugging the right edge; when
+	// two altitudes round to the same row, nudge downward so every alarm
+	// stays visible
+	usedRows := map[int]bool{}
 	for _, a := range s.Alarms {
-		put(rowFor(a.AltFt), Width-7, "◄ "+a.Code, colAlarm)
+		row := rowFor(a.AltFt)
+		for usedRows[row] && row < surfaceRow-1 {
+			row++
+		}
+		usedRows[row] = true
+		put(row, Width-7, "◄ "+a.Code, colAlarm)
 	}
 
-	// the LM: sprite bottom row sits at the altitude row
+	// the LM: the sprite's bottom row sits at the altitude row
 	sp := sprites[s.Attitude]
 	base := rowFor(s.AltFt)
 	if base > surfaceRow-1 {
 		base = surfaceRow - 1
 	}
-	for i := 0; i < 3; i++ {
-		row := base - 2 + i
+	for i := range sp {
+		row := base - (len(sp) - 1) + i
 		for j, r := range []rune(sp[i]) {
 			if r == ' ' {
 				continue
 			}
-			col := 13 + j
+			col := 12 + j
 			if row < 0 || row >= Height || col >= Width {
 				continue
 			}

@@ -130,20 +130,41 @@ func TestAltitudeScale(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestAttitudes(t *testing.T) {
-	t.Run("happy: each attitude has its own silhouette", func(t *testing.T) {
+	t.Run("happy: each attitude has its own two-stage silhouette", func(t *testing.T) {
 		s := base()
 		s.Attitude = Horizontal
-		if v := plain(Render(s)); !strings.Contains(v, "≈≈██") {
-			t.Fatal("horizontal braking must show the aft flame silhouette")
+		v := plain(Render(s))
+		if !strings.Contains(v, "▜▓▓▛") {
+			t.Fatal("horizontal braking must show the rotated descent stage")
+		}
+		if !strings.Contains(v, "≈") {
+			t.Fatal("the P63 burn needs its plume")
 		}
 		s.Attitude = Tilted
-		if v := plain(Render(s)); !strings.Contains(v, "▟██▛") {
-			t.Fatal("the pitched-over silhouette must render in P64")
+		v = plain(Render(s))
+		if !strings.Contains(v, "◢▔▔▞▔▔◣") {
+			t.Fatal("the pitched-over gear line must render in P64")
 		}
 		s.Attitude = Vertical
-		v := plain(Render(s))
-		if !strings.Contains(v, "▐██▌") || !strings.Contains(v, "▞ ≈ ▚") {
-			t.Fatal("the vertical silhouette must render legs and a downward flame")
+		v = plain(Render(s))
+		if !strings.Contains(v, "▟▄▙") {
+			t.Fatal("the vertical silhouette must show the descent engine bell")
+		}
+		if !strings.Contains(v, "≈≈≈") {
+			t.Fatal("the vertical descent needs a straight-down plume under the bell")
+		}
+		if !strings.Contains(v, "▟▓████▓▙") {
+			t.Fatal("the foil descent stage must be wider than the cabin")
+		}
+	})
+	t.Run("happy: legs and footpads render in every attitude (above the surface)", func(t *testing.T) {
+		for _, a := range []Attitude{Horizontal, Tilted, Vertical, Landed} {
+			s := base()
+			s.Attitude = a
+			sky := strings.Join(render(s)[:Height-2], "\n")
+			if !strings.Contains(plain(sky), "▁") {
+				t.Fatalf("attitude %v must show footpads", a)
+			}
 		}
 	})
 	t.Run("unhappy: a landed LM shows no flame", func(t *testing.T) {
@@ -181,6 +202,23 @@ func TestAlarmMarkers(t *testing.T) {
 		}
 		if row1202 >= row1201 {
 			t.Fatalf("the 33,500ft 1202 must sit above the 3,000ft 1201 (%d vs %d)", row1202, row1201)
+		}
+	})
+	t.Run("happy: markers at colliding altitudes nudge apart — all five stay visible", func(t *testing.T) {
+		s := base()
+		s.Alarms = []Alarm{
+			{"1202", 33500}, {"1202", 30900}, // these round to the same row
+			{"1201", 3000}, {"1202", 2000}, {"1202", 770},
+		}
+		rows := 0
+		for _, l := range render(s) {
+			p := plain(l)
+			if strings.Contains(p, "1202") || strings.Contains(p, "1201") {
+				rows++
+			}
+		}
+		if rows != 5 {
+			t.Fatalf("all five alarm markers must render on their own rows, got %d", rows)
 		}
 	})
 	t.Run("unhappy: no alarms, no markers", func(t *testing.T) {
