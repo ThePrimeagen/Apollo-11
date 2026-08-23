@@ -52,20 +52,57 @@ Simulation budget chosen to hit those aggregates (per 2.000 s cycle, in AGC ms):
 | SERVICER (prio 20, FINDVAC) | 1,320 ms/cycle | 66% | The dominant job: average-G nav → guidance → throttle → attitude → displays [Eyles] |
 | DAP (autopilot interrupt, 10 Hz) | 12 ms per 100 ms | 12% | [Eyles] lists the digital autopilot among dedicated interrupts; 10 Hz is the LM DAP RCS period |
 | READACCS (waitlist task, 2 s) | 1 ms | ~0.05% | "deliberately short" [Repo] memory_leak.md |
-| GYRO COMP (prio 21, 1 Hz) | 7 ms | 0.35% | priority from [Repo] memory_leak.md job table |
+| GYRO COMP (prio 21, 1 Hz) | 7 ms | 0.7% | priority from [Repo] memory_leak.md job table; fires at a +137 ms phase offset from the 2 s boundary (anti-collision phasing, cf. SERVICER.agc's deliberate 70 ms READACCS/DAP offset) |
 | T4RUPT (120 ms) | 0.96 ms per fire | ~0.8% | [L099] T4RUPT_PROGRAM.agc: `120MS`; RRAUTCHK "entered every 480 MS" |
 | DOWNRUPT telemetry (50/s) | 0.2 ms per fire | 1% | downlink 50 words/s |
 | PIPA + misc counters | — | 0.5% | powered-flight accelerometer traffic |
-| **Total P63 base** | | **≈ 80.7%** | < 85% ✓ |
-| + LR data conversion (in SERVICER) | +40 ms/cycle | +2% | "extra computations involved in converting the body-referenced radar data" [Eyles] |
-| + LR READ job (prio 32, 1 Hz) | 20 ms per read | +1% | radar reads at priority 32 [Repo] memory_leak.md |
-| + V16N68 MONITOR (prio 30, 1 Hz) | 30 ms per refresh | +3% | monitor verbs are "DISPLAYS THAT ARE UPDATED ONCE PER SECOND" [L099] PINBALL; margin 13% → ≤10% [Eyles] |
+| **Total P63 base** | | **≈ 81%** | < 85% ✓ |
+| + LR data conversion (in SERVICER) | +70 ms/cycle | +3.5% | "extra computations involved in converting the body-referenced radar data" [Eyles]; sized so P63+LR+bug ≈ 99.8% (see the 13-vs-15 note below) |
+| + LRHJOB / LRVJOB (prio 32, per cycle) | ~4 ms CPU per cycle | +0.2% | ~1 ms run + sleep + ~1 ms run [Cherry job table]; the cost is memory-holding, not CPU |
+| + V16N68 MONITOR (prio 30, 1 Hz) | 30 ms CPU per refresh | +3% | monitor verbs are "DISPLAYS THAT ARE UPDATED ONCE PER SECOND" [L099] PINBALL; margin 13% → ≤10% [Eyles] |
 | + P64 redesignation (in SERVICER) | +60 ms/cycle | +3% | "Added to the regular guidance equations was new processing" [Eyles] |
 
-With the bug on in the V16N68 configuration: ≈ 87.7% software + 15.5% theft ≈ **103%**
-demanded of a machine that only has 100% — while without the monitor the same
-configuration squeaks by with a ~1% margin. That knife edge is the flight behavior:
-alarms only while the monitor (or extra typing) was up, quiet after each restart shed it.
+**The 13-vs-15 reconciliation.** The duty percentages above sit ~2.5% under Eyles'
+narrative because the sim steals the theoretical **15.0%** while the flight lost ~13%
+(Grumman's measured 13.36%). What determines behavior is the **aggregate demand**, and
+that is what the budget preserves: P63+LR+bug ≈ **99.8%** — the flight's quiet knife
+edge (theft active, no monitor, no alarms for ~5 minutes) — and adding the monitor's
+~3.3% tips it past 100%, exactly as on July 20, 1969.
+
+## Sleep mechanics (JOBSLEEP / JOBWAKE)
+
+Jobs can run a head segment, **sleep holding their core set (and VAC)**, then wake for a
+tail segment. This is the missing memory pressure that shaped the flight's alarm codes:
+
+| Job | Head / sleep / tail | Source |
+| :--- | :--- | :--- |
+| LRHJOB (prio 32, per cycle) | 1 ms / 80 ms / 1 ms, fired **50 ms before each READACCS** so the gate straddles the boundary | [Cherry] "run for a millisecond or so and then sleep for about 80 milliseconds"; [L099] "50 MS PRIOR TO THE NEXT READACCS TASK" |
+| LRVJOB (prio 32, per cycle) | 1 ms / 500 ms / 1 ms, mid-cycle | [L099] "5 VELOCITY SAMPLES AND GOES TO SLEEP WHILE THE SAMPLING IS DONE -- ABOUT 500 MS" |
+| MONITOR (MONDO, prio 30, 1 Hz) | 15 ms / 250 ms / 15 ms | display-wait sleep per [L099] PINBALL (display users sleep holding their core set; alarm 1206 exists for a second display sleeper); duration est. |
+| CHARIN (prio 30, per keystroke) | 3 ms / 150 ms / 2 ms | DSPTAB echo wait, same PINBALL mechanism; duration est. |
+| HIGATJOB (prio 32, VAC, one-shot at P64) | 2 ms / 8 s / 2 ms | [Cherry] "Sleeps until position #2 discrete is received"; antenna slew time est. |
+
+A woken job preempts like a fresh schedule (real JOBWAKE set NEWJOB). Sleeping jobs are
+skipped by the EJSCAN.
+
+## Alarm-code fidelity (which pool empties first)
+
+Flight record: P63 gave **1202** twice (no core sets); P64 gave **1201** first (no VAC
+areas). A stubs-only model can never produce the P63 1202s: every stub holds a core set
+*and* a VAC, there are only 5 VACs against 8 core sets, and FINDVAC scans VACs first —
+so the VAC wall always trips first (always 1201). The flight's 1202s therefore require
+concurrent **core-set-only** holders at the failing moment, which is exactly what the
+sleep mechanics supply: radar gates (LRV ~500 ms + LRH 80 ms per cycle) and display
+waits (monitor refreshes, crew keystrokes). Reproduced behavior:
+
+- P63 overload **with DSKY activity** (the flight case — Aldrin was working the DSKY
+  throughout): a keystroke lands while 5 SERVICERs + LRV gate + MONDO wait + a prior
+  CHARIN hold all 8 core sets → **1202**, ~10 s after the monitor (flight: ~12 s).
+- P63 overload with the monitor but an idle keyboard: the VAC wall trips at the sixth
+  READACCS → **1201**. The code genuinely depends on crew activity.
+- P64: stub VACs plus HIGATJOB's held VAC hit the 5-VAC wall first → **1201** (flight:
+  1201 at 102:42:17). Known residual deviation: the flight's *later* P64 alarms were
+  1202s; the sim's recurrences are 1201s.
 
 ### The tie-break that makes the leak fast
 
@@ -76,7 +113,9 @@ timeline (V16N68 keyed ≈102:38:10, first 1202 at 102:38:22 — about six 2-sec
 requires roughly one leaked core-set/VAC pair per overloaded cycle, which only happens
 when new SERVICERs win and old stubs starve — precisely the accumulation of "uncompleted
 SERVICER 'stubs'" Eyles describes the restart flushing. A strict FIFO/backlog model would
-take minutes to exhaust the pools, contradicting the flight record.
+take minutes to exhaust the pools, contradicting the flight record. An almost-finished
+old copy that nothing preempts still runs to completion and frees its pair (RECOVERED) —
+which is why the quiet knife edge stays quiet.
 
 ## The DSKY keystroke pipeline
 

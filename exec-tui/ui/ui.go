@@ -234,6 +234,12 @@ func shortOwner(name string) string {
 		return "RR"
 	case "LR READ":
 		return "LR"
+	case "LRHJOB":
+		return "LRH"
+	case "LRVJOB":
+		return "LRV"
+	case "HIGATJOB":
+		return "HGAT"
 	case "GYRO COMP":
 		return "GYRO"
 	default:
@@ -437,9 +443,14 @@ func (m Model) viewLeft() string {
 	if stubs := e.StubCount(); stubs > 0 {
 		stats += lipgloss.NewStyle().Foreground(cRed).Bold(true).
 			Render(fmt.Sprintf("   ⚠ %d stubs leaked (%d words never freed)", stubs, stubs*55))
+	} else if e.KnifeEdge() {
+		// Flight truth: with the theft active but no monitor, Eagle flew a
+		// quiet knife edge for ~5 minutes — margin gone, nothing overrun.
+		stats += lipgloss.NewStyle().Foreground(cYellow).
+			Render("   ⚠ knife edge: margin ≈ 0, nothing overrun yet — one straw breaks it: [n] monitor · [6] P64")
 	} else if e.RecoveredRecently(5000) {
 		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("   ⟳ knife edge: overruns recovering each cycle — add load: [n] monitor · [6] P64")
+			Render("   ⟳ overrun recovering — a superseded SERVICER finished late and freed its pair")
 	}
 	b.WriteString(stats)
 	b.WriteString("\n\n")
@@ -491,7 +502,7 @@ func (m Model) boxFor(label string, s sim.SlotState, w int) string {
 		color = cYellow
 	case "RR READ":
 		color = cCyan
-	case "LR READ":
+	case "LR READ", "LRHJOB", "LRVJOB", "HIGATJOB":
 		color = cBlue
 	case "GYRO COMP":
 		color = cWhite
@@ -570,12 +581,31 @@ func (m Model) viewKeyBar() string {
 			sDim.Render(" your keys cost real compute ─ 0-9 v n e(ENTR) c(CLR) ─ try v16n68e ─ ") +
 			sTitle.Render("esc") + sDim.Render(" to leave")
 	}
+	e := m.eng
 	hint := func(k, what string) string {
 		return sDim.Render("─ ") + sTitle.Render("["+k+"]") + " " + sDim.Render(what) + " "
 	}
-	line1 := hint("d", "descent") + hint("l", "radar lock") + hint("n", "neil types") +
-		hint("t", "you type") + hint("r", "RR bug") + hint("p", "ping radar") +
-		hint("6", "P64") + hint("a", "att-hold")
+	// A latched control renders bright with a ✓ while its state is on, so
+	// the bar itself answers "what is running right now?".
+	on := func(k, what string) string {
+		s := lipgloss.NewStyle().Foreground(cGreen).Bold(true)
+		return sDim.Render("─ ") + s.Render("["+k+"] "+what+" ✓") + " "
+	}
+	latched := func(active bool, k, what string) string {
+		if active {
+			return on(k, what)
+		}
+		return hint(k, what)
+	}
+	phase := e.Phase()
+	line1 := latched(phase != sim.P00, "d", "descent") +
+		latched(e.LandingRadarAcquired(), "l", "radar lock") +
+		latched(e.MonitorActive(), "n", "neil types") +
+		hint("t", "you type") +
+		latched(e.RadarBug(), "r", "RR bug") +
+		hint("p", "ping radar") +
+		latched(phase == sim.P64, "6", "P64") +
+		latched(phase == sim.P66, "a", "att-hold")
 	line2 := hint("space", "pause") + hint("-", "slow") + hint("+", "fast") +
 		hint("x", "reset") + hint("q", "quit")
 	if m.w >= 175 {

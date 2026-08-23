@@ -195,8 +195,8 @@ exactly the confusion this document resolves:
 | `timeline.c` (`SERVICER_CPU_NEED 1.80` — "work this copy needs") | 1.8 s attributed to **SERVICER alone** | **Mislabeled.** That figure is the whole software demand. SERVICER's own need is ~1.35 s. |
 | `timeline-tui` (`servicerNeedS = 1.80`; healthy scenario = SERVICER 1.80 + other jobs 0.15 → 97.5% busy, no DAP row) | Same mislabel, plus a "healthy" state with only 2.5% margin and no autopilot cost | **Mislabeled + miscalibrated.** Healthy late-P63 margin should be ~10–15%, and the DAP (~12%) is missing entirely. |
 
-Recommended corrections (not applied in this change — the tools still demonstrate the leak
-mechanism correctly, but their labels contradict the sources):
+Recommended corrections for the older artifacts (not applied — the tools still demonstrate
+the leak mechanism correctly, but their labels contradict the sources):
 
 1. In `timeline.c` and `timeline-tui`, either rename the 1.80 s constant to "software demand
    per cycle (all jobs + interrupts)" and show SERVICER's own portion as ~1.35 s, **or** keep
@@ -204,8 +204,29 @@ mechanism correctly, but their labels contradict the sources):
    comes out at ~1.80 s busy / 0.20 s idle.
 2. In `timeline-tui`'s healthy scenario, the idle slice should be ~0.20 s (10%, monitor up)
    to ~0.30 s (15%, pre-monitor), not 0.05 s.
-3. `exec-tui`'s budget needs no correction; its decomposition sums ~3% under Eyles'
-   aggregates (conservative), which `RESEARCH.md` already notes.
+
+`exec-tui` corrections **applied** after this audit (see `exec-tui/RESEARCH.md` for the
+full rationale):
+
+1. **Alarm-code fidelity.** The engine previously produced only 1201 in flight-like
+   scenarios (stubs each hold a core set + VAC; 5 VACs < 8 core sets; FINDVAC scans VACs
+   first), while flight P63 gave 1202s. The missing, sourced mechanics were added: jobs can
+   now sleep holding memory — landing-radar gates (LRHJOB 1 ms + 80 ms + 1 ms straddling
+   each READACCS boundary; LRVJOB 1 ms + ~500 ms + 1 ms mid-cycle), display waits (MONDO,
+   CHARIN), and HIGATJOB parking on a VAC at P64 entry. Result: the historical sequence
+   with crew typing gives **1202** (~10 s after the monitor; flight ~12 s), and P64's first
+   alarm is **1201** (flight: 102:42:17).
+2. **LR read model.** Was a 1 Hz 20 ms CPU burst; now per-cycle ~2 ms CPU jobs that sleep
+   holding a core set, with the real cost (frame conversion) inside SERVICER.
+3. **Quiet knife edge.** P63+LR+bug now sits just *under* 100% demand — quiet, no
+   overruns, margin pinned at ~0 (the flight's ~5 pre-monitor minutes) — instead of
+   chattering LEAK/RECOVERED every cycle. A UI indicator names the state.
+4. **Alignment artifact.** The 1 Hz gyro tick is phase-offset from the 2 s boundary (the
+   flight code used the same anti-collision phasing), so starting the descent exactly on a
+   timer mark no longer manufactures false stub starvation.
+5. **Visible toggle state.** The key bar now marks each latched control (descent, radar
+   lock, monitor, RR bug, P64, ATT HOLD) with a bright ✓ while it is on, alongside the
+   existing header badges.
 
 Sanity check of the corrected model, overload case:
 

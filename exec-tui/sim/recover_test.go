@@ -64,21 +64,23 @@ func TestStubRecovery(t *testing.T) {
 			t.Fatalf("starved stub must not log a recovery, got %+v", evs)
 		}
 	})
-	t.Run("happy: post-restart marginal regime narrates LEAK then RECOVERED", func(t *testing.T) {
+	t.Run("happy: shedding the monitor returns the machine to the quiet knife edge", func(t *testing.T) {
 		e := overloadedP63(t)
 		alarmAt := runUntilAlarm(t, e, 60000)
-		e.AdvanceAGC(10000) // ~5 marginal cycles after the restart
-		found := false
-		for _, ev := range recoverEvents(e) {
-			if ev.AGCTimeMs > alarmAt {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatal("post-restart cycles should log stub recoveries")
-		}
+		e.AdvanceAGC(10000) // ~5 cycles after the restart
 		if len(e.Alarms()) != 1 {
 			t.Fatalf("no second alarm expected within 10s of the restart, got %d", len(e.Alarms()))
+		}
+		if n := e.StubCount(); n != 0 {
+			t.Fatalf("post-restart regime must not accumulate stubs, got %d", n)
+		}
+		for _, ev := range leakEvents(e) {
+			if ev.AGCTimeMs > alarmAt+500 {
+				t.Fatalf("post-restart quiet regime must not log new LEAK events, got %q", ev.Text)
+			}
+		}
+		if !e.KnifeEdge() {
+			t.Fatal("with the monitor shed the machine is back on the knife edge")
 		}
 	})
 	t.Run("unhappy: healthy descent logs neither LEAK nor RECOVERED", func(t *testing.T) {
