@@ -20,27 +20,14 @@ var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 func stripAnsi(s string) string { return ansiPat.ReplaceAllString(s, "") }
 
 func TestTimelineHalfWidth(t *testing.T) {
-	t.Run("happy: the track is half the screen minus the label column", func(t *testing.T) {
-		if got := trackWidth(140); got != 61 {
-			t.Fatalf("trackWidth(140) = %d, want 61 (140/2 - 9)", got)
-		}
-		if got := trackWidth(152); got != 67 {
-			t.Fatalf("trackWidth(152) = %d, want 67", got)
-		}
-	})
-	t.Run("unhappy: tiny widths clamp to a usable minimum", func(t *testing.T) {
-		if got := trackWidth(40); got != 20 {
-			t.Fatalf("trackWidth(40) = %d, want the 20-cell floor", got)
-		}
-	})
-	t.Run("happy: each cell covers 40ms and the header says so", func(t *testing.T) {
+	t.Run("happy: the default track shows ~2.4s in 48 narrow bars", func(t *testing.T) {
 		_, m := newTestModel()
 		v := m.View()
-		if !strings.Contains(v, "40ms/cell") {
-			t.Fatal("the track header must state 40ms per cell")
+		if !strings.Contains(v, "50ms/cell") {
+			t.Fatal("the track header must state 50ms per cell")
 		}
 		if !strings.Contains(v, "2.4s of AGC time") {
-			t.Fatal("at width 140 the 61-cell track shows 2.4s of history")
+			t.Fatal("at width 140 the 48-cell track shows 2.4s of history")
 		}
 	})
 }
@@ -124,14 +111,14 @@ func TestCompactHeight(t *testing.T) {
 }
 
 func TestTimelineCellGrouping(t *testing.T) {
-	t.Run("happy: cells anchor to absolute 4-bucket groups (no re-pairing)", func(t *testing.T) {
+	t.Run("happy: cells anchor to absolute 5-bucket groups (no re-pairing)", func(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(2500)
 		prev := rowCells(t, m.View(), "DAP")
 		shifts := 0
 		for i := 0; i < 40; i++ {
-			e.AdvanceAGC(10) // one bucket: at 4 buckets/cell most frames hold still
+			e.AdvanceAGC(10) // one bucket: at 5 buckets/cell most frames hold still
 			next := rowCells(t, m.View(), "DAP")
 			if !stableStep(prev, next) {
 				t.Fatalf("frame %d re-paired the row:\nprev %q\nnext %q", i, prev, next)
@@ -141,8 +128,8 @@ func TestTimelineCellGrouping(t *testing.T) {
 			}
 			prev = next
 		}
-		if shifts < 8 || shifts > 12 {
-			t.Fatalf("40 buckets at 4/cell should shift ~10 times, got %d", shifts)
+		if shifts < 7 || shifts > 9 {
+			t.Fatalf("40 buckets at 5/cell should shift 8 times, got %d", shifts)
 		}
 	})
 }

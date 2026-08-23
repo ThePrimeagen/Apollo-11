@@ -76,7 +76,8 @@ type Model struct {
 	paused  bool
 	typing  bool
 	pending []pendingKey
-	sel     int // selected toggle card: 0 SERVICER, 1 RR SLEW/AUTO, 2 V16N68
+	sel     int // selected switch: 0 DESCENT, 1 DELTAH, 2 RR STEAL
+	zoom    int // timeline zoom level index (see zoomBPC)
 
 	seenAlarms int
 	flashLeft  int
@@ -230,6 +231,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.sel = (m.sel + 2) % 3
 	case 'l':
 		m.sel = (m.sel + 1) % 3
+	case 'z':
+		m.zoom = (m.zoom + 1) % len(zoomBPC)
 	case 'd':
 		m.eng.StartDescent()
 	case 'n':
@@ -442,24 +445,34 @@ func (m Model) viewHeader() string {
 	return line
 }
 
-// trackWidth is the timeline cell count: half the screen minus the label
-// column. Halving the track doubles the time each cell represents.
-func trackWidth(w int) int { return clampi(w/2-9, 20, 160) }
+// zoomBPC lists the buckets-per-cell zoom levels the z key cycles through:
+// 50ms bars (default), 80ms bars, 40ms bars.
+var zoomBPC = []int{5, 8, 4}
+
+// bpc is the current buckets-per-cell.
+func (m Model) bpc() int { return zoomBPC[m.zoom%len(zoomBPC)] }
+
+// cellMs is the AGC time one bar covers at the current zoom.
+func (m Model) cellMs() float64 { return float64(m.bpc()) * sim.BucketMs }
+
+// cellsFor holds the visible window constant (the old half-width 40ms track)
+// while each bar covers more time: fewer, denser bars.
+func cellsFor(w, bpc int) int {
+	base := clampi(w/2-9, 20, 160) // cells at the reference 40ms zoom
+	return clampi(base*4/bpc, 20, 160)
+}
 
 // gridBGColor is the ruler's background tint (xterm-256 index).
 const gridBGColor = "240"
 
-// bucketsPerCell: each rendered cell covers 4 history buckets (40ms).
-const bucketsPerCell = 4
-
 func (m Model) viewLeft() string {
 	labelW := 9
-	trackW := trackWidth(m.w)
+	bucketsPerCell := m.bpc()
+	trackW := cellsFor(m.w, bucketsPerCell)
 	buckets := m.eng.History(trackW*bucketsPerCell + bucketsPerCell)
-	// Anchor cells to ABSOLUTE 4-bucket groups and render only complete
-	// groups: a cell, once drawn, must never change content — it may only
-	// scroll. Grouping "the most recent N" re-shuffled every close and
-	// blinked.
+	// Anchor cells to ABSOLUTE groups and render only complete groups: a
+	// cell, once drawn, must never change content — it may only scroll.
+	// Grouping "the most recent N" re-shuffled every close and blinked.
 	if first := m.eng.BucketsClosed() - len(buckets); first%bucketsPerCell != 0 {
 		buckets = buckets[bucketsPerCell-first%bucketsPerCell:]
 	}
@@ -472,12 +485,12 @@ func (m Model) viewLeft() string {
 
 	// the 2s ruler: a lighter BACKGROUND behind the bars, so full blocks
 	// cover it, shades let it glow through, and blanks show it plainly
-	gridEvery := int(sim.CyclePeriodMs / (bucketsPerCell * sim.BucketMs)) // 50 cells
+	gridEvery := int(sim.CyclePeriodMs / (float64(bucketsPerCell) * sim.BucketMs))
 
 	var b strings.Builder
 	b.WriteString(sDim.Render(fmt.Sprintf("%-*s", labelW, "")) +
-		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell · ruler marks 2s",
-			float64(trackW)*bucketsPerCell*sim.BucketMs/1000, bucketsPerCell*sim.BucketMs)))
+		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell · ruler marks 2s · [z] zoom",
+			float64(trackW)*float64(bucketsPerCell)*sim.BucketMs/1000, float64(bucketsPerCell)*sim.BucketMs)))
 	b.WriteString("\n")
 	for _, r := range rows {
 		style := lipgloss.NewStyle().Foreground(r.color)

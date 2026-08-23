@@ -12,12 +12,12 @@ import (
 )
 
 // rowCells extracts the cell area of a labeled timeline row from the view,
-// as runes ('█'/'░' are multi-byte). At the test width of 140: 9-rune label
-// column, then trackW=61 cells (half the screen minus the label; the DSKY
+// as runes ('█'/'░' are multi-byte). At the test width of 140 and the
+// default 50ms zoom: 9-rune label column, then trackW=48 cells (the DSKY
 // panel joined to the right of the row is not part of the track).
 func rowCells(t *testing.T, v, label string) []rune {
 	t.Helper()
-	const labelW, trackW = 9, 61
+	const labelW, trackW = 9, 48
 	for _, line := range strings.Split(v, "\n") {
 		if strings.HasPrefix(line, label) {
 			r := []rune(line)

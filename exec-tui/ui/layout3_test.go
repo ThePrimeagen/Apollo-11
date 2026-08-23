@@ -78,14 +78,14 @@ func TestCycleGridlines(t *testing.T) {
 			t.Fatalf("ruler tints must align across rows: IDLE %v vs SERVICER %v", idleCols, servCols)
 		}
 	})
-	t.Run("happy: ruler tints sit 50 cells (2.0s at 40ms) apart when two are visible", func(t *testing.T) {
+	t.Run("happy: ruler tints sit 40 cells (2.0s at 50ms) apart when two are visible", func(t *testing.T) {
 		withColor(t)
 		e, m := newTestModel()
 		e.AdvanceAGC(6100)
 		cols := markerCols(t, m.View(), "IDLE")
 		if len(cols) >= 2 {
-			if d := cols[1] - cols[0]; d != 50 {
-				t.Fatalf("ruler spacing must be 50 cells, got %d", d)
+			if d := cols[1] - cols[0]; d != 40 {
+				t.Fatalf("ruler spacing must be 40 cells, got %d", d)
 			}
 		}
 	})
@@ -102,7 +102,7 @@ func TestCycleGridlines(t *testing.T) {
 				blocks++
 			}
 		}
-		if blocks < 35 {
+		if blocks < 30 {
 			t.Fatalf("dominant activity must stay solid blocks in front of the ruler, got %d blocks", blocks)
 		}
 		for _, r := range row {
@@ -142,7 +142,7 @@ func TestStatsCarriesTheRest(t *testing.T) {
 // tint, by walking the raw ANSI line and tracking the active background.
 func markerCols(t *testing.T, v, label string) []int {
 	t.Helper()
-	const labelW, trackW = 9, 61
+	const labelW, trackW = 9, 48
 	var line string
 	for _, l := range strings.Split(v, "\n") {
 		if strings.HasPrefix(l, "\x1b") {
