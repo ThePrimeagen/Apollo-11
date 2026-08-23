@@ -461,9 +461,9 @@ func cellsFor(w, bpc int) int {
 const gridBGColor = "240"
 
 func (m Model) viewLeft() string {
-	// 9 for the name + 8 for the space-padded (NNNNms) cost + 1 space:
-	// fixed, so the parentheticals can never shift the track.
-	labelW := 18
+	// 9 for the name + 6 for the space-padded NNNNms cost + 1 space:
+	// fixed, so the costs can never shift the track.
+	labelW := 16
 	bucketsPerCell := m.bpc()
 	trackW := cellsFor(m.w, bucketsPerCell)
 	buckets := m.eng.History(trackW*bucketsPerCell + bucketsPerCell)
@@ -516,7 +516,7 @@ func (m Model) viewLeft() string {
 		if used > 9999 {
 			used = 9999
 		}
-		b.WriteString(style.Render(fmt.Sprintf("%-9s(%4.0fms) ", r.label, used)))
+		b.WriteString(style.Render(fmt.Sprintf("%-9s%4.0fms ", r.label, used)))
 		type cell struct {
 			ch   rune
 			grid bool
