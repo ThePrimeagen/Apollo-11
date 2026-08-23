@@ -254,7 +254,14 @@ HIGATJOB — Cherry's table). In P63 the queue also filled with NOVAC jobs (CHAR
 reads), so the 8 core sets ran out first. In P64, stacked VAC-holding jobs hit the 5-VAC wall
 first.
 
-Source discrepancies worth knowing: the klabs copy of Eyles says Aldrin keyed "V90N50" to
+Source discrepancies worth knowing: **7 vs. 8 core sets** — the LM's LUMINARY had **8**
+(Eyles: "an array of eight such 'core sets' of 12 registers each"; Cherry: "8 coresets and 5
+VAC areas"; [L099] `ERASE +83D # EIGHT SETS OF 12 REGISTERS EACH`), while the CM's COLOSSUS
+had **7** (Cherry's parenthetical). Secondary sources (including the Wills talk) sometimes say
+7 for the LM; the likely ancestry is the flight code itself: the scan loop constant is
+literally `NO.CORES DEC 7` (meaning "one probe + seven repeats" = 8), and the original 1969
+comment beside it — "SEVEN SETS OF ELEVEN REGISTERS EACH" — is stale on both counts
+(`COREINC DEC 12` sits five lines below). The klabs copy of Eyles says Aldrin keyed "V90N50" to
 read the alarm — Cherry's event log and Eyles' own corrected website say **V05N09E**. Cherry's
 log also shows an ATT HOLD entry at +528 s (~4,770 ft) while Eyles puts the definitive
 takeover at 102:43:08 (~650 ft) — most plausibly an earlier manual-control check versus the
