@@ -1,0 +1,222 @@
+package lander
+
+// Tests written FIRST. The component contract: a fixed 40×30 cell descent
+// view — phase + time up top, an altitude-scaled fall (square-root scale so
+// the final thousand feet stay readable), the LM sprite rotating with the
+// phase (horizontal in P63, pitched over in P64, vertical in P66, flame off
+// once landed), persistent alarm markers at their altitudes, the lunar
+// surface across the bottom, an event caption underneath. Raw ANSI 256-color,
+// pure Render. Happy + unhappy throughout.
+
+import (
+	"regexp"
+	"strings"
+	"testing"
+)
+
+var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func plain(s string) string { return ansiRE.ReplaceAllString(s, "") }
+
+func render(s State) []string {
+	return strings.Split(Render(s), "\n")
+}
+
+func base() State {
+	return State{
+		AltFt: 49971, VelFps: 5560, TimeSec: 0,
+		Phase: "P63 BRAKING", Attitude: Horizontal,
+		Event: "PDI — ignition",
+	}
+}
+
+// ---------------------------------------------------------------------------
+// geometry & purity
+// ---------------------------------------------------------------------------
+
+func TestGeometry(t *testing.T) {
+	t.Run("happy: every state renders exactly Width x Height", func(t *testing.T) {
+		states := []State{
+			base(),
+			{AltFt: 770, VelFps: 55, TimeSec: 594, Phase: "P64 APPROACH", Attitude: Tilted,
+				Alarms: []Alarm{{"1202", 33500}, {"1201", 3000}, {"1202", 770}}},
+			{AltFt: 0, Phase: "P66 LANDED", Attitude: Landed, Event: "CONTACT LIGHT"},
+		}
+		for i, s := range states {
+			ls := render(s)
+			if len(ls) != Height {
+				t.Fatalf("state %d: %d lines, want %d", i, len(ls), Height)
+			}
+			for j, l := range ls {
+				if got := len([]rune(plain(l))); got != Width {
+					t.Fatalf("state %d line %d: width %d, want %d (%q)", i, j, got, Width, plain(l))
+				}
+			}
+		}
+	})
+	t.Run("unhappy: absurd altitudes clamp instead of breaking the grid", func(t *testing.T) {
+		for _, alt := range []float64{-500, 999999} {
+			s := base()
+			s.AltFt = alt
+			if got := len(render(s)); got != Height {
+				t.Fatalf("alt %v broke the grid: %d lines", alt, got)
+			}
+		}
+	})
+	t.Run("unhappy: Render never mutates its input", func(t *testing.T) {
+		s := base()
+		s.Alarms = []Alarm{{"1202", 33500}}
+		before := s.Alarms[0]
+		_ = Render(s)
+		if s.Alarms[0] != before {
+			t.Fatal("Render must be pure")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// the fall: altitude maps to rows, sqrt-scaled, moon at the bottom
+// ---------------------------------------------------------------------------
+
+// spriteRow finds the first row containing the LM body glyph.
+func spriteRow(t *testing.T, s State) int {
+	t.Helper()
+	for i, l := range render(s) {
+		if strings.Contains(plain(l), "██") {
+			return i
+		}
+	}
+	t.Fatal("lander sprite not found")
+	return -1
+}
+
+func TestAltitudeScale(t *testing.T) {
+	t.Run("happy: lower altitude renders lower on screen", func(t *testing.T) {
+		high, mid, low := base(), base(), base()
+		mid.AltFt = 7400
+		low.AltFt = 770
+		rh, rm, rl := spriteRow(t, high), spriteRow(t, mid), spriteRow(t, low)
+		if !(rh < rm && rm < rl) {
+			t.Fatalf("rows must descend with altitude: 49971→%d, 7400→%d, 770→%d", rh, rm, rl)
+		}
+	})
+	t.Run("happy: the sqrt scale keeps the last thousand feet apart", func(t *testing.T) {
+		a, b := base(), base()
+		a.AltFt = 3000
+		b.AltFt = 770
+		if spriteRow(t, a) == spriteRow(t, b) {
+			t.Fatal("3000ft and 770ft must land on different rows")
+		}
+	})
+	t.Run("happy: the moon surface spans the bottom", func(t *testing.T) {
+		ls := render(base())
+		surface := plain(ls[Height-2])
+		if !strings.ContainsAny(surface, "▁▂▃▄") {
+			t.Fatalf("the surface row must be lunar terrain, got %q", surface)
+		}
+	})
+	t.Run("happy: touchdown parks the lander on the surface", func(t *testing.T) {
+		s := base()
+		s.AltFt = 0
+		s.Attitude = Landed
+		if got := spriteRow(t, s); got < Height-6 {
+			t.Fatalf("a landed LM must sit at the surface, got row %d", got)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// rotation: the sprite tracks the phase attitude
+// ---------------------------------------------------------------------------
+
+func TestAttitudes(t *testing.T) {
+	t.Run("happy: each attitude has its own silhouette", func(t *testing.T) {
+		s := base()
+		s.Attitude = Horizontal
+		if v := plain(Render(s)); !strings.Contains(v, "≈≈██") {
+			t.Fatal("horizontal braking must show the aft flame silhouette")
+		}
+		s.Attitude = Tilted
+		if v := plain(Render(s)); !strings.Contains(v, "▟██▛") {
+			t.Fatal("the pitched-over silhouette must render in P64")
+		}
+		s.Attitude = Vertical
+		v := plain(Render(s))
+		if !strings.Contains(v, "▐██▌") || !strings.Contains(v, "▞ ≈ ▚") {
+			t.Fatal("the vertical silhouette must render legs and a downward flame")
+		}
+	})
+	t.Run("unhappy: a landed LM shows no flame", func(t *testing.T) {
+		s := base()
+		s.AltFt = 0
+		s.Attitude = Landed
+		if strings.Contains(plain(Render(s)), "≈") {
+			t.Fatal("the engine is off after touchdown — no flame anywhere")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// alarm markers: persistent, at their own altitudes
+// ---------------------------------------------------------------------------
+
+func TestAlarmMarkers(t *testing.T) {
+	t.Run("happy: markers render their codes at distinct altitudes", func(t *testing.T) {
+		s := base()
+		s.AltFt = 770
+		s.Alarms = []Alarm{{"1202", 33500}, {"1201", 3000}}
+		v := render(s)
+		row1202, row1201 := -1, -1
+		for i, l := range v {
+			p := plain(l)
+			if strings.Contains(p, "1202") {
+				row1202 = i
+			}
+			if strings.Contains(p, "1201") {
+				row1201 = i
+			}
+		}
+		if row1202 < 0 || row1201 < 0 {
+			t.Fatal("both alarm markers must render")
+		}
+		if row1202 >= row1201 {
+			t.Fatalf("the 33,500ft 1202 must sit above the 3,000ft 1201 (%d vs %d)", row1202, row1201)
+		}
+	})
+	t.Run("unhappy: no alarms, no markers", func(t *testing.T) {
+		if v := plain(Render(base())); strings.Contains(v, "1202") || strings.Contains(v, "1201") {
+			t.Fatal("no markers may render before any alarm")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// captions
+// ---------------------------------------------------------------------------
+
+func TestCaptions(t *testing.T) {
+	t.Run("happy: phase, time, altitude, velocity, and event render", func(t *testing.T) {
+		s := base()
+		s.TimeSec = 316
+		v := plain(Render(s))
+		for _, want := range []string{"P63 BRAKING", "T+316s", "49971", "5560", "PDI"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("caption missing %q", want)
+			}
+		}
+	})
+	t.Run("happy: zero velocity still prints a zero", func(t *testing.T) {
+		s := base()
+		s.VelFps = 0
+		if !strings.Contains(plain(Render(s)), "0ft/s") {
+			t.Fatal("VEL must print 0 at touchdown, not blank")
+		}
+	})
+	t.Run("unhappy: an empty event renders a blank caption, not garbage", func(t *testing.T) {
+		s := base()
+		s.Event = ""
+		if got := len(render(s)); got != Height {
+			t.Fatal("empty caption must keep the grid")
+		}
+	})
+}
