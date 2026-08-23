@@ -134,16 +134,16 @@ func TestAttitudes(t *testing.T) {
 		s := base()
 		s.Attitude = Horizontal
 		v := plain(Render(s))
-		if !strings.Contains(v, "▜▓▓▛") {
-			t.Fatal("horizontal braking must show the rotated descent stage")
+		if !strings.Contains(v, "◢▟▓▓▙") {
+			t.Fatal("horizontal braking must show the rigidly rotated descent stage")
 		}
 		if !strings.Contains(v, "≈") {
 			t.Fatal("the P63 burn needs its plume")
 		}
 		s.Attitude = Tilted
 		v = plain(Render(s))
-		if !strings.Contains(v, "◢▔▔▞▔▔◣") {
-			t.Fatal("the pitched-over gear line must render in P64")
+		if !strings.Contains(v, "◢▟▓██▓▙") {
+			t.Fatal("the pitched-over stack must render rigidly rotated in P64")
 		}
 		s.Attitude = Vertical
 		v = plain(Render(s))
@@ -155,6 +155,35 @@ func TestAttitudes(t *testing.T) {
 		}
 		if !strings.Contains(v, "▟▓████▓▙") {
 			t.Fatal("the foil descent stage must be wider than the cabin")
+		}
+	})
+	t.Run("happy: sprites and color masks agree — rectangular, plume-aligned", func(t *testing.T) {
+		for att, sp := range sprites {
+			mask, ok := colorMasks[att]
+			if !ok {
+				t.Fatalf("attitude %v missing a color mask", att)
+			}
+			for i := range sp {
+				sr, mr := []rune(sp[i]), []rune(mask[i])
+				if len(sr) != 13 || len(mr) != 13 {
+					t.Fatalf("attitude %v row %d: sprite %d / mask %d runes, want 13", att, i, len(sr), len(mr))
+				}
+				for j := range sr {
+					if (sr[j] == '~') != (mr[j] == 'P') {
+						t.Fatalf("attitude %v row %d col %d: plume cells must map to P", att, i, j)
+					}
+				}
+			}
+		}
+	})
+	t.Run("happy: the craft renders in materials — gold foil, windows, steel", func(t *testing.T) {
+		s := base()
+		s.Attitude = Vertical
+		out := Render(s)
+		for _, code := range []string{"38;5;178", "38;5;24", "38;5;245", "38;5;208"} {
+			if !strings.Contains(out, code) {
+				t.Fatalf("vertical LM must carry material color %s", code)
+			}
 		}
 	})
 	t.Run("happy: legs and footpads render in every attitude (above the surface)", func(t *testing.T) {

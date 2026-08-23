@@ -68,24 +68,24 @@ type cell struct {
 	fg int
 }
 
-// sprites, 13 wide × 5 tall (per the Sol design review): the angular ascent
-// cabin atop the wider foil descent stage, four splayed legs with footpads,
-// a discrete engine bell, and an attitude-correct plume. '~' marks flame
-// cells (colored separately).
+// sprites, 13 wide × 5 tall (Sol design reviews, rounds 1-2): the angular
+// ascent cabin atop the wider gold-foil descent stage, four splayed legs
+// with footpads, a discrete engine bell, an attitude-correct plume, and
+// rigid rotation for the braking/pitched attitudes. '~' marks flame cells.
 var sprites = map[Attitude][5]string{
 	Horizontal: {
-		"    ▁╲ ╱▁    ",
-		"   ◣▟▓▓▙▗▛▖  ",
-		"   ◤▓██▓░◣╲  ",
-		" ~~ ▜▓▓▛     ",
-		"~   ▁╱ ╲▁    ",
+		"   ▁╲   ╱▁   ",
+		"    ╲▟▓▓▙▛◣▖ ",
+		"   ◢▟▓▓▙░██▜▙",
+		"  ~~◥▜▓▛╲▝◤  ",
+		"~~ ▁╱   ╲▁   ",
 	},
 	Tilted: {
 		"        ▗▛◣▖ ",
-		"      ▟░╲▜▙  ",
-		"  ▟▓████▓▙   ",
-		"╱ ◢▔▔▞▔▔◣ ╲  ",
-		"▁ ▁~~   ▁ ▁  ",
+		"▁ ╲   ▟░╲▜▙  ",
+		"  ╲◢▟▓██▓▙   ",
+		"   ◥▜▓▓▛  ╲  ",
+		" ~~~▜▙    ╲▁ ",
 	},
 	Vertical: {
 		"    ▗▛◣▖     ",
@@ -101,6 +101,58 @@ var sprites = map[Attitude][5]string{
 		"╱ ◢▔▔▟▄▙▔▔◣ ╲",
 		"▁ ▁       ▁ ▁",
 	},
+}
+
+// colorMasks paint the craft's materials per cell (Sol round-1 checklist):
+// S silver ascent hull/struts, G gold kapton foil, W dark windows, E steel
+// engine/nozzle, P plume, '.' empty.
+var colorMasks = map[Attitude][5]string{
+	Horizontal: {
+		"...SS...SS...",
+		"....SGGGGSSS.",
+		"...EGGGGWSSSS",
+		"..PPEGGGWSS..",
+		"PP.SS...SS...",
+	},
+	Tilted: {
+		"........SSSS.",
+		"S.S...SWWSS..",
+		"..SGGGGGGG...",
+		"...EEGGG..S..",
+		".PPPEE....SS.",
+	},
+	Vertical: {
+		"....SSSS.....",
+		"...SWSWSS....",
+		"..GGGGGGGG...",
+		"S.SSSEEESSS.S",
+		"S.S..PPP..S.S",
+	},
+	Landed: {
+		"....SSSS.....",
+		"...SWSWSS....",
+		"..GGGGGGGG...",
+		"S.SSSEEESSS.S",
+		"S.S.......S.S",
+	},
+}
+
+// materialColor maps mask characters to xterm-256 indices.
+func materialColor(mask byte) int {
+	switch mask {
+	case 'S':
+		return 252 // silver-gray hull and struts
+	case 'G':
+		return 178 // muted gold descent-stage foil
+	case 'W':
+		return 24 // dark blue-black windows
+	case 'E':
+		return 245 // steel engine bell
+	case 'P':
+		return colFlame
+	default:
+		return colBody
+	}
 }
 
 // surface is the lunar terrain strip, tiled across the width.
@@ -187,8 +239,10 @@ func Render(s State) string {
 	if base > surfaceRow-1 {
 		base = surfaceRow - 1
 	}
+	mask := colorMasks[s.Attitude]
 	for i := range sp {
 		row := base - (len(sp) - 1) + i
+		maskRow := []rune(mask[i])
 		for j, r := range []rune(sp[i]) {
 			if r == ' ' {
 				continue
@@ -197,11 +251,10 @@ func Render(s State) string {
 			if row < 0 || row >= Height || col >= Width {
 				continue
 			}
-			color := colBody
+			color := materialColor(byte(maskRow[j]))
 			ch := r
 			if r == '~' {
 				ch = '≈'
-				color = colFlame
 			}
 			grid[row][col] = cell{ch, color}
 		}
