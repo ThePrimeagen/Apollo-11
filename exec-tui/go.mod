@@ -7,9 +7,12 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/muesli/termenv v0.16.0
 	github.com/theprimeagen/apollo-11/button-lab v0.0.0
+	github.com/theprimeagen/apollo-11/dsky-lab v0.0.0
 )
 
 replace github.com/theprimeagen/apollo-11/button-lab => ../button-lab
+
+replace github.com/theprimeagen/apollo-11/dsky-lab => ../dsky-lab
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

@@ -1,8 +1,9 @@
-// Package dsky renders a semi-accurate, vertical terminal DSKY — the Apollo
-// Display and Keyboard unit. Top: the caution/status light panel, including
-// the LM's ALT and VEL landing-radar lights. Below: the electroluminescent
-// display — COMP ACTY, PROG, VERB, NOUN in seven-segment digits, and three
-// signed five-digit registers separated by thin lines.
+// Package dsky renders a compact, vertical terminal DSKY — the Apollo
+// Display and Keyboard unit — built for embedding into larger TUIs. Top: the
+// four story-relevant lights only (PROG, RESTART, and the LM's ALT and VEL
+// landing-radar lights). Below: the electroluminescent display — COMP ACTY,
+// PROG, VERB, NOUN in seven-segment digits, and three signed five-digit
+// registers separated by thin lines.
 //
 // Output is raw ANSI 256-color (no terminal profile detection, so captures
 // always keep color) and the footprint is a constant Width×Height grid in
@@ -14,7 +15,7 @@ import "strings"
 // Fixed footprint.
 const (
 	Width  = 25
-	Height = 28
+	Height = 23
 )
 
 // Palette (xterm-256).
@@ -29,20 +30,13 @@ const (
 	colActyBG  = 40  // COMP ACTY green
 )
 
-// Lights is the caution/status panel state.
+// Lights is the compact caution panel: the alarm lamps and the LM's
+// landing-radar lights — the ones that tell the descent story.
 type Lights struct {
-	UplinkActy bool
-	NoAtt      bool
-	Stby       bool
-	KeyRel     bool
-	OprErr     bool
-	Temp       bool
-	GimbalLock bool
-	Prog       bool
-	Restart    bool
-	Tracker    bool
-	Alt        bool
-	Vel        bool
+	Prog    bool
+	Restart bool
+	Alt     bool
+	Vel     bool
 }
 
 // State is everything the DSKY shows. Empty strings blank their fields.
@@ -197,18 +191,13 @@ func Render(s State, blinkOn bool) string {
 		return l
 	}
 
-	// --- caution/status lights: two columns, seven rows -------------------
+	// --- caution lights: the four that matter, two columns ----------------
 	lightRows := []struct {
 		left, right string
 		litL, litR  bool
 	}{
-		{"UPLINK ACTY", "TEMP", s.Lights.UplinkActy, s.Lights.Temp},
-		{"NO ATT", "GIMBAL LOCK", s.Lights.NoAtt, s.Lights.GimbalLock},
-		{"STBY", "PROG", s.Lights.Stby, s.Lights.Prog},
-		{"KEY REL", "RESTART", s.Lights.KeyRel, s.Lights.Restart},
-		{"OPR ERR", "TRACKER", s.Lights.OprErr, s.Lights.Tracker},
-		{"", "ALT", false, s.Lights.Alt},
-		{"", "VEL", false, s.Lights.Vel},
+		{"PROG", "RESTART", s.Lights.Prog, s.Lights.Restart},
+		{"ALT", "VEL", s.Lights.Alt, s.Lights.Vel},
 	}
 	for _, lr := range lightRows {
 		l := newLine()

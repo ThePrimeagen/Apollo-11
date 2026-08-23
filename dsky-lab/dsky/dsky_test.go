@@ -1,10 +1,11 @@
 package dsky
 
-// Tests written FIRST. The component contract: a semi-accurate, vertical
-// terminal DSKY — warning-light panel on top (including the LM's ALT/VEL
-// landing-radar lights), then COMP ACTY + PROG, VERB + NOUN, and three
-// signed 5-digit registers in seven-segment digits. Raw ANSI 256-color, a
-// fixed footprint in every state, pure Render. Happy + unhappy throughout.
+// Tests written FIRST. The component contract: a compact, vertical terminal
+// DSKY built for embedding — only the story-relevant lights on top (PROG,
+// RESTART, and the LM's ALT/VEL landing-radar lights), then COMP ACTY +
+// PROG, VERB + NOUN, and three signed 5-digit registers in seven-segment
+// digits. Raw ANSI 256-color, a fixed footprint in every state, pure
+// Render. Happy + unhappy throughout.
 
 import (
 	"regexp"
@@ -145,6 +146,14 @@ func TestLights(t *testing.T) {
 		out := plain(Render(State{}, true))
 		if !strings.Contains(out, "ALT") || !strings.Contains(out, "VEL") {
 			t.Fatal("the LM DSKY carries ALT and VEL landing-radar lights")
+		}
+	})
+	t.Run("unhappy: the trimmed panel carries no clutter lights", func(t *testing.T) {
+		out := plain(Render(State{}, true))
+		for _, gone := range []string{"UPLINK", "NO ATT", "STBY", "KEY REL", "OPR ERR", "TEMP", "GIMBAL", "TRACKER"} {
+			if strings.Contains(out, gone) {
+				t.Fatalf("the compact panel must not render the %q light", gone)
+			}
 		}
 	})
 	t.Run("happy: COMP ACTY lights green only when active", func(t *testing.T) {

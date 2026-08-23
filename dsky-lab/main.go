@@ -205,14 +205,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	dim := "\x1b[38;5;240m"
-	amber := "\x1b[38;5;214;1m"
 	reset := "\x1b[0m"
 	blinkOn := (m.frame/12)%2 == 0
 
 	panel := dsky.Render(m.d.state(), blinkOn)
 	pad := "   "
 	var b strings.Builder
-	b.WriteString(pad + amber + "DSKY" + reset + dim + " · LUMINARY 099 descent displays" + reset + "\n\n")
+	b.WriteString("\n")
 	for _, l := range strings.Split(panel, "\n") {
 		b.WriteString(pad + l + "\n")
 	}
