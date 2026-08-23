@@ -343,10 +343,13 @@ func (m Model) View() string {
 	b.WriteString(m.viewCycleBar())
 	b.WriteString("\n")
 
-	left := m.viewLeft()
+	left := lipgloss.JoinVertical(lipgloss.Left, m.viewLeft(), "", m.viewPools())
 	panel := dsky.Render(m.dskyState(), true)
-	right := m.viewBoxes()
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", panel, " ", right)
+	gap := m.w - lipgloss.Width(left) - dsky.Width
+	if gap < 1 {
+		gap = 1
+	}
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), panel)
 	b.WriteString(body)
 	b.WriteString("\n")
 	b.WriteString(m.viewSwitches())
@@ -500,47 +503,53 @@ func (m Model) viewCycleBar() string {
 	return sDim.Render("2s CYCLE ") + bar + "  " + badges
 }
 
+// trackWidth is the timeline cell count: half the screen minus the label
+// column. Halving the track doubles the time each cell represents.
+func trackWidth(w int) int { return clampi(w/2-9, 20, 160) }
+
+// bucketsPerCell: each rendered cell covers 4 history buckets (40ms).
+const bucketsPerCell = 4
+
 func (m Model) viewLeft() string {
 	labelW := 9
-	rightW := 29 + dsky.Width + 1
-	trackW := clampi(m.w-labelW-rightW-3, 20, 160)
-	buckets := m.eng.History(trackW*2 + 2)
-	// Anchor bucket pairs to ABSOLUTE parity and render only complete pairs:
-	// a cell, once drawn, must never change content — it may only scroll.
-	// Pairing "the most recent N" re-shuffled every close and blinked.
-	if first := m.eng.BucketsClosed() - len(buckets); first%2 != 0 {
-		buckets = buckets[1:]
+	trackW := trackWidth(m.w)
+	buckets := m.eng.History(trackW*bucketsPerCell + bucketsPerCell)
+	// Anchor cells to ABSOLUTE 4-bucket groups and render only complete
+	// groups: a cell, once drawn, must never change content — it may only
+	// scroll. Grouping "the most recent N" re-shuffled every close and
+	// blinked.
+	if first := m.eng.BucketsClosed() - len(buckets); first%bucketsPerCell != 0 {
+		buckets = buckets[bucketsPerCell-first%bucketsPerCell:]
 	}
-	if len(buckets)%2 != 0 {
-		buckets = buckets[:len(buckets)-1]
+	if rem := len(buckets) % bucketsPerCell; rem != 0 {
+		buckets = buckets[:len(buckets)-rem]
 	}
 
 	var b strings.Builder
 	b.WriteString(sDim.Render(fmt.Sprintf("%-*s", labelW, "")) +
-		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, 20ms/cell", float64(trackW)*2*sim.BucketMs/1000)))
+		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell",
+			float64(trackW)*bucketsPerCell*sim.BucketMs/1000, bucketsPerCell*sim.BucketMs)))
 	b.WriteString("\n")
 	for _, r := range rows {
 		style := lipgloss.NewStyle().Foreground(r.color)
 		b.WriteString(lipgloss.NewStyle().Foreground(r.color).Render(fmt.Sprintf("%-*s", labelW, r.label)))
 		cells := make([]rune, 0, trackW)
 		// left-pad when history is younger than the track
-		missing := trackW - len(buckets)/2
+		missing := trackW - len(buckets)/bucketsPerCell
 		for i := 0; i < missing; i++ {
 			cells = append(cells, ' ')
 		}
-		for i := 0; i < len(buckets); i += 2 {
-			mask := buckets[i].Mask
-			dominant := buckets[i].Dominant == r.c
-			if i+1 < len(buckets) {
-				mask |= buckets[i+1].Mask
-				dominant = dominant || buckets[i+1].Dominant == r.c
+		for i := 0; i+bucketsPerCell <= len(buckets); i += bucketsPerCell {
+			mask := uint32(0)
+			dominant := false
+			for j := i; j < i+bucketsPerCell; j++ {
+				mask |= buckets[j].Mask
+				dominant = dominant || buckets[j].Dominant == r.c
 			}
 			switch {
 			case dominant:
 				cells = append(cells, '█') // owned most of this slice
 			case mask&(1<<uint(r.c)) != 0:
-				// Full-cell shade, not a vertically-cut block: '█▂' pairs
-				// composited into boot-shaped artifacts on screen.
 				cells = append(cells, '░') // ran, but only briefly
 			default:
 				cells = append(cells, ' ')
@@ -553,9 +562,8 @@ func (m Model) viewLeft() string {
 		b.WriteString("\n")
 	}
 
-	// stats + event log fill the space under the timelines
+	// the stats line closes the timeline block
 	e := m.eng
-	b.WriteString("\n")
 	stats := sDim.Render(fmt.Sprintf("cycles %d   servicer copies %d   restarts %d   alarms %d",
 		e.CycleCount(), e.ServicerCopies(), e.RestartCount(), len(e.Alarms())))
 	if stubs := e.StubCount(); stubs > 0 {
@@ -565,38 +573,13 @@ func (m Model) viewLeft() string {
 		// Flight truth: with the theft active but no monitor, Eagle flew a
 		// quiet knife edge for ~5 minutes — margin gone, nothing overrun.
 		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("   ⚠ knife edge: margin ≈ 0, nothing overrun yet — one straw breaks it: [n] monitor · [6] P64")
+			Render("   ⚠ knife edge: margin ≈ 0 — one straw breaks it: [n] monitor · [6] P64")
 	} else if e.RecoveredRecently(5000) {
 		stats += lipgloss.NewStyle().Foreground(cYellow).
 			Render("   ⟳ overrun recovering — a superseded SERVICER finished late and freed its pair")
 	}
 	b.WriteString(stats)
-	b.WriteString("\n\n")
-	evs := e.Events()
-	n := clampi(m.h-32, 3, 20)
-	if len(evs) < n {
-		n = len(evs)
-	}
-	for _, ev := range evs[len(evs)-n:] {
-		style := sDim
-		switch ev.Kind {
-		case sim.EvAlarm, sim.EvRestart:
-			style = lipgloss.NewStyle().Foreground(cRed)
-		case sim.EvLeak:
-			style = lipgloss.NewStyle().Foreground(cRed).Bold(true)
-		case sim.EvRecover:
-			style = lipgloss.NewStyle().Foreground(cGreen)
-		case sim.EvHint:
-			style = lipgloss.NewStyle().Foreground(cCyan)
-		case sim.EvBug:
-			style = lipgloss.NewStyle().Foreground(cOrange)
-		case sim.EvMonitorOn, sim.EvMonitorOff:
-			style = lipgloss.NewStyle().Foreground(cYellow)
-		}
-		b.WriteString(style.Render(fmt.Sprintf("%s  %s", fmtAGC(ev.AGCTimeMs), ev.Text)))
-		b.WriteString("\n")
-	}
-	return lipgloss.NewStyle().Width(labelW + trackW).Render(b.String())
+	return b.String()
 }
 
 func (m Model) boxFor(label string, s sim.SlotState, w int) string {
@@ -630,67 +613,51 @@ func (m Model) boxFor(label string, s sim.SlotState, w int) string {
 	return lipgloss.NewStyle().Border(border).BorderForeground(color).Width(w).Render(content)
 }
 
-func (m Model) viewBoxes() string {
+// viewPools renders the Executive's memory row-wise where the log used to
+// live: all eight core sets on one row of boxes, all five VACs on the next.
+func (m Model) viewPools() string {
 	e := m.eng
 	cores := e.CoreSets()
 	vacs := e.VACs()
-
-	compact := m.h < 31
 	boxW := 12
-
-	var coreCol, vacCol []string
-	coreCol = append(coreCol, sTitle.Render("CORE SETS"))
-	vacCol = append(vacCol, sTitle.Render("VAC AREAS"))
+	if m.w < 142 {
+		boxW = clampi((m.w-dsky.Width-4)/8-2, 6, 12)
+	}
 
 	busyC, busyV := 0, 0
+	var coreBoxes, vacBoxes []string
 	for i, s := range cores {
-		label := fmt.Sprintf("CS%d", i+1)
 		if s.Busy {
 			busyC++
 		}
-		if compact {
-			coreCol = append(coreCol, m.slotLine(label, s))
-		} else {
-			coreCol = append(coreCol, m.boxFor(label, s, boxW))
-		}
+		coreBoxes = append(coreBoxes, m.boxFor(fmt.Sprintf("CS%d", i+1), s, boxW))
 	}
 	for i, s := range vacs {
-		label := fmt.Sprintf("VC%d", i+1)
 		if s.Busy {
 			busyV++
 		}
-		if compact {
-			vacCol = append(vacCol, m.slotLine(label, s))
-		} else {
-			vacCol = append(vacCol, m.boxFor(label, s, boxW))
-		}
+		vacBoxes = append(vacBoxes, m.boxFor(fmt.Sprintf("VC%d", i+1), s, boxW))
 	}
+
 	poolStyle := sDim
 	if busyC >= 7 || busyV >= 4 {
 		poolStyle = lipgloss.NewStyle().Foreground(cRed).Bold(true)
 	}
-	vacCol = append(vacCol, "")
-	vacCol = append(vacCol, poolStyle.Render(fmt.Sprintf("CORE %d/8", busyC)))
-	vacCol = append(vacCol, poolStyle.Render(fmt.Sprintf("VAC  %d/5", busyV)))
+	coreTitle := sTitle.Render("CORE SETS") + " " + poolStyle.Render(fmt.Sprintf("%d/8", busyC))
 	if busyC == 8 {
-		vacCol = append(vacCol, sAlarm.Render("→ 1202"))
-	} else if busyV == 5 {
-		vacCol = append(vacCol, sAlarm.Render("→ 1201"))
+		coreTitle += " " + sAlarm.Render("→ 1202")
+	}
+	vacTitle := sTitle.Render("VAC AREAS") + " " + poolStyle.Render(fmt.Sprintf("%d/5", busyV))
+	if busyV == 5 {
+		vacTitle += " " + sAlarm.Render("→ 1201")
 	}
 
-	left := lipgloss.JoinVertical(lipgloss.Left, coreCol...)
-	right := lipgloss.JoinVertical(lipgloss.Left, vacCol...)
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
-}
-
-func (m Model) slotLine(label string, s sim.SlotState) string {
-	if !s.Busy {
-		return sDim.Render(fmt.Sprintf("%-4s ·free", label))
-	}
-	if s.Stub {
-		return lipgloss.NewStyle().Foreground(cRed).Bold(true).Render(fmt.Sprintf("%-4s █STUB·%d", label, s.Prio))
-	}
-	return lipgloss.NewStyle().Foreground(cGreen).Render(fmt.Sprintf("%-4s █%s·%d", label, shortOwner(s.Owner), s.Prio))
+	return lipgloss.JoinVertical(lipgloss.Left,
+		coreTitle,
+		lipgloss.JoinHorizontal(lipgloss.Top, coreBoxes...),
+		vacTitle,
+		lipgloss.JoinHorizontal(lipgloss.Top, vacBoxes...),
+	)
 }
 
 func (m Model) viewKeyBar() string {
