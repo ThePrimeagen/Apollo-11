@@ -119,6 +119,7 @@ const (
 	COther
 	CKeyRupt
 	CSteal
+	CPipa
 	CRestart
 	numConsumers
 )
@@ -151,6 +152,8 @@ func (c Consumer) String() string {
 		return "KEYRUPT"
 	case CSteal:
 		return "RR STEAL"
+	case CPipa:
+		return "PIPA CTR"
 	case CRestart:
 		return "RESTART"
 	default:
@@ -263,6 +266,7 @@ type Engine struct {
 	intrQ    []intrWork
 
 	stealDebt float64
+	pipaDebt  float64
 
 	dapNext, t4Next, downNext    float64
 	gyroNext, lrNext, monNext    float64
@@ -351,18 +355,21 @@ func (e *Engine) step() {
 	e.fireRecurrences()
 
 	// 1. Counter increments (PINC/MINC cycle stealing) pause everything.
-	frac := 0.0
 	if e.bug {
-		frac += RadarBugStealFraction
+		e.stealDebt += RadarBugStealFraction * stepMs
+		if e.stealDebt >= stepMs {
+			e.stealDebt -= stepMs
+			e.account(CSteal)
+			return
+		}
 	}
 	if e.phase != P00 {
-		frac += miscCounterFraction
-	}
-	e.stealDebt += frac * stepMs
-	if e.stealDebt >= stepMs {
-		e.stealDebt -= stepMs
-		e.account(CSteal)
-		return
+		e.pipaDebt += miscCounterFraction * stepMs
+		if e.pipaDebt >= stepMs {
+			e.pipaDebt -= stepMs
+			e.account(CPipa)
+			return
+		}
 	}
 
 	// 2. Interrupt-level work (T4RUPT, DAP, DOWNRUPT, KEYRUPT, tasks, restart).
@@ -596,6 +603,8 @@ func (e *Engine) bailout(code string) {
 
 	// Phase tables (5.4SPOT): rebuild one REREADAC task + one SERVICER.
 	if e.phase != P00 {
+		// Aldrin: the display "switched back to Verb 06 Noun 63."
+		e.verbBuf, e.nounBuf = "06", "63"
 		due := e.t + rereadacDelayMs
 		e.waitlist = append(e.waitlist, wtask{"REREADAC", due, func(e *Engine) {
 			e.intrQ = append(e.intrQ, intrWork{CReadAccs, readaccsCostMs})
@@ -980,7 +989,7 @@ func (e *Engine) Accounting() Accounting {
 	a := Accounting{
 		JobsPct:       pct(CServicer, CGyro, CLRRead, CMonitor, CCharin, CRRRead, COther),
 		InterruptsPct: pct(CReadAccs, CDAP, CT4Rupt, CDownrupt, CKeyRupt),
-		StealPct:      pct(CSteal),
+		StealPct:      pct(CSteal, CPipa),
 		RestartPct:    pct(CRestart),
 		IdlePct:       pct(CIdle),
 	}

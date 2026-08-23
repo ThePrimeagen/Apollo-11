@@ -49,22 +49,34 @@ Simulation budget chosen to hit those aggregates (per 2.000 s cycle, in AGC ms):
 
 | Component | Cost | Duty | Rationale |
 | :--- | :--- | :--- | :--- |
-| SERVICER (prio 20, FINDVAC) | 1,300 ms/cycle | 65% | The dominant job: average-G nav → guidance → throttle → attitude → displays [Eyles] |
+| SERVICER (prio 20, FINDVAC) | 1,320 ms/cycle | 66% | The dominant job: average-G nav → guidance → throttle → attitude → displays [Eyles] |
 | DAP (autopilot interrupt, 10 Hz) | 12 ms per 100 ms | 12% | [Eyles] lists the digital autopilot among dedicated interrupts; 10 Hz is the LM DAP RCS period |
 | READACCS (waitlist task, 2 s) | 1 ms | ~0.05% | "deliberately short" [Repo] memory_leak.md |
 | GYRO COMP (prio 21, 1 Hz) | 7 ms | 0.35% | priority from [Repo] memory_leak.md job table |
-| T4RUPT (120 ms) | 1 ms per fire | ~0.8% | [L099] T4RUPT_PROGRAM.agc: `120MS`; RRAUTCHK "entered every 480 MS" |
+| T4RUPT (120 ms) | 0.96 ms per fire | ~0.8% | [L099] T4RUPT_PROGRAM.agc: `120MS`; RRAUTCHK "entered every 480 MS" |
 | DOWNRUPT telemetry (50/s) | 0.2 ms per fire | 1% | downlink 50 words/s |
 | PIPA + misc counters | — | 0.5% | powered-flight accelerometer traffic |
-| **Total P63 base** | | **≈ 79.7%** | < 85% ✓ |
+| **Total P63 base** | | **≈ 80.7%** | < 85% ✓ |
 | + LR data conversion (in SERVICER) | +40 ms/cycle | +2% | "extra computations involved in converting the body-referenced radar data" [Eyles] |
-| + V16N68 MONITOR (prio ~30, 1 Hz) | 60 ms per refresh | +3% | monitor verbs are "DISPLAYS THAT ARE UPDATED ONCE PER SECOND" [L099] PINBALL; margin 13% → ≤10% [Eyles] |
+| + LR READ job (prio 32, 1 Hz) | 20 ms per read | +1% | radar reads at priority 32 [Repo] memory_leak.md |
+| + V16N68 MONITOR (prio 30, 1 Hz) | 30 ms per refresh | +3% | monitor verbs are "DISPLAYS THAT ARE UPDATED ONCE PER SECOND" [L099] PINBALL; margin 13% → ≤10% [Eyles] |
 | + P64 redesignation (in SERVICER) | +60 ms/cycle | +3% | "Added to the regular guidance equations was new processing" [Eyles] |
 
-With the bug on in the V16N68 configuration: ≈ 84.7% software + 15.0% theft ≈ **99.7%
-nominal → over 100% with any transient** (typing, radar ping, display bursts) — exactly
-the marginal, intermittent overflow observed in flight (5 alarms in ~4.5 min, not a
-continuous stream).
+With the bug on in the V16N68 configuration: ≈ 87.7% software + 15.5% theft ≈ **103%**
+demanded of a machine that only has 100% — while without the monitor the same
+configuration squeaks by with a ~1% margin. That knife edge is the flight behavior:
+alarms only while the monitor (or extra typing) was up, quiet after each restart shed it.
+
+### The tie-break that makes the leak fast
+
+`EXECUTIVE.agc` `SETLOC` lets a new job preempt only a *strictly greater* priority, and
+the `EJSCAN` rescan runs at every job completion. The simulation resolves equal-priority
+rescans in favor of the **most recently scheduled** copy. Justification: the flight
+timeline (V16N68 keyed ≈102:38:10, first 1202 at 102:38:22 — about six 2-second cycles)
+requires roughly one leaked core-set/VAC pair per overloaded cycle, which only happens
+when new SERVICERs win and old stubs starve — precisely the accumulation of "uncompleted
+SERVICER 'stubs'" Eyles describes the restart flushing. A strict FIFO/backlog model would
+take minutes to exhaust the pools, contradicting the flight record.
 
 ## The DSKY keystroke pipeline
 
@@ -82,6 +94,11 @@ costs ~1.5–2% duty — small, but *real*, and visible on the CHARIN timeline r
 (7 keystrokes: V-1-6-N-6-8-ENTR) then leaves the +3% monitor running. Aldrin keying it up
 is what moved the margin from ~13% to ≤10% [Eyles]: "Buzz Aldrin was perceptive when he
 said... 'It appears to come up when we have a 1668 up.'"
+
+The software restart (BAILOUT → ENEMA → phase-table rebuild) is modeled as 20 ms of
+CPU-blocking restart work plus a 20 ms delay before REREADAC recreates one SERVICER and
+re-arms the READACCS chain — the accelerometer counters keep counting through it, so no
+velocity data is lost [Repo] alarm_recovery.md.
 
 ## Executive / Waitlist mechanics
 
