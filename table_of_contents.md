@@ -89,6 +89,9 @@ The first four markers include **two alternatives**. A failed allocation follows
 
 ## Recommended supporting reading
 
+- [`operations_and_timing.md`](operations_and_timing.md) — every operation running during the
+  descent with its rate and cost, the CPU budget ledger (what the 10% margin was actually
+  for), and the audit of the "1.8 seconds" figure used by this repo's simulators.
 - [`walkthrough.md`](walkthrough.md) — the entire story in plain English.
 - [`timeline.markdown`](timeline.markdown) — exact mission times, altitudes, and voice calls.
 - [`errorcodes.markdown`](errorcodes.markdown) — the older single-document deep technical
