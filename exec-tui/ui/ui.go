@@ -19,12 +19,13 @@ type FrameMsg struct{}
 
 const frameWallMs = 33.34
 
-// fake typing cadence: frames between Neil's keystrokes (~250-330ms).
-var neilCadence = []int{8, 7, 9, 8, 10, 7, 9}
+// fake typing cadence in AGC milliseconds: a human types ~230-330ms apart in
+// REAL time (which is AGC time), so wall spacing scales with playback speed.
+var neilCadenceAGC = []float64{270, 230, 300, 270, 330, 230, 300}
 
 type pendingKey struct {
-	key        byte
-	framesLeft int
+	key    byte
+	dueAGC float64 // absolute AGC time at which the key lands
 }
 
 // Model is the bubbletea model.
@@ -75,12 +76,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case FrameMsg:
 		if !m.paused {
 			m.eng.AdvanceWall(frameWallMs)
-			if len(m.pending) > 0 {
-				m.pending[0].framesLeft--
-				if m.pending[0].framesLeft <= 0 {
-					m.eng.PressKey(m.pending[0].key)
-					m.pending = m.pending[1:]
-				}
+			for len(m.pending) > 0 && m.eng.AGCTimeMs() >= m.pending[0].dueAGC {
+				m.eng.PressKey(m.pending[0].key)
+				m.pending = m.pending[1:]
 			}
 		}
 		if n := len(m.eng.Alarms()); n > m.seenAlarms {
@@ -147,8 +145,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case 'l':
 		m.eng.AcquireLandingRadar()
 	case 'n':
+		due := m.eng.AGCTimeMs()
+		if len(m.pending) > 0 {
+			due = m.pending[len(m.pending)-1].dueAGC // queue behind earlier typing
+		}
 		for i, k := range []byte("V16N68E") {
-			m.pending = append(m.pending, pendingKey{k, neilCadence[i%len(neilCadence)]})
+			due += neilCadenceAGC[i%len(neilCadenceAGC)]
+			m.pending = append(m.pending, pendingKey{k, due})
 		}
 	case 't':
 		m.typing = true
@@ -290,15 +293,29 @@ func (m Model) viewHeader() string {
 
 	speed := fmt.Sprintf("1s wall = %.0fms AGC", e.WallToAGC()*1000)
 	title := sTitle.Render("AGC EXECUTIVE · LUMINARY 099")
-	clock := sDim.Render(fmtAGC(e.AGCTimeMs())) + "  " + sTitle.Render(e.Phase().String()) + "  " + sDim.Render(speed)
+	clock := sDim.Render(fmtAGC(e.AGCTimeMs())) + "  " + sTitle.Render(e.Phase().String())
+	// Armed-load badges: at a glance, which of the three overload
+	// ingredients are on (the V16N68 monitor shows as MON 1Hz by the DSKY).
+	if e.LandingRadarAcquired() {
+		clock += "  " + lipgloss.NewStyle().Foreground(cBlue).Bold(true).Render("LR LOCK")
+	}
+	if e.RadarBug() {
+		clock += "  " + lipgloss.NewStyle().Foreground(cRed).Bold(true).Render("RR BUG")
+	}
+	clock += "  " + sDim.Render(speed)
 	if m.paused {
 		clock += "  " + sAlarm.Render(" PAUSED ")
 	}
 
 	line1 := title + "   " + clock
+	deficitStyle := sDim
+	if a.DeficitPct > 0 {
+		deficitStyle = lipgloss.NewStyle().Foreground(cRed).Bold(true)
+	}
 	line2 := freeStyle.Render(fmt.Sprintf("FREE COMPUTE %5.1f%%", free)) + " " + bar +
-		sDim.Render(fmt.Sprintf("  duty %4.1f%%  steal %4.1f%%  deficit %4.1f%%",
-			a.JobsPct+a.InterruptsPct+a.RestartPct, a.StealPct, a.DeficitPct))
+		sDim.Render(fmt.Sprintf("  duty %4.1f%%  steal %4.1f%%  ",
+			a.JobsPct+a.InterruptsPct+a.RestartPct, a.StealPct)) +
+		deficitStyle.Render(fmt.Sprintf("deficit %4.1f%%", a.DeficitPct))
 
 	if e.ProgLamp() {
 		line2 += "  " + sLamp.Render(" PROG ")
@@ -363,7 +380,16 @@ func (m Model) viewLeft() string {
 	labelW := 9
 	rightW := 29
 	trackW := clampi(m.w-labelW-rightW-3, 20, 160)
-	buckets := m.eng.History(trackW * 2)
+	buckets := m.eng.History(trackW*2 + 2)
+	// Anchor bucket pairs to ABSOLUTE parity and render only complete pairs:
+	// a cell, once drawn, must never change content — it may only scroll.
+	// Pairing "the most recent N" re-shuffled every close and blinked.
+	if first := m.eng.BucketsClosed() - len(buckets); first%2 != 0 {
+		buckets = buckets[1:]
+	}
+	if len(buckets)%2 != 0 {
+		buckets = buckets[:len(buckets)-1]
+	}
 
 	var b strings.Builder
 	b.WriteString(sDim.Render(fmt.Sprintf("%-*s", labelW, "")) +
@@ -374,7 +400,7 @@ func (m Model) viewLeft() string {
 		b.WriteString(lipgloss.NewStyle().Foreground(r.color).Render(fmt.Sprintf("%-*s", labelW, r.label)))
 		cells := make([]rune, 0, trackW)
 		// left-pad when history is younger than the track
-		missing := trackW - (len(buckets)+1)/2
+		missing := trackW - len(buckets)/2
 		for i := 0; i < missing; i++ {
 			cells = append(cells, ' ')
 		}
@@ -389,7 +415,9 @@ func (m Model) viewLeft() string {
 			case dominant:
 				cells = append(cells, '█') // owned most of this slice
 			case mask&(1<<uint(r.c)) != 0:
-				cells = append(cells, '▂') // ran, but only briefly
+				// Full-cell shade, not a vertically-cut block: '█▂' pairs
+				// composited into boot-shaped artifacts on screen.
+				cells = append(cells, '░') // ran, but only briefly
 			default:
 				cells = append(cells, ' ')
 			}
@@ -404,8 +432,16 @@ func (m Model) viewLeft() string {
 	// stats + event log fill the space under the timelines
 	e := m.eng
 	b.WriteString("\n")
-	b.WriteString(sDim.Render(fmt.Sprintf("cycles %d   servicer copies %d   restarts %d   alarms %d",
-		e.CycleCount(), e.ServicerCopies(), e.RestartCount(), len(e.Alarms()))))
+	stats := sDim.Render(fmt.Sprintf("cycles %d   servicer copies %d   restarts %d   alarms %d",
+		e.CycleCount(), e.ServicerCopies(), e.RestartCount(), len(e.Alarms())))
+	if stubs := e.StubCount(); stubs > 0 {
+		stats += lipgloss.NewStyle().Foreground(cRed).Bold(true).
+			Render(fmt.Sprintf("   ⚠ %d stubs leaked (%d words never freed)", stubs, stubs*55))
+	} else if e.RecoveredRecently(5000) {
+		stats += lipgloss.NewStyle().Foreground(cYellow).
+			Render("   ⟳ knife edge: overruns recovering each cycle — add load: [n] monitor · [6] P64")
+	}
+	b.WriteString(stats)
 	b.WriteString("\n\n")
 	evs := e.Events()
 	n := clampi(m.h-22, 3, 20)
@@ -417,6 +453,12 @@ func (m Model) viewLeft() string {
 		switch ev.Kind {
 		case sim.EvAlarm, sim.EvRestart:
 			style = lipgloss.NewStyle().Foreground(cRed)
+		case sim.EvLeak:
+			style = lipgloss.NewStyle().Foreground(cRed).Bold(true)
+		case sim.EvRecover:
+			style = lipgloss.NewStyle().Foreground(cGreen)
+		case sim.EvHint:
+			style = lipgloss.NewStyle().Foreground(cCyan)
 		case sim.EvBug:
 			style = lipgloss.NewStyle().Foreground(cOrange)
 		case sim.EvMonitorOn, sim.EvMonitorOff:
@@ -433,6 +475,13 @@ func (m Model) boxFor(label string, s sim.SlotState, w int) string {
 	if !s.Busy {
 		content := sDim.Render(fmt.Sprintf("%-4s", label)) + sDim.Render("free")
 		return lipgloss.NewStyle().Border(border).BorderForeground(cDim).Width(w).Render(content)
+	}
+	if s.Stub {
+		// Abandoned copy: superseded, starving, never reaching ENDOFJOB —
+		// this slot is leaked memory.
+		content := lipgloss.NewStyle().Foreground(cWhite).Bold(true).Render(fmt.Sprintf("%-4s", label)) +
+			lipgloss.NewStyle().Foreground(cRed).Bold(true).Render(fmt.Sprintf("STUB·%d", s.Prio))
+		return lipgloss.NewStyle().Border(border).BorderForeground(cRed).Width(w).Render(content)
 	}
 	color := cGreen
 	switch s.Owner {
@@ -508,6 +557,9 @@ func (m Model) viewBoxes() string {
 func (m Model) slotLine(label string, s sim.SlotState) string {
 	if !s.Busy {
 		return sDim.Render(fmt.Sprintf("%-4s ·free", label))
+	}
+	if s.Stub {
+		return lipgloss.NewStyle().Foreground(cRed).Bold(true).Render(fmt.Sprintf("%-4s █STUB·%d", label, s.Prio))
 	}
 	return lipgloss.NewStyle().Foreground(cGreen).Render(fmt.Sprintf("%-4s █%s·%d", label, shortOwner(s.Owner), s.Prio))
 }

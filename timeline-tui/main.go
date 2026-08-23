@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -100,12 +101,12 @@ func (b *board) clear() {
 
 // Event = one MEMORY_LEAK / timeline beat.
 type event struct {
-	marker  string
-	title   string
-	blurb   string
-	code    string
-	apply   func(*board) // mutates board when stepped onto
-	playable bool        // show cycle bars emphasis
+	marker   string
+	title    string
+	blurb    string
+	code     string
+	apply    func(*board) // mutates board when stepped onto
+	playable bool         // show cycle bars emphasis
 }
 
 func events() []event {
@@ -726,6 +727,32 @@ func (m model) renderBoard(width int) string {
 	return box.Render(s)
 }
 
+// barCells converts a fill fraction into whole '█' cells plus one shade rune
+// ('░' '▒' '▓') for the sub-cell remainder, so any nonzero amount is visible
+// instead of truncating to nothing. Returns partial == 0 when there is no
+// fractional cell. full + one partial cell never exceeds cells.
+func barCells(frac float64, cells int) (full int, partial rune) {
+	if cells <= 0 || frac <= 0 {
+		return 0, 0
+	}
+	if frac >= 1 {
+		return cells, 0
+	}
+	exact := frac * float64(cells)
+	full = int(exact)
+	rem := exact - float64(full)
+	switch {
+	case rem <= 0:
+		return full, 0
+	case rem < 1.0/3:
+		return full, '░'
+	case rem < 2.0/3:
+		return full, '▒'
+	default:
+		return full, '▓'
+	}
+}
+
 func barLine(label string, filled, total float64, width int, fill lipgloss.Color, ghost float64) string {
 	inner := width - 28
 	if inner < 8 {
@@ -735,21 +762,24 @@ func barLine(label string, filled, total float64, width int, fill lipgloss.Color
 	if total > 0 {
 		frac = filled / total
 	}
-	if frac > 1 {
-		frac = 1
+	full, part := barCells(frac, inner)
+	partial := ""
+	used := full
+	if part != 0 {
+		partial = string(part)
+		used++
 	}
-	n := int(frac * float64(inner))
 	ghostN := 0
-	if ghost > total && total > 0 {
-		ghostN = int((ghost/total)*float64(inner)) - n
+	if total > 0 && ghost > filled {
+		ghostN = int((ghost/total)*float64(inner)) - used
 		if ghostN < 0 {
 			ghostN = 0
 		}
-		if n+ghostN > inner {
-			ghostN = inner - n
+		if used+ghostN > inner {
+			ghostN = inner - used
 		}
 	}
-	rest := inner - n - ghostN
+	rest := inner - used - ghostN
 	if rest < 0 {
 		rest = 0
 	}
@@ -758,7 +788,7 @@ func barLine(label string, filled, total float64, width int, fill lipgloss.Color
 	ghostSt := lipgloss.NewStyle().Foreground(rpMuted)
 	emptySt := lipgloss.NewStyle().Foreground(rpOverlay)
 
-	bar := fillSt.Render(strings.Repeat("█", n)) +
+	bar := fillSt.Render(strings.Repeat("█", full)+partial) +
 		ghostSt.Render(strings.Repeat("░", ghostN)) +
 		emptySt.Render(strings.Repeat("·", rest))
 
@@ -804,7 +834,7 @@ func (m model) renderBars(width int) string {
 		pos = inner
 	}
 	scrub := lipgloss.NewStyle().Foreground(rpFoam).Render(strings.Repeat("━", pos)) +
-		lipgloss.NewStyle().Foreground(rpLove).Render("◆") +
+		lipgloss.NewStyle().Foreground(rpLove).Render("█") +
 		lipgloss.NewStyle().Foreground(rpOverlay).Render(strings.Repeat("─", max(0, inner-pos)))
 
 	act := lipgloss.NewStyle().Foreground(rpMuted).Render("running now: ")
@@ -889,8 +919,75 @@ func (m model) renderBars(width int) string {
 	return box.Render(body)
 }
 
+// laneCoverage returns, for each of laneW cells across one 2.00s period, the
+// fraction [0,1] of that cell's time covered by the job's bursts. Bursts are
+// clamped to the period; overlaps saturate at 1.
+func laneCoverage(bursts []burst, jobIndex, laneW int) []float64 {
+	cover := make([]float64, max(laneW, 0))
+	if laneW <= 0 {
+		return cover
+	}
+	cellDur := periodS / float64(laneW)
+	for _, b := range bursts {
+		if b.JobIndex != jobIndex {
+			continue
+		}
+		start := math.Max(b.Start, 0)
+		end := math.Min(b.End, periodS)
+		if end <= start {
+			continue
+		}
+		first := int(start / cellDur)
+		if first >= laneW {
+			continue
+		}
+		last := int(math.Ceil(end/cellDur)) - 1
+		if last >= laneW {
+			last = laneW - 1
+		}
+		for x := first; x <= last; x++ {
+			cellStart := float64(x) * cellDur
+			lo := math.Max(cellStart, start)
+			hi := math.Min(cellStart+cellDur, end)
+			if hi > lo {
+				cover[x] += (hi - lo) / cellDur
+			}
+		}
+	}
+	// Snap float noise so a boundary-grazing burst doesn't light a stray cell
+	// and a fully covered cell reads exactly 1.
+	for i := range cover {
+		switch {
+		case cover[i] < 1e-9:
+			cover[i] = 0
+		case cover[i] > 1-1e-9:
+			cover[i] = 1
+		}
+	}
+	return cover
+}
+
+// coverageRune maps cell coverage to a shade so partial compute in one column
+// stays visible without pretending to be a full block.
+func coverageRune(c float64) rune {
+	switch {
+	case c <= 0:
+		return '·'
+	case c < 0.25:
+		return '░'
+	case c < 0.5:
+		return '▒'
+	case c < 0.9:
+		return '▓'
+	default:
+		return '█'
+	}
+}
+
 func (m model) renderGantt(width int, t float64) string {
-	laneW := width - 16
+	// 16 cols of prefix+name+prio, plus 4 the surrounding box consumes
+	// (width inset + padding) — wider lanes word-wrap off their labels.
+	laneW := width - 20
 	if laneW < 24 {
 		laneW = 24
 	}
@@ -898,33 +995,15 @@ func (m model) renderGantt(width int, t float64) string {
 	var lines []string
 	lines = append(lines, lipgloss.NewStyle().Foreground(rpPine).Bold(true).Render("SCHEDULE (0 … 2.00s)"))
 
+	ph := -1
+	if p := int(t / periodS * float64(laneW)); p >= 0 && p < laneW {
+		ph = p
+	}
+
 	for ji, j := range m.jobs {
 		lane := make([]rune, laneW)
-		for i := range lane {
-			lane[i] = '·'
-		}
-		for _, b := range m.bursts {
-			if b.JobIndex != ji {
-				continue
-			}
-			a := int(b.Start / periodS * float64(laneW))
-			c := int(b.End / periodS * float64(laneW))
-			if a < 0 {
-				a = 0
-			}
-			if c > laneW {
-				c = laneW
-			}
-			if c <= a {
-				c = a + 1
-			}
-			for x := a; x < c && x < laneW; x++ {
-				lane[x] = '█'
-			}
-		}
-		ph := int(t / periodS * float64(laneW))
-		if ph >= 0 && ph < laneW {
-			lane[ph] = '◆'
+		for x, c := range laneCoverage(m.bursts, ji, laneW) {
+			lane[x] = coverageRune(c)
 		}
 
 		focused := m.jobFocus == ji
@@ -932,6 +1011,7 @@ func (m model) renderGantt(width int, t float64) string {
 
 		nameSt := lipgloss.NewStyle().Foreground(lipgloss.Color(j.ColorHex)).Width(9)
 		laneSt := lipgloss.NewStyle().Foreground(lipgloss.Color(j.ColorHex))
+		playSt := lipgloss.NewStyle().Foreground(rpLove).Bold(true)
 		if focused {
 			nameSt = nameSt.Bold(true).Background(rpOverlay)
 			laneSt = laneSt.Bold(true)
@@ -939,6 +1019,16 @@ func (m model) renderGantt(width int, t float64) string {
 		if dimOthers {
 			nameSt = nameSt.Faint(true)
 			laneSt = laneSt.Faint(true)
+			playSt = playSt.Faint(true)
+		}
+
+		// Playhead is a solid full-height block — a '◆' diamond next to '█'
+		// bursts composited into boot-shaped artifacts.
+		laneStr := laneSt.Render(string(lane))
+		if ph >= 0 {
+			laneStr = laneSt.Render(string(lane[:ph])) +
+				playSt.Render("█") +
+				laneSt.Render(string(lane[ph+1:]))
 		}
 
 		prio := "HW"
@@ -950,7 +1040,7 @@ func (m model) renderGantt(width int, t float64) string {
 		if focused {
 			prefix = "▸ "
 		}
-		lines = append(lines, prefix+nameSt.Render(j.Name)+" "+prioS+" "+laneSt.Render(string(lane)))
+		lines = append(lines, prefix+nameSt.Render(j.Name)+" "+prioS+" "+laneStr)
 	}
 	return strings.Join(lines, "\n")
 }

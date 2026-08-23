@@ -1,3 +1,15 @@
+<Context>
+You receive a selection in neovim that you need to replace with new code.
+The selection's contents may contain notes, incorporate the notes every time if there are some.
+consider the context of the selection and what you are suppose to be implementing
+<SELECTION_LOCATION>
+range(point(19,1),point(20,65))
+</SELECTION_LOCATION>
+<SELECTION_CONTENT>
+2. the radar CDUs compared that signal against another 800-Hz reference;
+3. the signals were frequency-locked but not phase-synchronized;
+</SELECTION_CONTENT>
+<SURROUNDING_CONTEXT>
 # Part 1 — The Rendezvous-Radar Problem
 
 This is the first causal chain. It explains the **external hardware condition** that silently
@@ -118,45 +130,25 @@ RRZEROSB  EXTEND
 4. allow the external radar CDUs to report real angles.
 
 The bug was outside this logic. Once zeroing was removed, Apollo 11's phase-mismatched ECDUs
-were free to hammer the counters. Luminary 099 contains no check for that electrical phase
-condition because the interface documentation never told the software team it was possible.
+</SURROUNDING_CONTEXT>
 
-### RADAR_PROBLEM4 — The counters that receive the pulses
+</Context>
+<Prompt>
+Please do super duper research on Apollo 11 and can you answer me what are the 2 radars and what were their purpose?
+</Prompt>
 
-File: `Luminary099/ERASABLE_ASSIGNMENTS.agc`
+<Location><File>/home/theprimeagen/personal/Apollo-11/radar_problem.md</File><Function>range(point(19,1),point(20,65))</Function></Location>
+<FunctionText>2. the radar CDUs compared that signal against another 800-Hz reference;
+3. the signals were frequency-locked but not phase-synchronized;</FunctionText>
+<TEMP_FILE>./tmp/99-6658</TEMP_FILE>
+<MustObey>
+NEVER alter any file other than TEMP_FILE.
+never provide the requested changes as conversational output. Return only the code.
+ONLY provide requested changes by writing the change to TEMP_FILE
 
-```text
-CDUT      EQUALS  35           # REND RADAR TRUNNION CDU
-CDUS      EQUALS  36           # REND RADAR SHAFT CDU
-```
+never attempt to read TEMP_FILE.
+It is purely for output.
+Previous contents, which may not exist, can be written over without worry
+After writing TEMP_FILE once you should be done.  Be done and end the session.
 
-`CDUT` and `CDUS` are special low-memory hardware counters:
-
-- `CDUT`: trunnion (elevation-like) radar angle;
-- `CDUS`: shaft (rotation-like) radar angle.
-
-Each external `PINC`/`MINC` request directly changes one counter and occupies one 11.72-µs
-memory cycle. The current instruction pauses; there is no software interrupt and no call stack
-showing where the time went.
-
-This is the last software location in this trail. The component creating the false requests is
-electrical hardware, so no line in this repository says "generate a bogus pulse." That absence
-is important evidence, not a missing step.
-
-## Handoff to Part 2
-
-At this point:
-
-- the timer hardware still keeps accurate time;
-- ordinary jobs receive only about 85% of the CPU they expected;
-- the next `READACCS` deadline still arrives every two seconds.
-
-Continue with [`memory_leak.md`](memory_leak.md), which shows how missing that deadline turns
-lost CPU time into exhausted core sets and VAC areas.
-
-## Primary sources
-
-- George W. Cherry, *Exegesis of the 1201 and 1202 Alarms Which Occurred During the Mission G
-  Lunar Landing*: <https://www.ibiblio.org/apollo/Documents/CherryApollo11Exegesis.pdf>
-- Don Eyles, *Tales From the Lunar Module Guidance Computer*:
-  <http://www.klabs.org/history/apollo_11_alarms/eyles_2004/eyles_2004.htm>
+</MustObey>

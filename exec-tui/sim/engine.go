@@ -48,7 +48,7 @@ const (
 	gyroPeriodMs     = 1000.0
 	gyroCostMs       = 7.0 // priority-21 gyro compensation
 	lrReadPeriodMs   = 1000.0
-	lrReadCostMs     = 20.0 // priority-32 landing-radar read job
+	lrReadCostMs     = 20.0   // priority-32 landing-radar read job
 	monitorPeriodMs  = 1000.0 // PINBALL: monitors update once per second
 	monitorCostMs    = 30.0   // V16N68 DELTAH monitor: 30ms/s = ~3% (margin 13% -> ~10%)
 	charinCostMs     = 5.0    // priority-30 keystroke job
@@ -161,11 +161,14 @@ func (c Consumer) String() string {
 	}
 }
 
-// SlotState reports one core set or VAC area.
+// SlotState reports one core set or VAC area. Stub marks a slot held by a
+// superseded job copy — a newer copy of the same job exists, so this one has
+// lost the equal-priority tie and starves while still holding its memory.
 type SlotState struct {
 	Busy  bool
 	Owner string
 	Prio  int
+	Stub  bool
 }
 
 // Alarm is one executive-overflow program alarm.
@@ -198,6 +201,9 @@ const (
 	EvBug
 	EvPing
 	EvLRLock
+	EvLeak
+	EvRecover
+	EvHint
 )
 
 // Event is one entry of the event log.
@@ -233,6 +239,11 @@ type job struct {
 	vac       int
 	seq       int // scheduling order; ties on priority favor the newest
 	consumer  Consumer
+
+	// superseded is set once a newer copy of the same job is scheduled.
+	// It stays set even if the newer copies finish first (LIFO unwind), so
+	// a late finish is always recognized as a recovered double-booking.
+	superseded bool
 }
 
 type wtask struct {
@@ -268,8 +279,8 @@ type Engine struct {
 	stealDebt float64
 	pipaDebt  float64
 
-	dapNext, t4Next, downNext    float64
-	gyroNext, lrNext, monNext    float64
+	dapNext, t4Next, downNext float64
+	gyroNext, lrNext, monNext float64
 
 	dsptab int
 
@@ -278,6 +289,13 @@ type Engine struct {
 	progLamp bool
 	restarts int
 	events   []Event
+
+	// repeat-throttle state for chatty event kinds (LEAK/RECOVERED): a
+	// steady per-cycle chorus logs once; changes always log.
+	throttleText map[EventKind]string
+	throttleAt   map[EventKind]float64
+
+	lastRecoverAt float64 // AGC time of the last stub recovery, log or not
 
 	runningJob string
 
@@ -290,14 +308,20 @@ type Engine struct {
 	bucketMask  [historySize]uint32
 	bucketOut   [historySize]float32 // outstanding job work at bucket close
 	bucketHead  int                  // next bucket index to write
-	bucketCount int                  // closed buckets so far
+	bucketCount int                  // closed buckets in the ring (caps at historySize)
+	closedTotal int                  // closed buckets ever (monotonic)
 	curUse      [numConsumers]float32
 	curFill     float64
 }
 
 // New returns an idle engine at AGC time zero.
 func New() *Engine {
-	e := &Engine{wallToAGC: DefaultWallToAGC}
+	e := &Engine{
+		wallToAGC:     DefaultWallToAGC,
+		throttleText:  map[EventKind]string{},
+		throttleAt:    map[EventKind]float64{},
+		lastRecoverAt: -1e18,
+	}
 	e.t4Next = t4PeriodMs
 	e.downNext = downPeriodMs
 	e.dapNext = dapPeriodMs
@@ -525,6 +549,11 @@ func (e *Engine) scheduleJobInternal(name string, prio int, costMs float64, need
 	}
 	e.seq++
 	j.seq = e.seq
+	for _, k := range e.jobs {
+		if k.name == j.name {
+			k.superseded = true
+		}
+	}
 	e.jobs = append(e.jobs, j)
 
 	// SETLOC rule: a new job preempts only a strictly lower priority.
@@ -548,6 +577,17 @@ func (e *Engine) selectJob() *job {
 }
 
 func (e *Engine) endOfJob(j *job) {
+	// A superseded copy that still got CPU (equal priority never preempts a
+	// running job, and the LIFO unwind can hand old copies the CPU back)
+	// reaches ENDOFJOB late and gives its memory back: the double-booking
+	// healed itself. Narrate it, or the earlier LEAK event looks like a
+	// stub silently vanishing.
+	if j.name == "SERVICER" && j.superseded {
+		e.lastRecoverAt = e.t
+		e.logThrottled(EvRecover,
+			"RECOVERED: superseded SERVICER finished late — core set + VAC freed",
+			CyclePeriodMs+200)
+	}
 	if j.core >= 0 {
 		e.cores[j.core] = nil
 	}
@@ -599,6 +639,14 @@ func (e *Engine) bailout(code string) {
 		e.monitor = false
 		e.logEvent(EvMonitorOff, "restart drops V16N68 (not restart-protected)")
 	}
+	// The restart flushed the stubs and shed the sheddable load; a P63
+	// machine is back on its margin. Tell the operator how the flight
+	// escalated from here, or the sudden quiet reads as a bug.
+	if e.phase == P63 {
+		e.logEvent(EvHint, "margin restored — press n (V16N68) or 6 (P64) to overload again")
+	}
+	e.throttleText = map[EventKind]string{}
+	e.throttleAt = map[EventKind]float64{}
 	e.verbBuf, e.nounBuf, e.entering = "", "", 0
 
 	// Phase tables (5.4SPOT): rebuild one REREADAC task + one SERVICER.
@@ -628,6 +676,13 @@ func (e *Engine) armReadaccs(due float64) {
 		// rebuild, so re-arming here would double the cycle demand.
 		if e.scheduleJobInternal("SERVICER", prioServicer, e.servicerCost(), true, CServicer) {
 			e.armReadaccs(e.t + CyclePeriodMs)
+			// The copy that lost the equal-priority tie is now abandoned —
+			// this line IS the memory leak of July 20, 1969.
+			if n := e.StubCount(); n > 0 {
+				e.logThrottled(EvLeak, fmt.Sprintf(
+					"LEAK: %d unfinished SERVICER stub(s) hold %d core set(s) + %d VAC(s)", n, n, n),
+					CyclePeriodMs+200)
+			}
 		}
 	}})
 }
@@ -806,12 +861,35 @@ func (e *Engine) DSKY() DSKYState {
 // Introspection
 // ---------------------------------------------------------------------------
 
+// isStub reports whether a newer live copy of the same job exists. With the
+// newest-wins tie-break, such a superseded copy never runs again under
+// sustained overload — it just sits on its core set (and VAC) forever.
+func (e *Engine) isStub(j *job) bool {
+	for _, k := range e.jobs {
+		if k != j && k.name == j.name && k.seq > j.seq {
+			return true
+		}
+	}
+	return false
+}
+
+// StubCount is the number of superseded SERVICER copies still holding memory.
+func (e *Engine) StubCount() int {
+	n := 0
+	for _, j := range e.jobs {
+		if j.name == "SERVICER" && e.isStub(j) {
+			n++
+		}
+	}
+	return n
+}
+
 // CoreSets reports the eight core sets.
 func (e *Engine) CoreSets() [NumCoreSets]SlotState {
 	var out [NumCoreSets]SlotState
 	for i, j := range e.cores {
 		if j != nil {
-			out[i] = SlotState{Busy: true, Owner: j.name, Prio: j.prio}
+			out[i] = SlotState{Busy: true, Owner: j.name, Prio: j.prio, Stub: e.isStub(j)}
 		}
 	}
 	return out
@@ -822,7 +900,7 @@ func (e *Engine) VACs() [NumVACs]SlotState {
 	var out [NumVACs]SlotState
 	for i, j := range e.vacs {
 		if j != nil {
-			out[i] = SlotState{Busy: true, Owner: j.name, Prio: j.prio}
+			out[i] = SlotState{Busy: true, Owner: j.name, Prio: j.prio, Stub: e.isStub(j)}
 		}
 	}
 	return out
@@ -890,6 +968,24 @@ func (e *Engine) logEvent(k EventKind, text string) {
 	e.events = append(e.events, Event{AGCTimeMs: e.t, Kind: k, Text: text})
 }
 
+// logThrottled suppresses a repeat of the same kind+text within windowMs.
+// Every attempt refreshes the window, so an unchanged per-cycle chorus logs
+// exactly once; any change of text (escalation) or a quiet gap logs again.
+func (e *Engine) logThrottled(k EventKind, text string, windowMs float64) {
+	repeat := e.throttleText[k] == text && e.t-e.throttleAt[k] <= windowMs
+	e.throttleText[k] = text
+	e.throttleAt[k] = e.t
+	if !repeat {
+		e.logEvent(k, text)
+	}
+}
+
+// RecoveredRecently reports whether a superseded SERVICER finished (and
+// freed its pair) within the trailing window — logged or throttled.
+func (e *Engine) RecoveredRecently(windowMs float64) bool {
+	return e.t-e.lastRecoverAt <= windowMs
+}
+
 // ---------------------------------------------------------------------------
 // Accounting
 // ---------------------------------------------------------------------------
@@ -924,11 +1020,17 @@ func (e *Engine) account(c Consumer) {
 		if e.bucketCount < historySize {
 			e.bucketCount++
 		}
+		e.closedTotal++
 		_ = dominant
 		e.curUse = [numConsumers]float32{}
 		e.curFill = 0
 	}
 }
+
+// BucketsClosed is the monotonic count of history buckets closed since boot.
+// The UI anchors its 2-buckets-per-cell pairing to this count's parity so
+// cells never re-pair (and flicker) between frames.
+func (e *Engine) BucketsClosed() int { return e.closedTotal }
 
 // History returns the most recent n closed buckets, oldest first.
 func (e *Engine) History(n int) []Bucket {

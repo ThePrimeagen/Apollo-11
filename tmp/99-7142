@@ -1,0 +1,1 @@
+- [jobs vs. tasks](definitions.md#1-core-concepts-the-what-is-vac-table) — **jobs** are priority-scheduled work (Executive; e.g. `SERVICER`); **tasks** are brief, timer-fired work (WAITLIST; e.g. `READACCS`);

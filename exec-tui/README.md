@@ -31,6 +31,13 @@ AGC time) so you can watch individual preemptions; `]` speeds it up.
   invisible **RR STEAL** row and the shrinking **IDLE** row.
 - **Right, two box columns**: the **8 core sets** and **5 VAC areas**. When they fill,
   the Executive has nowhere to put the next job: 1201 (no VACs) / 1202 (no core sets).
+  Abandoned SERVICER copies show as red **STUB** boxes — superseded, starving, never
+  reaching ENDOFJOB. Those are the leak; the stats line counts the words never freed.
+  When demand is only a hair over 100% a stub can win the race: it keeps the CPU
+  (equal priority never preempts), finishes a few ms late and frees its pair — the
+  log pairs the red `LEAK:` line with a green `RECOVERED:` line. Stubs only pile up
+  once the backlog grows past what the old copy can finish before a higher-priority
+  job takes the CPU and the newest copy wins the rescan.
 - **Bottom dashes**: your controls.
 
 ## Controls
@@ -53,10 +60,13 @@ AGC time) so you can watch individual preemptions; `]` speeds it up.
 ## Reproduce July 20, 1969
 
 1. `d` — PDI. Watch a healthy 2-second cycle: SERVICER finishes with room to spare.
-2. `l` — landing radar locks. Margin shrinks.
+2. `l` — landing radar locks. Margin shrinks. **Don't skip this one**: without the
+   LR conversion load, `n` + `r` leave demand at ~99% — the computer rides the knife
+   edge forever and nothing leaks. All three loads together are what tipped Apollo 11.
 3. `n` — Buzz keys up the DELTAH monitor. Margin ≈ 10%.
 4. `r` — the bug. 15% of the computer disappears (nothing shows *why*: PINC/MINC
-   cycle stealing is invisible to software). Demand is now >100%.
+   cycle stealing is invisible to software). Demand is now ~103% — watch `deficit`
+   in the header go red.
 5. Watch the box columns fill, one leaked core-set+VAC pair per cycle → **1201/1202**,
    PROG lamp, BAILOUT, restart — pools wiped, one SERVICER rebuilt, monitor silently
    dropped. The computer saves itself. Houston says "go".

@@ -174,11 +174,12 @@ func TestKeybindings(t *testing.T) {
 	})
 	t.Run("happy: n fake-types V16N68 over time", func(t *testing.T) {
 		e, m := newTestModel()
+		e.SetWallToAGC(1.0) // real time: ~2s of typing fits in ~70 frames
 		m = key(m, 'n')
 		if m.PendingKeys() < 7 {
 			t.Fatalf("n should queue the 7 keystrokes of V16N68 ENTR, got %d", m.PendingKeys())
 		}
-		m = tick(m, 200)
+		m = tick(m, 120)
 		if m.PendingKeys() != 0 {
 			t.Fatalf("fake typing should complete, %d keys still pending", m.PendingKeys())
 		}

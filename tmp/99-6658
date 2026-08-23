@@ -1,0 +1,2 @@
+2. the Lunar Module carried two radars — the **Landing Radar (LR)**, a four-beam Doppler system that measured altitude and velocity relative to the lunar surface during powered descent, and the **Rendezvous Radar (RR)**, a continuous-wave coherent tracker that measured range, range rate, and line-of-sight angles to the Command Module (via its transponder) during rendezvous; this bug involves only the RR, whose CDUs compared the ATCA resolver excitation against another 800-Hz reference;
+3. the two 800-Hz sources were frequency-locked but not phase-synchronized;
