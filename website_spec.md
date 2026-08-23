@@ -20,7 +20,16 @@ tests exist and fail.
 Sources of truth: [`timeline.markdown`](timeline.markdown) (validated against Cherry's
 *Exegesis*, Eyles' *Tales From the Lunar Module Guidance Computer*, and the ALSJ
 transcript), [`exec-tui/RESEARCH.md`](exec-tui/RESEARCH.md) (every sim constant, sourced),
-and the Luminary 099 assembly in this repository.
+[`operations_and_timing.md`](operations_and_timing.md) (the full job/interrupt inventory
+and duty-cycle ledger), and the Luminary 099 assembly in this repository.
+
+The TUI already exposes the three flight-critical controls as **toggle cards** (selected
+with ←/→ or h/l, engaged with Enter): **1 SERVICER — powered descent** (engaging it types
+`V37E 63E` on the DSKY at human cadence — the deceleration burn starts because the engine
+parses the keystrokes), **2 RR SLEW/AUTO — the mode switch** (the radar's
+computation-stealing toggle; OFF is labeled "LGC mode: clean — the idyllic case"), and
+**3 V16 N68 — Buzz's monitor** (types `V16N68E`). The website mirrors these three
+controls one-for-one; they are the shared vocabulary of §6.3.
 
 ---
 
@@ -39,8 +48,10 @@ modification** to prove the TUI's behavior did not change.
 | `TestTimeScaleWallToAGC`, `TestIdleBaselineFreeCompute`, `TestReadaccsPunctuality`, `TestServicerAllocation`, `TestPriorityPreemption`, `TestFreeComputeAccounting`, `TestBucketsClosed` | `exec-tui/sim` | Unchanged — core scheduling/accounting invariants |
 | `TestNoVacBailout1201`, `TestNoCoreSetBailout1202`, `TestBailoutRestartRecovery`, `TestServicerOverrunLeak`, `TestStubRecovery`, `TestStubSlotMarking`, `TestStubCount`, `TestLeakEvents` | `exec-tui/sim` | Unchanged — alarm/restart semantics shown on the site |
 | `TestRadarBugTLOSS`, `TestRadarPing`, `TestKeystrokeCost`, `TestMonitorVerbLoad`, `TestHistoricalScenario`, `TestKnifeEdgeLogThrottling`, `TestPostRestartHint` | `exec-tui/sim` | Unchanged — load-injection paths reused by both frontends |
+| Fidelity suite: `TestSleepingJobHoldsResources`, `TestLRReadCadence`, `TestLRLockDutyCost`, `TestHigatjobVACHold`, `TestP64FirstAlarmIs1201`, `TestP63TypingGives1202`, `TestBoundaryAlignmentNoFalseAlarm` (`fidelity_test.go`); `TestV37E63EStartsDescent` (`dsky_program_test.go`) | `exec-tui/sim` | Unchanged — these pin the sleep-segment mechanics, the P63-1202/P64-1201 alarm-code split, and typed program selection that the website's forensics and DSKY depend on |
 | Pause/typing/keybinding tests: `ui_test.go` (pause freeze, state preservation across pause, keybindings) and `typing_test.go` (cadence, speed scaling, paused-holds-keys) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** They assert through `m.Paused()` / `m.PendingKeys()` / `Update(FrameMsg{})`; after the Director refactor these delegate but behave identically |
-| Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs) | `exec-tui/ui` | Unchanged — TUI rendering untouched |
+| Toggle-card tests: `toggles_test.go` (render/selection/engage), `active_state_test.go` (key-bar active states) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** Card engagement queues DSKY keys through the same pending-key path the Director absorbs |
+| Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs, `color_test.go`) | `exec-tui/ui` | Unchanged — TUI rendering untouched |
 | `timeline-tui` render tests | `timeline-tui` | Unchanged — not part of this feature |
 | `npm run lint` (markdownlint) | root | Must pass for this spec and all new docs |
 
@@ -66,12 +77,13 @@ modification** to prove the TUI's behavior did not change.
   unknown breakpoint kind is rejected; breakpoints never fire in a scenario that lacks the
   event (happy case → the alarm breakpoint never triggers, run completes).
 - [ ] `TestAllocationForensics` — happy: the engine keeps a bounded per-cycle allocation
-  log (per 2 s cycle: slot owners, new claims, releases, stub count) plus, on BAILOUT, a
-  `FailedRequest` record naming the requesting job, whether it needed a VAC, and a
-  snapshot of all 8 core-set / 5 VAC owners at that instant — and at the first 1202 the
-  owner counts sum to 8 with ≥ 1 SERVICER stub; unhappy: the log is a ring buffer — after
-  hours of sim time memory stays bounded and the oldest cycles evict without corrupting
-  the newest.
+  log (per 2 s cycle: slot owners with state running/**sleeping**/stub, new claims,
+  releases, stub count) plus, on BAILOUT, a `FailedRequest` record naming the requesting
+  job, whether it needed a VAC, and a snapshot of all 8 core-set / 5 VAC owners at that
+  instant — at the first P63 1202 the owner counts sum to 8 with ≥ 1 SERVICER stub, and
+  at the P64 1201 the VAC snapshot includes HIGATJOB sleeping on its VAC (consistent with
+  `TestP64FirstAlarmIs1201`); unhappy: the log is a ring buffer — after hours of sim time
+  memory stays bounded and the oldest cycles evict without corrupting the newest.
 - [ ] `TestDeterministicReplay` — happy: two engines, same seed and same input trace,
   produce identical event logs and identical final `Accounting()`; unhappy: differing
   seeds may diverge but never violate pool invariants (core sets ≤ 8, VACs ≤ 5).
@@ -159,8 +171,8 @@ modification** to prove the TUI's behavior did not change.
   past either end clamps; rate ≤ 0 is rejected.
 - [ ] `pause-on-alarm.test.ts` — happy: with the cog's "pause on alarms" enabled, replay
   halts on the 102:38:22 frame, the alarm card opens showing the FAILREG code, the failing
-  request, and the 8-slot owner breakdown (stubs vs live jobs); resume plays to the next
-  alarm; "pause on program change / keystroke / restart" behave the same for their kinds;
+  request, and the 8-slot owner breakdown (stubs vs running vs sleeping); resume plays to
+  the next alarm; "pause on program change / keystroke / restart" behave the same for their kinds;
   unhappy: with the toggle off nothing pauses; a seek past an alarm does not retrigger its
   card.
 - [ ] `scenario.test.ts` — happy: switching actual ↔ happy in the cog keeps the current
@@ -239,7 +251,7 @@ subject: altitude *is* the vertical axis.
 | 1 | Mission clocks | 90 px | GET (large), UTC, T+PDI, phase badge P63/P64/P66, scenario badge (ACTUAL/HAPPY/SANDBOX) |
 | 2 | Descent scene | 840 px | Vertical star-field column; LM descends the column against a log-scale altitude ladder; terrain + West Crater + site marker at the bottom; Earth appears after the 102:36:55 yaw-around; plume ∝ throttle; dust < 100 ft; alarm flash overlay |
 | 3 | DSKY | 300 px | PROG/VERB/NOUN, R1–R3, PROG + COMP ACTY lamps, keyboard with replay key-lighting |
-| 4 | Executive board | 420 px | 8 core-set + 5 VAC cells (owner/prio/stub), free-compute bar, duty rows, restart counter — same semantics as the TUI panels; **ghost overlay** of the happy case in compare mode; forensics drawer expands from here |
+| 4 | Executive board | 420 px | 8 core-set + 5 VAC cells (owner/prio, with running/**sleeping**/stub states distinct), free-compute bar, duty rows, restart counter — same semantics as the TUI panels; **ghost overlay** of the happy case in compare mode; forensics drawer expands from here |
 | 5 | Hand controls | 200 px | ACA joystick, ROD switch, AUTO/ATT HOLD mode switch |
 | 6 | Event feed / captions | 200 px | Air-to-ground captions at logged GETs (light-delay toggle), clickable event index |
 | 7 | Transport | 110 px | Play/pause, rate presets 0.1–16×, −10 ms/+10 ms/+2 s steps, scrub bar with event pips (alarms red, keystrokes amber, program changes cyan, voice grey) |
@@ -318,11 +330,15 @@ One object owns everything two frontends must agree on:
   (§7.2) to all subscribers (TUI model, WebSocket clients, recorder).
 
 The Bubble Tea model shrinks to a view: `FrameMsg` becomes "ask the Director to advance
-and hand me the latest frame"; every keybinding maps to the **same `ControlCommand`
-values the website sends** (space → `{"op":"pause"}`, `[`/`]` → `{"op":"rate"}`, `n` →
-scripted `key` events, …). One command vocabulary, two frontends. The model keeps its
-public accessors (`Paused()`, `PendingKeys()`, `TypingMode()`) as thin delegates so the
-existing `ui` test suite passes unchanged (§1.1).
+and hand me the latest frame"; every keybinding and **toggle card** maps to the **same
+`ControlCommand` values the website sends** (space → `{"op":"pause"}`, `[`/`]` →
+`{"op":"rate"}`, card 1 → the `key` sequence `V37E63E`, card 2 → the RR mode switch,
+card 3 → the `key` sequence `V16N68E`, …). Program selection needs no privileged op:
+the engine parses typed keystrokes (`TestV37E63EStartsDescent`), so the website's DSKY
+starts the deceleration burn exactly the way the TUI's card 1 and the flight crew did —
+by typing. One command vocabulary, two frontends. The model keeps its public accessors
+(`Paused()`, `PendingKeys()`, `TypingMode()`) as thin delegates so the existing `ui`
+test suite passes unchanged (§1.1).
 
 ### 3.2 Serving the companion
 
@@ -461,10 +477,17 @@ Remaining trajectory M0 work: P63 mid-phase altitude points and the pitch profil
 
 Program phases, verb/noun, R1–R3, PROG lamp, FAILREG contents, core-set/VAC occupancy,
 free-compute %, duty breakdown, stub count, and restart events all come from
-`exec-tui/sim` frames — the constants are already sourced in `exec-tui/RESEARCH.md`
-(15.0% RR theft = 2 × 6,400 × 11.72 µs; duty margins >15% → ≈13% → ≤10% → <10%;
-SERVICER 1,320 ms base; monitor 30 ms/s; P64 +60 ms/cycle; restart 20 ms + 20 ms
-REREADAC).
+`exec-tui/sim` frames — the constants are sourced in `exec-tui/RESEARCH.md` and
+`operations_and_timing.md` (15.0% RR theft = 2 × 6,400 × 11.72 µs; duty margins >15% →
+≈13% → ≤10% → <10%; SERVICER 1,320 ms base, +70 ms/cycle LR conversion, +60 ms/cycle in
+P64; monitor 30 ms/s; restart 20 ms + 20 ms REREADAC). The engine also models the
+**head/sleep/tail structure** of the short jobs — and sleeping jobs **hold their core
+set/VAC while asleep**: LRHJOB 1/80/1 ms (fired 50 ms before each READACCS), LRVJOB
+1/500/1 ms, MONDO 15/250/15 ms (display-wait), CHARIN 3/150/2 ms (echo-wait), HIGATJOB
+2 ms then ~8 s asleep **holding a VAC** awaiting the antenna discrete. That last fact is
+why P64's first alarm is the historical **1201** (VAC wall) while P63's typing-loaded
+overloads hit the core-set wall as **1202** — pinned by `TestP64FirstAlarmIs1201` and
+`TestP63TypingGives1202`.
 
 **DSKY noun layouts — resolved** from `Luminary099/PINBALL_NOUN_TABLES.agc` (mixed-noun
 table) and `ASSEMBLY_AND_OPERATION_INFORMATION.agc`; the replica renders exactly these:
@@ -493,7 +516,7 @@ cycle-perfect** — the engine is a calibrated model (§4.3), and the UI says so
 | Scenario | Definition | Outcome |
 | :--- | :--- | :--- |
 | **ACTUAL** | Historical script, RR mode switch in AUTO/SLEW → ECDU theft ≈ 15% from before PDI | Five alarms at the §4.1 times; four software restarts; V16N68 monitor shed twice |
-| **HAPPY** | *Identical* script — same keystrokes, same phases, same GETs — but the RR switch scripted to **LGC**, so the CDUs are zeroed and steal nothing | Zero alarms, zero restarts; SERVICER finishes every cycle; core sets hover ~2–3 used; DELTAH monitor stays up |
+| **HAPPY** | *Identical* script — same keystrokes, same phases, same GETs — but the RR switch scripted to **LGC**, so the CDUs are zeroed and steal nothing (the TUI's card 2 OFF state, literally labeled "LGC mode: clean — the idyllic case") | Zero alarms, zero restarts; SERVICER finishes every cycle; core sets hover ~2–3 used; DELTAH monitor stays up |
 | **SANDBOX** | Live Mode B free-play: every toggle (bug, monitor, typing, radar ping, ATT HOLD timing) under user control | Whatever you fly |
 
 The two canned scenarios differ **only in the TLOSS input** (`TestScenarioHappyCase`),
@@ -520,9 +543,12 @@ from the frame's `forensics` block — never hand-written prose for the numbers:
 1. **What fired:** `1202 — EXECUTIVE OVERFLOW, NO CORE SETS` (FAILREG `01202`).
 2. **The failing request:** which job asked (e.g. `READACCS → FINDVAC: SERVICER`,
    needs core set + VAC) and that it was the request the Executive could not fill.
-3. **Who holds everything:** the 8 core sets / 5 VAC areas by owner at that instant —
-   e.g. `4× SERVICER (stub, unfinished)`, `1× SERVICER (running)`, `1× MONDO (V16N68)`,
-   `1× CHARIN`, `1× LR READ` — with stubs visually distinct.
+3. **Who holds everything:** the 8 core sets / 5 VAC areas by owner **and state** at that
+   instant — e.g. `4× SERVICER (stub, unfinished)`, `1× SERVICER (running)`,
+   `1× MONDO (sleeping in display-wait)`, `1× CHARIN (sleeping in echo-wait)`,
+   `1× LRHJOB (sleeping across the radar gate)` — stubs, runners, and sleepers each
+   visually distinct. For the P64 1201, the VAC panel shows `HIGATJOB (sleeping ~8 s on
+   the antenna discrete)` pinning the pool that ran out.
 4. **Why they're stuck:** one sentence + a "show me" button that opens the forensics
    strip (§5.4).
 5. Links to [`memory_leak.md`](memory_leak.md) / [`alarm_recovery.md`](alarm_recovery.md)
@@ -553,10 +579,13 @@ cycle  GET        core sets (8)   VAC (5)   note
  0     102:38:22  REQUEST: READACCS→FINDVAC(SERVICER)  → no core set → 1202 BAILOUT
 ```
 
-(Illustrative shape — the real rows come from the engine log; the mix of stub growth vs
-transient jobs is whatever the simulation actually did, which is the point: the display
-*validates* the mental model rather than asserting it. In some runs the ninth request is
-a radar or display job rather than SERVICER — the strip shows the truth either way.)
+(Illustrative shape — the real rows come from the engine log; the mix of stub growth,
+**sleepers** (radar gates, display waits) briefly pinning core sets, and transient jobs
+is whatever the simulation actually did, which is the point: the display *validates* the
+mental model rather than asserting it. The engine now pins the historical pattern: with
+the crew typing, a keystroke job usually finds the eighth core set gone first — the P63
+**1202**s; in P64, HIGATJOB parked asleep on a VAC makes the five-slot VAC wall trip
+first — the historical **1201**. The strip shows whichever request actually failed.)
 
 Interactions: each row is clickable → seeks to that cycle boundary (Mode A: frame index;
 Mode B: keyframe + deterministic replay), so "let's watch that cycle again at 0.1×" is one
@@ -631,6 +660,10 @@ carry it on every cycle-boundary frame.
 ```
 
 Every command is acknowledged with the next frame or `{"op":"error","reason":"…"}`.
+`sandbox.radarBug` is the RR mode switch (true ≡ SLEW/AUTO stealing cycles, false ≡ LGC)
+— the TUI's card 2. Starting the descent and keying the monitor need no dedicated ops:
+they are `key` sequences (`V37E63E`, `V16N68E`), the same way the TUI's cards 1 and 3
+and the flight crew did it.
 
 ---
 
