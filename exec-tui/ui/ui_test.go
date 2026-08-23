@@ -211,20 +211,18 @@ func TestKeybindings(t *testing.T) {
 			t.Fatal("esc should leave typing mode")
 		}
 	})
-	t.Run("happy: space pauses, brackets change speed, q quits", func(t *testing.T) {
+	t.Run("happy: '.' pauses, brackets change speed, q quits", func(t *testing.T) {
 		e, m := newTestModel()
-		mm, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
-		m = mm.(Model)
+		m = key(m, '.')
 		if !m.Paused() {
-			t.Fatal("space should pause")
+			t.Fatal("'.' should pause")
 		}
 		before := e.AGCTimeMs()
 		m = tick(m, 10)
 		if e.AGCTimeMs() != before {
 			t.Fatal("paused ticks must not advance AGC time")
 		}
-		mm, _ = m.Update(tea.KeyMsg{Type: tea.KeySpace})
-		m = mm.(Model)
+		m = key(m, '.')
 		s0 := m.TimeScale()
 		m = key(m, ']')
 		if m.TimeScale() <= s0 {
@@ -271,7 +269,7 @@ func TestInstructionBar(t *testing.T) {
 	t.Run("happy: every control is listed", func(t *testing.T) {
 		_, m := newTestModel()
 		v := m.View()
-		for _, want := range []string{"[h/l]", "[enter]", "[t]", "[p]", "[6]", "[a]", "[space]", "[x]", "[q]"} {
+		for _, want := range []string{"[h/l]", "[space]", "[t]", "[p]", "[6]", "[a]", "[.]", "[x]", "[q]"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("instruction bar missing %s", want)
 			}

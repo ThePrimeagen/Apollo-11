@@ -72,7 +72,7 @@ func TestTypingScalesWithPlayback(t *testing.T) {
 	t.Run("unhappy: pause stops the typing hand", func(t *testing.T) {
 		e, m := newTestModel()
 		m = key(m, 'n')
-		m = key(m, ' ') // pause
+		m = key(m, '.') // pause
 		m = tick(m, 300)
 		if m.PendingKeys() != 7 {
 			t.Fatalf("paused: all 7 keys should still be pending, got %d", m.PendingKeys())
