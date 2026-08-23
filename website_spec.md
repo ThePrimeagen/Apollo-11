@@ -387,14 +387,15 @@ interpolated/approximate.
 
 | GET | T+PDI | Program | Event / DSKY activity | Altitude | ḢDOT |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| ~102:23 | ~−600 s | P63 | Crew keys **V37E 63E** — P63 is "initiated by keyboard entry about 10 minutes before nominal ignition time" (Klumpp, *Apollo Lunar-Descent Guidance*; O'Brien: 10–15 min). DSKY answers with **flashing V06 N61** (TTG in braking / time from ignition / crossrange). Exact GET: M0 item, bounded to ~102:20–102:25 | ~50,000 ft | ~0 |
+| 102:10:16 | −1,369 s | — | Aldrin (onboard): *"Okay, Auto Track."* — the **RR mode switch goes to AUTO TRACK**, the crew-checklist step Cherry's memo cites ("the RR switch be in AUTO TRACK immediately before calling P63"). The ECDU-theft ingredient is armed from here (Fjeld traces the switch's use back to a post-DOI ranging test) | — | — |
+| ~102:10:40 | ~−1,345 s | P63 | Crew keys **V37E 63E** (AFJ onboard transcript: *"Okay, we ready to go to P63?"* 102:10:32; Armstrong: *"Yes."* 102:10:36; by 102:11:07 they are checking P63's computed burn time against the PAD's 9:50). DSKY answers with **flashing V06 N61** (TTG in braking / time from ignition / crossrange). Klumpp's "~10 min before ignition" design note understates the flight practice — the crew ran it ~22 min before PDI | — | — |
 | ≤102:26:55 | ≤−370 s | P63 | **Checklist code 500** — `P63SPOT3` (`Luminary099/THE_LUNAR_LANDING.agc:245`) finds the LR antenna off position 1 and flashes **V50 N25 / 00500** (source comment: *"ASTRONAUT: PLEASE CRANK THE SILLY THING AROUND"*). Crew sets the LR antenna switch to Descent 1, keys **PRO** (the code re-checks the discrete — *"SEE IF HE'S LYING"*), returns it to Auto; Aldrin reports it at 102:26:55 | — | — |
 | 102:32:30 | −35 s | P63 | **V06 N62** blanks (5 s), returns at T−30 s — Average-G running | ~49,971 ft | ~0 |
 | 102:32:58 | −7.5 s | P63 | Ullage — RCS settles propellant | — | — |
 | 102:33:00 | −5 s | P63 | **Flashing V99 N62** — BURNBABY requests the final engine-enable go; **Aldrin keys PRO** | — | — |
 | 102:33:05.01 | +0 s | P63 | **PDI** — ignition at 10%; **V06 N63**: R1 +5559.7 (velocity), R2 −2.2 (ḢDOT), R3 +49971 (alt) | 49,971 ft | 2.2 ft/s |
 | 102:33:31 | +26 s | P63 | Throttle up to FTP (~9,870 lb); guidance enabled | ~49,000 ft | — |
-| 102:35:38 | +153 s | P63 | Armstrong moves the **RR mode switch AUTO TRACK → SLEW** (onboard: *"You're Slew? Okay."*); the switch had been in AUTO TRACK since a post-DOI ranging test — the ECDU theft is active in both non-LGC modes throughout the burn (ALSJ/Fjeld) | — | — |
+| 102:35:38 | +153 s | P63 | Armstrong moves the **RR mode switch AUTO TRACK → SLEW** (onboard: *"You're Slew? Okay."*); it had been in AUTO TRACK since 102:10:16 — the ECDU theft is active in both non-LGC modes throughout the burn (ALSJ/Fjeld) | — | — |
 | 102:36:55 | +230 s | P63 | Armstrong yaws face-up (rate switch 5→25 deg/s); Earth in the windows | — | — |
 | ~102:37:53 | ~+288 s | P63 | Landing radar **"data good"** | ~35,000 ft | — |
 | ~102:38:04 | ~+299 s | P63 | **Aldrin keys V16 N68 E** — DELTAH monitor; R3 −02900 (callout 102:38:06) | ~34,000 ft | — |
@@ -419,6 +420,9 @@ interpolated/approximate.
 | 102:45:02 | +717 s | P66 | Duke: *"60 seconds"* (to the Bingo land-in-20-s-or-abort call); *"30 seconds"* follows at 102:45:31 | ~65 ft | — |
 | 102:45:40 | +755 s | P66 | **Contact light / TOUCHDOWN** in the Sea of Tranquility; Armstrong *"Shutdown"* 102:45:43, Aldrin *"Engine Stop… ACA out of Detent"* 102:45:44–45 | 0 ft | 0 |
 | 102:45:58 | +773 s | — | *"Houston, Tranquility Base here. The Eagle has landed."* | — | — |
+
+Rows before 102:32:00 are context events: the replay window (§2) starts at 102:32:00,
+and the event index lists earlier rows as "pre-window" (jump-to clamps to window start).
 
 Alarm cross-check embedded in `events.json` and enforced by `events.test.ts`: Cherry PDI
 offsets **+316, +356, +552, +578, +594 s** (1202, 1202, 1201, 1202, 1202); two in P63,
@@ -731,7 +735,7 @@ require confirmation; unknown persisted keys from older versions are ignored
 
 | # | Deliverable | Contents |
 | :--- | :--- | :--- |
-| M0 | Data | `events.json`, `trajectory.json` from §4 (noun layouts, LPD quanta, code-500 context, RR-SLEW time, and the P64/P66 callout series are already resolved in-spec from Luminary099 + ALSJ); remaining research: exact V37E63E GET (bounded ~102:20–102:25 by Klumpp/O'Brien), inadvertent-redesignation GET, P63 mid-phase altitude + pitch profile (Bennett AIAA 70-1028 / Klumpp R-695); validation script wired into CI |
+| M0 | Data | `events.json`, `trajectory.json` from §4 (noun layouts, LPD quanta, code-500 context, RR-SLEW time, and the P64/P66 callout series are already resolved in-spec from Luminary099 + ALSJ); remaining research: inadvertent-redesignation GET, P63 mid-phase altitude + pitch profile (Bennett AIAA 70-1028 / Klumpp R-695); validation script wired into CI |
 | M1 | Engine | GET clock, flight-script driver, **happy/actual scenarios**, **event breakpoints**, **allocation forensics log**, snapshot/restore, determinism, ACA/ROD/redesignation inputs (tests §1.2) |
 | M2 | Director + companion | **Director refactor** (TUI passes existing `ui` tests unchanged), `--serve` WebSocket in `exec-tui`, headless `cmd/bridge`, `cmd/record` → `flight-actual.json` + `flight-happy.json` (tests §1.3) |
 | M3 | Web scene | Vite scaffold, loaders, playback clock, **600×2160 portrait layout system**, vertical descent scene from `flight-actual.json` (tests §1.4: events, trajectory, layout, playback, lander) |
