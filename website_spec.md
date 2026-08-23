@@ -1,11 +1,17 @@
 # Descent Replay Website — Implementation Spec
 
-A browser recreation of the Apollo 11 powered descent: a black-as-night sky full of stars,
-the lunar surface, and the LM *Eagle* descending — driven by the **same simulation engine
-as `exec-tui`**, with full time control (play, slow-motion, 10 ms stepping, scrubbing),
-a working DSKY, the ACA joystick and ROD switch, every keystroke the crew typed, the
-program running at each moment, and the five 1201/1202 alarms at their exact times and
-altitudes.
+A browser recreation of the Apollo 11 powered descent, built as a **companion window to
+`exec-tui`**: both run side by side on one monitor, driven by the **same simulation
+engine**. The website is an extremely narrow portrait column — **600 px wide by design
+(800 px hard max), full 4K height (2160 px)** — showing the night sky, the stars, the
+Moon, and the LM *Eagle* descending; a working DSKY; the ACA joystick and ROD switch;
+every keystroke the crew typed; the program running at each moment; and the five
+1201/1202 alarms at their exact times and altitudes.
+
+Beyond replay, the site is a **teaching instrument**: a cog menu (bottom right) selects
+between the **actual flight** (RR bug on → five alarms) and the **happy case** (RR switch
+in LGC → no alarms), auto-pauses at each alarm, and opens an *allocation forensics* view
+that shows — cycle by cycle — exactly how the core sets and VAC areas ran out.
 
 This document is written so the feature can be implemented milestone by milestone.
 **Tests come first**: no production code for a milestone is written until that milestone's
@@ -22,16 +28,19 @@ and the Luminary 099 assembly in this repository.
 
 ### 1.1 Existing tests — reviewed, with verdicts
 
-Every current test was reviewed against this feature. The engine gains **new** capability
-(GET clock, script driver, snapshots, joystick inputs); it must not change existing
-behavior, so **no existing test is altered** — they become the regression fence:
+Every current test was reviewed against this feature. Most are untouched regression
+fences; a specific group in `exec-tui/ui` becomes the **contract for the Director
+refactor** (§3): the Model keeps its public accessors (`Paused()`, `PendingKeys()`,
+`TypingMode()`) delegating to the shared Director, and these tests must pass **without
+modification** to prove the TUI's behavior did not change.
 
 | Existing test | Location | Verdict |
 | :--- | :--- | :--- |
-| `TestTimeScaleWallToAGC`, `TestIdleBaselineFreeCompute`, `TestReadaccsPunctuality`, `TestServicerAllocation`, `TestPriorityPreemption`, `TestFreeComputeAccounting`, `TestBucketsClosed` | `exec-tui/sim` | Unchanged — core scheduling/accounting invariants the website relies on |
+| `TestTimeScaleWallToAGC`, `TestIdleBaselineFreeCompute`, `TestReadaccsPunctuality`, `TestServicerAllocation`, `TestPriorityPreemption`, `TestFreeComputeAccounting`, `TestBucketsClosed` | `exec-tui/sim` | Unchanged — core scheduling/accounting invariants |
 | `TestNoVacBailout1201`, `TestNoCoreSetBailout1202`, `TestBailoutRestartRecovery`, `TestServicerOverrunLeak`, `TestStubRecovery`, `TestStubSlotMarking`, `TestStubCount`, `TestLeakEvents` | `exec-tui/sim` | Unchanged — alarm/restart semantics shown on the site |
-| `TestRadarBugTLOSS`, `TestRadarPing`, `TestKeystrokeCost`, `TestMonitorVerbLoad`, `TestHistoricalScenario`, `TestKnifeEdgeLogThrottling`, `TestPostRestartHint` | `exec-tui/sim` | Unchanged — load-injection paths reused by the bridge |
-| All `exec-tui/ui` tests (header, DSKY panel, timelines, keybindings, …) | `exec-tui/ui` | Unchanged — TUI untouched by this feature |
+| `TestRadarBugTLOSS`, `TestRadarPing`, `TestKeystrokeCost`, `TestMonitorVerbLoad`, `TestHistoricalScenario`, `TestKnifeEdgeLogThrottling`, `TestPostRestartHint` | `exec-tui/sim` | Unchanged — load-injection paths reused by both frontends |
+| Pause/typing/keybinding tests: `ui_test.go` (pause freeze, state preservation across pause, keybindings) and `typing_test.go` (cadence, speed scaling, paused-holds-keys) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** They assert through `m.Paused()` / `m.PendingKeys()` / `Update(FrameMsg{})`; after the Director refactor these delegate but behave identically |
+| Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs) | `exec-tui/ui` | Unchanged — TUI rendering untouched |
 | `timeline-tui` render tests | `timeline-tui` | Unchanged — not part of this feature |
 | `npm run lint` (markdownlint) | root | Must pass for this spec and all new docs |
 
@@ -44,16 +53,35 @@ behavior, so **no existing test is altered** — they become the regression fenc
   `StartDescent`, LR lock, `V16N68` keystrokes, `EnterP64`, `AttHold`, P66 at their
   scripted GETs (order and ±1 cycle tolerance asserted); unhappy: a script with
   out-of-order or duplicate entries is rejected at load with a descriptive error.
+- [ ] `TestScenarioHappyCase` — happy: the same full script with the RR switch scripted to
+  LGC (no ECDU theft) runs PDI → touchdown with **zero alarms, zero restarts**, and core
+  set usage never exceeding a small bound (≤ 5 of 8) even with V16N68 up; unhappy: the
+  actual-case scenario run back-to-back on the same engine build still produces exactly
+  five alarms (2× P63, 3× P64) — the two scenarios must diverge only through the TLOSS
+  input.
+- [ ] `TestEventBreakpoints` — happy: with `pauseOn: [alarm]` armed, the engine halts on
+  the exact step that raises 1202 (time does not advance past the BAILOUT event; the frame
+  shows FAILREG populated and the failing request identified); resume continues cleanly;
+  breakpoints also work for `restart`, `program`, and `keystroke` kinds; unhappy: an
+  unknown breakpoint kind is rejected; breakpoints never fire in a scenario that lacks the
+  event (happy case → the alarm breakpoint never triggers, run completes).
+- [ ] `TestAllocationForensics` — happy: the engine keeps a bounded per-cycle allocation
+  log (per 2 s cycle: slot owners, new claims, releases, stub count) plus, on BAILOUT, a
+  `FailedRequest` record naming the requesting job, whether it needed a VAC, and a
+  snapshot of all 8 core-set / 5 VAC owners at that instant — and at the first 1202 the
+  owner counts sum to 8 with ≥ 1 SERVICER stub; unhappy: the log is a ring buffer — after
+  hours of sim time memory stays bounded and the oldest cycles evict without corrupting
+  the newest.
 - [ ] `TestDeterministicReplay` — happy: two engines, same seed and same input trace,
   produce identical event logs and identical final `Accounting()`; unhappy: differing
   seeds may diverge but never violate pool invariants (core sets ≤ 8, VACs ≤ 5).
 - [ ] `TestSnapshotRestoreRoundTrip` — happy: `Snapshot()` at an arbitrary time, then
-  `Restore()` into a fresh engine, then advancing both originals and restores in lockstep
-  yields identical states and events; unhappy: restoring a truncated/corrupted snapshot
-  returns an error and leaves the target engine untouched.
-- [ ] `TestSeekEqualsContinuousRun` — happy: seek (nearest earlier keyframe + deterministic
-  replay) to GET *t* equals the state of an uninterrupted run at *t*; unhappy: seeking
-  outside the scenario window clamps to the window edges.
+  `Restore()` into a fresh engine, then advancing both in lockstep yields identical states
+  and events; unhappy: restoring a truncated/corrupted snapshot returns an error and
+  leaves the target engine untouched.
+- [ ] `TestSeekEqualsContinuousRun` — happy: seek (nearest earlier keyframe +
+  deterministic replay) to GET *t* equals the state of an uninterrupted run at *t*;
+  unhappy: seeking outside the scenario window clamps to the window edges.
 - [ ] `TestRedesignationInput` — happy: an ACA click in P64 while LPD time remains queues
   redesignation work in the next SERVICER pass and shifts the LPD angle by the configured
   quantum; unhappy: clicks in P63, in P66, or after LPD time expires change nothing and
@@ -65,22 +93,43 @@ behavior, so **no existing test is altered** — they become the regression fenc
   activity while deflected and rates null after release; unhappy: deflection while paused
   accumulates no load and no time.
 
-### 1.3 New tests — Milestone M2 (record tool + bridge, Go)
+### 1.3 New tests — Milestone M2 (Director, companion bridge, record tool; Go)
 
-- [ ] `TestRecordProducesFlightJSON` — happy: `cmd/record` emits a frame stream whose
-  first/last GET match the scenario window and whose five alarms carry the exact GETs and
-  altitudes from `events.json`; unhappy: an engine/script mismatch (e.g. missing alarm)
-  fails the run with a diff report, not a silent file.
+- [ ] `TestDirectorSingleWriter` — happy: all engine mutation goes through the Director's
+  command loop; concurrent commands from two goroutines (simulating TUI + WebSocket
+  client) interleave without a data race (`go test -race`) and every command is applied
+  exactly once in arrival order; unhappy: a command arriving while a breakpoint holds the
+  clock is applied without advancing time.
+- [ ] `TestBothFrontendsShareState` — happy: a pause issued as a TUI keypress freezes the
+  frames streamed to a bridge client on the same tick; a `{"op":"rate"}` from the bridge
+  changes the TUI header's wall↔AGC scale on its next frame; DSKY keys typed in the TUI
+  appear in the website's frame and vice versa; unhappy: a frontend sending commands after
+  disconnect is dropped without affecting the other frontend.
+- [ ] `TestServeOffIsInert` — happy: running `exec-tui` without `--serve` starts no
+  listener, spawns no bridge goroutines, and the Director-backed TUI passes the entire
+  pre-existing `ui` test suite byte-identically; unhappy: `--serve` on an occupied port
+  exits with a clear error instead of half-starting.
+- [ ] `TestControlStateBroadcast` — happy: pause/rate/scenario/breakpoint changes are
+  broadcast in the `control` block of the next frame to **all** clients (late-joining
+  clients receive current control state + latest frame immediately on connect); unhappy: a
+  slow client's full buffer drops frames for that client only, never blocks the Director.
+- [ ] `TestScenarioSwitchPreservesGET` — happy: switching actual → happy at GET
+  102:40:00 restores the happy timeline at the same GET (via keyframe + replay) with the
+  clock, rate, and pause state preserved; unhappy: switching scenarios mid-P66 in a live
+  diverged (sandbox) run warns that sandbox state is discarded and requires confirmation.
+- [ ] `TestRecordProducesFlightJSON` — happy: `cmd/record` emits **both**
+  `flight-actual.json` and `flight-happy.json` whose first/last GET match the scenario
+  window; the actual file carries the five alarms at the exact GETs and altitudes from
+  `events.json`, the happy file carries none; both share identical frame cadence and GET
+  indexing so the client can switch between them at any GET; unhappy: an engine/script
+  mismatch (e.g. missing alarm) fails the run with a diff report, not a silent file.
 - [ ] `TestStateFrameSchema` — happy: every emitted frame validates against the StateFrame
-  schema (§6.2); unhappy: a hand-mutated invalid frame fails validation with the offending
-  field named.
+  schema (§7.2), including the `control` and `forensics` blocks; unhappy: a hand-mutated
+  invalid frame fails validation with the offending field named.
 - [ ] `TestBridgeControlCommands` — happy: `play`, `pause`, `rate`, `stepMs:10`,
-  `seekGet`, `reset`, `key`, `joyClick`, `rod` each mutate engine state observably over the
-  WebSocket; unhappy: malformed JSON or an unknown `op` returns an error frame and the
-  engine keeps running.
-- [ ] `TestBridgeClientLifecycle` — happy: two clients receive identical frame sequences;
-  unhappy: one client disconnecting mid-stream neither stalls the engine nor the other
-  client.
+  `seekGet`, `reset`, `key`, `joyClick`, `rod`, `scenario`, `pauseOn`, `forensics` each
+  mutate observable state over the WebSocket; unhappy: malformed JSON or an unknown `op`
+  returns an error frame and the engine keeps running.
 - [ ] `TestBridgeStepGranularity` — happy: `stepMs:10` while paused advances AGC time by
   exactly 10 ms and emits exactly one frame; unhappy: `stepMs` while playing pauses first
   (no double-advance), `stepMs:0` or negative is rejected.
@@ -96,10 +145,37 @@ behavior, so **no existing test is altered** — they become the regression fenc
   (49,971 ft @ PDI; 7,400 ft @ 102:41:32; 770 ft @ 102:42:58; 0 ft @ 102:45:40) and is
   monotonically non-increasing in altitude after PDI; unhappy: queries before window start
   / after touchdown clamp and flag `extrapolated`.
-- [ ] `playback.test.ts` — happy: play advances GET at the selected rate; pause freezes it;
-  `step(+10 ms)` moves exactly 10 ms; rates 0.1×/0.25×/1×/4×/16× each verified; scrub to an
-  event lands on its GET; unhappy: stepping while playing pauses first; scrubbing past
-  either end clamps; rate ≤ 0 is rejected.
+- [ ] `layout.test.ts` — happy: at 600×2160 every zone of §2's budget renders with no
+  horizontal overflow and no zone collapsed below its minimum; at 800×2160 the column
+  caps at 800 px and centers; at reduced heights (1440) the low-priority zones (captions,
+  forensics drawer) collapse first per the priority order; unhappy: below 560 px width an
+  "unsupported width" notice replaces the app (no broken layout), and hidden zones remain
+  reachable through the cog.
+- [ ] `playback.test.ts` — happy: play advances GET at the selected rate; pause freezes
+  it; `step(+10 ms)` moves exactly 10 ms; rates 0.1×/0.25×/1×/4×/16× each verified; scrub
+  to an event lands on its GET; unhappy: stepping while playing pauses first; scrubbing
+  past either end clamps; rate ≤ 0 is rejected.
+- [ ] `pause-on-alarm.test.ts` — happy: with the cog's "pause on alarms" enabled, replay
+  halts on the 102:38:22 frame, the alarm card opens showing the FAILREG code, the failing
+  request, and the 8-slot owner breakdown (stubs vs live jobs); resume plays to the next
+  alarm; "pause on program change / keystroke / restart" behave the same for their kinds;
+  unhappy: with the toggle off nothing pauses; a seek past an alarm does not retrigger its
+  card.
+- [ ] `scenario.test.ts` — happy: switching actual ↔ happy in the cog keeps the current
+  GET and pause state; in compare mode the exec board renders the happy case as ghost
+  outlines behind the actual fills and the divergence annotation appears once the actual
+  case leaks its first stub; unhappy: a missing `flight-happy.json` disables the scenario
+  entry with an explanatory tooltip instead of a dead toggle.
+- [ ] `forensics.test.ts` — happy: paused at the first 1202, the forensics strip lists the
+  preceding cycles with per-cycle stub growth and the final failing request row matching
+  the frame's `forensics` block; unhappy: opening forensics before PDI shows an empty
+  state ("no allocations yet"), and a frame without a `forensics` block renders the strip
+  from the last known cycle with a stale marker.
+- [ ] `cog.test.ts` — happy: the cog button sits bottom-right, opens the options sheet,
+  every §8 option round-trips (change → applied → persisted to `localStorage` → restored
+  on reload); unhappy: Esc/outside-click closes without applying a pending destructive
+  choice (scenario reset asks for confirmation); unknown persisted keys from an older
+  version are ignored, not fatal.
 - [ ] `dsky.test.ts` — happy: at 102:38:04 the keystroke script renders `V16 N68` with
   R3 = −02900, at 102:38:22 the PROG lamp lights and the display reverts to `V06 N63`,
   V05 N09 readback shows `01202`; unhappy: an unknown verb/noun in a frame renders blanks
@@ -115,62 +191,84 @@ behavior, so **no existing test is altered** — they become the regression fenc
   light-delay toggle shifts only voice captions by ±1.3 s; unhappy: toggling mid-caption
   does not duplicate or drop captions.
 
-### 1.5 New tests — Milestone M6 (end-to-end, Playwright)
+### 1.5 New tests — Milestone M6 (end-to-end, Playwright, viewport 600×2160)
 
-- [ ] `replay.spec.ts` — happy: load site, play at 16×, assert all five alarm flashes
-  occur at their GETs (±0.5 s scaled), phase banner walks P63 → P64 → P66, touchdown at
-  102:45:40, "The Eagle has landed" caption at 102:45:58; unhappy: with `flight.json`
-  blocked the site shows a load-error banner and controls stay disabled (no white screen).
-- [ ] `live-sim.spec.ts` — happy: with the bridge running, enabling the RR bug and the
-  monitor verb produces an alarm within the historical envelope, and ATT HOLD stops the
-  alarm train; unhappy: killing the bridge mid-session shows "connection lost — switch to
-  replay?" and replay mode still works.
+- [ ] `replay.spec.ts` — happy: load site at 600×2160, play the actual case at 16×,
+  assert all five alarm flashes occur at their GETs (±0.5 s scaled), phase banner walks
+  P63 → P64 → P66, touchdown at 102:45:40, "The Eagle has landed" caption at 102:45:58;
+  unhappy: with `flight-actual.json` blocked the site shows a load-error banner and
+  controls stay disabled (no white screen).
+- [ ] `compare.spec.ts` — happy: enable pause-on-alarm, play the actual case to the first
+  halt, open forensics, switch to the happy case at the same GET and verify zero alarms
+  through touchdown with the ghost/actual divergence annotation shown; unhappy: deleting
+  `flight-happy.json` leaves the actual case fully playable with the happy option
+  disabled.
+- [ ] `live-sim.spec.ts` — happy: with `exec-tui --serve` running headless, the site
+  connects, enabling the RR bug and the monitor verb produces an alarm within the
+  historical envelope, and ATT HOLD stops the alarm train; a pause sent from the site is
+  visible in a captured TUI frame (integration harness); unhappy: killing the bridge
+  mid-session shows "connection lost — switch to replay?" and replay mode still works.
 
 ---
 
-## 2. What the user sees (experience spec)
+## 2. What the user sees — the narrow companion column
 
-One full-viewport scene, one instrument strip, one transport bar:
+**Context: one 4K monitor (3840×2160), two windows.** `exec-tui` fills the left ~3,200 px;
+the browser window is snapped to the right edge. The site is therefore designed
+**portrait-first and narrow-only**:
+
+| Constraint | Value |
+| :--- | :--- |
+| Design width | **600 px** |
+| Maximum width | **800 px** (content column caps and centers beyond that) |
+| Minimum width | 560 px (below: "unsupported width" notice) |
+| Design height | **2160 px** (full 4K height) |
+| Minimum height | 1440 px (low-priority zones collapse; see priority order below) |
+| Type scale | Large: base 18 px, clocks/alarm codes 28–40 px — readable from across a room and legible in a screen recording |
+| Contrast | Near-black `#050608` background, high-contrast panel text; no information conveyed by color alone |
+
+There is **no horizontal scrolling, ever**. Vertical stacking only — which suits the
+subject: altitude *is* the vertical axis.
+
+### Zone budget at 600×2160 (top to bottom)
+
+| # | Zone | Height | Contents |
+| :--- | :--- | :--- | :--- |
+| 1 | Mission clocks | 90 px | GET (large), UTC, T+PDI, phase badge P63/P64/P66, scenario badge (ACTUAL/HAPPY/SANDBOX) |
+| 2 | Descent scene | 840 px | Vertical star-field column; LM descends the column against a log-scale altitude ladder; terrain + West Crater + site marker at the bottom; Earth appears after the 102:36:55 yaw-around; plume ∝ throttle; dust < 100 ft; alarm flash overlay |
+| 3 | DSKY | 300 px | PROG/VERB/NOUN, R1–R3, PROG + COMP ACTY lamps, keyboard with replay key-lighting |
+| 4 | Executive board | 420 px | 8 core-set + 5 VAC cells (owner/prio/stub), free-compute bar, duty rows, restart counter — same semantics as the TUI panels; **ghost overlay** of the happy case in compare mode; forensics drawer expands from here |
+| 5 | Hand controls | 200 px | ACA joystick, ROD switch, AUTO/ATT HOLD mode switch |
+| 6 | Event feed / captions | 200 px | Air-to-ground captions at logged GETs (light-delay toggle), clickable event index |
+| 7 | Transport | 110 px | Play/pause, rate presets 0.1–16×, −10 ms/+10 ms/+2 s steps, scrub bar with event pips (alarms red, keystrokes amber, program changes cyan, voice grey) |
+| — | **Cog** | 48 px floating | Bottom-right, floating above zones 6–7; opens the options sheet (§8) |
+
+Collapse priority when height < 2160: captions (6) → hand controls (5, replaced by a
+one-line status chip) → scene shrinks to 600 px. Zones 1, 3, 4, 7 and the cog never
+collapse. Every collapsed zone can be re-pinned from the cog.
 
 ```text
-┌────────────────────────────────────────────────────────────────────────────┐
-│  ★ ·   ˚      ·        ✦     GET 102:38:22   UTC 20:10:22   PDI +317 s     │
-│      ·        ✦    ·                             ┌──────────────┐          │
-│         (starfield, 2–3 parallax layers)         │ PROG ALARM   │          │
-│   🌍 (Earth, after the 102:36:55 yaw-around)     │  1202        │          │
-│                        ╱╲                        └──────────────┘          │
-│                   LM  ▕▂▂▏← plume ∝ throttle        ALT 33,500 ft          │
-│                       ╱  ╲                          ḢDOT −120 ft/s         │
-│ ── lunar terrain ──────────────▄▄▀▀▄▄──────────────────────────── ▪ site   │
-│                            West Crater                                     │
-├────────────────────────────────────────────────────────────────────────────┤
-│ [DSKY: PROG 63 VERB 16 NOUN 68 · R1 R2 R3 · PROG lamp · keyboard]          │
-│ [ACA joystick + ROD switch + AUTO/ATT HOLD]  [CORE 8/8 · VAC 5/5 · FREE %] │
-├────────────────────────────────────────────────────────────────────────────┤
-│ ⏮ ◀ ▶ ⏭   ⏯   rates: .1× .25× 1× 4× 16×   step: −10ms +10ms +2s   🔊 CC   │
-│ |—•———•——•———————•———•—•—•——•——•————| scrub bar with event pips            │
-└────────────────────────────────────────────────────────────────────────────┘
+┌────600px────┐
+│GET 102:38:22│  zone 1 · clocks + P63 + ACTUAL
+│  ·  ✦    ·  │
+│ ·    ★   ˚ ·│
+│   🌍        │  zone 2 · the descent column:
+│      ▲      │  LM at 33,500 ft on a log ladder,
+│     ▕▂▏     │  plume, stars, terrain rising
+│    ══╧══    │
+│─── terrain ─│
+│ DSKY  16 68 │  zone 3 · PROG lamp lit, R3 −02900
+│ R3 −02900 ⚠ │
+│ CORE ██████░░ 8/8 │ zone 4 · exec board + ghost
+│ VAC  █████ 5/5 → 1202 │ + forensics drawer
+│ [ACA] [ROD] │  zone 5
+│ 102:38:42 “Give us a reading…” │ zone 6
+│ ⏮ ⏯ ⏭ .1×…16× −10ms +10ms │ zone 7
+│ |—•—•———•—•—•—| scrub    ⚙ │ ← cog, bottom right
+└─────────────┘
 ```
 
-- **Sky:** near-black (`#050608`), deterministic starfield (seeded, 2–3 parallax layers,
-  subtle twinkle, none below the horizon). After the 102:36:55 yaw-around, Earth rises
-  into the window view — exactly why Armstrong rolled the LM.
-- **Moon:** side-view terrain strip (grey ramp with craters), the landing area, and
-  **West Crater** — the boulder field Armstrong flew over in P66. Terrain scrolls with
-  downrange position; a marker shows the current computed landing site (moves on LPD
-  redesignation).
-- **Lander:** 2D vector LM (descent + ascent stage, gear, bell). Pitch follows the
-  attitude profile; plume length ∝ throttle (10% → FTP → throttle-down at 102:39:31 →
-  P66 modulation); dust sheets below ~100 ft; contact probes; contact light at ~5 ft.
-- **Camera:** logarithmic auto-zoom — braking phase framed with an altitude ladder,
-  tight close-up through P66 and touchdown.
-- **Captions:** the air-to-ground transcript lines from `timeline.markdown`, at their
-  logged GETs, with a **light-delay toggle** (±1.3 s) to show what the crew actually
-  heard when.
-- **Explainers:** clicking any alarm pip opens a card summarizing the cause and linking
-  to `memory_leak.md` / `alarm_recovery.md` / `radar_problem.md`.
-
-### Time controls (hard requirements)
+### Time controls (hard requirements, unchanged semantics)
 
 | Control | Behavior |
 | :--- | :--- |
@@ -178,31 +276,94 @@ One full-viewport scene, one instrument strip, one transport bar:
 | Rates | 0.1× (slow play), 0.25×, 1× (real time), 4×, 16× |
 | **Step +10 ms / −10 ms** | `.` / `,` while paused; advances/rewinds AGC time exactly 10 ms (backward = seek) |
 | Step +2 s | One full guidance cycle (`]` on the cycle boundary) |
-| Scrub bar | Whole window 102:32:00 → 102:46:10, event pips (alarms red, keystrokes amber, program changes cyan, voice grey), snap-to-pip |
-| Jump to event | Prev/next event buttons + clickable event index (the §4 table) |
+| Scrub bar | Whole window 102:32:00 → 102:46:10, event pips, snap-to-pip |
+| Jump to event | Prev/next event buttons + clickable event index |
+| **Auto-pause** | Cog toggles: pause on alarms / restarts / program changes / keystrokes — playback halts on the exact event frame and opens its explainer card (§6) |
 
 ---
 
-## 3. Modes: replay is the default, the TUI engine is the source
+## 3. Linking the website and the TUI (shared-engine architecture)
 
-- **Mode A — Replay (default, static hosting).** The site plays `flight.json`, a frame
-  stream **pre-recorded from the `exec-tui/sim` engine** running the historical script
-  (§5, `cmd/record`). No backend needed. Scrubbing/stepping reads frames; 10 ms frame
-  cadence makes the 10 ms step exact.
-- **Mode B — Live sim ("fly it yourself").** The site connects over WebSocket to a small
-  Go bridge embedding the same engine. Everything interactive becomes real: type on the
-  DSKY, key V16N68, toggle the RR bug, click the ACA, flip ATT HOLD, enter P66 — and
-  either reproduce the alarms or prevent them. This is the "hooked up to the TUI"
-  requirement in the strongest sense: it *is* the TUI's engine.
-- Mode B degrades to Mode A when no bridge is reachable (banner + fallback).
+This is the load-bearing requirement, so it is specified against the code as it exists
+today. Currently the TUI **owns the clock and some control state**: a Bubble Tea ticker
+fires every 33.34 ms and the model advances the engine and its typing queue itself, and
+pause state lives in the model:
+
+```76:91:exec-tui/ui/ui.go
+	case FrameMsg:
+		if !m.paused {
+			m.eng.AdvanceWall(frameWallMs)
+			for len(m.pending) > 0 && m.eng.AGCTimeMs() >= m.pending[0].dueAGC {
+				m.eng.PressKey(m.pending[0].key)
+				m.pending = m.pending[1:]
+			}
+```
+
+A website bolted onto that would fight the TUI for the engine. The fix is a small,
+explicit refactor:
+
+### 3.1 The Director (new: `exec-tui/sim/director.go`)
+
+One object owns everything two frontends must agree on:
+
+- the **engine** (sole writer — all mutation flows through the Director's command loop,
+  one goroutine, verified with `-race`),
+- the **clock**: paused, rate (wall↔AGC), pending scripted keystrokes,
+- the **scenario** (actual / happy / sandbox) and the flight-script driver,
+- **breakpoints** (`pauseOn` event kinds) — evaluated *inside* the advance loop so a halt
+  lands on the exact event frame, not the next UI tick,
+- the **frame broadcaster**: after each advance it publishes an immutable `StateFrame`
+  (§7.2) to all subscribers (TUI model, WebSocket clients, recorder).
+
+The Bubble Tea model shrinks to a view: `FrameMsg` becomes "ask the Director to advance
+and hand me the latest frame"; every keybinding maps to the **same `ControlCommand`
+values the website sends** (space → `{"op":"pause"}`, `[`/`]` → `{"op":"rate"}`, `n` →
+scripted `key` events, …). One command vocabulary, two frontends. The model keeps its
+public accessors (`Paused()`, `PendingKeys()`, `TypingMode()`) as thin delegates so the
+existing `ui` test suite passes unchanged (§1.1).
+
+### 3.2 Serving the companion
+
+- **`exec-tui --serve :8443`** (primary): the TUI you are looking at *is* the server. The
+  browser column and the terminal window render the same engine tick-for-tick: pause in
+  either, both freeze; type `V16N68` in either, both DSKYs light; the alarm flashes in
+  both on the same frame. Without the flag, nothing listens and the TUI is byte-for-byte
+  the current behavior (`TestServeOffIsInert`).
+- **`exec-tui/cmd/bridge`** (secondary): the same Director + WebSocket server without the
+  terminal UI, for hosting the live mode when no TUI window is wanted (CI, demos).
+- **`exec-tui/cmd/record`**: runs the Director headless through a scenario script and
+  writes the Mode A frame files.
+
+### 3.3 What is shared vs local
+
+| State | Owner | Notes |
+| :--- | :--- | :--- |
+| AGC time, pause, rate, scenario, breakpoints, DSKY/joystick/ROD inputs, scripted keystrokes | **Director** (shared) | Changing it anywhere changes it everywhere; broadcast in every frame's `control` block |
+| Cog display preferences (zone visibility, font scale, light-delay toggle, compare-ghost on/off) | Website only (`localStorage`) | Never sent to the Director |
+| TUI-only view state (flash counters, layout) | TUI model | Unchanged |
+
+Sync rules: commands are applied in arrival order; late-joining clients get current
+control state + the latest frame immediately; a slow client drops its own frames but can
+never block the Director or the TUI (`TestControlStateBroadcast`).
+
+### 3.4 Modes
+
+- **Mode A — Replay (default, static hosting).** No TUI required: the site plays the
+  pre-recorded `flight-actual.json` / `flight-happy.json` (both produced by the same
+  engine via `cmd/record`). All §6 walkthrough features work, because the frames carry
+  the same `exec`/`forensics` blocks the live engine emits.
+- **Mode B — Companion (live, shared engine).** WebSocket to `exec-tui --serve`. This is
+  the two-windows-one-monitor setup this spec is built around.
+- Mode B degrades to Mode A when no bridge is reachable (banner + fallback); the cog
+  shows connection state and the bridge URL.
 
 ---
 
 ## 4. Ground truth: the validated replay dataset
 
 All values below are cross-checked against Cherry (MIT, 4 Aug 1969), Eyles (AAS 04-064),
-NASA SP-4029, and the ALSJ transcript; they match `timeline.markdown` after this branch's
-corrections. `~` = interpolated/approximate.
+NASA SP-4029, and the ALSJ transcript; they match `timeline.markdown`. `~` =
+interpolated/approximate.
 
 ### 4.1 Event and keystroke script (`events.json`)
 
@@ -216,7 +377,7 @@ corrections. `~` = interpolated/approximate.
 | 102:33:05.01 | +0 s | P63 | **PDI** — ignition at 10%; **V06 N63**: R1 +5559.7 (velocity), R2 −2.2 (ḢDOT), R3 +49971 (alt) | 49,971 ft | 2.2 ft/s |
 | 102:33:31 | +26 s | P63 | Throttle up to FTP (~9,870 lb); guidance enabled | ~49,000 ft | — |
 | 102:36:55 | +230 s | P63 | Armstrong yaws face-up (rate switch 5→25 deg/s); Earth in the windows | — | — |
-| ~102:37:53 | ~+288 s | P63 | Landing radar **"data good"** | ~35,000  ft | — |
+| ~102:37:53 | ~+288 s | P63 | Landing radar **"data good"** | ~35,000 ft | — |
 | ~102:38:04 | ~+299 s | P63 | **Aldrin keys V16 N68 E** — DELTAH monitor; R3 −02900 (callout 102:38:06) | ~34,000 ft | — |
 | **102:38:22** | **+317 s** | P63 | **ALARM 1 — 1202** (no core sets). PROG lamp; DSKY reverts **V06 N63**; crew reads code with **V05 N09 E** | **~33,500 ft** | ~120 ft/s |
 | 102:38:42 | +337 s | P63 | Armstrong: *"Give us a reading on the 1202 Program Alarm."* | ~32,000 ft | — |
@@ -275,40 +436,89 @@ what Luminary 099 defined.
 
 ---
 
-## 5. Architecture
+## 5. Scenarios: the actual case, the happy case, and the walkthrough
+
+The point of this feature is to *talk over* the landing while it plays: run the timeline,
+stop on each alarm, and make the cause visible enough that the audience can answer "why
+did the core sets run out?" from the screen. Accuracy target: **causally faithful, not
+cycle-perfect** — the engine is a calibrated model (§4.3), and the UI says so.
+
+### 5.1 Scenario definitions
+
+| Scenario | Definition | Outcome |
+| :--- | :--- | :--- |
+| **ACTUAL** | Historical script, RR mode switch in AUTO/SLEW → ECDU theft ≈ 15% from before PDI | Five alarms at the §4.1 times; four software restarts; V16N68 monitor shed twice |
+| **HAPPY** | *Identical* script — same keystrokes, same phases, same GETs — but the RR switch scripted to **LGC**, so the CDUs are zeroed and steal nothing | Zero alarms, zero restarts; SERVICER finishes every cycle; core sets hover ~2–3 used; DELTAH monitor stays up |
+| **SANDBOX** | Live Mode B free-play: every toggle (bug, monitor, typing, radar ping, ATT HOLD timing) under user control | Whatever you fly |
+
+The two canned scenarios differ **only in the TLOSS input** (`TestScenarioHappyCase`),
+which is precisely the historical counterfactual: "if the ICD had said *phase
+synchronized*, the same descent produces no alarms." Both are recorded with identical GET
+indexing so the site can flip between them at any instant (`TestScenarioSwitchPreservesGET`).
+
+### 5.2 Compare mode (fits 600 px: overlay, not split-screen)
+
+A side-by-side split is unreadable at 600 px, so comparison is an **overlay**: with
+compare enabled, the executive board draws the HAPPY occupancy as **ghost outlines**
+behind the ACTUAL fills. At 102:38:20 the audience sees eight filled core-set cells over
+three ghost outlines — the five-cell difference *is* the leak. A one-line annotation
+("HAPPY would be using 3 of 8 here") appears whenever the two diverge, and the scrub bar
+carries a second, thinner pip row for the happy case (which has no red pips — visibly
+empty where the alarms would be).
+
+### 5.3 Auto-pause and alarm cards
+
+With **pause on alarms** enabled (cog, default ON in ACTUAL), the Director halts on the
+exact BAILOUT frame (`TestEventBreakpoints`). The alarm card opens over zone 2 and states,
+from the frame's `forensics` block — never hand-written prose for the numbers:
+
+1. **What fired:** `1202 — EXECUTIVE OVERFLOW, NO CORE SETS` (FAILREG `01202`).
+2. **The failing request:** which job asked (e.g. `READACCS → FINDVAC: SERVICER`,
+   needs core set + VAC) and that it was the request the Executive could not fill.
+3. **Who holds everything:** the 8 core sets / 5 VAC areas by owner at that instant —
+   e.g. `4× SERVICER (stub, unfinished)`, `1× SERVICER (running)`, `1× MONDO (V16N68)`,
+   `1× CHARIN`, `1× LR READ` — with stubs visually distinct.
+4. **Why they're stuck:** one sentence + a "show me" button that opens the forensics
+   strip (§5.4).
+5. Links to [`memory_leak.md`](memory_leak.md) / [`alarm_recovery.md`](alarm_recovery.md)
+   / [`radar_problem.md`](radar_problem.md) for the deep dive.
+
+The same card system covers restarts ("what the phase tables rebuilt, what got shed"),
+program changes, and keystrokes (narrative mode: pause on *every* scripted event, for a
+fully talked-through walkthrough).
+
+### 5.4 Allocation forensics — making the exhaustion obvious
+
+The intuition to validate on screen: *"the 2-second cycle keeps allocating new SERVICERs,
+several stale copies pile up holding core sets, and then the handful of short jobs that
+pop in at once push it over."* The forensics strip shows exactly that, and puts precise
+numbers on it. It expands from the executive board and renders the last ~15 guidance
+cycles from the engine's allocation log (`TestAllocationForensics`), one row per 2 s
+cycle:
 
 ```text
-exec-tui/sim (Go)            ──┐  existing engine + M1 additions:
-  GET anchor · flight script   │  Snapshot/Restore · determinism ·
-  ACA/ROD/redesignation input  │  LPD state · trajectory hooks
-                               │
-exec-tui/cmd/record (Go) ──────┼──► flight.json (10 ms StateFrames) + events.json
-exec-tui/cmd/bridge (Go) ──────┘──► WebSocket: StateFrames out, ControlCommands in
-                                          │
-descent-web/ (TypeScript + Vite)          ▼
-  src/data      loaders + schema validation (events, trajectory, flight)
-  src/playback  clock, rates, 10 ms step, seek, event index
-  src/scene     canvas renderer: starfield, terrain, LM, plume, dust, camera
-  src/panels    DSKY replica, ACA/ROD widgets, core/VAC board, duty bar, captions
-  src/net       Mode B WebSocket client with Mode A fallback
+cycle  GET        core sets (8)   VAC (5)   note
+-7     102:38:08  ██▁▁▁▁▁▁  2     ██▁▁▁  2  SERVICER finishes late — first overrun
+-6     102:38:10  ███▁▁▁▁▁  3     ███▁▁  3  stub A retained; new SERVICER B
+-5     102:38:12  ████▁▁▁▁  4     ████▁  4  stub B retained; new SERVICER C
+-4     102:38:14  █████▁▁▁  5     █████  5  ← VAC pool full
+-3     102:38:16  ██████▁▁  6     █████  5  MONDO refresh takes a core set
+-2     102:38:18  ███████▁  7     █████  5  CHARIN (keystroke) takes a core set
+-1     102:38:20  ████████  8     █████  5  ← core pool full
+ 0     102:38:22  REQUEST: READACCS→FINDVAC(SERVICER)  → no core set → 1202 BAILOUT
 ```
 
-Decisions (made now so implementation doesn't relitigate them):
+(Illustrative shape — the real rows come from the engine log; the mix of stub growth vs
+transient jobs is whatever the simulation actually did, which is the point: the display
+*validates* the mental model rather than asserting it. In some runs the ninth request is
+a radar or display job rather than SERVICER — the strip shows the truth either way.)
 
-1. **The engine stays in Go and stays canonical.** No TypeScript re-implementation of
-   the Executive. Mode A consumes recorded engine output; Mode B talks to the live
-   engine. (WASM compilation of `sim` is a possible later optimization for offline
-   Mode B, explicitly out of scope.)
-2. **Scrubbing = keyframe + deterministic replay.** Engine snapshots at every 2 s cycle
-   boundary; seeks restore the nearest earlier keyframe and replay deterministically.
-   Backward 10 ms steps are seeks. In Mode A this is trivial (indexed frames).
-3. **Canvas 2D, side view.** A 2D profile view (downrange × altitude) tells this story
-   better than 3D, matches the data we actually have, and keeps the site dependency-free
-   (no WebGL framework). Panels are DOM.
-4. **Trajectory is data, not physics.** The visual flight path replays the historical
-   record (§4.2); the computer simulation replays the computer. They are joined by GET.
-   In Mode B, user actions change *computer* history faithfully; trajectory deviates only
-   in P66-style rate/attitude response (documented approximation, banner shown).
+Interactions: each row is clickable → seeks to that cycle boundary (Mode A: frame index;
+Mode B: keyframe + deterministic replay), so "let's watch that cycle again at 0.1×" is one
+click. In HAPPY the same strip shows a flat 2–3-cell line — the contrast slide. The strip
+is also available at any pause, not just at alarms.
+
+---
 
 ## 6. Data contracts
 
@@ -330,15 +540,17 @@ Decisions (made now so implementation doesn't relitigate them):
 }
 ```
 
-`kind ∈ {alarm, keystroke, program, flight, voice, switch}`. Keystroke events carry the
-full key list with per-key cadence (the TUI's 230–330 ms pattern) so the DSKY keyboard
-lights replay realistically.
+`kind ∈ {alarm, keystroke, program, flight, voice, switch, restart}`. Keystroke events
+carry the full key list with per-key cadence (the TUI's 230–330 ms pattern) so the DSKY
+keyboard lights replay realistically.
 
-### 6.2 `StateFrame` (bridge + flight.json; ~10 ms cadence)
+### 6.2 `StateFrame` (bridge + flight files; ~10 ms cadence)
 
 ```json
 {
   "agcMs": 317000, "get": "102:38:22.00", "phase": "P63",
+  "control": { "paused": true, "rate": 1.0, "scenario": "actual",
+               "pauseOn": ["alarm"], "haltedBy": "alarm-1202-1" },
   "dsky": { "prog": "63", "verb": "16", "noun": "68",
             "r1": "+05559", "r2": "-00120", "r3": "-02900",
             "progLamp": true, "compActy": true, "typing": false },
@@ -347,23 +559,35 @@ lights replay realistically.
             "vacs": [{"owner": "SERVICER", "stub": false}],
             "freePct": -3.1, "runningJob": "CHARIN", "stubs": 4,
             "restarts": 1, "cycleMs": 1240, "monitor": true },
+  "forensics": { "failedRequest": {"job": "SERVICER", "via": "FINDVAC", "needsVac": true},
+                 "cycles": [{"get": "102:38:20", "core": 8, "vac": 5, "stubs": 4,
+                             "claims": ["CHARIN"], "releases": []}] },
   "traj": { "altFt": 33500, "hdotFps": -120, "vFps": 1200,
             "downrangeFt": 91000, "pitchDeg": 62, "throttlePct": 92.5 },
   "events": ["alarm-1202-1"]
 }
 ```
 
-### 6.3 `ControlCommand` (Mode B, client → bridge)
+`control` is present in every frame (both windows stay in sync from it). `forensics` is
+included on breakpoint-halt frames and on request (`{"op":"forensics"}`); replay files
+carry it on every cycle-boundary frame.
+
+### 6.3 `ControlCommand` (client → Director; also the TUI's internal command vocabulary)
 
 ```json
 { "op": "play" } { "op": "pause" } { "op": "rate", "x": 0.25 }
 { "op": "stepMs", "ms": 10 } { "op": "seekGet", "get": "102:41:32" }
 { "op": "key", "k": "V" } { "op": "joyClick", "axis": "pitch", "dir": 1 }
 { "op": "rod", "dir": -1 } { "op": "attHold" } { "op": "reset" }
-{ "op": "scenario", "radarBug": true, "monitor": true }
+{ "op": "scenario", "name": "actual" }
+{ "op": "pauseOn", "kinds": ["alarm", "restart"] }
+{ "op": "forensics" }
+{ "op": "sandbox", "radarBug": true, "monitor": true }
 ```
 
 Every command is acknowledged with the next frame or `{"op":"error","reason":"…"}`.
+
+---
 
 ## 7. The joystick (ACA) and ROD switch
 
@@ -374,11 +598,11 @@ The physical controls Armstrong used, and what each input costs the computer:
   click redesignates the site — pitch clicks shift it along-track, roll clicks
   cross-track (published quanta ≈ 0.5° elevation / 2° azimuth per click; confirm from
   Klumpp R-695 in M0). **Each click queues extra guidance retargeting in the next
-  SERVICER pass** — the user's intuition is correct: joystick activity adds computation,
-  and P64's redesignation logic is precisely the protected load that made its alarms
-  unshedable. In Mode B, clicking during the overload measurably deepens the knife edge.
-  The site renders the reticle + site marker moving per click; the historical script
-  includes the one inadvertent redesignation (M0 pins its time or marks it "late P64").
+  SERVICER pass** — joystick activity adds computation, and P64's redesignation logic is
+  precisely the protected load that made its alarms unshedable. In Mode B, clicking
+  during the overload measurably deepens the knife edge. The site renders the reticle +
+  site marker moving per click; the historical script includes the one inadvertent
+  redesignation (M0 pins its time or marks it "late P64").
 - **ATT HOLD (102:43:08).** Joystick becomes rate-command/attitude-hold: deflection
   commands a rate, release holds attitude. Autopilot cost drops (the engine's ATT HOLD
   DAP model) — visibly recovering free-compute on the duty bar, which is *why* the alarms
@@ -389,30 +613,67 @@ The physical controls Armstrong used, and what each input costs the computer:
 
 Widget spec: on-screen ACA (draggable/arrow keys, detent center, click quantization in
 P64), ROD toggle, and the AUTO/ATT HOLD mode switch — disabled states grey out with a
-tooltip explaining *why* (e.g. "LPD time expired").
+tooltip explaining *why* (e.g. "LPD time expired"). At 600 px the three controls share
+zone 5 in a single row.
 
-## 8. Milestones (each begins by landing its §1 tests, failing)
+---
+
+## 8. The cog menu (bottom right)
+
+A single floating ⚙ button, 48 px, anchored bottom-right (above the scrub bar), opens an
+options sheet sliding up. Contents, top to bottom:
+
+| Group | Options |
+| :--- | :--- |
+| **Scenario** | ACTUAL · HAPPY · SANDBOX (radio); "Compare (ghost happy case)" toggle; Restart scenario (confirmation required) |
+| **Auto-pause** | Pause on: alarms (default ON) · restarts · program changes · keystrokes · every event (narrative mode) |
+| **Playback** | Rate presets; light-delay toggle (±1.3 s on captions); snap-scrub-to-events |
+| **Panels** | Show/hide: captions · hand controls · executive board · forensics drawer; re-pin collapsed zones |
+| **Display** | Font scale (100/125/150%); width preset 600/800; high-contrast alarm flash on/off |
+| **Connection** | Mode indicator (REPLAY / LIVE); bridge URL; connect/disconnect; "TUI linked" status with last-frame age |
+| **About** | Accuracy note ("calibrated model, not cycle-perfect telemetry") + source links |
+
+Behavior: every option round-trips to `localStorage` and restores on reload; Esc or
+outside-click closes; destructive actions (scenario restart, discarding a sandbox run)
+require confirmation; unknown persisted keys from older versions are ignored
+(`cog.test.ts`). Keyboard: `g` opens the cog; the sheet is fully keyboard-navigable.
+
+---
+
+## 9. Milestones (each begins by landing its §1 tests, failing)
 
 | # | Deliverable | Contents |
 | :--- | :--- | :--- |
 | M0 | Data | `events.json`, `trajectory.json` from §4; noun layouts from `PINBALL_NOUN_TABLES.agc`; ALSJ P66 callout transcription; resolve open facts (P63 selection GET, code-500 GET, LPD quanta, inadvertent-redesignation time); validation script wired into CI |
-| M1 | Engine | GET clock, flight-script driver, snapshot/restore, determinism, ACA/ROD/redesignation inputs, LPD state (tests §1.2) |
-| M2 | Record + bridge | `cmd/record` → `flight.json`; `cmd/bridge` WebSocket server (tests §1.3) |
-| M3 | Web scene | Vite scaffold, loaders, playback clock, starfield/terrain/LM scene from `flight.json` (tests §1.4: events, trajectory, playback, lander) |
-| M4 | Panels + transport | DSKY replica, captions, core/VAC + duty panels, transport bar, scrub, ±10 ms step, event index (tests §1.4: dsky, hud) |
-| M5 | Controls + Mode B | ACA/ROD/mode-switch widgets, live bridge client, scenario toggles (tests §1.4: joystick) |
-| M6 | Polish + e2e | Camera, dust, light-delay toggle, explainer cards, Playwright e2e (tests §1.5), README |
+| M1 | Engine | GET clock, flight-script driver, **happy/actual scenarios**, **event breakpoints**, **allocation forensics log**, snapshot/restore, determinism, ACA/ROD/redesignation inputs (tests §1.2) |
+| M2 | Director + companion | **Director refactor** (TUI passes existing `ui` tests unchanged), `--serve` WebSocket in `exec-tui`, headless `cmd/bridge`, `cmd/record` → `flight-actual.json` + `flight-happy.json` (tests §1.3) |
+| M3 | Web scene | Vite scaffold, loaders, playback clock, **600×2160 portrait layout system**, vertical descent scene from `flight-actual.json` (tests §1.4: events, trajectory, layout, playback, lander) |
+| M4 | Panels + transport | DSKY replica, executive board, captions, transport bar, scrub, ±10 ms step, event index (tests §1.4: dsky, hud) |
+| M5 | Walkthrough + controls | **Cog menu, auto-pause cards, forensics strip, compare ghost overlay**, ACA/ROD widgets, live Mode B client (tests §1.4: cog, pause-on-alarm, scenario, forensics, joystick) |
+| M6 | Polish + e2e | Camera, dust, light-delay toggle, Playwright e2e at 600×2160 (tests §1.5), README |
 
-Tooling: Go 1.26 (`nhooyr.io/websocket` or stdlib), Vite + TypeScript + Vitest +
+Tooling: Go 1.26 (stdlib or `nhooyr.io/websocket`), Vite + TypeScript + Vitest +
 Playwright, Canvas 2D, zero runtime UI framework dependencies unless M3 review demands
-one. New code lives in `descent-web/` and `exec-tui/cmd/`; `exec-tui/sim` grows but its
-existing API and tests stay intact.
+one. New code lives in `descent-web/` and `exec-tui/cmd/`; `exec-tui/sim` and
+`exec-tui/ui` grow but their existing APIs and tests stay intact.
 
-## 9. Risks and open questions
+## 10. Risks and open questions
 
+- **Director refactor risk.** Moving the clock out of the Bubble Tea model touches the
+  TUI's hot path. Mitigation: the existing `ui` pause/typing tests are the frozen
+  contract (§1.1), the Model keeps its accessors, and `TestServeOffIsInert` proves the
+  no-server path is unchanged.
+- **Narrow-scene legibility.** 600 px must carry sky + lander + ladder + flash overlays.
+  Mitigation: the vertical column layout makes altitude the long axis; alarm flashes take
+  the full column width; M3 includes a screenshot review at true 600×2160 before M4
+  builds on it.
+- **Dual-recording alignment.** Actual/happy files must stay frame-index-compatible or
+  scenario switching jumps. Mitigation: one recorder run emits both from the same script
+  with a shared GET index; `TestRecordProducesFlightJSON` asserts alignment.
 - **Sub-second truth.** GETs are known to the second (alarms also as Cherry PDI offsets);
   the 10 ms step is a *navigation* affordance over engine frames, not a claim of 10 ms
-  historical telemetry. The UI says so in the event cards.
+  historical telemetry. The forensics strip is the simulation's own truth, presented as
+  such ("calibrated model" note in the cog's About group).
 - **First-alarm labeling.** Mission Report Table 5-I labels the first 1202 at 102:39:02;
   SP-4029 and Cherry support 102:38:22. We follow `timeline.markdown` (both listed, main
   scrub pips at SP-4029/Cherry times).
