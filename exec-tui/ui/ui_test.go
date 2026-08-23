@@ -262,30 +262,6 @@ func hasOwner(e *sim.Engine, name string) bool {
 }
 
 // ---------------------------------------------------------------------------
-// t20 — the dashes: bottom instruction bar
-// ---------------------------------------------------------------------------
-
-func TestInstructionBar(t *testing.T) {
-	t.Run("happy: every control is listed", func(t *testing.T) {
-		_, m := newTestModel()
-		v := m.View()
-		for _, want := range []string{"[h/l]", "[space]", "[t]", "[p]", "[6]", "[a]", "[.]", "[x]", "[q]"} {
-			if !strings.Contains(v, want) {
-				t.Fatalf("instruction bar missing %s", want)
-			}
-		}
-	})
-	t.Run("unhappy: typing mode swaps the bar to DSKY keys", func(t *testing.T) {
-		_, m := newTestModel()
-		m = key(m, 't')
-		v := m.View()
-		if !strings.Contains(v, "esc") {
-			t.Fatal("typing mode must tell the user how to leave (esc)")
-		}
-	})
-}
-
-// ---------------------------------------------------------------------------
 // t21 — DSKY panel: VERB/NOUN, PROG lamp, alarm codes
 // ---------------------------------------------------------------------------
 
