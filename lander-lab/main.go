@@ -1,12 +1,14 @@
-// lander-lab: an exploratory ASCII lunar-lander view of the Apollo 11
-// powered descent. Step through the flight with h/l — every throttle event,
-// the yaw, radar lock, Buzz's monitor, all five program alarms at their real
-// times and altitudes, ATT HOLD, P66, touchdown. q quits.
+// lander-lab: an ASCII lunar-lander view of the Apollo 11 powered descent.
+// The LM stays upright and lowers continuously as mission time runs; ALT and
+// VEL interpolate between the real flight events, and the five program
+// alarms appear at their true moments. [ and ] change the playback rate,
+// '.' pauses, q quits.
 package main
 
 import (
 	"fmt"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -14,86 +16,135 @@ import (
 )
 
 type scriptEvent struct {
-	timeSec  float64
-	altFt    float64
-	velFps   float64
-	phase    string
-	attitude lander.Attitude
-	alarm    string // "" when the event is not an executive overflow
-	caption  string
+	timeSec float64
+	altFt   float64
+	velFps  float64
+	phase   string
+	alarm   string // "" when the event is not an executive overflow
+	caption string
 }
 
 // script is the flight, PDI-relative (times/altitudes per Cherry's event log
 // and Eyles; velocities approximate).
 var script = []scriptEvent{
-	{0, 49971, 5560, "P63 BRAKING", lander.Horizontal, "", "PDI — DPS ignition at 10%"},
-	{26, 48000, 5460, "P63 BRAKING", lander.Horizontal, "", "throttle to full — guidance enabled"},
-	{232, 42426, 3366, "P63 BRAKING", lander.Horizontal, "", "yaw maneuver — windows up"},
-	{274, 39000, 2745, "P63 BRAKING", lander.Horizontal, "", "landing radar: data good"},
-	{304, 35706, 2521, "P63 BRAKING", lander.Horizontal, "", "Buzz keys V16N68 — DELTAH monitor"},
-	{316, 33500, 2280, "P63 BRAKING", lander.Horizontal, "1202", "PROG ALARM 1202 — no core sets"},
-	{358, 30900, 1826, "P63 BRAKING", lander.Horizontal, "1202", "1202 again — monitor re-keyed"},
-	{384, 23393, 1481, "P63 BRAKING", lander.Horizontal, "", "throttle down — right on time"},
-	{506, 7400, 506, "P64 APPROACH", lander.Tilted, "", "high gate — pitch over, LPD active"},
-	{552, 3000, 130, "P64 APPROACH", lander.Tilted, "1201", "PROG ALARM 1201 — no VAC areas"},
-	{578, 2000, 90, "P64 APPROACH", lander.Tilted, "1202", "PROG ALARM 1202"},
-	{594, 770, 60, "P64 APPROACH", lander.Tilted, "1202", "PROG ALARM 1202 — 770 ft"},
-	{603, 650, 50, "P64 APPROACH", lander.Tilted, "", "Armstrong: AUTO → ATT HOLD"},
-	{615, 430, 30, "P66 LANDING", lander.Vertical, "", "P66 — rate of descent mode"},
-	{757, 0, 0, "P66 LANDED", lander.Landed, "", "CONTACT LIGHT — the Eagle has landed"},
+	{0, 49971, 5560, "P63 BRAKING", "", "PDI — DPS ignition at 10%"},
+	{26, 48000, 5460, "P63 BRAKING", "", "throttle to full — guidance enabled"},
+	{232, 42426, 3366, "P63 BRAKING", "", "yaw maneuver — windows up"},
+	{274, 39000, 2745, "P63 BRAKING", "", "landing radar: data good"},
+	{304, 35706, 2521, "P63 BRAKING", "", "Buzz keys V16N68 — DELTAH monitor"},
+	{316, 33500, 2280, "P63 BRAKING", "1202", "PROG ALARM 1202 — no core sets"},
+	{358, 30900, 1826, "P63 BRAKING", "1202", "1202 again — monitor re-keyed"},
+	{384, 23393, 1481, "P63 BRAKING", "", "throttle down — right on time"},
+	{506, 7400, 506, "P64 APPROACH", "", "high gate — LPD active"},
+	{552, 3000, 130, "P64 APPROACH", "1201", "PROG ALARM 1201 — no VAC areas"},
+	{578, 2000, 90, "P64 APPROACH", "1202", "PROG ALARM 1202"},
+	{594, 770, 60, "P64 APPROACH", "1202", "PROG ALARM 1202 — 770 ft"},
+	{603, 650, 50, "P64 APPROACH", "", "Armstrong: AUTO → ATT HOLD"},
+	{615, 430, 30, "P66 LANDING", "", "P66 — rate of descent mode"},
+	{757, 0, 0, "P66 LANDED", "", "CONTACT LIGHT — the Eagle has landed"},
 }
+
+const defaultScale = 20 // mission seconds per wall second
 
 type demoModel struct {
-	idx int
+	t      float64 // mission time, seconds
+	scale  float64 // mission seconds per wall second
+	paused bool
 }
 
-func newDemoModel() demoModel { return demoModel{} }
+func newDemoModel() demoModel { return demoModel{scale: defaultScale} }
 
-// state assembles the lander view for the current step, with every alarm
-// reached so far as a persistent marker.
-func (m demoModel) state() lander.State {
-	ev := script[m.idx]
-	st := lander.State{
-		AltFt: ev.altFt, VelFps: ev.velFps, TimeSec: ev.timeSec,
-		Phase: ev.phase, Attitude: ev.attitude, Event: ev.caption,
+// advance moves mission time by wall milliseconds at the playback rate.
+func (m *demoModel) advance(wallMs float64) {
+	if m.paused {
+		return
 	}
-	for i := 0; i <= m.idx; i++ {
-		if script[i].alarm != "" {
-			st.Alarms = append(st.Alarms, lander.Alarm{Code: script[i].alarm, AltFt: script[i].altFt})
+	m.t += wallMs / 1000 * m.scale
+	if end := script[len(script)-1].timeSec; m.t > end {
+		m.t = end
+	}
+}
+
+// lerp interpolates a value between the neighboring script events.
+func lerp(t, t0, t1, v0, v1 float64) float64 {
+	if t1 <= t0 {
+		return v1
+	}
+	f := (t - t0) / (t1 - t0)
+	return v0 + f*(v1-v0)
+}
+
+// state assembles the lander view for the current mission time: meters
+// interpolated between events, alarms accumulated, the craft always upright
+// until it is down.
+func (m demoModel) state() lander.State {
+	last := script[0]
+	next := script[len(script)-1]
+	for i := range script {
+		if script[i].timeSec <= m.t {
+			last = script[i]
+			if i+1 < len(script) {
+				next = script[i+1]
+			} else {
+				next = script[i]
+			}
+		}
+	}
+	st := lander.State{
+		AltFt:   lerp(m.t, last.timeSec, next.timeSec, last.altFt, next.altFt),
+		VelFps:  lerp(m.t, last.timeSec, next.timeSec, last.velFps, next.velFps),
+		TimeSec: m.t,
+		Phase:   last.phase,
+		Event:   last.caption,
+	}
+	st.Attitude = lander.Vertical
+	if st.AltFt <= 0 {
+		st.AltFt = 0
+		st.Attitude = lander.Landed
+	}
+	for _, ev := range script {
+		if ev.alarm != "" && ev.timeSec <= m.t {
+			st.Alarms = append(st.Alarms, lander.Alarm{Code: ev.alarm, AltFt: ev.altFt})
 		}
 	}
 	return st
 }
 
-func (m demoModel) Init() tea.Cmd { return nil }
+type frameMsg struct{}
+
+const frameMs = 33.34
+
+func tick() tea.Cmd {
+	return tea.Tick(time.Duration(frameMs*1e6)*time.Nanosecond, func(time.Time) tea.Msg {
+		return frameMsg{}
+	})
+}
+
+func (m demoModel) Init() tea.Cmd { return tick() }
 
 func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case frameMsg:
+		m.advance(frameMs)
+		return m, tick()
 	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
+		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
-		case tea.KeyLeft:
-			if m.idx > 0 {
-				m.idx--
-			}
-		case tea.KeyRight:
-			if m.idx < len(script)-1 {
-				m.idx++
-			}
 		}
 		if len(msg.Runes) == 1 {
 			switch msg.Runes[0] {
 			case 'q':
 				return m, tea.Quit
-			case 'h':
-				if m.idx > 0 {
-					m.idx--
+			case '[':
+				if m.scale > 1.25 {
+					m.scale /= 2
 				}
-			case 'l':
-				if m.idx < len(script)-1 {
-					m.idx++
+			case ']':
+				if m.scale < 320 {
+					m.scale *= 2
 				}
+			case '.':
+				m.paused = !m.paused
 			}
 		}
 	}
@@ -103,8 +154,11 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m demoModel) View() string {
 	dim := "\x1b[38;5;240m"
 	reset := "\x1b[0m"
-	return lander.Render(m.state()) + "\n" +
-		dim + fmt.Sprintf("step %d/%d · [h/l] step · [q] quit", m.idx+1, len(script)) + reset + "\n"
+	status := fmt.Sprintf("%.0f× time · [ ] speed · [.] pause · [q] quit", m.scale)
+	if m.paused {
+		status = "PAUSED · " + status
+	}
+	return lander.Render(m.state()) + "\n" + dim + status + reset + "\n"
 }
 
 func main() {

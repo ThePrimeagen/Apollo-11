@@ -1,15 +1,18 @@
 package main
 
-// Demo harness tests, written first: the Apollo 11 descent as a scripted
-// sequence of events you step through with h/l — PDI, throttle-up, the yaw,
-// radar lock, V16N68, the five alarms at their true times and altitudes,
-// ATT HOLD, P66, touchdown. Alarms accumulate as persistent markers.
+// Demo harness tests, written first: the descent now plays CONTINUOUSLY —
+// the LM stays upright (no rotation) and lowers smoothly as mission time
+// advances, with ALT/VEL interpolated between the flight events. The
+// playback rate is adjustable ([ slower, ] faster), '.' pauses, alarms
+// appear as time passes their moments, and the flight ends landed.
 
 import (
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/theprimeagen/apollo-11/lander-lab/lander"
 )
 
 func key(m demoModel, r rune) demoModel {
@@ -17,78 +20,103 @@ func key(m demoModel, r rune) demoModel {
 	return mm.(demoModel)
 }
 
-func TestScript(t *testing.T) {
-	t.Run("happy: boots at PDI, high and horizontal", func(t *testing.T) {
+func TestContinuousDescent(t *testing.T) {
+	t.Run("happy: boots at PDI and lowers smoothly with time", func(t *testing.T) {
 		m := newDemoModel()
 		s := m.state()
-		if s.AltFt != 49971 {
-			t.Fatalf("PDI altitude must be 49,971 ft, got %v", s.AltFt)
+		if s.AltFt != 49971 || !strings.Contains(s.Phase, "P63") {
+			t.Fatalf("boot must be PDI, got %v ft %q", s.AltFt, s.Phase)
 		}
-		if !strings.Contains(s.Phase, "P63") {
-			t.Fatalf("PDI must be P63, got %q", s.Phase)
-		}
-		if len(s.Alarms) != 0 {
-			t.Fatal("no alarms at ignition")
-		}
-	})
-	t.Run("happy: the script carries all five alarms in flight order", func(t *testing.T) {
-		codes := []string{}
-		for _, ev := range script {
-			if ev.alarm != "" {
-				codes = append(codes, ev.alarm)
+		prev := s.AltFt
+		for i := 0; i < 20; i++ {
+			m.advance(1000) // one wall second at default 20x = 20 mission sec
+			alt := m.state().AltFt
+			if alt > prev {
+				t.Fatalf("altitude must never climb, %v -> %v", prev, alt)
 			}
+			prev = alt
 		}
-		want := []string{"1202", "1202", "1201", "1202", "1202"}
-		if strings.Join(codes, ",") != strings.Join(want, ",") {
-			t.Fatalf("alarm sequence must be %v, got %v", want, codes)
+		if prev >= 49971 {
+			t.Fatal("twenty wall-seconds must visibly lower the craft")
 		}
 	})
-	t.Run("happy: the script ends on the surface", func(t *testing.T) {
-		last := script[len(script)-1]
-		if last.altFt != 0 {
-			t.Fatalf("the last event must be touchdown at 0 ft, got %v", last.altFt)
+	t.Run("happy: meters interpolate between events, not jump", func(t *testing.T) {
+		m := newDemoModel()
+		m.advance(129 * 1000 / 20) // mission t = 129s, between yaw(232? no: between 26 and 232)
+		s := m.state()
+		if !(s.AltFt < 48000 && s.AltFt > 42426) {
+			t.Fatalf("at t=129s altitude must sit between the neighboring events, got %v", s.AltFt)
+		}
+		if !(s.VelFps < 5460 && s.VelFps > 3366) {
+			t.Fatalf("velocity must interpolate too, got %v", s.VelFps)
+		}
+	})
+	t.Run("happy: no rotation — upright in flight, landed at the end", func(t *testing.T) {
+		m := newDemoModel()
+		m.advance(10 * 1000)
+		if got := m.state().Attitude; got != lander.Vertical {
+			t.Fatalf("the craft must stay upright in flight, got %v", got)
+		}
+		m.advance(60 * 1000) // well past touchdown at 20x
+		s := m.state()
+		if s.Attitude != lander.Landed || s.AltFt != 0 {
+			t.Fatalf("the flight must end landed at 0 ft, got %v at %v ft", s.Attitude, s.AltFt)
+		}
+	})
+	t.Run("happy: alarms appear as their moments pass, all five by the end", func(t *testing.T) {
+		m := newDemoModel()
+		m.advance(320 * 1000 / 20) // just past the first 1202 at t=316
+		if got := len(m.state().Alarms); got != 1 {
+			t.Fatalf("one alarm after t=316s, got %d", got)
+		}
+		m.advance(60 * 1000)
+		if got := len(m.state().Alarms); got != 5 {
+			t.Fatalf("all five alarms by touchdown, got %d", got)
 		}
 	})
 }
 
-func TestStepping(t *testing.T) {
-	t.Run("happy: l steps forward and alarms accumulate as markers", func(t *testing.T) {
+func TestPlaybackControls(t *testing.T) {
+	t.Run("happy: ] doubles the rate, [ halves it", func(t *testing.T) {
 		m := newDemoModel()
-		for i := 0; i < len(script)-1; i++ {
-			m = key(m, 'l')
+		s0 := m.scale
+		m = key(m, ']')
+		if m.scale != s0*2 {
+			t.Fatalf("] must double the rate, %v -> %v", s0, m.scale)
 		}
-		s := m.state()
-		if len(s.Alarms) != 5 {
-			t.Fatalf("after stepping to touchdown all 5 alarm markers persist, got %d", len(s.Alarms))
-		}
-		if s.AltFt != 0 {
-			t.Fatalf("final step must be on the surface, got %v ft", s.AltFt)
+		m = key(m, '[')
+		m = key(m, '[')
+		if m.scale != s0/2 {
+			t.Fatalf("[ must halve the rate, got %v", m.scale)
 		}
 	})
-	t.Run("happy: h steps back and drops markers not yet reached", func(t *testing.T) {
+	t.Run("happy: '.' pauses and resumes the fall", func(t *testing.T) {
 		m := newDemoModel()
-		for i := 0; i < len(script)-1; i++ {
-			m = key(m, 'l')
+		m = key(m, '.')
+		before := m.state().AltFt
+		m.advance(5000)
+		if m.state().AltFt != before {
+			t.Fatal("a paused descent must hold its altitude")
 		}
-		for i := 0; i < len(script)-1; i++ {
-			m = key(m, 'h')
-		}
-		s := m.state()
-		if s.AltFt != 49971 || len(s.Alarms) != 0 {
-			t.Fatalf("stepping back to PDI must clear markers, got alt %v with %d alarms", s.AltFt, len(s.Alarms))
+		m = key(m, '.')
+		m.advance(5000)
+		if m.state().AltFt >= before {
+			t.Fatal("resuming must let the craft fall again")
 		}
 	})
-	t.Run("unhappy: stepping clamps at both ends", func(t *testing.T) {
+	t.Run("unhappy: rate clamps at sane bounds", func(t *testing.T) {
 		m := newDemoModel()
-		m = key(m, 'h')
-		if m.idx != 0 {
-			t.Fatal("h at PDI must clamp")
+		for i := 0; i < 12; i++ {
+			m = key(m, ']')
 		}
-		for i := 0; i < len(script)+5; i++ {
-			m = key(m, 'l')
+		if m.scale > 320 {
+			t.Fatalf("rate must clamp high, got %v", m.scale)
 		}
-		if m.idx != len(script)-1 {
-			t.Fatal("l at touchdown must clamp")
+		for i := 0; i < 20; i++ {
+			m = key(m, '[')
+		}
+		if m.scale < 1 {
+			t.Fatalf("rate must clamp low, got %v", m.scale)
 		}
 	})
 	t.Run("happy: q quits", func(t *testing.T) {
@@ -99,6 +127,23 @@ func TestStepping(t *testing.T) {
 		}
 		if _, ok := cmd().(tea.QuitMsg); !ok {
 			t.Fatal("q's command must be tea.Quit")
+		}
+	})
+}
+
+func TestScriptStillTruthful(t *testing.T) {
+	t.Run("happy: five alarms in flight order, ending on the surface", func(t *testing.T) {
+		codes := []string{}
+		for _, ev := range script {
+			if ev.alarm != "" {
+				codes = append(codes, ev.alarm)
+			}
+		}
+		if strings.Join(codes, ",") != "1202,1202,1201,1202,1202" {
+			t.Fatalf("alarm sequence wrong: %v", codes)
+		}
+		if last := script[len(script)-1]; last.altFt != 0 {
+			t.Fatalf("the script must end at 0 ft, got %v", last.altFt)
 		}
 	})
 }
