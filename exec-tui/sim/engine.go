@@ -357,6 +357,7 @@ type Engine struct {
 	// DSKY entry state
 	verbBuf, nounBuf string
 	entering         byte // 'V', 'N' or 0
+	progSel          bool // V37E seen: the next nn E selects program nn
 
 	// accounting rings
 	bucketUse   [historySize][numConsumers]float32 // ms per consumer per bucket
@@ -731,7 +732,7 @@ func (e *Engine) bailout(code string) {
 	}
 	e.throttleText = map[EventKind]string{}
 	e.throttleAt = map[EventKind]float64{}
-	e.verbBuf, e.nounBuf, e.entering = "", "", 0
+	e.verbBuf, e.nounBuf, e.entering, e.progSel = "", "", 0, false
 
 	// Phase tables (5.4SPOT): rebuild one REREADAC task + one SERVICER.
 	if e.phase != P00 {
@@ -906,13 +907,39 @@ func (e *Engine) PressKey(k byte) {
 	case k == 'V':
 		e.entering = 'V'
 		e.verbBuf = ""
+		e.progSel = false
 	case k == 'N':
 		e.entering = 'N'
 		e.nounBuf = ""
+		e.progSel = false
 	case k == 'C':
 		e.entering = 0
+		e.progSel = false
 	case k == 'E':
 		e.entering = 0
+		if e.progSel {
+			// V37E nnE — program change (Eyles: "The crew keyed in Verb 37
+			// Noun 63 to select P63").
+			e.progSel = false
+			if e.nounBuf == "63" && e.phase == P00 {
+				e.StartDescent()
+				// Landing radar "data good" arrives on its own during the
+				// braking phase (scripted flavor timing, cf. flight
+				// PDI+262s; compressed so one toggle tells the story).
+				e.waitlist = append(e.waitlist, wtask{"LRDATA", e.t + 6000, func(e *Engine) {
+					if e.phase != P00 {
+						e.AcquireLandingRadar()
+					}
+				}})
+			}
+			break
+		}
+		if e.verbBuf == "37" {
+			e.progSel = true
+			e.entering = 'N'
+			e.nounBuf = ""
+			break
+		}
 		if e.verbBuf == "16" && e.nounBuf == "68" {
 			if !e.monitor {
 				e.monitor = true
