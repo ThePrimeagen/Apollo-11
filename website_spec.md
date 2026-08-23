@@ -23,13 +23,14 @@ transcript), [`exec-tui/RESEARCH.md`](exec-tui/RESEARCH.md) (every sim constant,
 [`operations_and_timing.md`](operations_and_timing.md) (the full job/interrupt inventory
 and duty-cycle ledger), and the Luminary 099 assembly in this repository.
 
-The TUI already exposes the three flight-critical controls as **toggle cards** (selected
-with ←/→ or h/l, engaged with Enter): **1 SERVICER — powered descent** (engaging it types
-`V37E 63E` on the DSKY at human cadence — the deceleration burn starts because the engine
-parses the keystrokes), **2 RR SLEW/AUTO — the mode switch** (the radar's
-computation-stealing toggle; OFF is labeled "LGC mode: clean — the idyllic case"), and
-**3 V16 N68 — Buzz's monitor** (types `V16N68E`). The website mirrors these three
-controls one-for-one; they are the shared vocabulary of §6.3.
+The TUI exposes the three flight-critical controls as a **cockpit switch panel**
+(h/l or ←/→ focuses a switch, space/Enter flips it; rendered by the reusable
+`button-lab/button` toggle component): **DESCENT** (flipping it types `V37E 63E` at human
+cadence — the deceleration burn starts because the engine parses the keystrokes),
+**DELTAH** (types `V16N68E`; flipping it off types `V34E`, the terminate-monitor verb),
+and **RR STEAL** (the SLEW/AUTO mode switch — OFF is LGC, the clean case). Pause in the
+TUI is **`.`** (space is a switch flip). The website mirrors these three controls
+one-for-one; they are the shared vocabulary of §6.3.
 
 ---
 
@@ -50,7 +51,8 @@ modification** to prove the TUI's behavior did not change.
 | `TestRadarBugTLOSS`, `TestRadarPing`, `TestKeystrokeCost`, `TestMonitorVerbLoad`, `TestHistoricalScenario`, `TestKnifeEdgeLogThrottling`, `TestPostRestartHint` | `exec-tui/sim` | Unchanged — load-injection paths reused by both frontends |
 | Fidelity suite: `TestSleepingJobHoldsResources`, `TestLRReadCadence`, `TestLRLockDutyCost`, `TestHigatjobVACHold`, `TestP64FirstAlarmIs1201`, `TestP63TypingGives1202`, `TestBoundaryAlignmentNoFalseAlarm` (`fidelity_test.go`); `TestV37E63EStartsDescent` (`dsky_program_test.go`) | `exec-tui/sim` | Unchanged — these pin the sleep-segment mechanics, the P63-1202/P64-1201 alarm-code split, and typed program selection that the website's forensics and DSKY depend on |
 | Pause/typing/keybinding tests: `ui_test.go` (pause freeze, state preservation across pause, keybindings) and `typing_test.go` (cadence, speed scaling, paused-holds-keys) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** They assert through `m.Paused()` / `m.PendingKeys()` / `Update(FrameMsg{})`; after the Director refactor these delegate but behave identically |
-| Toggle-card tests: `toggles_test.go` (render/selection/engage), `active_state_test.go` (key-bar active states) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** Card engagement queues DSKY keys through the same pending-key path the Director absorbs |
+| Switch-panel tests: `switches_test.go` (`TestSwitchPanelRender`, `TestSwitchFlip` incl. the typing-mode-swallows-space case, `TestPauseMovedToDot`), `active_state_test.go` (key-bar active states) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** Switch flips queue DSKY keys through the same pending-key path the Director absorbs; `.`-pause semantics carry into the Director |
+| `button-lab` component tests (`button/button_test.go`, `lab_test.go`) | `button-lab/` | Unchanged — the reusable cockpit toggle; the web widgets mirror its look (§7), not its code |
 | Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs, `color_test.go`) | `exec-tui/ui` | Unchanged — TUI rendering untouched |
 | `timeline-tui` render tests | `timeline-tui` | Unchanged — not part of this feature |
 | `npm run lint` (markdownlint) | root | Must pass for this spec and all new docs |
@@ -286,10 +288,10 @@ collapse. Every collapsed zone can be re-pinned from the cog.
 
 | Control | Behavior |
 | :--- | :--- |
-| Play / Pause | Space; frame-accurate freeze |
-| Rates | 0.1× (slow play), 0.25×, 1× (real time), 4×, 16× |
-| **Step +10 ms / −10 ms** | `.` / `,` while paused; advances/rewinds AGC time exactly 10 ms (backward = seek) |
-| Step +2 s | One full guidance cycle (`]` on the cycle boundary) |
+| Play / Pause | Space **or `.`** (the TUI's pause key — same muscle memory in both windows); frame-accurate freeze |
+| Rates | 0.1× (slow play), 0.25×, 1× (real time), 4×, 16× — keys `1`–`5` |
+| **Step +10 ms / −10 ms** | `→` / `←` while paused; advances/rewinds AGC time exactly 10 ms (backward = seek) |
+| Step ±2 s | Shift+`→` / Shift+`←` — one full guidance cycle |
 | Scrub bar | Whole window 102:32:00 → 102:46:10, event pips, snap-to-pip |
 | Jump to event | Prev/next event buttons + clickable event index |
 | **Auto-pause** | Cog toggles: pause on alarms / restarts / program changes / keystrokes — playback halts on the exact event frame and opens its explainer card (§5.3) |
@@ -330,15 +332,16 @@ One object owns everything two frontends must agree on:
   (§6.2) to all subscribers (TUI model, WebSocket clients, recorder).
 
 The Bubble Tea model shrinks to a view: `FrameMsg` becomes "ask the Director to advance
-and hand me the latest frame"; every keybinding and **toggle card** maps to the **same
-`ControlCommand` values the website sends** (space → `{"op":"pause"}`, `[`/`]` →
-`{"op":"rate"}`, card 1 → the `key` sequence `V37E63E`, card 2 → the RR mode switch,
-card 3 → the `key` sequence `V16N68E`, …). Program selection needs no privileged op:
-the engine parses typed keystrokes (`TestV37E63EStartsDescent`), so the website's DSKY
-starts the deceleration burn exactly the way the TUI's card 1 and the flight crew did —
-by typing. One command vocabulary, two frontends. The model keeps its public accessors
-(`Paused()`, `PendingKeys()`, `TypingMode()`) as thin delegates so the existing `ui`
-test suite passes unchanged (§1.1).
+and hand me the latest frame"; every keybinding and **cockpit switch** maps to the **same
+`ControlCommand` values the website sends** (`.` → `{"op":"pause"}`, `[`/`]` →
+`{"op":"rate"}`, DESCENT flip → the `key` sequence `V37E63E`, DELTAH flip →
+`V16N68E` on / `V34E` off, RR STEAL flip → the RR mode command, …). Which switch is
+*focused* (h/l) is TUI-local view state, never shared. Program selection needs no
+privileged op: the engine parses typed keystrokes (`TestV37E63EStartsDescent`), so the
+website's DSKY starts the deceleration burn exactly the way the TUI's DESCENT switch and
+the flight crew did — by typing. One command vocabulary, two frontends. The model keeps
+its public accessors (`Paused()`, `PendingKeys()`, `TypingMode()`) as thin delegates so
+the existing `ui` test suite passes unchanged (§1.1).
 
 ### 3.2 Serving the companion
 
@@ -358,7 +361,7 @@ test suite passes unchanged (§1.1).
 | :--- | :--- | :--- |
 | AGC time, pause, rate, scenario, breakpoints, DSKY/joystick/ROD inputs, scripted keystrokes | **Director** (shared) | Changing it anywhere changes it everywhere; broadcast in every frame's `control` block |
 | Cog display preferences (zone visibility, font scale, light-delay toggle, compare-ghost on/off) | Website only (`localStorage`) | Never sent to the Director |
-| TUI-only view state (flash counters, layout) | TUI model | Unchanged |
+| TUI-only view state (flash counters, switch-panel focus, layout) | TUI model | Unchanged |
 
 Sync rules: commands are applied in arrival order; late-joining clients get current
 control state + the latest frame immediately; a slow client drops its own frames but can
@@ -520,7 +523,7 @@ cycle-perfect** — the engine is a calibrated model (§4.3), and the UI says so
 | Scenario | Definition | Outcome |
 | :--- | :--- | :--- |
 | **ACTUAL** | Historical script, RR mode switch in AUTO/SLEW → ECDU theft ≈ 15% from before PDI | Five alarms at the §4.1 times; four software restarts; V16N68 monitor shed twice |
-| **HAPPY** | *Identical* script — same keystrokes, same phases, same GETs — but the RR switch scripted to **LGC**, so the CDUs are zeroed and steal nothing (the TUI's card 2 OFF state, literally labeled "LGC mode: clean — the idyllic case") | Zero alarms, zero restarts; SERVICER finishes every cycle; core sets hover ~2–3 used; DELTAH monitor stays up |
+| **HAPPY** | *Identical* script — same keystrokes, same phases, same GETs — but the RR switch scripted to **LGC**, so the CDUs are zeroed and steal nothing (the TUI's RR STEAL switch OFF — the clean case) | Zero alarms, zero restarts; SERVICER finishes every cycle; core sets hover ~2–3 used; DELTAH monitor stays up |
 | **SANDBOX** | Live Mode B free-play: every toggle (bug, monitor, typing, radar ping, ATT HOLD timing) under user control | Whatever you fly |
 
 The two canned scenarios differ **only in the TLOSS input** (`TestScenarioHappyCase`),
@@ -665,9 +668,10 @@ carry it on every cycle-boundary frame.
 
 Every command is acknowledged with the next frame or `{"op":"error","reason":"…"}`.
 `sandbox.radarBug` is the RR mode switch (true ≡ SLEW/AUTO stealing cycles, false ≡ LGC)
-— the TUI's card 2. Starting the descent and keying the monitor need no dedicated ops:
-they are `key` sequences (`V37E63E`, `V16N68E`), the same way the TUI's cards 1 and 3
-and the flight crew did it.
+— the TUI's RR STEAL switch. Starting the descent and keying the monitor need no
+dedicated ops: they are `key` sequences (`V37E63E`; `V16N68E` on and `V34E` — the
+terminate-monitor verb — off), the same way the TUI's DESCENT and DELTAH switches and
+the flight crew did it.
 
 ---
 
@@ -705,7 +709,9 @@ The physical controls Armstrong used, and what each input costs the computer:
 Widget spec: on-screen ACA (draggable/arrow keys, detent center, click quantization in
 P64), ROD toggle, and the AUTO/ATT HOLD mode switch — disabled states grey out with a
 tooltip explaining *why* (e.g. "LPD time expired"). At 600 px the three controls share
-zone 5 in a single row.
+zone 5 in a single row. Toggles are styled after the repo's `button-lab/button` cockpit
+switch (dark slot, lever, lit orange tip when on; fixed footprint so flipping never
+shifts layout) so the web panel and the TUI panel read as the same instrument.
 
 ---
 
@@ -716,7 +722,7 @@ options sheet sliding up. Contents, top to bottom:
 
 | Group | Options |
 | :--- | :--- |
-| **Scenario** | ACTUAL · HAPPY · SANDBOX (radio); "Compare (ghost happy case)" toggle; Restart scenario (confirmation required) |
+| **Scenario** | ACTUAL · HAPPY · SANDBOX (radio); in SANDBOX, the three mission switches (DESCENT · DELTAH · RR STEAL, mirroring the TUI panel); "Compare (ghost happy case)" toggle; Restart scenario (confirmation required) |
 | **Auto-pause** | Pause on: alarms (default ON) · restarts · program changes · keystrokes · every event (narrative mode) |
 | **Playback** | Rate presets; light-delay toggle (±1.3 s on captions); snap-scrub-to-events |
 | **Panels** | Show/hide: captions · hand controls · executive board · forensics drawer; re-pin collapsed zones |
