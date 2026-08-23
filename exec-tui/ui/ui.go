@@ -345,21 +345,27 @@ func (m Model) View() string {
 
 	left := lipgloss.JoinVertical(lipgloss.Left, m.viewLeft(), "", m.viewPools())
 	panel := dsky.Render(m.dskyState(), true)
-	gap := m.w - lipgloss.Width(left) - dsky.Width
+	switches := m.viewSwitches()
+	rightW := lipgloss.Width(switches)
+	if dsky.Width > rightW {
+		rightW = dsky.Width
+	}
+	right := lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.PlaceHorizontal(rightW, lipgloss.Right, panel),
+		"",
+		lipgloss.PlaceHorizontal(rightW, lipgloss.Right, switches),
+	)
+	gap := m.w - lipgloss.Width(left) - rightW
 	if gap < 1 {
 		gap = 1
 	}
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), panel)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
 	b.WriteString(body)
-	b.WriteString("\n")
-	b.WriteString(m.viewSwitches())
-	b.WriteString("\n")
-	b.WriteString(m.viewKeyBar())
 	return b.String()
 }
 
-// viewSwitches renders the bottom switch panel: DESCENT and DELTAH on the
-// left, RR STEAL on the right. h/l selects, space (or enter) flicks.
+// viewSwitches renders the three switches side by side (they live on the
+// right, under the DSKY). h/l selects, space (or enter) flicks.
 func (m Model) viewSwitches() string {
 	e := m.eng
 	keying := len(m.pending) > 0
@@ -395,12 +401,7 @@ func (m Model) viewSwitches() string {
 			center(capStyle.Render(sp.caption)+" "+state),
 		)
 	}
-	left := lipgloss.JoinHorizontal(lipgloss.Top, cols[0], "  ", cols[1])
-	gap := m.w - lipgloss.Width(left) - lipgloss.Width(cols[2]) - 2
-	if gap < 2 {
-		gap = 2
-	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), cols[2])
+	return lipgloss.JoinHorizontal(lipgloss.Top, cols[0], " ", cols[1], " ", cols[2])
 }
 
 func fmtAGC(ms float64) string {
@@ -573,7 +574,7 @@ func (m Model) viewLeft() string {
 		// Flight truth: with the theft active but no monitor, Eagle flew a
 		// quiet knife edge for ~5 minutes — margin gone, nothing overrun.
 		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("   ⚠ knife edge: margin ≈ 0 — one straw breaks it: [n] monitor · [6] P64")
+			Render("   ⚠ knife edge: margin ≈ 0 — one straw breaks it")
 	} else if e.RecoveredRecently(5000) {
 		stats += lipgloss.NewStyle().Foreground(cYellow).
 			Render("   ⟳ overrun recovering — a superseded SERVICER finished late and freed its pair")
@@ -613,30 +614,33 @@ func (m Model) boxFor(label string, s sim.SlotState, w int) string {
 	return lipgloss.NewStyle().Border(border).BorderForeground(color).Width(w).Render(content)
 }
 
-// viewPools renders the Executive's memory row-wise where the log used to
-// live: all eight core sets on one row of boxes, all five VACs on the next.
+// viewPools renders the Executive's memory where the log used to live: the
+// eight core sets as two stacks of four (CS1–CS4 beside CS5–CS8), and the
+// five VACs as one stack alongside.
 func (m Model) viewPools() string {
 	e := m.eng
 	cores := e.CoreSets()
 	vacs := e.VACs()
 	boxW := 12
-	if m.w < 142 {
-		boxW = clampi((m.w-dsky.Width-4)/8-2, 6, 12)
-	}
 
 	busyC, busyV := 0, 0
-	var coreBoxes, vacBoxes []string
+	var coreL, coreR, vacCol []string
 	for i, s := range cores {
 		if s.Busy {
 			busyC++
 		}
-		coreBoxes = append(coreBoxes, m.boxFor(fmt.Sprintf("CS%d", i+1), s, boxW))
+		box := m.boxFor(fmt.Sprintf("CS%d", i+1), s, boxW)
+		if i < 4 {
+			coreL = append(coreL, box)
+		} else {
+			coreR = append(coreR, box)
+		}
 	}
 	for i, s := range vacs {
 		if s.Busy {
 			busyV++
 		}
-		vacBoxes = append(vacBoxes, m.boxFor(fmt.Sprintf("VC%d", i+1), s, boxW))
+		vacCol = append(vacCol, m.boxFor(fmt.Sprintf("VC%d", i+1), s, boxW))
 	}
 
 	poolStyle := sDim
@@ -652,44 +656,15 @@ func (m Model) viewPools() string {
 		vacTitle += " " + sAlarm.Render("→ 1201")
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left,
-		coreTitle,
-		lipgloss.JoinHorizontal(lipgloss.Top, coreBoxes...),
-		vacTitle,
-		lipgloss.JoinHorizontal(lipgloss.Top, vacBoxes...),
+	coreGrid := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.JoinVertical(lipgloss.Left, coreL...),
+		lipgloss.JoinVertical(lipgloss.Left, coreR...),
 	)
-}
-
-func (m Model) viewKeyBar() string {
-	if m.typing {
-		return sAlarm.Render(" DSKY TYPING ") +
-			sDim.Render(" your keys cost real compute ─ 0-9 v n e(ENTR) c(CLR) ─ try v16n68e ─ ") +
-			sTitle.Render("esc") + sDim.Render(" to leave")
-	}
-	e := m.eng
-	hint := func(k, what string) string {
-		return sDim.Render("─ ") + sTitle.Render("["+k+"]") + " " + sDim.Render(what) + " "
-	}
-	// A latched control renders bright with a ✓ while its state is on, so
-	// the bar itself answers "what is running right now?".
-	latched := func(active bool, k, what string) string {
-		if active {
-			s := lipgloss.NewStyle().Foreground(cGreen).Bold(true)
-			return sDim.Render("─ ") + s.Render("["+k+"] "+what+" ✓") + " "
-		}
-		return hint(k, what)
-	}
-	phase := e.Phase()
-	line1 := hint("h/l", "select switch") + hint("space", "flip") +
-		hint("t", "you type") + hint("p", "ping radar") +
-		latched(phase == sim.P64, "6", "P64") +
-		latched(phase == sim.P66, "a", "att-hold")
-	line2 := hint(".", "pause") + hint("-", "slow") + hint("+", "fast") +
-		hint("x", "reset") + hint("q", "quit")
-	if m.w >= 175 {
-		return line1 + line2
-	}
-	return line1 + "\n" + line2
+	return lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.JoinVertical(lipgloss.Left, coreTitle, coreGrid),
+		"  ",
+		lipgloss.JoinVertical(lipgloss.Left, vacTitle, lipgloss.JoinVertical(lipgloss.Left, vacCol...)),
+	)
 }
 
 func clampi(v, lo, hi int) int {

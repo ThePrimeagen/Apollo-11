@@ -46,36 +46,6 @@ func TestTimelineHalfWidth(t *testing.T) {
 }
 
 func TestPoolsRowWise(t *testing.T) {
-	t.Run("happy: all eight core sets share one row of boxes", func(t *testing.T) {
-		_, m := newTestModel()
-		found := false
-		for _, line := range strings.Split(m.View(), "\n") {
-			if strings.Contains(line, "CS1") {
-				if !strings.Contains(line, "CS8") {
-					t.Fatalf("CS1 and CS8 must sit on the same line, got %q", line)
-				}
-				found = true
-			}
-		}
-		if !found {
-			t.Fatal("core-set boxes missing")
-		}
-	})
-	t.Run("happy: all five VACs share one row of boxes", func(t *testing.T) {
-		_, m := newTestModel()
-		found := false
-		for _, line := range strings.Split(m.View(), "\n") {
-			if strings.Contains(line, "VC1") {
-				if !strings.Contains(line, "VC5") {
-					t.Fatalf("VC1 and VC5 must sit on the same line, got %q", line)
-				}
-				found = true
-			}
-		}
-		if !found {
-			t.Fatal("VAC boxes missing")
-		}
-	})
 	t.Run("happy: pool titles and counts survive the move", func(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
