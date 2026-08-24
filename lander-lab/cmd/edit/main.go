@@ -3,8 +3,11 @@ package main
 // lander-edit: a vim-ish terminal editor for the LM ASCII atlas.
 //
 //	h j k l     move (canvas / palette / frames)
+//	1-0         clutch last 10 colors
+//	!@#$%^&*()  paint glyphs: ░▒▓█ ▀▄▌▐ ▖▗
+//	c           8-bit color dropdown (greys + cube; space picks, esc closes)
 //	space       toggle-select the cell under the cursor
-//	i           paint selected palette color (fg+bg); blank becomes █
+//	i           stamp selected glyph in selected color
 //	f / b       paint foreground / background only
 //	d           delete to transparent
 //	ctrl-a / b  increment / decrement shade (░▒▓█)

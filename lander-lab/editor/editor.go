@@ -55,6 +55,15 @@ type Model struct {
 	sel        map[cellKey]bool
 	err        string
 	status     string
+
+	Brush        Swatch
+	PaintCh      rune
+	RecentColors []Swatch
+	RecentGlyphs []rune
+	PickerOpen   bool
+	PickerIdx    int
+	PickerCube   bool
+	CubeRed      int
 }
 
 // New boots the editor on an atlas. path is where :w / Save writes.
@@ -69,18 +78,23 @@ func New(a *sprite.Atlas, path string) Model {
 		pal = 0
 	}
 	return Model{
-		Atlas:    a,
-		Size:     sprite.Size4,
-		Heading:  sprite.N,
-		Path:     path,
-		Win:      WinCanvas,
-		PalIdx:   pal,
-		TermW:    80,
-		TermH:    24,
-		CanvasX:  1,
-		CanvasY:  2,
-		sel:      map[cellKey]bool{},
-		status:   "i paint · d delete · f/b fg/bg · ^A/^B shade · space select · ^W hjkl windows · q quit",
+		Atlas:        a,
+		Size:         sprite.Size4,
+		Heading:      sprite.N,
+		Path:         path,
+		Win:          WinCanvas,
+		PalIdx:       pal,
+		TermW:        80,
+		TermH:        24,
+		CanvasX:      1,
+		CanvasY:      2,
+		sel:          map[cellKey]bool{},
+		Brush:        Swatch{FG: 252, BG: -1},
+		PaintCh:      '█',
+		RecentColors: seedColors(),
+		RecentGlyphs: seedGlyphs(),
+		PickerIdx:    23,
+		status:       "1-0 colors  !@# paints  c 8-bit  i stamp  d delete  ^W hjkl  q quit",
 	}
 }
 
@@ -148,6 +162,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.PickerOpen {
+		return m.handlePickerKey(msg)
+	}
+
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return m, tea.Quit
@@ -173,9 +191,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	r := runeFrom(msg)
+	if m.applyColorKey(r) || m.applyGlyphKey(r) {
+		return m, nil
+	}
 	switch r {
 	case 'q':
 		return m, tea.Quit
+	case 'c':
+		m.openPicker()
+	case 'p':
+		m.cyclePaint()
 	case 'h', 'j', 'k', 'l':
 		m.move(r)
 	case 'i', 'I':
@@ -194,6 +219,30 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Win == WinCanvas {
 			m.paint('b')
 		}
+	}
+	return m, nil
+}
+
+func (m Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.closePicker(false)
+		return m, nil
+	case tea.KeySpace, tea.KeyEnter:
+		m.closePicker(true)
+		return m, nil
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+	}
+	r := runeFrom(msg)
+	switch r {
+	case 'c', 'q':
+		if r == 'q' {
+			return m, tea.Quit
+		}
+		m.closePicker(false)
+	case 'h', 'j', 'k', 'l', '[', ']', 'g':
+		m.movePicker(r)
 	}
 	return m, nil
 }
@@ -222,13 +271,13 @@ func (m *Model) space() {
 			m.sel[k] = true
 		}
 	case WinPalette:
-		// space selects the highlighted palette entry — PalIdx already
-		// follows hjkl, so this is a confirm no-op besides status.
 		if m.PalIdx >= 0 && m.PalIdx < len(m.Atlas.Palette) {
-			m.status = "color " + m.Atlas.Palette[m.PalIdx].Name
+			p := m.Atlas.Palette[m.PalIdx]
+			m.Brush = Swatch{FG: p.FG, BG: p.BG}
+			m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
+			m.status = "color " + p.Name
 		}
 	case WinFrames:
-		// space confirms the highlighted frame (already current)
 	}
 }
 
@@ -264,6 +313,10 @@ func (m *Model) move(r rune) {
 			m.PalIdx = (m.PalIdx - 1 + n) % n
 		case 'j', 'l':
 			m.PalIdx = (m.PalIdx + 1) % n
+		}
+		if m.PalIdx >= 0 && m.PalIdx < n {
+			p := m.Atlas.Palette[m.PalIdx]
+			m.Brush = Swatch{FG: p.FG, BG: p.BG}
 		}
 	case WinFrames:
 		switch r {
@@ -336,41 +389,49 @@ func (m *Model) targets() []cellKey {
 	return []cellKey{{m.CursorR, m.CursorC}}
 }
 
-func (m *Model) pal() *sprite.PaletteEntry {
-	if m.PalIdx < 0 || m.PalIdx >= len(m.Atlas.Palette) {
-		return nil
+func (m *Model) color() Swatch {
+	if m.PalIdx >= 0 && m.PalIdx < len(m.Atlas.Palette) {
+		p := m.Atlas.Palette[m.PalIdx]
+		return Swatch{FG: p.FG, BG: p.BG}
 	}
-	return &m.Atlas.Palette[m.PalIdx]
+	return m.Brush
 }
 
 func (m *Model) paint(mode rune) {
-	if mode != 'd' && m.pal() == nil {
-		return
-	}
 	sp := cloneSprite(m.Current())
+	col := m.color()
 	for _, k := range m.targets() {
 		c := sp.At(k.R, k.C)
 		switch mode {
 		case 'd':
 			c = sprite.Cell{Ch: ' ', FG: -1, BG: -1}
 		case 'i':
-			p := m.pal()
-			if c.Ch == ' ' {
-				c.Ch = '█'
+			ch := m.PaintCh
+			if ch == 0 || ch == ' ' {
+				ch = '█'
 			}
-			c.FG, c.BG = p.FG, p.BG
+			c.Ch = ch
+			c.FG, c.BG = col.FG, col.BG
+			m.RecentGlyphs = rememberGlyph(m.RecentGlyphs, ch, 10)
+			m.RecentColors = rememberSwatch(m.RecentColors, col, 10)
 		case 'f':
-			p := m.pal()
 			if c.Ch == ' ' {
-				c.Ch = '█'
+				c.Ch = m.PaintCh
+				if c.Ch == 0 || c.Ch == ' ' {
+					c.Ch = '█'
+				}
 			}
-			c.FG = p.FG
+			c.FG = col.FG
+			m.RecentColors = rememberSwatch(m.RecentColors, col, 10)
 		case 'b':
-			p := m.pal()
 			if c.Ch == ' ' {
-				c.Ch = '█'
+				c.Ch = m.PaintCh
+				if c.Ch == 0 || c.Ch == ' ' {
+					c.Ch = '█'
+				}
 			}
-			c.BG = p.BG
+			c.BG = col.BG
+			m.RecentColors = rememberSwatch(m.RecentColors, col, 10)
 		}
 		sp.Set(k.R, k.C, c)
 	}
@@ -379,15 +440,15 @@ func (m *Model) paint(mode rune) {
 
 func (m *Model) shade(dir int) {
 	sp := cloneSprite(m.Current())
-	p := m.pal()
 	for _, k := range m.targets() {
 		c := sp.At(k.R, k.C)
 		wasEmpty := c.Transparent()
 		if dir > 0 {
 			c = sprite.IncrementShade(c)
-			if wasEmpty && p != nil {
-				c.FG = p.FG
-				c.BG = p.BG
+			if wasEmpty {
+				col := m.color()
+				c.FG = col.FG
+				c.BG = col.BG
 			}
 		} else {
 			c = sprite.DecrementShade(c)
@@ -499,7 +560,20 @@ func oneCell(c sprite.Cell) sprite.Sprite {
 }
 
 func renderPalette(m Model) string {
-	lines := make([]string, len(m.Atlas.Palette))
+	const w = 36
+	var lines []string
+	lines = append(lines, padPlain("colors  1-0 clutch", w))
+	lines = append(lines, padPlain(renderClutch(m), w))
+	lines = append(lines, padPlain("paints  !@# $%^ &*( )", w))
+	lines = append(lines, padPlain(renderGlyphs(m), w))
+	if m.PickerOpen {
+		lines = append(lines, padPlain(fmt.Sprintf("8-bit ▾  %s", pickerLabel(m)), w))
+		lines = append(lines, renderPickerGrid(m, w)...)
+	} else {
+		sw := swatchCell(m.color())
+		lines = append(lines, padPlain(fmt.Sprintf("8-bit ▸  %s fg %-3d  c opens", sw, m.color().FG), w))
+	}
+	lines = append(lines, padPlain("named", w))
 	for i, p := range m.Atlas.Palette {
 		mark := "  "
 		if i == m.PalIdx {
@@ -507,27 +581,132 @@ func renderPalette(m Model) string {
 		}
 		swatch := " "
 		if p.FG >= 0 {
-			cell := sprite.Cell{Ch: '█', FG: p.FG, BG: p.BG}
-			swatch = sprite.Render(oneCell(cell))
+			swatch = sprite.Render(oneCell(sprite.Cell{Ch: '█', FG: p.FG, BG: p.BG}))
 		}
 		bg := "-"
 		if p.BG >= 0 {
 			bg = fmt.Sprintf("%d", p.BG)
 		}
-		lines[i] = fmt.Sprintf("%s%s %-7s fg %-3d bg %s", mark, swatch, p.Name, p.FG, bg)
+		lines = append(lines, padPlain(fmt.Sprintf("%s%s %-7s fg %-3d bg %s", mark, swatch, p.Name, p.FG, bg), w))
 	}
-	if len(lines) == 0 {
-		lines = []string{"(empty)"}
-	}
-	w := 28
-	for i := range lines {
-		lines[i] = padPlain(lines[i], w)
+	if len(m.Atlas.Palette) == 0 {
+		lines = append(lines, padPlain("(empty)", w))
 	}
 	focus := ""
 	if m.Win == WinPalette {
 		focus = "*"
 	}
 	return box(focus+" palette ", lines, w)
+}
+
+func swatchCell(s Swatch) string {
+	if s.FG < 0 && s.BG < 0 {
+		return " "
+	}
+	return sprite.Render(oneCell(sprite.Cell{Ch: '█', FG: s.FG, BG: s.BG}))
+}
+
+func renderClutch(m Model) string {
+	var b strings.Builder
+	for i, k := range ColorKeys {
+		b.WriteRune(k)
+		if i < len(m.RecentColors) {
+			b.WriteString(swatchCell(m.RecentColors[i]))
+		} else {
+			b.WriteByte('.')
+		}
+		if i+1 < len(ColorKeys) {
+			b.WriteByte(' ')
+		}
+	}
+	return b.String()
+}
+
+func renderGlyphs(m Model) string {
+	var b strings.Builder
+	for i, k := range GlyphKeys {
+		b.WriteRune(k)
+		ch := DefaultGlyphs[i]
+		mark := string(ch)
+		if m.PaintCh == ch {
+			mark = "\x1b[7m" + mark + "\x1b[0m"
+		}
+		b.WriteString(mark)
+		if i+1 < len(GlyphKeys) {
+			b.WriteByte(' ')
+		}
+	}
+	b.WriteString("  more ")
+	for _, ch := range ExtraGlyphs {
+		if m.PaintCh == ch {
+			b.WriteString("\x1b[7m")
+			b.WriteRune(ch)
+			b.WriteString("\x1b[0m")
+		} else {
+			b.WriteRune(ch)
+		}
+	}
+	if len(m.RecentGlyphs) > 0 {
+		b.WriteString("  past ")
+		n := len(m.RecentGlyphs)
+		if n > 6 {
+			n = 6
+		}
+		for i := 0; i < n; i++ {
+			b.WriteRune(m.RecentGlyphs[i])
+		}
+	}
+	return b.String()
+}
+
+func pickerLabel(m Model) string {
+	if m.PickerCube {
+		return fmt.Sprintf("cube r=%d  [ ] slice", m.CubeRed)
+	}
+	fg := 255
+	if m.PickerIdx >= 0 && m.PickerIdx < len(Greys) {
+		fg = Greys[m.PickerIdx]
+	}
+	return fmt.Sprintf("grey %d  g greys", fg)
+}
+
+func renderPickerGrid(m Model, w int) []string {
+	var lines []string
+	if m.PickerCube {
+		var row strings.Builder
+		for i := 0; i < 36; i++ {
+			if i > 0 && i%6 == 0 {
+				lines = append(lines, padPlain(row.String(), w))
+				row.Reset()
+			}
+			fg := cubeColor(m.CubeRed, i)
+			cell := sprite.Render(oneCell(sprite.Cell{Ch: '█', FG: fg, BG: -1}))
+			if i == m.PickerIdx {
+				cell = "\x1b[7m" + cell + "\x1b[0m"
+			}
+			row.WriteString(cell)
+		}
+		if row.Len() > 0 {
+			lines = append(lines, padPlain(row.String(), w))
+		}
+		return lines
+	}
+	var row strings.Builder
+	for i, g := range Greys {
+		if i > 0 && i%12 == 0 {
+			lines = append(lines, padPlain(row.String(), w))
+			row.Reset()
+		}
+		cell := sprite.Render(oneCell(sprite.Cell{Ch: '█', FG: g, BG: -1}))
+		if i == m.PickerIdx {
+			cell = "\x1b[7m" + cell + "\x1b[0m"
+		}
+		row.WriteString(cell)
+	}
+	if row.Len() > 0 {
+		lines = append(lines, padPlain(row.String(), w))
+	}
+	return lines
 }
 
 func renderFrames(m Model) string {
@@ -552,7 +731,7 @@ func renderFrames(m Model) string {
 		" " + strings.Join(heads, " "),
 		"shrink: 4 → 3 → 2 → 1",
 	}
-	w := 28
+	w := 36
 	for i := range lines {
 		lines[i] = padPlain(lines[i], w)
 	}
