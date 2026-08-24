@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func key(m labModel, r rune) labModel {
-	mm, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	mm, _ := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	return mm.(labModel)
 }
 
@@ -30,7 +30,7 @@ func TestLabBoard(t *testing.T) {
 		if n != 1 {
 			t.Fatalf("want exactly 1 focused switch, got %d", n)
 		}
-		if !strings.Contains(m.View(), "SWITCH") {
+		if !strings.Contains(m.View().Content, "SWITCH") {
 			t.Fatal("the board must carry its title")
 		}
 	})
@@ -65,12 +65,12 @@ func TestLabNavigation(t *testing.T) {
 func TestLabPress(t *testing.T) {
 	t.Run("happy: space flicks the focused switch, enter too", func(t *testing.T) {
 		m := newLab()
-		mm, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+		mm, _ := m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		m = mm.(labModel)
 		if !m.switches[0].On {
 			t.Fatal("space must flick the focused switch on")
 		}
-		mm, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		mm, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 		m = mm.(labModel)
 		if m.switches[0].On {
 			t.Fatal("enter must flick it back off")
@@ -78,7 +78,7 @@ func TestLabPress(t *testing.T) {
 	})
 	t.Run("unhappy: flicking never affects unfocused switches", func(t *testing.T) {
 		m := newLab()
-		mm, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+		mm, _ := m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		m = mm.(labModel)
 		for i, b := range m.switches {
 			if i != 0 && b.On {
@@ -88,7 +88,7 @@ func TestLabPress(t *testing.T) {
 	})
 	t.Run("happy: q quits", func(t *testing.T) {
 		m := newLab()
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		_, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 		if cmd == nil {
 			t.Fatal("q must quit")
 		}
