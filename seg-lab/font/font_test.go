@@ -35,6 +35,17 @@ func TestGlyphSize(t *testing.T) {
 			t.Fatalf("large %dx%d must outsize small %dx%d", lw, lh, sw, sh)
 		}
 	})
+	t.Run("happy: more columns than rows so a terminal cell does not squash the letter", func(t *testing.T) {
+		// A terminal cell is about twice as tall as it is wide. A square
+		// grid of █ (7×7, 11×13) renders as a skinny stick — that is why
+		// the Go port looked worse than the TTF, whose advance/height is ~0.59.
+		for _, size := range []Size{Small, Large} {
+			w, h := GlyphSize(size)
+			if w <= h {
+				t.Fatalf("%s %dx%d is too skinny; need width > height", size, w, h)
+			}
+		}
+	})
 	t.Run("unhappy: an unknown size reports 0x0", func(t *testing.T) {
 		w, h := GlyphSize(Size(99))
 		if w != 0 || h != 0 {
@@ -108,6 +119,62 @@ func TestRenderLarge(t *testing.T) {
 		}
 		if got := Render("HELLO", Size(99)); got != "" {
 			t.Fatalf("unknown size must render empty, got %q", got)
+		}
+	})
+}
+
+func hasInk(s string) bool {
+	return strings.ContainsAny(s, "█▀▄")
+}
+
+func colHasInk(rows []string, col int) bool {
+	for _, row := range rows {
+		rs := []rune(row)
+		if col >= 0 && col < len(rs) && rs[col] != ' ' {
+			return true
+		}
+	}
+	return false
+}
+
+func TestLEDGeometry(t *testing.T) {
+	t.Run("happy: 8 is a closed frame with a mid bar, 1 sits on the right", func(t *testing.T) {
+		eight := lines(Render("8", Large))
+		if len(eight) < 3 {
+			t.Fatal("8 is empty")
+		}
+		last := len([]rune(eight[0])) - 1
+		if !hasInk(eight[0]) || !hasInk(eight[len(eight)-1]) {
+			t.Fatalf("8 must light A and D:\n%s", Render("8", Large))
+		}
+		if !colHasInk(eight, 0) && !colHasInk(eight, 1) {
+			t.Fatalf("8 must light the left verticals:\n%s", Render("8", Large))
+		}
+		if !colHasInk(eight, last) && !colHasInk(eight, last-1) {
+			t.Fatalf("8 must light the right verticals:\n%s", Render("8", Large))
+		}
+		if !hasInk(eight[len(eight)/2]) {
+			t.Fatalf("8 must light the G bar:\n%s", Render("8", Large))
+		}
+		one := Render("1", Large)
+		// 1 is B|C — ink belongs on the right half, not a centered I-beam.
+		for _, row := range lines(one) {
+			rs := []rune(row)
+			leftInk := 0
+			for i := 0; i < len(rs)/2; i++ {
+				if rs[i] != ' ' {
+					leftInk++
+				}
+			}
+			if leftInk > 1 {
+				t.Fatalf("1 leaked onto the left side:\n%s", one)
+			}
+		}
+	})
+	t.Run("unhappy: a letter the map does not have stays a blank cell", func(t *testing.T) {
+		out := Render("?", Large)
+		if strings.ContainsAny(out, "█▀▄") {
+			t.Fatalf("unknown rune must not invent segments:\n%s", out)
 		}
 	})
 }

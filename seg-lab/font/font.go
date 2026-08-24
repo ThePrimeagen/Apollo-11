@@ -1,11 +1,16 @@
 // Package font draws a string in 14-segment LED bars.
 //
 // Unicode has no segmented letters. Pass a string and Small or Large.
-// Bars are filled blocks with a gap at each joint — the same look as a
-// calculator display, not a box-drawing wireframe.
+//
+// The old look was a TTF: the terminal's font rasterizer drew smooth
+// filled bars in one cell. This package keeps that same outline
+// (Segmented Alpha: L=70 R=516 T=770 B=-50, 14-seg) and stamps it onto
+// a character grid. Bars stay thick, joints stay gapped. Half-blocks
+// (▀▄) give the extra vertical resolution a square █ grid does not.
 package font
 
 import (
+	"math"
 	"strings"
 	"unicode"
 )
@@ -29,23 +34,19 @@ func (s Size) String() string {
 }
 
 // GlyphSize is the per-letter cell (width × height) for size.
+// Width is greater than height: a terminal cell is about twice as tall
+// as it is wide, so a square grid of █ renders as a skinny stick.
 func GlyphSize(size Size) (w, h int) {
 	switch size {
 	case Small:
-		return 7, 7
+		return 7, 5
 	case Large:
-		return 11, 13
+		return 13, 9
 	}
 	return 0, 0
 }
 
-// 14-segment bits.
-//
-//	    A A A
-//	  F H I J B
-//	    G   G
-//	  E K L M C
-//	    D D D
+// 14-segment bits. Same map as the TTF.
 const (
 	sA uint16 = 1 << iota
 	sB
@@ -105,6 +106,20 @@ var glyphs = map[rune]uint16{
 	'_': sD,
 }
 
+// Same frame as SegmentedAlpha.ttf (1000 em, Cascadia-width advance).
+const (
+	segL   = 70.0
+	segR   = 516.0
+	segT   = 770.0
+	segB   = -50.0
+	segMY  = 360.0
+	segCX  = (segL + segR) / 2
+	ttfTH  = 52.0
+	ttfGap = 12.0
+)
+
+type point struct{ x, y float64 }
+
 // Render draws text at size. Empty text or an unknown size yield "".
 func Render(text string, size Size) string {
 	w, h := GlyphSize(size)
@@ -138,119 +153,151 @@ func lookup(r rune) uint16 {
 	return 0
 }
 
-// paint fills 14-segment bars the way the old TTF did: thick blocks
-// with a one-cell gap at each joint, not a connected wireframe.
 func paint(bits uint16, w, h int) []string {
-	g := make([][]rune, h)
-	for r := range g {
-		g[r] = []rune(strings.Repeat(" ", w))
-	}
-	on := func(seg uint16) bool { return bits&seg != 0 }
-	plot := func(row, col int) {
-		if row >= 0 && row < h && col >= 0 && col < w {
-			g[row][col] = '█'
-		}
-	}
-	fill := func(r0, c0, r1, c1 int) {
-		if r0 > r1 {
-			r0, r1 = r1, r0
-		}
-		if c0 > c1 {
-			c0, c1 = c1, c0
-		}
-		for r := r0; r <= r1; r++ {
-			for c := c0; c <= c1; c++ {
-				plot(r, c)
+	// Two pixel rows per display row → ▀▄█. Thickness is scaled up from
+	// the TTF's 52/1000 hairline so a 5–9 row grid still reads as a bar.
+	//
+	// Crop to the letter frame, not the full em: the TTF's empty
+	// descender/ascender padding was showing up as a ghost ▀ row.
+	pixW, pixH := w, h*2
+	th := (segT - segB) * 0.16
+	g := ttfGap * (th / ttfTH)
+	pad := th/2 + 10
+	x0, x1 := segL-pad, segR+pad
+	y0, y1 := segB-pad, segT+pad
+	polys := segmentPolys(bits, th, g)
+
+	on := make([][]bool, pixH)
+	for py := 0; py < pixH; py++ {
+		on[py] = make([]bool, pixW)
+		for px := 0; px < pixW; px++ {
+			hits := 0
+			for sy := 0; sy < 2; sy++ {
+				for sx := 0; sx < 2; sx++ {
+					x := x0 + (float64(px)+0.25+0.5*float64(sx))/float64(pixW)*(x1-x0)
+					y := y1 - (float64(py)+0.25+0.5*float64(sy))/float64(pixH)*(y1-y0)
+					if insideAny(x, y, polys) {
+						hits++
+					}
+				}
 			}
+			on[py][px] = hits >= 2
 		}
-	}
-
-	t := 1
-	if h >= 11 {
-		t = 2
-	}
-	mid := h / 2
-	cx := w / 2
-	last := w - 1
-	// Inset horizontals so they do not meet the verticals — the LED gap.
-	innerL := t + 1
-	innerR := last - t - 1
-
-	if on(sA) {
-		fill(0, innerL, t-1, innerR)
-	}
-	if on(sD) {
-		fill(h-t, innerL, h-1, innerR)
-	}
-	if on(sG1) {
-		fill(mid-t/2, innerL, mid-t/2+t-1, cx-1)
-	}
-	if on(sG2) {
-		fill(mid-t/2, cx+1, mid-t/2+t-1, innerR)
-	}
-	if on(sF) {
-		fill(t, 0, mid-1, t-1)
-	}
-	if on(sE) {
-		fill(mid+1, 0, h-1-t, t-1)
-	}
-	if on(sB) {
-		fill(t, last-t+1, mid-1, last)
-	}
-	if on(sC) {
-		fill(mid+1, last-t+1, h-1-t, last)
-	}
-	if on(sI) {
-		fill(t, cx-t/2, mid-1, cx-t/2+t-1)
-	}
-	if on(sL) {
-		fill(mid+1, cx-t/2, h-1-t, cx-t/2+t-1)
-	}
-	if on(sH) {
-		diag(plot, t, t, mid-1, cx-1, t)
-	}
-	if on(sJ) {
-		diag(plot, t, last-t, mid-1, cx+1, t)
-	}
-	if on(sK) {
-		diag(plot, h-1-t, t, mid+1, cx-1, t)
-	}
-	if on(sM) {
-		diag(plot, h-1-t, last-t, mid+1, cx+1, t)
 	}
 
 	out := make([]string, h)
-	for i := range g {
-		out[i] = string(g[i])
+	for row := 0; row < h; row++ {
+		buf := make([]rune, w)
+		for col := 0; col < w; col++ {
+			top, bot := on[row*2][col], on[row*2+1][col]
+			switch {
+			case top && bot:
+				buf[col] = '█'
+			case top:
+				buf[col] = '▀'
+			case bot:
+				buf[col] = '▄'
+			default:
+				buf[col] = ' '
+			}
+		}
+		out[row] = string(buf)
 	}
 	return out
 }
 
-func diag(plot func(int, int), r0, c0, r1, c1, thick int) {
-	n := abs(r1-r0) + 1
-	if m := abs(c1-c0) + 1; m > n {
-		n = m
-	}
-	if n <= 1 {
-		plot(r0, c0)
-		return
-	}
-	if thick < 1 {
-		thick = 1
-	}
-	for i := 0; i < n; i++ {
-		r := r0 + (r1-r0)*i/(n-1)
-		c := c0 + (c1-c0)*i/(n-1)
-		for dt := 0; dt < thick; dt++ {
-			plot(r, c+dt)
-			plot(r+dt, c)
+func segmentPolys(bits uint16, th, g float64) [][]point {
+	var out [][]point
+	add := func(x1, y1, x2, y2 float64) {
+		if p := thickLine(x1, y1, x2, y2, th); len(p) == 4 {
+			out = append(out, p)
 		}
+	}
+	on := func(seg uint16) bool { return bits&seg != 0 }
+	if on(sA) {
+		add(segL+g, segT, segR-g, segT)
+	}
+	if on(sD) {
+		add(segL+g, segB, segR-g, segB)
+	}
+	if on(sG1) {
+		add(segL+g, segMY, segCX-g, segMY)
+	}
+	if on(sG2) {
+		add(segCX+g, segMY, segR-g, segMY)
+	}
+	if on(sF) {
+		add(segL, segT-g, segL, segMY+g)
+	}
+	if on(sE) {
+		add(segL, segMY-g, segL, segB+g)
+	}
+	if on(sB) {
+		add(segR, segT-g, segR, segMY+g)
+	}
+	if on(sC) {
+		add(segR, segMY-g, segR, segB+g)
+	}
+	if on(sI) {
+		add(segCX, segT-g, segCX, segMY+g)
+	}
+	if on(sL) {
+		add(segCX, segMY-g, segCX, segB+g)
+	}
+	if on(sH) {
+		add(segL+g*2, segT-g*2, segCX-g, segMY+g)
+	}
+	if on(sJ) {
+		add(segR-g*2, segT-g*2, segCX+g, segMY+g)
+	}
+	if on(sK) {
+		add(segL+g*2, segB+g*2, segCX-g, segMY-g)
+	}
+	if on(sM) {
+		add(segR-g*2, segB+g*2, segCX+g, segMY-g)
+	}
+	return out
+}
+
+func thickLine(x1, y1, x2, y2, w float64) []point {
+	dx, dy := x2-x1, y2-y1
+	length := math.Hypot(dx, dy)
+	if length == 0 {
+		return nil
+	}
+	nx, ny := -dy/length*w/2, dx/length*w/2
+	return []point{
+		{x1 + nx, y1 + ny},
+		{x2 + nx, y2 + ny},
+		{x2 - nx, y2 - ny},
+		{x1 - nx, y1 - ny},
 	}
 }
 
-func abs(n int) int {
-	if n < 0 {
-		return -n
+func insideAny(x, y float64, polys [][]point) bool {
+	for _, poly := range polys {
+		if inside(point{x, y}, poly) {
+			return true
+		}
 	}
-	return n
+	return false
+}
+
+func inside(p point, poly []point) bool {
+	n := len(poly)
+	if n < 3 {
+		return false
+	}
+	pos, neg := 0, 0
+	for i := 0; i < n; i++ {
+		a, b := poly[i], poly[(i+1)%n]
+		cross := (b.x-a.x)*(p.y-a.y) - (b.y-a.y)*(p.x-a.x)
+		switch {
+		case cross > 1e-9:
+			pos++
+		case cross < -1e-9:
+			neg++
+		}
+	}
+	return pos == 0 || neg == 0
 }
