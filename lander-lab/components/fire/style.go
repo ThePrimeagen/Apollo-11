@@ -21,16 +21,7 @@ type Band struct {
 // heat is 15% above the original ladder (first visible stays H=1).
 // Bright yellow is the ceiling; nothing uses xterm 231 (white).
 func Bands() []Band {
-	return []Band{
-		{Min: 1, Max: 6, Glyph: '⠁', Name: "single braille", FG: 88, BG: -1, Eq: "1 <= H <= 6"},
-		{Min: 7, Max: 12, Glyph: '⠒', Name: "two-dot braille", FG: 124, BG: -1, Eq: "7 <= H <= 12"},
-		{Min: 13, Max: 23, Glyph: '⠶', Name: "four-dot braille", FG: 160, BG: -1, Eq: "13 <= H <= 23"},
-		{Min: 24, Max: 46, Glyph: '░', Name: "quarter shade", FG: 166, BG: -1, Eq: "24 <= H <= 46"},
-		{Min: 47, Max: 81, Glyph: '▒', Name: "half shade", FG: 202, BG: -1, Eq: "47 <= H <= 81"},
-		{Min: 82, Max: 138, Glyph: '▄', Name: "half square", FG: 208, BG: 52, Eq: "82 <= H <= 138"},
-		{Min: 139, Max: 229, Glyph: '▓', Name: "heavy shade", FG: 220, BG: 166, Eq: "139 <= H <= 229"},
-		{Min: 230, Max: 1 << 30, Glyph: '█', Name: "solid bright yellow", FG: 226, BG: 220, Eq: "H >= 230"},
-	}
+	return DefaultHeat().Bands()
 }
 
 // Style maps neighborhood heat onto a flame cell.
