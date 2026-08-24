@@ -55,8 +55,11 @@ func TestRenderSmall(t *testing.T) {
 			t.Fatalf("small width %d, want %d (%q)", len([]rune(ls[0])), glyphW(Small, 5), ls[0])
 		}
 		body := strings.Join(ls, "\n")
-		if !strings.Contains(body, "│") || !strings.Contains(body, "─") {
-			t.Fatalf("small HELLO must light verticals and bars:\n%s", out)
+		if !strings.ContainsRune(body, '█') {
+			t.Fatalf("small HELLO must be filled LED bars, not a wireframe:\n%s", out)
+		}
+		if strings.ContainsAny(body, "─│┌┐└┘├┤") {
+			t.Fatalf("thin box-drawing is the look we left behind:\n%s", out)
 		}
 	})
 	t.Run("unhappy: junk runes occupy a blank cell, no panic", func(t *testing.T) {
@@ -82,9 +85,17 @@ func TestRenderLarge(t *testing.T) {
 		if len([]rune(ls[0])) != glyphW(Large, 11) {
 			t.Fatalf("large width %d, want %d", len([]rune(ls[0])), glyphW(Large, 11))
 		}
-		body := strings.Join(ls, "")
-		if !strings.ContainsRune(body, '╱') || !strings.ContainsRune(body, '╲') {
-			t.Fatalf("W must use both diagonals:\n%s", out)
+		wBody := strings.Join(ls, "")
+		if strings.Count(wBody, "█") < 20 {
+			t.Fatalf("large HELLO WORLD must be filled bars:\n%s", out)
+		}
+		u := Render("U", Large)
+		w := Render("W", Large)
+		if w == u {
+			t.Fatalf("W must not collapse to U\n%s", w)
+		}
+		if !strings.Contains(w, "█") {
+			t.Fatalf("W must be filled bars:\n%s", w)
 		}
 		small := Render("HELLO WORLD", Small)
 		if len(ls) <= len(lines(small)) {

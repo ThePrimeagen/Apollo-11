@@ -1,7 +1,8 @@
-// Package font draws a string in 14-segment terminal strokes.
+// Package font draws a string in 14-segment LED bars.
 //
-// Unicode has no segmented letters. This package does not generate a TTF
-// and does not call Python — pass a string and Small or Large.
+// Unicode has no segmented letters. Pass a string and Small or Large.
+// Bars are filled blocks with a gap at each joint — the same look as a
+// calculator display, not a box-drawing wireframe.
 package font
 
 import (
@@ -31,9 +32,9 @@ func (s Size) String() string {
 func GlyphSize(size Size) (w, h int) {
 	switch size {
 	case Small:
-		return 5, 5
+		return 7, 7
 	case Large:
-		return 7, 9
+		return 11, 13
 	}
 	return 0, 0
 }
@@ -137,109 +138,85 @@ func lookup(r rune) uint16 {
 	return 0
 }
 
+// paint fills 14-segment bars the way the old TTF did: thick blocks
+// with a one-cell gap at each joint, not a connected wireframe.
 func paint(bits uint16, w, h int) []string {
 	g := make([][]rune, h)
 	for r := range g {
 		g[r] = []rune(strings.Repeat(" ", w))
 	}
 	on := func(seg uint16) bool { return bits&seg != 0 }
-	set := func(row, col int, ch rune) {
+	plot := func(row, col int) {
 		if row >= 0 && row < h && col >= 0 && col < w {
-			g[row][col] = ch
+			g[row][col] = '█'
 		}
+	}
+	fill := func(r0, c0, r1, c1 int) {
+		if r0 > r1 {
+			r0, r1 = r1, r0
+		}
+		if c0 > c1 {
+			c0, c1 = c1, c0
+		}
+		for r := r0; r <= r1; r++ {
+			for c := c0; c <= c1; c++ {
+				plot(r, c)
+			}
+		}
+	}
+
+	t := 1
+	if h >= 11 {
+		t = 2
 	}
 	mid := h / 2
 	cx := w / 2
 	last := w - 1
+	// Inset horizontals so they do not meet the verticals — the LED gap.
+	innerL := t + 1
+	innerR := last - t - 1
 
 	if on(sA) {
-		for c := 1; c < last; c++ {
-			set(0, c, '─')
-		}
+		fill(0, innerL, t-1, innerR)
 	}
 	if on(sD) {
-		for c := 1; c < last; c++ {
-			set(h-1, c, '─')
-		}
+		fill(h-t, innerL, h-1, innerR)
 	}
 	if on(sG1) {
-		for c := 1; c < cx; c++ {
-			set(mid, c, '─')
-		}
+		fill(mid-t/2, innerL, mid-t/2+t-1, cx-1)
 	}
 	if on(sG2) {
-		for c := cx + 1; c < last; c++ {
-			set(mid, c, '─')
-		}
-	}
-	if on(sG1) && on(sG2) {
-		set(mid, cx, '─')
+		fill(mid-t/2, cx+1, mid-t/2+t-1, innerR)
 	}
 	if on(sF) {
-		for r := 0; r <= mid; r++ {
-			set(r, 0, '│')
-		}
+		fill(t, 0, mid-1, t-1)
 	}
 	if on(sE) {
-		for r := mid; r < h; r++ {
-			set(r, 0, '│')
-		}
+		fill(mid+1, 0, h-1-t, t-1)
 	}
 	if on(sB) {
-		for r := 0; r <= mid; r++ {
-			set(r, last, '│')
-		}
+		fill(t, last-t+1, mid-1, last)
 	}
 	if on(sC) {
-		for r := mid; r < h; r++ {
-			set(r, last, '│')
-		}
+		fill(mid+1, last-t+1, h-1-t, last)
 	}
 	if on(sI) {
-		for r := 1; r < mid; r++ {
-			set(r, cx, '│')
-		}
+		fill(t, cx-t/2, mid-1, cx-t/2+t-1)
 	}
 	if on(sL) {
-		for r := mid + 1; r < h-1; r++ {
-			set(r, cx, '│')
-		}
+		fill(mid+1, cx-t/2, h-1-t, cx-t/2+t-1)
 	}
-	if on(sI) && on(sL) && !on(sG1) && !on(sG2) {
-		set(mid, cx, '│')
-	}
-
-	// Diagonals live in the four quadrants around the center.
 	if on(sH) {
-		diag(set, 1, 1, mid-1, cx-1, '╲')
+		diag(plot, t, t, mid-1, cx-1, t)
 	}
 	if on(sJ) {
-		diag(set, 1, last-1, mid-1, cx+1, '╱')
+		diag(plot, t, last-t, mid-1, cx+1, t)
 	}
 	if on(sK) {
-		diag(set, h-2, 1, mid+1, cx-1, '╱')
+		diag(plot, h-1-t, t, mid+1, cx-1, t)
 	}
 	if on(sM) {
-		diag(set, h-2, last-1, mid+1, cx+1, '╲')
-	}
-
-	if on(sA) && on(sF) {
-		set(0, 0, '┌')
-	}
-	if on(sA) && on(sB) {
-		set(0, last, '┐')
-	}
-	if on(sD) && on(sE) {
-		set(h-1, 0, '└')
-	}
-	if on(sD) && on(sC) {
-		set(h-1, last, '┘')
-	}
-	if on(sG1) && (on(sF) || on(sE)) {
-		set(mid, 0, '├')
-	}
-	if on(sG2) && (on(sB) || on(sC)) {
-		set(mid, last, '┤')
+		diag(plot, h-1-t, last-t, mid+1, cx+1, t)
 	}
 
 	out := make([]string, h)
@@ -249,19 +226,25 @@ func paint(bits uint16, w, h int) []string {
 	return out
 }
 
-func diag(set func(int, int, rune), r0, c0, r1, c1 int, ch rune) {
+func diag(plot func(int, int), r0, c0, r1, c1, thick int) {
 	n := abs(r1-r0) + 1
 	if m := abs(c1-c0) + 1; m > n {
 		n = m
 	}
 	if n <= 1 {
-		set(r0, c0, ch)
+		plot(r0, c0)
 		return
+	}
+	if thick < 1 {
+		thick = 1
 	}
 	for i := 0; i < n; i++ {
 		r := r0 + (r1-r0)*i/(n-1)
 		c := c0 + (c1-c0)*i/(n-1)
-		set(r, c, ch)
+		for dt := 0; dt < thick; dt++ {
+			plot(r, c+dt)
+			plot(r+dt, c)
+		}
 	}
 }
 
