@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/particle"
+	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
 )
 
 func TestDefault(t *testing.T) {
@@ -42,11 +43,12 @@ func TestDefault(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	t.Run("happy: 10ms of 1ms spawns drops 10 particles", func(t *testing.T) {
+	t.Run("happy: 10ms of 1ms spawns drops a particle each millisecond", func(t *testing.T) {
 		f := New(2)
 		f.Update(0.01)
-		if len(f.Eng.Particles) != 10 {
-			t.Fatalf("live %d, want 10", len(f.Eng.Particles))
+		n := len(f.Eng.Particles)
+		if n < 10 || n > 11 {
+			t.Fatalf("live %d, want ~10", n)
 		}
 	})
 	t.Run("happy: particles travel down-right along the diagonal", func(t *testing.T) {

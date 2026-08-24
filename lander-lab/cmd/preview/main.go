@@ -60,6 +60,7 @@ func main() {
 }
 
 func playFlame() {
+	fmt.Print(fire.Guide())
 	f := fire.Booster(1)
 	for {
 		f.Update(1.0 / 20)
@@ -76,6 +77,7 @@ func writeFireTape(dir string) error {
 		rate    = 20
 		cellW   = 56
 	)
+	fmt.Print(fire.Guide())
 	f := fire.Booster(1)
 	if _, err := fire.WriteTape(dir, f, seconds*rate, cellW); err != nil {
 		return err

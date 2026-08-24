@@ -1,7 +1,7 @@
-// Package fire is a thin color layer on particle. Occupancy paints the
-// flame: one particle is invisible, two show a little, and more particles
-// make more fire — orange, then solid yellow. Particles stack; they do
-// not fan. The package does not draw a lander.
+// Package fire is a thin color layer on particle. Each cell's heat is
+// its occupancy plus every neighbour except the incoming side. Heat
+// picks a glyph: braille dots, shades, half squares, then bright yellow.
+// The package does not draw a lander.
 package fire
 
 import (
@@ -14,77 +14,63 @@ import (
 const (
 	Rows      = 4
 	Cols      = 14
-	Particles = 100
-	ViewCols  = 16
-	ViewRows  = 8
+	Particles = 500
+	ViewCols  = 20
+	ViewRows  = 10
 	fps       = 20
 )
 
-// DefaultConfig is the 45° four-row trail.
+// DefaultConfig is the 45° trail: one particle every millisecond.
 func DefaultConfig() particle.Config {
 	return particle.Config{
 		Width:     float64(Cols) - 0.01,
 		Height:    float64(Rows)*particle.CellHeightUnits - 0.01,
 		Origin:    particle.Vec2{X: 1.5, Y: 1.0},
 		Direction: particle.Vec2{X: 1, Y: 1},
-		Count:     Particles,
-		Period:    0.08,
-		MinLife:   0.42,
-		MaxLife:   0.58,
-		MinSpeed:  17,
-		MaxSpeed:  23,
-		Spread:    0.14,
+		Count:     1,
+		Period:    0.001,
+		MinLife:   0.45,
+		MaxLife:   0.55,
+		MinSpeed:  14,
+		MaxSpeed:  22,
+		Spread:    0.28,
+		Nozzle:    1.2,
 	}
 }
 
-// BoosterConfig is the size-4 sideways plume: left-to-right, four
-// cells wide and two cells tall (four units by four units). Spread is
-// zero; Nozzle is the vertical slit so both rows fill without fanning.
+// BoosterConfig is left-to-right fire: one particle every millisecond,
+// a normal around the axis, about 500 live. The box is wide enough for
+// the cone and the red fringe to show.
 func BoosterConfig() particle.Config {
 	return particle.Config{
-		Width:     4 - 0.01,
-		Height:    4 - 0.01,
-		Origin:    particle.Vec2{X: 0.4, Y: 2.0},
+		Width:     12 - 0.01,
+		Height:    12 - 0.01,
+		Origin:    particle.Vec2{X: 1.0, Y: 6.0},
 		Direction: particle.Vec2{X: 1, Y: 0},
-		Count:     Particles,
-		Period:    0.07,
-		MinLife:   0.16,
-		MaxLife:   0.28,
-		MinSpeed:  12,
-		MaxSpeed:  20,
-		Spread:    0,
-		Nozzle:    3.4,
+		Count:     1,
+		Period:    0.001,
+		MinLife:   0.45,
+		MaxLife:   0.55,
+		MinSpeed:  10,
+		MaxSpeed:  18,
+		Spread:    0.30,
+		Nozzle:    3.2,
 	}
 }
 
 // Flame is one running trail.
 type Flame struct {
-	Eng      *particle.Engine
-	YellowAt int
-	OrangeAt int
+	Eng *particle.Engine
 }
 
 // New starts the 45° trail. It has not yet emitted.
 func New(seed int64) *Flame {
-	return newFlame(seed, DefaultConfig())
+	return &Flame{Eng: particle.New(seed, DefaultConfig())}
 }
 
-// Booster starts the left-to-right four-by-two plume. Thresholds sit
-// higher than the 45° demo so a hundred stacked particles still show
-// a ramp instead of a solid yellow bar.
+// Booster starts the left-to-right plume.
 func Booster(seed int64) *Flame {
-	f := newFlame(seed, BoosterConfig())
-	f.YellowAt = 36
-	f.OrangeAt = 12
-	return f
-}
-
-func newFlame(seed int64, cfg particle.Config) *Flame {
-	return &Flame{
-		Eng:      particle.New(seed, cfg),
-		YellowAt: 8,
-		OrangeAt: 5,
-	}
+	return &Flame{Eng: particle.New(seed, BoosterConfig())}
 }
 
 // Update advances the particle engine.
@@ -93,33 +79,6 @@ func (f *Flame) Update(dt float64) {
 		return
 	}
 	f.Eng.Update(dt)
-}
-
-// Color maps an occupancy count onto a flame cell. One particle is
-// invisible; two show a little; more occupancy paints more flame.
-func Color(n int) sprite.Cell {
-	return shade(n, 8, 5)
-}
-
-func shade(n, yellowAt, orangeAt int) sprite.Cell {
-	if yellowAt < 1 {
-		yellowAt = 8
-	}
-	if orangeAt < 1 || orangeAt > yellowAt {
-		orangeAt = 5
-	}
-	switch {
-	case n >= yellowAt:
-		return sprite.Cell{Ch: '█', FG: 226, BG: 220}
-	case n >= orangeAt:
-		return sprite.Cell{Ch: '▓', FG: 208, BG: 166}
-	case n >= 3:
-		return sprite.Cell{Ch: '░', FG: 196, BG: -1}
-	case n >= 2:
-		return sprite.Cell{Ch: '·', FG: 160, BG: -1}
-	default:
-		return sprite.Cell{Ch: ' ', FG: -1, BG: -1}
-	}
 }
 
 func (f *Flame) box() (cols, rows int) {
@@ -137,18 +96,21 @@ func (f *Flame) box() (cols, rows int) {
 	return cols, rows
 }
 
-// Sprite is the fire box sized from the engine. Empty cells stay transparent.
+// Sprite paints every cell from neighborhood heat so a hole next to
+// fire still lights instead of staying blank.
 func (f *Flame) Sprite() sprite.Sprite {
 	cols, rows := f.box()
 	sp := sprite.New(cols, rows)
 	if f == nil || f.Eng == nil {
 		return sp
 	}
-	for cell, n := range f.Eng.Occupancy() {
-		if cell.Col < 0 || cell.Row < 0 || cell.Col >= cols || cell.Row >= rows {
-			continue
+	occ := f.Eng.Occupancy()
+	dir := f.Eng.Cfg.Direction
+	for r := 0; r < rows; r++ {
+		for c := 0; c < cols; c++ {
+			h := Heat(occ, particle.Cell{Col: c, Row: r}, dir)
+			sp.Set(r, c, Style(h))
 		}
-		sp.Set(cell.Row, cell.Col, shade(n, f.YellowAt, f.OrangeAt))
 	}
 	return sp
 }
@@ -156,8 +118,7 @@ func (f *Flame) Sprite() sprite.Sprite {
 // Render is the ANSI view of the fire box.
 func (f *Flame) Render() string { return sprite.Render(f.Sprite()) }
 
-// View is a fixed padded canvas so a tape does not crop or jump. The
-// flame sits in the middle of a wide void.
+// View is a fixed padded canvas so a tape does not crop or jump.
 func (f *Flame) View() sprite.Sprite {
 	board := sprite.New(ViewCols, ViewRows)
 	if f == nil || f.Eng == nil {
@@ -166,6 +127,9 @@ func (f *Flame) View() sprite.Sprite {
 	flame := f.Sprite()
 	ox := (ViewCols - flame.Width) / 2
 	oy := (ViewRows - flame.Height) / 2
+	if ox < 1 {
+		ox = 1
+	}
 	for r := 0; r < flame.Height; r++ {
 		for c := 0; c < flame.Width; c++ {
 			cell := flame.At(r, c)

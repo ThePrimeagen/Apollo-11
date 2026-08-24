@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/particle"
+	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
 )
 
 func TestBooster(t *testing.T) {

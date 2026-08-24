@@ -147,6 +147,10 @@ func paintGlyph(img *image.RGBA, r image.Rectangle, ch rune, fg color.RGBA) {
 		shade(5)
 	case '▄':
 		fill(image.Rect(r.Min.X, r.Min.Y+h/2, r.Max.X, r.Max.Y))
+	case '▀':
+		fill(image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+h/2))
+	case '▌':
+		fill(image.Rect(r.Min.X, r.Min.Y, r.Min.X+w/2, r.Max.Y))
 	case '·':
 		cx, cy := w/2, h/2
 		rad := max(2, min(w, h)/6)
@@ -158,6 +162,40 @@ func paintGlyph(img *image.RGBA, r image.Rectangle, ch rune, fg color.RGBA) {
 			}
 		}
 	default:
+		if ch >= 0x2800 && ch <= 0x28FF {
+			paintBraille(set, w, h, ch)
+			return
+		}
 		fill(r)
+	}
+}
+
+func paintBraille(set func(x, y int), w, h int, ch rune) {
+	bits := int(ch - 0x2800)
+	// 2×4 braille grid: bits 0..7 are TL, ML, BL, TR, MR, BR, BBL, BBR.
+	pos := [8][2]int{
+		{0, 0}, {0, 1}, {0, 2}, {1, 0}, {1, 1}, {1, 2}, {0, 3}, {1, 3},
+	}
+	cw, chh := w/2, h/4
+	if cw < 2 {
+		cw = 2
+	}
+	if chh < 2 {
+		chh = 2
+	}
+	rad := max(1, min(cw, chh)/3)
+	for i := 0; i < 8; i++ {
+		if bits&(1<<i) == 0 {
+			continue
+		}
+		cx := pos[i][0]*cw + cw/2
+		cy := pos[i][1]*chh + chh/2
+		for y := cy - rad; y <= cy+rad; y++ {
+			for x := cx - rad; x <= cx+rad; x++ {
+				if (x-cx)*(x-cx)+(y-cy)*(y-cy) <= rad*rad {
+					set(x, y)
+				}
+			}
+		}
 	}
 }
