@@ -53,13 +53,78 @@ func TestToward(t *testing.T) {
 			t.Fatalf("NE should be 45°, got %+v", d)
 		}
 		f.Update(0.01)
-		ox, oy := avgPos(f.Eng.Particles)
+		if len(f.Eng.Particles) == 0 {
+			t.Fatal("expected a live NE plume")
+		}
+		maxX, minY := edge(f.Eng.Particles)
+		vx, vy := avgVel(f.Eng.Particles)
+		if vx <= 0 || vy >= 0 {
+			t.Fatalf("NE velocity should be +x -y, got (%.2f,%.2f)", vx, vy)
+		}
 		f.Update(0.12)
-		ax, ay := avgPos(f.Eng.Particles)
-		if ax <= ox || ay >= oy {
-			t.Fatalf("NE should increase x and decrease y, (%.2f,%.2f)→(%.2f,%.2f)", ox, oy, ax, ay)
+		ax, ay := edge(f.Eng.Particles)
+		if ax <= maxX || ay >= minY {
+			t.Fatalf("NE leading edge should climb right, (%.2f,%.2f)→(%.2f,%.2f)", maxX, minY, ax, ay)
 		}
 	})
+	t.Run("happy: all four 45° headings travel along their axis", func(t *testing.T) {
+		cases := []struct {
+			name         string
+			signX, signY int
+		}{
+			{"NE", 1, -1},
+			{"SE", 1, 1},
+			{"SW", -1, 1},
+			{"NW", -1, -1},
+		}
+		for _, tc := range cases {
+			f := Toward(7, course(tc.name).Dir)
+			d := f.Eng.Cfg.Direction
+			if math.Abs(math.Abs(d.X)-math.Abs(d.Y)) > 1e-9 {
+				t.Fatalf("%s should be 45°, got %+v", tc.name, d)
+			}
+			f.Update(0.02)
+			vx, vy := avgVel(f.Eng.Particles)
+			if sign(vx) != tc.signX || sign(vy) != tc.signY {
+				t.Fatalf("%s vel (%.2f,%.2f) want signs %d,%d", tc.name, vx, vy, tc.signX, tc.signY)
+			}
+		}
+	})
+}
+
+func sign(v float64) int {
+	if v < 0 {
+		return -1
+	}
+	if v > 0 {
+		return 1
+	}
+	return 0
+}
+
+func avgVel(ps []particle.Particle) (x, y float64) {
+	if len(ps) == 0 {
+		return 0, 0
+	}
+	for _, p := range ps {
+		x += p.Vel.X
+		y += p.Vel.Y
+	}
+	n := float64(len(ps))
+	return x / n, y / n
+}
+
+func edge(ps []particle.Particle) (maxX, minY float64) {
+	maxX, minY = -1e9, 1e9
+	for _, p := range ps {
+		if p.Pos.X > maxX {
+			maxX = p.Pos.X
+		}
+		if p.Pos.Y < minY {
+			minY = p.Pos.Y
+		}
+	}
+	return maxX, minY
 }
 
 func TestCompass(t *testing.T) {

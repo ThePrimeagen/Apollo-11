@@ -70,7 +70,7 @@ func New(seed int64) *Flame {
 
 // Booster starts the left-to-right plume.
 func Booster(seed int64) *Flame {
-	return &Flame{Eng: particle.New(seed, BoosterConfig())}
+	return Toward(seed, particle.Vec2{X: 1, Y: 0})
 }
 
 // Update advances the particle engine.
@@ -139,9 +139,7 @@ func (f *Flame) View() sprite.Sprite {
 			board.Set(oy+r, ox+c, cell)
 		}
 	}
-	steel := sprite.Cell{Ch: '█', FG: 245, BG: 238}
-	for r := 0; r < flame.Height; r++ {
-		board.Set(oy+r, ox-1, steel)
-	}
+	oc := particle.CellOf(f.Eng.Cfg.Origin.X, f.Eng.Cfg.Origin.Y)
+	board.Set(oy+oc.Row, ox+oc.Col, sprite.Cell{Ch: '█', FG: 245, BG: 238})
 	return board
 }

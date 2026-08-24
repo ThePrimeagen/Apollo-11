@@ -7,7 +7,6 @@ import (
 	"image/draw"
 	"image/png"
 	"os"
-	"path/filepath"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
 )
@@ -71,20 +70,14 @@ func WriteTape(dir string, f *Flame, n, cellW int) ([]string, error) {
 	if f == nil {
 		return nil, fmt.Errorf("nil flame")
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, err
-	}
-	dt := 1.0 / float64(fps)
-	paths := make([]string, 0, n)
-	for i := 0; i < n; i++ {
-		f.Update(dt)
-		p := filepath.Join(dir, fmt.Sprintf("frame-%04d.png", i))
-		if err := WritePNG(p, f.View(), cellW); err != nil {
-			return nil, err
-		}
-		paths = append(paths, p)
-	}
-	return paths, nil
+	return writeFrames(dir, n, func() sprite.Sprite {
+		f.Update(1.0 / float64(fps))
+		return f.View()
+	}, cellW)
+}
+
+func mkdir(dir string) error {
+	return os.MkdirAll(dir, 0o755)
 }
 
 func xterm256(n int) color.RGBA {

@@ -75,25 +75,50 @@ func writeFireTape(dir string) error {
 	const (
 		seconds = 20
 		rate    = 20
-		cellW   = 56
+		cellW   = 32
+		roseW   = 16
 	)
 	fmt.Print(fire.Guide())
-	f := fire.Booster(1)
-	if _, err := fire.WriteTape(dir, f, seconds*rate, cellW); err != nil {
+	frames := seconds * rate
+	roseDir := filepath.Join(dir, "compass")
+	if _, err := fire.WriteCompassTape(roseDir, fire.NewCompass(1), frames, roseW); err != nil {
 		return err
 	}
-	still := filepath.Join(dir, "still.png")
-	warm := fire.Booster(1)
-	for i := 0; i < 20; i++ {
+	warm := fire.NewCompass(1)
+	for i := 0; i < 24; i++ {
 		warm.Update(1.0 / 20)
 	}
-	if err := fire.WritePNG(still, warm.View(), cellW); err != nil {
+	if err := fire.WritePNG(filepath.Join(dir, "compass-still.png"), warm.View(), roseW); err != nil {
 		return err
 	}
-	mp4 := strings.TrimRight(dir, "/") + ".mp4"
+	if err := encodeMP4(roseDir, filepath.Join(dir, "compass.mp4"), rate); err != nil {
+		return err
+	}
+	for _, course := range fire.Courses() {
+		name := strings.ToLower(course.Name)
+		sub := filepath.Join(dir, name)
+		f := fire.Toward(1, course.Dir)
+		if _, err := fire.WriteTape(sub, f, frames, cellW); err != nil {
+			return err
+		}
+		still := fire.Toward(1, course.Dir)
+		for i := 0; i < 24; i++ {
+			still.Update(1.0 / 20)
+		}
+		if err := fire.WritePNG(filepath.Join(dir, name+".png"), still.View(), cellW); err != nil {
+			return err
+		}
+		if err := encodeMP4(sub, filepath.Join(dir, name+".mp4"), rate); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func encodeMP4(framesDir, mp4 string, rate int) error {
 	cmd := exec.Command("ffmpeg", "-y",
 		"-framerate", fmt.Sprintf("%d", rate),
-		"-i", filepath.Join(dir, "frame-%04d.png"),
+		"-i", filepath.Join(framesDir, "frame-%04d.png"),
 		"-pix_fmt", "yuv420p",
 		"-c:v", "libx264",
 		mp4,
@@ -101,10 +126,9 @@ func writeFireTape(dir string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ffmpeg: %w", err)
+		return fmt.Errorf("ffmpeg %s: %w", mp4, err)
 	}
 	fmt.Println(mp4)
-	fmt.Println(still)
 	return nil
 }
 
