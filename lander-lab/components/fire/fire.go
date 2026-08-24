@@ -37,14 +37,14 @@ func DefaultConfig() particle.Config {
 	}
 }
 
-// BoosterConfig is the size-4 sideways plume: left-to-right, four units
-// wide, two units tall (one terminal row). Spread is zero so particles
-// stack on the axis instead of fanning out.
+// BoosterConfig is the size-4 sideways plume: left-to-right, four
+// cells wide and two cells tall (four units by four units). Spread is
+// zero; Nozzle is the vertical slit so both rows fill without fanning.
 func BoosterConfig() particle.Config {
 	return particle.Config{
 		Width:     4 - 0.01,
-		Height:    2 - 0.01,
-		Origin:    particle.Vec2{X: 0.4, Y: 1.0},
+		Height:    4 - 0.01,
+		Origin:    particle.Vec2{X: 0.4, Y: 2.0},
 		Direction: particle.Vec2{X: 1, Y: 0},
 		Count:     Particles,
 		Period:    0.07,
@@ -53,6 +53,7 @@ func BoosterConfig() particle.Config {
 		MinSpeed:  12,
 		MaxSpeed:  20,
 		Spread:    0,
+		Nozzle:    3.4,
 	}
 }
 
@@ -73,8 +74,8 @@ func New(seed int64) *Flame {
 // a ramp instead of a solid yellow bar.
 func Booster(seed int64) *Flame {
 	f := newFlame(seed, BoosterConfig())
-	f.YellowAt = 80
-	f.OrangeAt = 24
+	f.YellowAt = 36
+	f.OrangeAt = 12
 	return f
 }
 
@@ -174,7 +175,9 @@ func (f *Flame) View() sprite.Sprite {
 			board.Set(oy+r, ox+c, cell)
 		}
 	}
-	origin := particle.CellOf(f.Eng.Cfg.Origin.X, f.Eng.Cfg.Origin.Y)
-	board.Set(oy+origin.Row, ox+origin.Col-1, sprite.Cell{Ch: '▄', FG: 245, BG: 238})
+	steel := sprite.Cell{Ch: '█', FG: 245, BG: 238}
+	for r := 0; r < flame.Height; r++ {
+		board.Set(oy+r, ox-1, steel)
+	}
 	return board
 }

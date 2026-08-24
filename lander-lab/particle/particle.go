@@ -29,6 +29,7 @@ var (
 	ErrPeriod    = errors.New("particle: period must be non-negative")
 	ErrCount     = errors.New("particle: count must be non-negative")
 	ErrSpread    = errors.New("particle: spread must be non-negative")
+	ErrNozzle    = errors.New("particle: nozzle must be non-negative")
 	ErrNegative  = errors.New("particle: speed and life must be non-negative")
 )
 
@@ -68,6 +69,7 @@ type Config struct {
 	MinLife, MaxLife   float64 // seconds, inclusive, rolled per particle
 	MinSpeed, MaxSpeed float64 // units/sec along the jittered heading
 	Spread             float64 // stddev of a normal, in radians, around Direction
+	Nozzle             float64 // spawn thickness in units, perpendicular to Direction
 }
 
 // Validate reports the first thing wrong with c.
@@ -98,6 +100,9 @@ func (c Config) Validate() error {
 	}
 	if c.Spread < 0 {
 		return ErrSpread
+	}
+	if c.Nozzle < 0 {
+		return ErrNozzle
 	}
 	return nil
 }
@@ -186,8 +191,14 @@ func (e *Engine) emit() {
 		heading := dir.Rotate(angle)
 		speed := e.between(e.Cfg.MinSpeed, e.Cfg.MaxSpeed)
 		life := e.between(e.Cfg.MinLife, e.Cfg.MaxLife)
+		pos := e.Cfg.Origin
+		if e.Cfg.Nozzle > 0 {
+			perp := Vec2{X: -dir.Y, Y: dir.X}
+			off := (e.rng.Float64() - 0.5) * e.Cfg.Nozzle
+			pos = Vec2{X: pos.X + perp.X*off, Y: pos.Y + perp.Y*off}
+		}
 		p := Particle{
-			Pos:  e.Cfg.Origin,
+			Pos:  pos,
 			Vel:  heading.Scale(speed),
 			Life: life,
 		}
