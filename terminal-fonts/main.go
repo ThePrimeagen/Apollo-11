@@ -39,6 +39,12 @@ func renderABC(height int) (string, error) {
 	return strings.Join(blocks, "\n\n"), nil
 }
 
+// renderDigits returns one through zero as a seven-segment banner.
+// STUB: implementation follows the failing test suite.
+func renderDigits(height int) (string, error) {
+	return "", nil
+}
+
 // banner renders either the catalog or caller-supplied text.
 func banner(height int, text string) (string, error) {
 	if text == "" {

@@ -85,3 +85,50 @@ func TestRenderABC(t *testing.T) {
 		}
 	})
 }
+
+func TestRenderDigits(t *testing.T) {
+	t.Run("happy: height 1 is one through zero printed plainly", func(t *testing.T) {
+		out, err := renderDigits(1)
+		if err != nil {
+			t.Fatalf("height 1: %v", err)
+		}
+		if out != "1234567890" {
+			t.Fatalf("height 1 must be the digits themselves, got %q", out)
+		}
+	})
+	t.Run("happy: heights 2-5 are one seven-segment block of uniform rows", func(t *testing.T) {
+		for h := 2; h <= 5; h++ {
+			out, err := renderDigits(h)
+			if err != nil {
+				t.Fatalf("height %d: %v", h, err)
+			}
+			lines := strings.Split(out, "\n")
+			if len(lines) != h {
+				t.Fatalf("height %d: %d lines, want %d", h, len(lines), h)
+			}
+			_, want, err := termfont.RenderSeven(h, "1234567890")
+			if err != nil {
+				t.Fatalf("height %d reference width: %v", h, err)
+			}
+			for i, l := range lines {
+				if len(l) != want {
+					t.Fatalf("height %d line %d: width %d, want %d", h, i, len(l), want)
+				}
+			}
+		}
+	})
+	t.Run("unhappy: heights outside 1..5 refuse to render the digits", func(t *testing.T) {
+		for _, h := range []int{0, 6} {
+			out, err := renderDigits(h)
+			if err == nil {
+				t.Fatalf("height %d must error, got output %q", h, out)
+			}
+			if !errors.Is(err, termfont.ErrInvalidHeight) {
+				t.Fatalf("height %d: error must wrap termfont.ErrInvalidHeight, got %v", h, err)
+			}
+			if out != "" {
+				t.Fatalf("height %d: failed digits must be empty, got %q", h, out)
+			}
+		}
+	})
+}
