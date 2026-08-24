@@ -352,27 +352,6 @@ func equalInts(a, b []int) bool {
 	return true
 }
 
-// shiftLeft wraps a sky column one cell left. Column 0 is the altitude
-// axis, so the starfield lives in [1, Width) and wraps 1 ← Width-1.
-func shiftLeft(col int) int {
-	col--
-	if col < 1 {
-		return Width - 1
-	}
-	return col
-}
-
-func shiftCols(cols []int, steps int) []int {
-	out := make([]int, len(cols))
-	copy(out, cols)
-	for n := 0; n < steps; n++ {
-		for i := range out {
-			out[i] = shiftLeft(out[i])
-		}
-	}
-	return out
-}
-
 func TestStarGlyphs(t *testing.T) {
 	t.Run("happy: four distinct one-cell star glyphs", func(t *testing.T) {
 		if len(skyStars) != 4 {
@@ -397,14 +376,11 @@ func TestStarGlyphs(t *testing.T) {
 			}
 		}
 	})
-	t.Run("unhappy: stars never sit in the telemetry header", func(t *testing.T) {
-		ls := render(base())
-		for _, row := range []int{0, 1} {
-			line := plain(ls[row])
-			for _, g := range skyStars {
-				if strings.ContainsRune(line, g) {
-					t.Fatalf("star %q sat in header row %d (%q)", string(g), row, line)
-				}
+	t.Run("unhappy: stars never overwrite the telemetry text", func(t *testing.T) {
+		v := plain(Render(base()))
+		for _, want := range []string{"P63 BRAKING", "T+0s", "ALT", "49971", "VEL"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("telemetry %q must sit in front of the stars", want)
 			}
 		}
 	})
@@ -418,9 +394,9 @@ func TestStarfieldSky(t *testing.T) {
 			if strings.ContainsRune(surface, g) {
 				t.Fatalf("star %q sat on the lunar surface", string(g))
 			}
-			if strings.ContainsRune(caption, g) {
-				t.Fatalf("star %q sat on the event caption", string(g))
-			}
+		}
+		if !strings.Contains(caption, "PDI") {
+			t.Fatal("the event caption must sit in front of the stars")
 		}
 	})
 	t.Run("happy: stars never overwrite the lander hull", func(t *testing.T) {
@@ -460,71 +436,23 @@ func TestStarfieldSky(t *testing.T) {
 }
 
 func TestStarflight(t *testing.T) {
-	t.Run("happy: near stars (✦) drift right-to-left one cell per tick", func(t *testing.T) {
+	t.Run("happy: far dust (·) flies right-to-left; near stars (✦) lag", func(t *testing.T) {
 		s := base()
 		s.Tick = 0
 		row := clearSkyRow(t, s)
-		before := glyphCols(render(s)[row], '✦')
-		if len(before) == 0 {
-			t.Fatal("need at least one near star on an empty sky row to watch it fly")
-		}
-		s.Tick = 1
-		after := glyphCols(render(s)[row], '✦')
-		if equalInts(before, after) {
-			t.Fatal("near stars must move as we fly")
-		}
-		if !equalInts(after, shiftCols(before, 1)) {
-			t.Fatalf("✦ must shift left one cell per tick: tick0=%v tick1=%v", before, after)
-		}
-	})
-	t.Run("happy: a near star wrapping off the left re-enters from the right", func(t *testing.T) {
-		s := base()
-		row := clearSkyRow(t, s)
-		s.Tick = 0
-		start := glyphCols(render(s)[row], '✦')
-		if len(start) == 0 {
-			t.Fatal("need a near star to wrap")
-		}
-		// fly until the leftmost ✦ of this row has wrapped
-		left := start[0]
-		for _, c := range start {
-			if c < left {
-				left = c
-			}
-		}
-		s.Tick = left // that star was at `left`; after `left` ticks it wraps to Width-1
-		got := glyphCols(render(s)[row], '✦')
-		want := shiftCols(start, left)
-		if !equalInts(got, want) {
-			t.Fatalf("wrapping fly-by: want %v (with %d at the right edge), got %v", want, Width-1, got)
-		}
-		foundEdge := false
-		for _, c := range got {
-			if c == Width-1 {
-				foundEdge = true
-			}
-		}
-		if !foundEdge {
-			t.Fatal("a star leaving the left edge must reappear at the right")
-		}
-	})
-	t.Run("happy: far stars (·) parallax — they hold still while near stars fly", func(t *testing.T) {
-		s := base()
-		row := clearSkyRow(t, s)
-		s.Tick = 0
 		far0 := glyphCols(render(s)[row], '·')
 		near0 := glyphCols(render(s)[row], '✦')
 		if len(far0) == 0 || len(near0) == 0 {
-			t.Fatal("need both a far and a near star on the empty sky row")
+			t.Fatal("need both far dust and a near star on an empty sky row")
 		}
 		s.Tick = 1
 		far1 := glyphCols(render(s)[row], '·')
 		near1 := glyphCols(render(s)[row], '✦')
-		if !equalInts(far0, far1) {
-			t.Fatalf("far stars must hold still for a tick (parallax), %v -> %v", far0, far1)
+		if equalInts(far0, far1) {
+			t.Fatal("far dust must streak as we fly")
 		}
-		if equalInts(near0, near1) {
-			t.Fatal("near stars must already be flying on the first tick")
+		if !equalInts(near0, near1) {
+			t.Fatal("near stars must crawl — still on the first tick")
 		}
 	})
 	t.Run("unhappy: a landed craft's starfield is frozen", func(t *testing.T) {

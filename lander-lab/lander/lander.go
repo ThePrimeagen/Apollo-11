@@ -4,7 +4,8 @@
 // the final thousand feet stay readable), rotating with the phase:
 // horizontal through the P63 braking burn, pitched over at high gate,
 // vertical for the P66 landing, engine off on the surface. A four-glyph
-// starfield fills the sky and scrolls right-to-left while flying. Program
+// starfield (the stars-lab component, painted first) fills the sky and
+// scrolls right-to-left while flying. Program
 // alarms leave persistent markers at the altitude where they fired.
 //
 // Output is raw ANSI 256-color; Render is pure and the footprint constant.
@@ -14,6 +15,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/theprimeagen/apollo-11/stars-lab/stars"
 )
 
 // Fixed footprint.
@@ -64,10 +67,6 @@ const (
 	colMoon  = 245 // regolith
 	colAlarm = 196 // alarm markers
 	colScale = 238 // altitude axis
-	colStar0 = 238 // far dust
-	colStar1 = 244 // spark
-	colStar2 = 252 // mid star
-	colStar3 = 229 // near star (pale gold)
 )
 
 type cell struct {
@@ -162,66 +161,6 @@ func materialColor(mask byte) int {
 	}
 }
 
-// Four one-cell background stars, far/dim → near/bright. They are just
-// dots — no per-glyph twinkle. The field flying past is the animation.
-var starGlyphs = [4]rune{'·', '˚', '*', '✦'}
-var starColors = [4]int{colStar0, colStar1, colStar2, colStar3}
-
-// starDelay is ticks per cell of travel. Far stars crawl; near stars
-// streak — parallax, as if the LM were flying through them.
-var starDelay = [4]int{8, 4, 2, 1}
-
-type bgStar struct{ row, col, kind int }
-
-// rest positions at tick 0. col is a sky column in [1, Width).
-var starfield = []bgStar{
-	{2, 5, 0}, {2, 28, 0}, {4, 17, 0}, {5, 36, 0},
-	{8, 9, 0}, {9, 31, 0}, {11, 3, 0}, {13, 22, 0},
-	{16, 6, 0}, {16, 28, 0}, {18, 13, 0}, {20, 34, 0},
-	{22, 8, 0}, {24, 19, 0}, {26, 37, 0},
-	{3, 12, 1}, {6, 24, 1}, {7, 4, 1}, {10, 18, 1},
-	{14, 32, 1}, {16, 14, 1}, {19, 7, 1}, {21, 26, 1},
-	{25, 11, 1},
-	{3, 33, 2}, {5, 8, 2}, {8, 20, 2}, {12, 15, 2},
-	{16, 21, 2}, {17, 38, 2}, {20, 4, 2}, {23, 29, 2},
-	{26, 16, 2},
-	{4, 30, 3}, {7, 16, 3}, {11, 35, 3}, {16, 10, 3},
-	{16, 33, 3}, {18, 24, 3}, {22, 17, 3}, {25, 5, 3},
-}
-
-// wrapSky keeps a star in the sky columns [1, Width), wrapping 1 ← Width-1
-// so a fly-by off the left re-enters from the right. Column 0 is the axis.
-func wrapSky(col int) int {
-	const skyW = Width - 1
-	x := col - 1
-	x = ((x % skyW) + skyW) % skyW
-	return x + 1
-}
-
-func paintStars(grid [][]cell, s State) {
-	tick := s.Tick
-	if s.Attitude == Landed {
-		tick = 0
-	}
-	for _, st := range starfield {
-		if st.row < topRow || st.row >= surfaceRow {
-			continue
-		}
-		delay := starDelay[st.kind]
-		if delay < 1 {
-			delay = 1
-		}
-		col := wrapSky(st.col - tick/delay)
-		if col <= 0 || col >= Width || st.row < 0 || st.row >= Height {
-			continue
-		}
-		if grid[st.row][col].ch != ' ' {
-			continue
-		}
-		grid[st.row][col] = cell{starGlyphs[st.kind], starColors[st.kind]}
-	}
-}
-
 // surface is the lunar terrain strip, tiled across the width.
 const surface = "▂▁▃▂▁▄▃▂▁▂▃▁▂▄▂▁▃▂▄▁"
 
@@ -260,6 +199,21 @@ func Render(s State) string {
 			grid[i][j] = cell{' ', -1}
 		}
 	}
+	// starfield first — everything else draws on top of it
+	tick := s.Tick
+	stars.Field{
+		Width:    Width,
+		Height:   Height,
+		Tick:     tick,
+		Strategy: stars.FarFast,
+		Frozen:   s.Attitude == Landed,
+	}.Paint(func(row, col int, ch rune, fg int) {
+		if row < 0 || row >= Height || col < 0 || col >= Width {
+			return
+		}
+		grid[row][col] = cell{ch, fg}
+	})
+
 	put := func(row, col int, text string, color int) {
 		if row < 0 || row >= Height {
 			return
@@ -347,10 +301,6 @@ func Render(s State) string {
 		ev = ev[:Width]
 	}
 	put(Height-1, 0, ev, colDim)
-
-	// starfield fills leftover sky cells last so it never covers the craft,
-	// the axis, the alarms, or the ground
-	paintStars(grid, s)
 
 	// serialize
 	var b strings.Builder
