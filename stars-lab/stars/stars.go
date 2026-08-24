@@ -44,6 +44,7 @@ type Strategy struct {
 // the bigger stars almost hang.
 var (
 	DustRush    = Strategy{Name: "dust-rush", Delay: [4]int{1, 2, 8, 10}}
+	Still       = Strategy{Name: "still"} // tick is ignored; the sky holds
 	FarFast     = Strategy{Name: "far-fast", Delay: [4]int{1, 2, 4, 8}}
 	NearFast    = Strategy{Name: "near-fast", Delay: [4]int{8, 4, 2, 1}}
 	Uniform     = Strategy{Name: "uniform", Delay: [4]int{2, 2, 2, 2}}
@@ -54,7 +55,7 @@ var (
 
 // Strategies returns every named fly style in demo order.
 func Strategies() []Strategy {
-	return []Strategy{DustRush, FarFast, NearFast, Uniform, UniformSlow, Hyperspace, Drift}
+	return []Strategy{DustRush, Still, FarFast, NearFast, Uniform, UniformSlow, Hyperspace, Drift}
 }
 
 // Lookup finds a named strategy (case-sensitive).
@@ -68,6 +69,9 @@ func Lookup(name string) (Strategy, bool) {
 }
 
 func (s Strategy) delays() [4]int {
+	if s.Name == Still.Name {
+		return [4]int{1, 1, 1, 1} // unused: Paint freezes tick
+	}
 	if s.Delay == [4]int{} {
 		return DustRush.Delay
 	}
@@ -104,7 +108,7 @@ func (f Field) Paint(put func(row, col int, ch rune, fg int)) {
 		return
 	}
 	tick := f.Tick
-	if f.Frozen || tick < 0 {
+	if f.Frozen || f.Strategy.Name == Still.Name || tick < 0 {
 		tick = 0
 	}
 	delays := f.Strategy.delays()

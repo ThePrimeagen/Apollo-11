@@ -3,10 +3,8 @@
 // and its DSKY. The LM falls down an altitude scale (square-root scaled so
 // the final thousand feet stay readable), rotating with the phase:
 // horizontal through the P63 braking burn, pitched over at high gate,
-// vertical for the P66 landing, engine off on the surface. A four-glyph
-// starfield (the stars-lab component, painted first) fills the sky and
-// scrolls right-to-left while flying. Program
-// alarms leave persistent markers at the altitude where they fired.
+// vertical for the P66 landing, engine off on the surface. Program alarms
+// leave persistent markers at the altitude where they fired.
 //
 // Output is raw ANSI 256-color; Render is pure and the footprint constant.
 package lander
@@ -15,8 +13,6 @@ import (
 	"fmt"
 	"math"
 	"strings"
-
-	"github.com/theprimeagen/apollo-11/stars-lab/stars"
 )
 
 // Fixed footprint.
@@ -50,7 +46,7 @@ type State struct {
 	VelFps    float64
 	TimeSec   float64
 	LandInSec float64 // countdown to touchdown; 0 hides it
-	Tick      int     // animation frame counter (plume flicker, starfield)
+	Tick      int     // animation frame counter (plume flicker)
 	Phase     string
 	Attitude  Attitude
 	Event     string
@@ -199,21 +195,6 @@ func Render(s State) string {
 			grid[i][j] = cell{' ', -1}
 		}
 	}
-	// starfield first — everything else draws on top of it
-	tick := s.Tick
-	stars.Field{
-		Width:    Width,
-		Height:   Height,
-		Tick:     tick,
-		Strategy: stars.DustRush,
-		Frozen:   s.Attitude == Landed,
-	}.Paint(func(row, col int, ch rune, fg int) {
-		if row < 0 || row >= Height || col < 0 || col >= Width {
-			return
-		}
-		grid[row][col] = cell{ch, fg}
-	})
-
 	put := func(row, col int, text string, color int) {
 		if row < 0 || row >= Height {
 			return

@@ -189,7 +189,7 @@ func TestStrategies(t *testing.T) {
 		for _, s := range Strategies() {
 			got[s.Name] = true
 		}
-		for _, want := range []string{"far-fast", "near-fast", "uniform", "uniform-slow", "hyperspace", "dust-rush", "drift"} {
+		for _, want := range []string{"far-fast", "near-fast", "uniform", "uniform-slow", "hyperspace", "dust-rush", "drift", "still"} {
 			if !got[want] {
 				t.Fatalf("missing strategy %q", want)
 			}
@@ -277,6 +277,24 @@ func TestStrategies(t *testing.T) {
 		}
 		if !strings.ContainsRune(plain(a.Render()), '·') {
 			t.Fatal("frozen still means a night sky, not an empty one")
+		}
+	})
+	t.Run("happy: still — the sky never moves, even as tick advances", func(t *testing.T) {
+		a := field(Still, 0)
+		b := field(Still, 80)
+		if a.Render() != b.Render() {
+			t.Fatal("still stars must hold their cells")
+		}
+		for _, g := range Glyphs {
+			if !strings.ContainsRune(plain(a.Render()), g) {
+				t.Fatalf("still sky is missing %q", string(g))
+			}
+		}
+	})
+	t.Run("unhappy: still is not an empty sky", func(t *testing.T) {
+		n := countKinds(field(Still, 0))
+		if n[0] < 3 {
+			t.Fatalf("still must still paint dust, got %v", n)
 		}
 	})
 	t.Run("unhappy: a zero strategy falls back to dust-rush", func(t *testing.T) {

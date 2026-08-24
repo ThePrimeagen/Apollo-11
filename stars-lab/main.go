@@ -134,6 +134,9 @@ func (m demoModel) View() string {
 	}
 	title := fmt.Sprintf("STARFIELD  %s   delays ·%d ˚%d *%d ✦%d",
 		s.Name, s.Delay[0], s.Delay[1], s.Delay[2], s.Delay[3])
+	if s.Name == stars.Still.Name {
+		title = "STARFIELD  still   no motion"
+	}
 	help := "n/p strategy  space pause  q quit"
 	if m.paused {
 		help = "PAUSED  " + help

@@ -93,6 +93,15 @@ func TestStarLab(t *testing.T) {
 }
 
 func TestLookupFlag(t *testing.T) {
+	t.Run("happy: -strategy still is a static sky", func(t *testing.T) {
+		m := newDemo(mustStrategy("still"))
+		if m.strategy().Name != "still" {
+			t.Fatalf("got %q", m.strategy().Name)
+		}
+		if !strings.Contains(m.View(), "still") {
+			t.Fatal("the UI must name the still strategy")
+		}
+	})
 	t.Run("happy: -strategy selects the opening style", func(t *testing.T) {
 		m := newDemo(mustStrategy("dust-rush"))
 		if m.strategy().Name != "dust-rush" {
