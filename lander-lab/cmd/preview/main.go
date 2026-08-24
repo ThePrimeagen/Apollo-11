@@ -20,8 +20,8 @@ import (
 func main() {
 	shrink := flag.Bool("shrink", false, "play the 4→1 shrink animation")
 	dump := flag.String("dump", "", "write the atlas JSON to this path")
-	playFire := flag.Bool("fire", false, "play the 45° particle flame trail")
-	tape := flag.String("tape", "", "write a 20s flame tape (dir) and encode mp4 next to it")
+	playFire := flag.Bool("fire", false, "play the left-to-right booster flame")
+	tape := flag.String("tape", "", "write a 20s booster tape (dir) and encode mp4 next to it")
 	flag.Parse()
 	if *tape != "" {
 		if err := writeFireTape(*tape); err != nil {
@@ -60,11 +60,11 @@ func main() {
 }
 
 func playFlame() {
-	f := fire.New(1)
+	f := fire.Booster(1)
 	for {
 		f.Update(1.0 / 20)
 		fmt.Print("\x1b[2J\x1b[H")
-		fmt.Printf("45° flame  100 particles  4 rows  (ctrl-c quit)\n\n")
+		fmt.Printf("booster  left→right  4×2 units  100 particles  (ctrl-c quit)\n\n")
 		fmt.Println(sprite.Render(f.View()))
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -74,15 +74,15 @@ func writeFireTape(dir string) error {
 	const (
 		seconds = 20
 		rate    = 20
-		cellW   = 18
+		cellW   = 40
 	)
-	f := fire.New(1)
+	f := fire.Booster(1)
 	if _, err := fire.WriteTape(dir, f, seconds*rate, cellW); err != nil {
 		return err
 	}
 	still := filepath.Join(dir, "still.png")
-	warm := fire.New(1)
-	for i := 0; i < 16; i++ {
+	warm := fire.Booster(1)
+	for i := 0; i < 20; i++ {
 		warm.Update(1.0 / 20)
 	}
 	if err := fire.WritePNG(still, warm.View(), cellW); err != nil {
