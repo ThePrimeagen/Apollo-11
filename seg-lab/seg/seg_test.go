@@ -196,6 +196,7 @@ func TestRenderGeometry(t *testing.T) {
 			{StyleFourteen, "HI", 5, 5, 1},
 			// Official segmented digits sit in adjacent cells; no composed gap.
 			{StyleUnicode, "12", 1, 1, 0},
+			{StyleAlpha, "HI", 1, 1, 0},
 		}
 		for _, tc := range cases {
 			out := stripANSI(Render(tc.text, tc.style))
@@ -240,18 +241,92 @@ func TestRenderPurity(t *testing.T) {
 }
 
 func TestStyleNames(t *testing.T) {
-	t.Run("happy: the three styles are named and listed", func(t *testing.T) {
+	t.Run("happy: the four styles are named and listed", func(t *testing.T) {
 		got := Styles()
-		if len(got) != 3 {
-			t.Fatalf("want 3 styles, got %v", got)
+		if len(got) != 4 {
+			t.Fatalf("want 4 styles, got %v", got)
 		}
-		if StyleUnicode.String() != "unicode" || StyleSeven.String() != "7-seg" || StyleFourteen.String() != "14-seg" {
-			t.Fatalf("style names: %q %q %q", StyleUnicode, StyleSeven, StyleFourteen)
+		if StyleUnicode.String() != "unicode" || StyleSeven.String() != "7-seg" || StyleFourteen.String() != "14-seg" || StyleAlpha.String() != "alpha" {
+			t.Fatalf("style names: %q %q %q %q", StyleUnicode, StyleSeven, StyleFourteen, StyleAlpha)
 		}
 	})
 	t.Run("unhappy: an unknown style has an empty name", func(t *testing.T) {
 		if Style(99).String() != "" {
 			t.Fatalf("unknown style must not invent a name, got %q", Style(99))
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// one-cell alpha — PUA 14-seg letters, official Unicode digits
+// ---------------------------------------------------------------------------
+
+func TestAlphaMapping(t *testing.T) {
+	t.Run("happy: A-Z land in the Private Use Area, 0-9 stay official digits", func(t *testing.T) {
+		for i, r := range "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
+			got, ok := Alpha(r)
+			if !ok {
+				t.Fatalf("%q must have a one-cell alpha glyph", r)
+			}
+			want := FirstAlpha + rune(i)
+			if got != want {
+				t.Fatalf("%q: U+%04X, want U+%04X", r, got, want)
+			}
+		}
+		for i, r := range "0123456789" {
+			got, ok := Alpha(r)
+			if !ok {
+				t.Fatalf("digit %q must still resolve", r)
+			}
+			if got != rune(0x1FBF0+i) {
+				t.Fatalf("alpha digits must be U+1FBF0+, %q → U+%04X", r, got)
+			}
+		}
+		if got, ok := Alpha(' '); !ok || got != ' ' {
+			t.Fatal("space must pass through")
+		}
+	})
+	t.Run("unhappy: punctuation and junk do not invent a letter cell", func(t *testing.T) {
+		for _, r := range []rune{'@', 'é', '🚀', '.', ','} {
+			if _, ok := Alpha(r); ok {
+				t.Fatalf("%q must not map to a segmented letter", r)
+			}
+		}
+	})
+}
+
+func TestAlphaRender(t *testing.T) {
+	t.Run("happy: HELLO WORLD is one row of PUA letters plus a space", func(t *testing.T) {
+		out := stripANSI(Render("HELLO WORLD", StyleAlpha))
+		if strings.Contains(out, "\n") {
+			t.Fatal("alpha is one cell per character — a single row")
+		}
+		got := []rune(out)
+		if len(got) != 11 {
+			t.Fatalf("HELLO WORLD is 11 cells, got %d %q", len(got), out)
+		}
+		if got[5] != ' ' {
+			t.Fatalf("the word break must stay a space, got U+%04X", got[5])
+		}
+		for i, r := range "HELLO" {
+			if got[i] != FirstAlpha+r-'A' {
+				t.Fatalf("HELLO[%d] U+%04X, want U+%04X", i, got[i], FirstAlpha+r-'A')
+			}
+		}
+		for i, r := range "WORLD" {
+			if got[6+i] != FirstAlpha+r-'A' {
+				t.Fatalf("WORLD[%d] U+%04X", i, got[6+i])
+			}
+		}
+	})
+	t.Run("unhappy: unknown runes stay blank, not Latin lookalikes", func(t *testing.T) {
+		out := stripANSI(Render("HI@", StyleAlpha))
+		rs := []rune(out)
+		if len(rs) != 3 {
+			t.Fatalf("want 3 cells, got %q", out)
+		}
+		if unicode.IsLetter(rs[2]) || rs[2] == '@' {
+			t.Fatalf("junk must blank, got %q", string(rs[2]))
 		}
 	})
 }

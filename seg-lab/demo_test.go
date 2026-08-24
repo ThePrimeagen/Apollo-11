@@ -24,16 +24,16 @@ func keyType(m demoModel, t tea.KeyType) demoModel {
 }
 
 func TestViewerBoot(t *testing.T) {
-	t.Run("happy: boots on 14-seg showing APOLLO 11", func(t *testing.T) {
+	t.Run("happy: boots on alpha showing HELLO WORLD", func(t *testing.T) {
 		m := newDemo()
-		if m.style != seg.StyleFourteen {
-			t.Fatalf("boot style %s, want 14-seg", m.style)
+		if m.style != seg.StyleAlpha {
+			t.Fatalf("boot style %s, want alpha", m.style)
 		}
-		if m.text != "APOLLO 11" {
+		if m.text != "HELLO WORLD" {
 			t.Fatalf("boot text %q", m.text)
 		}
 		v := m.View()
-		if !strings.Contains(v, "14-seg") {
+		if !strings.Contains(v, "alpha") {
 			t.Fatal("the UI must name the active style")
 		}
 		if !strings.Contains(v, "U+1FBF0") && !strings.Contains(v, "1FBF0") {
@@ -76,15 +76,21 @@ func TestViewerTyping(t *testing.T) {
 }
 
 func TestViewerStyles(t *testing.T) {
-	t.Run("happy: tab walks unicode → 7-seg → 14-seg", func(t *testing.T) {
+	t.Run("happy: tab walks alpha → unicode → 7-seg → 14-seg", func(t *testing.T) {
 		m := newDemo()
 		seen := []seg.Style{m.style}
-		for i := 0; i < 3; i++ {
+		for i := 0; i < 4; i++ {
 			m = keyType(m, tea.KeyTab)
 			seen = append(seen, m.style)
 		}
-		if seen[0] != seg.StyleFourteen || seen[1] != seg.StyleUnicode || seen[2] != seg.StyleSeven || seen[3] != seg.StyleFourteen {
+		want := []seg.Style{seg.StyleAlpha, seg.StyleUnicode, seg.StyleSeven, seg.StyleFourteen, seg.StyleAlpha}
+		if len(seen) != len(want) {
 			t.Fatalf("tab cycle %v", seen)
+		}
+		for i := range want {
+			if seen[i] != want[i] {
+				t.Fatalf("tab cycle %v, want %v", seen, want)
+			}
 		}
 	})
 	t.Run("unhappy: unknown keys do not wipe the text", func(t *testing.T) {

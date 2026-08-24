@@ -18,7 +18,16 @@ const (
 	StyleUnicode Style = iota
 	StyleSeven
 	StyleFourteen
+	StyleAlpha
 )
+
+// FirstAlpha is the Private Use Area cell for a 14-segment A.
+// B is FirstAlpha+1, … Z is FirstAlpha+25. Digits stay U+1FBF0–U+1FBF9.
+const FirstAlpha = '\uE000'
+
+// Alpha maps a letter onto a one-cell 14-segment PUA glyph, or a digit
+// onto the official Unicode segmented digit. Unsupported runes fail.
+func Alpha(r rune) (rune, bool) { return 0, false }
 
 // Styles returns the viewer styles in cycle order, starting at unicode.
 func Styles() []Style {
