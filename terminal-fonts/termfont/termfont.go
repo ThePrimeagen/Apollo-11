@@ -56,14 +56,28 @@ func Render(height int, text string) ([]byte, int, error) {
 		}
 		return []byte(text), len(text), nil
 	}
+	return compose(glyphSets[height], Charset, height, text)
+}
 
-	set := glyphSets[height]
+// Lines is a convenience view of Render: the same buffer split into
+// height strings of width bytes each.
+func Lines(height int, text string) ([]string, error) {
+	buf, width, err := Render(height, text)
+	if err != nil {
+		return nil, err
+	}
+	return splitRows(buf, height, width), nil
+}
+
+// compose blits one glyph per rune (lowercase folded) from the given
+// table into a row-major buffer, one blank column between glyphs.
+func compose(set map[rune][]string, charset string, height int, text string) ([]byte, int, error) {
 	var glyphs [][]string
 	width := 0
 	for i, r := range text {
 		g, ok := set[foldRune(r)]
 		if !ok {
-			return nil, 0, fmt.Errorf("termfont: %w: %q at index %d (height %d draws %q)", ErrUnsupportedRune, r, i, height, Charset)
+			return nil, 0, fmt.Errorf("termfont: %w: %q at index %d (height %d draws %q)", ErrUnsupportedRune, r, i, height, charset)
 		}
 		if len(glyphs) > 0 {
 			width += gap
@@ -86,21 +100,16 @@ func Render(height int, text string) ([]byte, int, error) {
 	return buf, width, nil
 }
 
-// Lines is a convenience view of Render: the same buffer split into
-// height strings of width bytes each.
-func Lines(height int, text string) ([]string, error) {
-	buf, width, err := Render(height, text)
-	if err != nil {
-		return nil, err
-	}
+// splitRows slices a Render buffer into its height rows.
+func splitRows(buf []byte, height, width int) []string {
 	lines := make([]string, height)
 	if width == 0 {
-		return lines, nil
+		return lines
 	}
 	for r := 0; r < height; r++ {
 		lines[r] = string(buf[r*width : (r+1)*width])
 	}
-	return lines, nil
+	return lines
 }
 
 // foldRune maps lowercase letters onto their uppercase glyphs.

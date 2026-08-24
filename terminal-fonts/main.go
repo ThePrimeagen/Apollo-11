@@ -1,8 +1,11 @@
-// Terminal Fonts demo — prints the A-Z catalog at heights 1 through 5.
+// Terminal Fonts demo — prints the A-Z banner catalog and the
+// seven-segment digits one through zero at heights 1 through 5.
 //
-//	go run .                     # the full catalog
+//	go run .                     # both catalogs, every height
 //	go run . -height 3           # one height only
-//	go run . -text "APOLLO 11"   # custom text
+//	go run . -seven              # seven-segment digits only
+//	go run . -text "APOLLO 11"   # custom banner text
+//	go run . -text 1969 -seven   # custom seven-segment text
 package main
 
 import (
@@ -16,6 +19,7 @@ import (
 
 const (
 	abc       = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	digits    = "1234567890"
 	headerFG  = "\x1b[38;5;39m"
 	resetANSI = "\x1b[0m"
 )
@@ -40,26 +44,48 @@ func renderABC(height int) (string, error) {
 }
 
 // renderDigits returns one through zero as a seven-segment banner.
-// STUB: implementation follows the failing test suite.
 func renderDigits(height int) (string, error) {
-	return "", nil
-}
-
-// banner renders either the catalog or caller-supplied text.
-func banner(height int, text string) (string, error) {
-	if text == "" {
-		return renderABC(height)
-	}
-	lines, err := termfont.Lines(height, text)
+	lines, err := termfont.LinesSeven(height, digits)
 	if err != nil {
 		return "", err
 	}
 	return strings.Join(lines, "\n"), nil
 }
 
+// banner renders the requested catalog or caller-supplied text.
+func banner(height int, text string, seven bool) (string, error) {
+	switch {
+	case seven && text != "":
+		lines, err := termfont.LinesSeven(height, text)
+		if err != nil {
+			return "", err
+		}
+		return strings.Join(lines, "\n"), nil
+	case seven:
+		return renderDigits(height)
+	case text != "":
+		lines, err := termfont.Lines(height, text)
+		if err != nil {
+			return "", err
+		}
+		return strings.Join(lines, "\n"), nil
+	default:
+		letters, err := renderABC(height)
+		if err != nil {
+			return "", err
+		}
+		numbers, err := renderDigits(height)
+		if err != nil {
+			return "", err
+		}
+		return letters + "\n\n" + numbers, nil
+	}
+}
+
 func main() {
 	height := flag.Int("height", 0, "render one height 1..5 (0 = all)")
-	text := flag.String("text", "", "custom text instead of the A-Z catalog")
+	text := flag.String("text", "", "custom text instead of the catalogs")
+	seven := flag.Bool("seven", false, "use the seven-segment number font")
 	flag.Parse()
 
 	heights := []int{1, 2, 3, 4, 5}
@@ -71,7 +97,7 @@ func main() {
 			fmt.Println()
 		}
 		fmt.Printf("%sHEIGHT %d%s\n", headerFG, h, resetANSI)
-		out, err := banner(h, *text)
+		out, err := banner(h, *text, *seven)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
