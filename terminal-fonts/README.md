@@ -6,9 +6,11 @@ and get back a byte buffer you can blit anywhere inside your own frame data.
 
 ```bash
 cd terminal-fonts
-go run .                     # A-Z catalog at every height
+go run .                     # A-Z + seven-segment digit catalogs, every height
 go run . -height 3           # one height only
-go run . -text "APOLLO 11"   # custom text
+go run . -seven              # seven-segment digits one through zero
+go run . -text "APOLLO 11"   # custom banner text
+go run . -text 1969 -seven   # custom seven-segment text
 ```
 
 ## The contract
@@ -48,6 +50,23 @@ Height 3, the reference cut:
  _   _   _   _   _   _   _      ___  __                    _   _   _   _   _  ___                      ___
 |_| |_) |   | \ |_  |_  | _ |_|  |    | |_/ |   |\/| |\ | | | |_) | | |_) |_   |  | | \ / |  | \ / \ /  / 
 | | |_) |_  |_/ |_  |   |_| | | _|_ |_| | \ |_  |  | | \| |_| |   |_\ | \  _|  |  |_|  V  |/\| / \  |  /__
+```
+
+## Seven-segment numbers
+
+`RenderSeven(height, text)` and `LinesSeven(height, text)` carry the exact
+same buffer contract, but draw true seven-segment shapes: straight `_` and
+`|` segments only — no diagonals, no slashed zero, no slanted one — and
+all ten digits share one display cell width. The charset is what a real
+display can show, `termfont.SevenCharset`: `0-9`, space, and `. : -`.
+Height 1 prints the characters plainly, but letters are rejected at every
+height — a numeric display shows no alphabet. Height 2 has no room for a
+top-bar row, so 0 and 7 carry a `~` overline to stay unambiguous.
+
+```text
+     _   _       _   _   _   _   _   _
+  |  _|  _| |_| |_  |_    | |_| |_| | |
+  | |_   _|   |  _| |_|   | |_|  _| |_|
 ```
 
 ## Charset and errors
