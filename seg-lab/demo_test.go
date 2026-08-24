@@ -101,7 +101,7 @@ func TestViewerHeight1Plain(t *testing.T) {
 }
 
 func TestViewerHeight(t *testing.T) {
-	t.Run("happy: tab walks 3→4→5→1 and digits set the unit", func(t *testing.T) {
+	t.Run("happy: tab walks 3→4→5→1 and skips 2", func(t *testing.T) {
 		m := newDemo()
 		if m.height != 3 {
 			t.Fatal("boot 3")
@@ -118,9 +118,23 @@ func TestViewerHeight(t *testing.T) {
 		if m.height != 1 {
 			t.Fatalf("tab wraps → %d, want 1", m.height)
 		}
+		m = keyType(m, tea.KeyTab)
+		if m.height != 3 {
+			t.Fatalf("tab from 1 skips 2 → %d, want 3", m.height)
+		}
+		m = key(m, '5')
+		if m.height != 5 || m.text != "HELLO WORLD" {
+			t.Fatalf("digit 5 must set height, not type; height=%d text=%q", m.height, m.text)
+		}
+	})
+	t.Run("unhappy: digit 2 does not select an impossible height", func(t *testing.T) {
+		m := newDemo()
 		m = key(m, '2')
-		if m.height != 2 || m.text != "HELLO WORLD" {
-			t.Fatalf("digit 2 must set height, not type; height=%d text=%q", m.height, m.text)
+		if m.height == 2 {
+			t.Fatal("height 2 is skipped; digit 2 must not select it")
+		}
+		if m.text != "HELLO WORLD" {
+			t.Fatalf("digit 2 must not type, text=%q", m.text)
 		}
 	})
 	t.Run("unhappy: unknown keys do not wipe the text or the height", func(t *testing.T) {

@@ -1,10 +1,11 @@
 // seg-lab: a standalone terminal viewer for the font package.
 //
 //	font.Render(s, 1)  // terminal default font
-//	font.Render(s, 3)  // constructed 14-seg, units 2–5
+//	font.Render(s, 3)  // constructed 14-seg, 3 rows
+//	font.Render(s, 5)  // constructed 14-seg, 5 rows
 //
-//	tab        cycle height 1→2→3→4→5→1
-//	1–5        set the height unit
+//	tab        cycle height 1→3→4→5→1 (2 is skipped)
+//	1,3,4,5    set the height unit
 //	type       edit the message (q is a letter)
 //	backspace  delete
 //	esc        clear — shows the A–Z catalog
@@ -51,8 +52,14 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyTab:
-			m.height++
-			if m.height > 5 {
+			switch m.height {
+			case 1:
+				m.height = 3
+			case 3:
+				m.height = 4
+			case 4:
+				m.height = 5
+			default:
 				m.height = 1
 			}
 		case tea.KeyEsc:
@@ -64,8 +71,12 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case tea.KeyRunes:
 			for _, r := range msg.Runes {
-				if r >= '1' && r <= '5' {
+				if r == '1' || r == '3' || r == '4' || r == '5' {
 					m.height = int(r - '0')
+					continue
+				}
+				if r == '2' {
+					// Height 2 is not possible. Do not type a 2 either.
 					continue
 				}
 				if unicode.IsPrint(r) && r != '\t' {
@@ -90,7 +101,7 @@ func (m demoModel) View() string {
 		b.WriteString(fg(colSeg) + render(m.text, m.height) + reset + "\n")
 	}
 
-	b.WriteString("\n" + fg(colDim) + "tab / 1-5 height · type to edit · backspace · esc clear · ctrl-c quit" + reset + "\n")
+	b.WriteString("\n" + fg(colDim) + "tab / 1 3 4 5 height · type to edit · backspace · esc clear · ctrl-c quit" + reset + "\n")
 	return b.String()
 }
 

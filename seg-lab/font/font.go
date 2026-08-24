@@ -1,12 +1,13 @@
-// Package font draws a string at a height unit 1–5.
+// Package font draws a string at a height unit.
 //
-//	font.Render("HELLO WORLD", 1) // terminal default font
-//	font.Render("HELLO WORLD", 2) // constructed 14-seg
-//	font.Render("HELLO WORLD", 5) // largest constructed 14-seg
+//	font.Render("HELLO WORLD", 1) // terminal default font (1 row)
+//	font.Render("HELLO WORLD", 3) // constructed 14-seg, 3 rows
+//	font.Render("HELLO WORLD", 5) // constructed 14-seg, 5 rows
 //
-// Height 1 is the string as-is — whatever font the terminal is using.
-// Heights 2–5 stamp the Segmented Alpha 14-seg outlines onto a
-// character grid. Height above 5 (or below 1) returns ErrHeight.
+// Height is the number of terminal rows. Height 1 is the string as-is.
+// Height 2 cannot hold a 14-seg letter (needs a top, mid, and bottom)
+// and returns ErrHeight. Heights 3–5 stamp the Segmented Alpha
+// outlines onto a character grid. Anything else also returns ErrHeight.
 package font
 
 import (
@@ -16,29 +17,28 @@ import (
 	"unicode"
 )
 
-// ErrHeight is returned when height is not in 1–5.
-var ErrHeight = errors.New("font: height must be 1-5")
+// ErrHeight is returned when height is not 1, 3, 4, or 5.
+var ErrHeight = errors.New("font: height must be 1, 3, 4, or 5")
 
 // heightCell is the per-letter cell (width × rows) for constructed
-// units 2–5. Width is greater than rows: a terminal cell is about
-// twice as tall as it is wide, so a square grid of █ renders skinny.
+// units. The row count is the height unit. Width is greater than
+// rows so terminal cells (taller than wide) do not squash the letter.
 var heightCell = map[int][2]int{
-	2: {7, 5},
-	3: {10, 7},
-	4: {13, 9},
-	5: {16, 11},
+	3: {5, 3},
+	4: {7, 4},
+	5: {7, 5},
 }
 
-// GlyphSize is the per-letter cell (width × rows) for a height unit 1–5.
+// GlyphSize is the per-letter cell (width × rows) for a height unit.
 // Height 1 is one terminal cell — the default font.
 func GlyphSize(height int) (w, rows int, err error) {
-	if height < 1 || height > 5 {
-		return 0, 0, ErrHeight
-	}
 	if height == 1 {
 		return 1, 1, nil
 	}
-	c := heightCell[height]
+	c, ok := heightCell[height]
+	if !ok {
+		return 0, 0, ErrHeight
+	}
 	return c[0], c[1], nil
 }
 
@@ -116,9 +116,10 @@ const (
 
 type point struct{ x, y float64 }
 
-// Render draws text at a height unit 1–5. Height 1 is the terminal
-// default font. Heights 2–5 are constructed 14-seg. Height outside
-// 1–5 returns ErrHeight. Empty text yields "".
+// Render draws text at height 1, 3, 4, or 5. Height 1 is the
+// terminal default font. Heights 3–5 are constructed 14-seg of
+// that many rows. Height 2 and anything else return ErrHeight.
+// Empty text yields "".
 func Render(text string, height int) (string, error) {
 	w, h, err := GlyphSize(height)
 	if err != nil {
