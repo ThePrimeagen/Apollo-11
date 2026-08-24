@@ -8,6 +8,33 @@ import (
 	"testing"
 )
 
+func TestUseHeat(t *testing.T) {
+	t.Cleanup(ResetHeat)
+	t.Run("happy: UseHeat is what Style reads", func(t *testing.T) {
+		c := DefaultHeat()
+		c.Thresholds[7] = 400
+		if err := UseHeat(c); err != nil {
+			t.Fatal(err)
+		}
+		if Style(230).Ch == '█' {
+			t.Fatal("after raising the yellow rung to 400, H=230 must not be solid")
+		}
+		if Bands()[7].Min != 400 {
+			t.Fatalf("active yellow min %d, want 400", Bands()[7].Min)
+		}
+	})
+	t.Run("unhappy: an invalid config is rejected and the ladder stays", func(t *testing.T) {
+		ResetHeat()
+		before := Bands()[7].Min
+		if err := UseHeat(HeatConfig{Thresholds: []int{1}}); err == nil {
+			t.Fatal("short config must fail")
+		}
+		if Bands()[7].Min != before {
+			t.Fatalf("failed UseHeat must not change the ladder, min=%d", Bands()[7].Min)
+		}
+	})
+}
+
 func TestDefaultConfig(t *testing.T) {
 	t.Run("happy: defaults are the 15% ladder entry heats", func(t *testing.T) {
 		c := DefaultHeat()

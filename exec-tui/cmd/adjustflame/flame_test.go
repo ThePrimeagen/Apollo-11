@@ -204,3 +204,75 @@ func TestView(t *testing.T) {
 		}
 	})
 }
+
+func TestPage(t *testing.T) {
+	t.Run("happy: the page is the sliders plus all eight headings", func(t *testing.T) {
+		m, err := Open(writeCfg(t, fire.DefaultHeat()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 24; i++ {
+			m, _ = send(m, TickMsg{})
+		}
+		sp := m.Page()
+		if sp.Width < fire.CompassCols || sp.Height < fire.CompassRows {
+			t.Fatalf("page %dx%d is too small for the rose", sp.Width, sp.Height)
+		}
+		v := m.View()
+		for _, want := range []string{"N", "NE", "E", "SE", "S", "SW", "W", "NW", "230"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("page missing %q\n%s", want, v)
+			}
+		}
+		var lit int
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				if !sp.At(r, c).Transparent() && sp.At(r, c).Ch != ' ' {
+					lit++
+				}
+			}
+		}
+		if lit < 20 {
+			t.Fatalf("expected a live rose on the page, lit=%d", lit)
+		}
+	})
+	t.Run("unhappy: a tick with no rose does not panic", func(t *testing.T) {
+		m := Model{}
+		m, _ = send(m, TickMsg{})
+		if m.View() == "" {
+			t.Fatal("empty tick must still render")
+		}
+	})
+}
+
+func TestWriteTape(t *testing.T) {
+	t.Run("happy: WriteTape writes n same-size frames of the page", func(t *testing.T) {
+		m, err := Open(writeCfg(t, fire.DefaultHeat()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dir := t.TempDir()
+		paths, err := m.WriteTape(dir, 2, 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(paths) != 2 {
+			t.Fatalf("paths %d, want 2", len(paths))
+		}
+		for i, p := range paths {
+			st, err := os.Stat(p)
+			if err != nil || st.Size() == 0 {
+				t.Fatalf("frame %d missing: %v", i, err)
+			}
+		}
+	})
+	t.Run("unhappy: a zero-frame tape is an error", func(t *testing.T) {
+		m, err := Open(writeCfg(t, fire.DefaultHeat()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := m.WriteTape(t.TempDir(), 0, 8); err == nil {
+			t.Fatal("n<=0 must fail")
+		}
+	})
+}
