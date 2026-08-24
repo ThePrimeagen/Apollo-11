@@ -1,9 +1,9 @@
-// seg-lab: a standalone terminal segmented-letter viewer.
+// seg-lab: a standalone terminal viewer for the font package.
 //
-// Unicode only encodes segmented digits (U+1FBF0–U+1FBF9). Letters have no
-// codepoints, so 7-seg and 14-seg compose them from box-drawing strokes.
+//	font.Render(s, font.Small)  // regular writing
+//	font.Render(s, font.Large)  // large writing
 //
-//	tab        cycle alpha / unicode / 7-seg / 14-seg
+//	tab        small ↔ large
 //	type       edit the message (q is a letter)
 //	backspace  delete
 //	esc        clear — shows the A–Z catalog
@@ -18,7 +18,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/theprimeagen/apollo-11/seg-lab/seg"
+	"github.com/theprimeagen/apollo-11/seg-lab/font"
 )
 
 const (
@@ -33,28 +33,15 @@ func fg(n int) string { return fmt.Sprintf("\x1b[38;5;%dm", n) }
 const reset = "\x1b[0m"
 
 type demoModel struct {
-	text  string
-	style seg.Style
+	text string
+	size font.Size
 }
 
 func newDemo() demoModel {
-	return demoModel{text: "HELLO WORLD", style: seg.StyleAlpha}
+	return demoModel{text: "HELLO WORLD", size: font.Large}
 }
 
 func (m demoModel) Init() tea.Cmd { return nil }
-
-func (m demoModel) nextStyle() seg.Style {
-	switch m.style {
-	case seg.StyleAlpha:
-		return seg.StyleUnicode
-	case seg.StyleUnicode:
-		return seg.StyleSeven
-	case seg.StyleSeven:
-		return seg.StyleFourteen
-	default:
-		return seg.StyleAlpha
-	}
-}
 
 func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -63,7 +50,11 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyTab:
-			m.style = m.nextStyle()
+			if m.size == font.Large {
+				m.size = font.Small
+			} else {
+				m.size = font.Large
+			}
 		case tea.KeyEsc:
 			m.text = ""
 		case tea.KeyBackspace:
@@ -85,46 +76,31 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m demoModel) View() string {
 	var b strings.Builder
 	b.WriteString(fg(colTitle) + "SEGMENTED LETTER VIEWER" + reset)
-	b.WriteString(fg(colDim) + "  ·  " + m.style.String() + reset + "\n\n")
-
-	b.WriteString(fg(colNote) + "Unicode digits U+1FBF0–U+1FBF9  " + reset)
-	b.WriteString(fg(colSeg) + seg.Render("0123456789", seg.StyleUnicode) + reset + "\n")
-	b.WriteString(fg(colDim) + "No official letter codepoints. alpha = 14-seg font (U+E000–U+E019)." + reset + "\n\n")
+	b.WriteString(fg(colDim) + "  ·  " + m.size.String() + reset + "\n")
+	sizeName := "Small"
+	if m.size == font.Large {
+		sizeName = "Large"
+	}
+	b.WriteString(fg(colDim) + "font.Render(s, font." + sizeName + ")" + reset + "\n\n")
 
 	if m.text == "" {
 		b.WriteString(fg(colNote) + "alphabet catalog" + reset + "\n\n")
-		b.WriteString(fg(colSeg) + catalog(m.style) + reset + "\n")
+		b.WriteString(fg(colSeg) + catalog(m.size) + reset + "\n")
 	} else {
-		b.WriteString(fg(colSeg) + seg.Render(m.text, m.style) + reset + "\n")
-		if m.style == seg.StyleUnicode {
-			b.WriteString("\n" + fg(colDim) + "letters stay blank in unicode — tab to alpha" + reset + "\n")
-		} else if m.style == seg.StyleSeven {
-			b.WriteString("\n" + fg(colDim) + "7-seg cannot draw K M V W X — tab to 14-seg or alpha" + reset + "\n")
-		} else if m.style == seg.StyleAlpha {
-			b.WriteString("\n" + fg(colDim) + "one cell per letter (needs Segmented Alpha font)" + reset + "\n")
-		}
+		b.WriteString(fg(colSeg) + font.Render(m.text, m.size) + reset + "\n")
 	}
 
-	b.WriteString("\n" + fg(colDim) + "tab style · type to edit · backspace · esc clear · ctrl-c quit" + reset + "\n")
+	b.WriteString("\n" + fg(colDim) + "tab size · type to edit · backspace · esc clear · ctrl-c quit" + reset + "\n")
 	return b.String()
 }
 
-func catalog(style seg.Style) string {
-	switch style {
-	case seg.StyleUnicode:
-		return seg.Render("0123456789", style)
-	case seg.StyleAlpha:
-		return seg.Render("ABCDEFGHIJKLMNOPQRSTUVWXYZ", style) + "\n" +
-			seg.Render("0123456789", style)
-	case seg.StyleSeven:
-		return seg.Render("ABCDEFGHIJ", style) + "\n\n" +
-			seg.Render("LNOPQRSTUY", style) + "\n\n" +
-			seg.Render("Z0123456789", style)
-	default:
-		return seg.Render("ABCDEFGHIJKLM", style) + "\n\n" +
-			seg.Render("NOPQRSTUVWXYZ", style) + "\n\n" +
-			seg.Render("0123456789", style)
+func catalog(size font.Size) string {
+	if size == font.Large {
+		return font.Render("ABCDEFGHIJKLM", size) + "\n\n" +
+			font.Render("NOPQRSTUVWXYZ", size)
 	}
+	return font.Render("ABCDEFGHIJKLMNOPQRSTUVWXYZ", size) + "\n\n" +
+		font.Render("0123456789", size)
 }
 
 func main() {

@@ -1,8 +1,7 @@
 package main
 
-// Demo harness tests, written first. The lab is a standalone segmented
-// letter viewer: type a string, tab cycles unicode / 7-seg / 14-seg, esc
-// clears, ctrl-c quits. Empty text shows the A–Z catalog.
+// Demo harness tests, written first. The lab is a Go font viewer: pass a
+// string, tab toggles small / large writing. No Python, no TTF.
 
 import (
 	"strings"
@@ -10,7 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/theprimeagen/apollo-11/seg-lab/seg"
+	"github.com/theprimeagen/apollo-11/seg-lab/font"
 )
 
 func key(m demoModel, r rune) demoModel {
@@ -24,20 +23,20 @@ func keyType(m demoModel, t tea.KeyType) demoModel {
 }
 
 func TestViewerBoot(t *testing.T) {
-	t.Run("happy: boots on alpha showing HELLO WORLD", func(t *testing.T) {
+	t.Run("happy: boots HELLO WORLD in large writing", func(t *testing.T) {
 		m := newDemo()
-		if m.style != seg.StyleAlpha {
-			t.Fatalf("boot style %s, want alpha", m.style)
+		if m.size != font.Large {
+			t.Fatalf("boot size %s, want large", m.size)
 		}
 		if m.text != "HELLO WORLD" {
 			t.Fatalf("boot text %q", m.text)
 		}
 		v := m.View()
-		if !strings.Contains(v, "alpha") {
-			t.Fatal("the UI must name the active style")
+		if !strings.Contains(v, "large") {
+			t.Fatal("the UI must name the size")
 		}
-		if !strings.Contains(v, "U+1FBF0") && !strings.Contains(v, "1FBF0") {
-			t.Fatal("the UI must mention the Unicode segmented-digit range")
+		if strings.Contains(v, "genfont") || strings.Contains(v, ".py") || strings.Contains(v, "U+E000") {
+			t.Fatal("the Python / PUA font path is gone")
 		}
 	})
 	t.Run("unhappy: a lone q is a letter, not a quit", func(t *testing.T) {
@@ -75,22 +74,19 @@ func TestViewerTyping(t *testing.T) {
 	})
 }
 
-func TestViewerStyles(t *testing.T) {
-	t.Run("happy: tab walks alpha → unicode → 7-seg → 14-seg", func(t *testing.T) {
+func TestViewerSize(t *testing.T) {
+	t.Run("happy: tab flips large ↔ small", func(t *testing.T) {
 		m := newDemo()
-		seen := []seg.Style{m.style}
-		for i := 0; i < 4; i++ {
-			m = keyType(m, tea.KeyTab)
-			seen = append(seen, m.style)
+		if m.size != font.Large {
+			t.Fatal("boot large")
 		}
-		want := []seg.Style{seg.StyleAlpha, seg.StyleUnicode, seg.StyleSeven, seg.StyleFourteen, seg.StyleAlpha}
-		if len(seen) != len(want) {
-			t.Fatalf("tab cycle %v", seen)
+		m = keyType(m, tea.KeyTab)
+		if m.size != font.Small {
+			t.Fatalf("tab → %s, want small", m.size)
 		}
-		for i := range want {
-			if seen[i] != want[i] {
-				t.Fatalf("tab cycle %v, want %v", seen, want)
-			}
+		m = keyType(m, tea.KeyTab)
+		if m.size != font.Large {
+			t.Fatalf("tab again → %s, want large", m.size)
 		}
 	})
 	t.Run("unhappy: unknown keys do not wipe the text", func(t *testing.T) {
@@ -110,12 +106,9 @@ func TestViewerCatalog(t *testing.T) {
 		if m.text != "" {
 			t.Fatal("esc must clear")
 		}
-		v := m.View()
-		if !strings.Contains(v, "A") || !strings.Contains(strings.ToUpper(v), "CATALOG") && !strings.Contains(v, "ABCDEF") {
-			// catalog may be segmented; the caption should still say so
-			if !strings.Contains(strings.ToLower(v), "catalog") {
-				t.Fatalf("empty viewer must announce the alphabet catalog:\n%s", v)
-			}
+		v := strings.ToLower(m.View())
+		if !strings.Contains(v, "catalog") {
+			t.Fatalf("empty viewer must announce the alphabet catalog:\n%s", m.View())
 		}
 	})
 	t.Run("unhappy: catalog is not shown while a message is typed", func(t *testing.T) {
