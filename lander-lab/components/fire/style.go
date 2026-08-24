@@ -17,8 +17,9 @@ type Band struct {
 	Eq       string
 }
 
-// Bands is the full style table, sparse → dense. Bright yellow is the
-// ceiling; nothing uses xterm 231 (white).
+// Bands is the full style table, sparse → dense. Each rung's entry
+// heat is 15% above the original ladder (first visible stays H=1).
+// Bright yellow is the ceiling; nothing uses xterm 231 (white).
 func Bands() []Band {
 	return []Band{
 		{Min: 1, Max: 6, Glyph: '⠁', Name: "single braille", FG: 88, BG: -1, Eq: "1 <= H <= 6"},
