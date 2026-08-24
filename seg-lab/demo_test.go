@@ -75,6 +75,31 @@ func TestViewerTyping(t *testing.T) {
 	})
 }
 
+func TestViewerHeight1Plain(t *testing.T) {
+	t.Run("happy: height 1 shows the message in the default font", func(t *testing.T) {
+		m := newDemo()
+		m = key(m, '1')
+		if m.height != 1 {
+			t.Fatalf("digit 1 → %d", m.height)
+		}
+		v := m.View()
+		if !strings.Contains(v, "HELLO WORLD") {
+			t.Fatal("height 1 must show the terminal's own letters")
+		}
+	})
+	t.Run("unhappy: the viewer never asks for height 6", func(t *testing.T) {
+		m := newDemo()
+		m.height = 6
+		v := m.View()
+		if !strings.Contains(strings.ToLower(v), "height") {
+			t.Fatal("an illegal height must still be named so the error is visible")
+		}
+		if strings.Contains(v, "█") {
+			t.Fatal("height 6 must not draw bars")
+		}
+	})
+}
+
 func TestViewerHeight(t *testing.T) {
 	t.Run("happy: tab walks 3→4→5→1 and digits set the unit", func(t *testing.T) {
 		m := newDemo()

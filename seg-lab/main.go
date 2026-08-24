@@ -1,6 +1,7 @@
 // seg-lab: a standalone terminal viewer for the font package.
 //
-//	font.Render(s, 3)  // height units 1–5
+//	font.Render(s, 1)  // terminal default font
+//	font.Render(s, 3)  // constructed 14-seg, units 2–5
 //
 //	tab        cycle height 1→2→3→4→5→1
 //	1–5        set the height unit
@@ -86,20 +87,28 @@ func (m demoModel) View() string {
 		b.WriteString(fg(colNote) + "alphabet catalog" + reset + "\n\n")
 		b.WriteString(fg(colSeg) + catalog(m.height) + reset + "\n")
 	} else {
-		b.WriteString(fg(colSeg) + font.Render(m.text, m.height) + reset + "\n")
+		b.WriteString(fg(colSeg) + render(m.text, m.height) + reset + "\n")
 	}
 
 	b.WriteString("\n" + fg(colDim) + "tab / 1-5 height · type to edit · backspace · esc clear · ctrl-c quit" + reset + "\n")
 	return b.String()
 }
 
+func render(text string, height int) string {
+	out, err := font.Render(text, height)
+	if err != nil {
+		return err.Error()
+	}
+	return out
+}
+
 func catalog(height int) string {
 	if height >= 3 {
-		return font.Render("ABCDEFGHIJKLM", height) + "\n\n" +
-			font.Render("NOPQRSTUVWXYZ", height)
+		return render("ABCDEFGHIJKLM", height) + "\n\n" +
+			render("NOPQRSTUVWXYZ", height)
 	}
-	return font.Render("ABCDEFGHIJKLMNOPQRSTUVWXYZ", height) + "\n\n" +
-		font.Render("0123456789", height)
+	return render("ABCDEFGHIJKLMNOPQRSTUVWXYZ", height) + "\n\n" +
+		render("0123456789", height)
 }
 
 func main() {

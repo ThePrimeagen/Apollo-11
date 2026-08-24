@@ -1,28 +1,28 @@
-// Package font draws a string in 14-segment LED bars.
+// Package font draws a string at a height unit 1–5.
 //
-// Unicode has no segmented letters. Pass a string and a height unit 1–5.
+//	font.Render("HELLO WORLD", 1) // terminal default font
+//	font.Render("HELLO WORLD", 2) // constructed 14-seg
+//	font.Render("HELLO WORLD", 5) // largest constructed 14-seg
 //
-//	font.Render("HELLO WORLD", 3)
-//
-// The old look was a TTF: the terminal's font rasterizer drew smooth
-// filled bars in one cell. This package keeps that same outline
-// (Segmented Alpha: L=70 R=516 T=770 B=-50, 14-seg) and stamps it onto
-// a character grid. Bars stay thick, joints stay gapped. Half-blocks
-// (▀▄) give the extra vertical resolution a square █ grid does not.
+// Height 1 is the string as-is — whatever font the terminal is using.
+// Heights 2–5 stamp the Segmented Alpha 14-seg outlines onto a
+// character grid. Height above 5 (or below 1) returns ErrHeight.
 package font
 
 import (
+	"errors"
 	"math"
 	"strings"
 	"unicode"
 )
 
-// heightCell is the per-letter cell (width × rows) for units 1–5.
-// Width is greater than rows: a terminal cell is about twice as tall
-// as it is wide, so a square grid of █ renders as a skinny stick.
-// Index 0 is unused; 2 is the old "small", 4 is the old "large".
-var heightCell = [...][2]int{
-	1: {5, 3},
+// ErrHeight is returned when height is not in 1–5.
+var ErrHeight = errors.New("font: height must be 1-5")
+
+// heightCell is the per-letter cell (width × rows) for constructed
+// units 2–5. Width is greater than rows: a terminal cell is about
+// twice as tall as it is wide, so a square grid of █ renders skinny.
+var heightCell = map[int][2]int{
 	2: {7, 5},
 	3: {10, 7},
 	4: {13, 9},
@@ -30,12 +30,16 @@ var heightCell = [...][2]int{
 }
 
 // GlyphSize is the per-letter cell (width × rows) for a height unit 1–5.
-func GlyphSize(height int) (w, rows int) {
-	if height < 1 || height >= len(heightCell) {
-		return 0, 0
+// Height 1 is one terminal cell — the default font.
+func GlyphSize(height int) (w, rows int, err error) {
+	if height < 1 || height > 5 {
+		return 0, 0, ErrHeight
+	}
+	if height == 1 {
+		return 1, 1, nil
 	}
 	c := heightCell[height]
-	return c[0], c[1]
+	return c[0], c[1], nil
 }
 
 // 14-segment bits. Same map as the TTF.
@@ -112,16 +116,20 @@ const (
 
 type point struct{ x, y float64 }
 
-// Render draws text at a height unit 1–5. Empty text or a height
-// outside that range yield "".
-func Render(text string, height int) string {
-	w, h := GlyphSize(height)
-	if w == 0 || h == 0 {
-		return ""
+// Render draws text at a height unit 1–5. Height 1 is the terminal
+// default font. Heights 2–5 are constructed 14-seg. Height outside
+// 1–5 returns ErrHeight. Empty text yields "".
+func Render(text string, height int) (string, error) {
+	w, h, err := GlyphSize(height)
+	if err != nil {
+		return "", err
+	}
+	if height == 1 {
+		return text, nil
 	}
 	rs := []rune(text)
 	if len(rs) == 0 {
-		return ""
+		return "", nil
 	}
 	lines := make([]string, h)
 	for i, r := range rs {
@@ -133,7 +141,7 @@ func Render(text string, height int) string {
 			lines[row] += g[row]
 		}
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), nil
 }
 
 func lookup(r rune) uint16 {
