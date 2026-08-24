@@ -74,7 +74,7 @@ func writeFireTape(dir string) error {
 	const (
 		seconds = 20
 		rate    = 20
-		cellW   = 40
+		cellW   = 56
 	)
 	f := fire.Booster(1)
 	if _, err := fire.WriteTape(dir, f, seconds*rate, cellW); err != nil {
