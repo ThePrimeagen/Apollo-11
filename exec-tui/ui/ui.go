@@ -16,7 +16,63 @@ import (
 	"github.com/theprimeagen/apollo-11/button-lab/button"
 	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
+	"github.com/theprimeagen/apollo-11/lander-lab/lander"
 )
+
+// ---------------------------------------------------------------------------
+// The historical flight plan: real engine actions at the real moments. The
+// alarms are NOT in this list — they emerge from the engine's own
+// arithmetic once the plan lights the loads, landing on the flight's timing.
+// ---------------------------------------------------------------------------
+
+type flightAction struct {
+	atMs    float64
+	caption string
+	run     func(*Model)
+}
+
+func flightPlan() []flightAction {
+	return []flightAction{
+		{26_000, "throttle to full — guidance enabled", func(m *Model) {}},
+		{232_000, "yaw maneuver — windows up", func(m *Model) {}},
+		{274_000, "landing radar: data good", func(m *Model) { m.eng.AcquireLandingRadar() }},
+		{304_000, "Buzz keys V16N68 — DELTAH monitor", func(m *Model) { m.queueKeys("V16N68E") }},
+		{338_000, "V57E — accept radar updates", func(m *Model) { m.queueKeys("V57E") }},
+		{346_000, "V16N68 re-keyed after the restart", func(m *Model) { m.queueKeys("V16N68E") }},
+		{384_000, "throttle down — right on time", func(m *Model) {}},
+		{506_000, "high gate — P64, LPD active", func(m *Model) { m.eng.EnterP64() }},
+		{603_000, "Armstrong: AUTO → ATT HOLD, then P66", func(m *Model) { m.eng.AttHold() }},
+		{757_000, "CONTACT LIGHT — the Eagle has landed", func(m *Model) {}},
+	}
+}
+
+// flightPath anchors ALT/VEL over mission time (Cherry's event log; the
+// display interpolates between them).
+var flightPath = []struct{ t, alt, vel float64 }{
+	{0, 49971, 5560}, {26, 48000, 5460}, {232, 42426, 3366}, {274, 39000, 2745},
+	{304, 35706, 2521}, {384, 23393, 1481}, {506, 7400, 506}, {603, 650, 50},
+	{615, 430, 30}, {757, 0, 0},
+}
+
+// pathAt interpolates altitude and velocity for a mission time.
+func pathAt(sec float64) (alt, vel float64) {
+	last, next := flightPath[0], flightPath[len(flightPath)-1]
+	for i := range flightPath {
+		if flightPath[i].t <= sec {
+			last = flightPath[i]
+			if i+1 < len(flightPath) {
+				next = flightPath[i+1]
+			} else {
+				next = flightPath[i]
+			}
+		}
+	}
+	if next.t <= last.t {
+		return last.alt, last.vel
+	}
+	f := (sec - last.t) / (next.t - last.t)
+	return last.alt + f*(next.alt-last.alt), last.vel + f*(next.vel-last.vel)
+}
 
 // dskyState maps the engine onto the DSKY panel: verb/noun as keyed, PROG
 // from the phase, registers from the flight values, PROG/RESTART lamps from
@@ -90,6 +146,11 @@ type Model struct {
 	pending []pendingKey
 	sel     int // selected switch: 0 DESCENT, 1 DELTAH, 2 RR STEAL
 	zoom    int // timeline zoom level index (see zoomBPC)
+
+	flight        bool // the historical recreation is running
+	plan          []flightAction
+	flightCaption string
+	frame         int
 }
 
 // NewModel wraps an engine.
@@ -161,11 +222,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.w, m.h = msg.Width, msg.Height
 		return m, nil
 	case FrameMsg:
+		m.frame++
 		if !m.paused {
 			m.eng.AdvanceWall(frameWallMs)
 			for len(m.pending) > 0 && m.eng.AGCTimeMs() >= m.pending[0].dueAGC {
 				m.eng.PressKey(m.pending[0].key)
 				m.pending = m.pending[1:]
+			}
+			for len(m.plan) > 0 && m.eng.AGCTimeMs() >= m.plan[0].atMs {
+				act := m.plan[0]
+				m.plan = m.plan[1:]
+				m.flightCaption = act.caption
+				act.run(&m)
 			}
 		}
 		return m, frameTick()
@@ -236,6 +304,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.zoom = (m.zoom + 1) % len(zoomBPC)
 	case 'd':
 		m.eng.StartDescent()
+	case 'f':
+		// fly the historical recreation: theft on from PDI, the plan
+		// lights each load at its true moment, the engine does the rest
+		if !m.flight && m.eng.Phase() == sim.P00 {
+			m.flight = true
+			m.flightCaption = "PDI — DPS ignition at 10%"
+			m.plan = flightPlan()
+			m.eng.SetWallToAGC(8)
+			m.eng.StartDescent()
+			m.eng.SetRadarBug(true)
+		}
 	case 'n':
 		m.sel = 1
 		m.engage()
@@ -252,10 +331,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case '[', '-':
 		m.eng.SetWallToAGC(maxf(0.0125, m.eng.WallToAGC()/2))
 	case ']', '+', '=':
-		m.eng.SetWallToAGC(minf(2.0, m.eng.WallToAGC()*2))
+		m.eng.SetWallToAGC(minf(16.0, m.eng.WallToAGC()*2))
 	case 'x':
 		m.eng.Reset()
 		m.pending = nil
+		m.flight = false
+		m.plan = nil
 	}
 	return m, nil
 }
@@ -359,9 +440,54 @@ func (m Model) View() string {
 	if gap < 1 {
 		gap = 1
 	}
+	// during a flight, the lander descends in the center gap — when there
+	// is room for it
+	if m.flight && gap >= lander.Width+2 {
+		mid := lander.Render(m.landerState())
+		pad1 := (gap - lander.Width) / 2
+		pad2 := gap - lander.Width - pad1
+		body := lipgloss.JoinHorizontal(lipgloss.Top,
+			left, strings.Repeat(" ", pad1), mid, strings.Repeat(" ", pad2), right)
+		b.WriteString(body)
+		return b.String()
+	}
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
 	b.WriteString(body)
 	return b.String()
+}
+
+// landerState feeds the descent panel from the ENGINE: mission time drives
+// the interpolated path, and the markers are the engine's real alarms at
+// the altitude the flight was passing when each one fired.
+func (m Model) landerState() lander.State {
+	e := m.eng
+	sec := e.AGCTimeMs() / 1000
+	alt, vel := pathAt(sec)
+	st := lander.State{
+		AltFt: alt, VelFps: vel, TimeSec: sec, Tick: m.frame,
+		Event: m.flightCaption,
+	}
+	if end := flightPath[len(flightPath)-1].t; sec < end {
+		st.LandInSec = end - sec
+	}
+	switch e.Phase() {
+	case sim.P63:
+		st.Phase = "P63 BRAKING"
+	case sim.P64:
+		st.Phase = "P64 APPROACH"
+	case sim.P66:
+		st.Phase = "P66 LANDING"
+	}
+	st.Attitude = lander.Vertical
+	if alt <= 0 {
+		st.Attitude = lander.Landed
+		st.Phase = "P66 LANDED"
+	}
+	for _, a := range e.Alarms() {
+		aAlt, _ := pathAt(a.AGCTimeMs / 1000)
+		st.Alarms = append(st.Alarms, lander.Alarm{Code: a.Code, AltFt: aAlt})
+	}
+	return st
 }
 
 // viewSwitches renders the three switches as a tight bank that fits
