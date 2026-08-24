@@ -1,9 +1,10 @@
 package editor
 
 // Tests written FIRST. The lander editor is a vim-ish TUI: HJKL walk the
-// canvas, space selects, I paints the selected palette color, D deletes to
-// transparent, Ctrl-A / Ctrl-B walk the shade ramp, mouse click jumps the
-// cursor, and Ctrl-W H / Ctrl-W L (plus J/K) move between windows.
+// canvas, space selects, P pastes the selected symbol, i inserts one
+// character, D deletes to transparent, Ctrl-A / Ctrl-B walk the shade ramp,
+// mouse click jumps the cursor, and Ctrl-W H / Ctrl-W L (plus J/K) move
+// between canvas, symbols, palette, and frames.
 
 import (
 	"encoding/json"
@@ -106,10 +107,10 @@ func TestPaintAndDelete(t *testing.T) {
 		m.CursorR, m.CursorC = 0, 0
 		// first palette entry after empty is silver
 		m.PalIdx = 1
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		c := m.Current().At(0, 0)
 		if c.Transparent() {
-			t.Fatal("I must leave a visible cell")
+			t.Fatal("P must leave a visible cell")
 		}
 		want := m.Atlas.Palette[1]
 		if c.FG != want.FG {
@@ -123,16 +124,16 @@ func TestPaintAndDelete(t *testing.T) {
 		m = send(m, keyType(tea.KeySpace))
 		m.CursorC = 1
 		m = send(m, keyType(tea.KeySpace))
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		if m.Current().At(0, 0).Transparent() || m.Current().At(0, 1).Transparent() {
-			t.Fatal("I must fill the whole selection")
+			t.Fatal("P must fill the whole selection")
 		}
 	})
 	t.Run("happy: D deletes a cell to transparent", func(t *testing.T) {
 		m := newEd(t)
 		m.PalIdx = 1
 		m.CursorR, m.CursorC = 0, 0
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		m = send(m, key('d'))
 		if !m.Current().At(0, 0).Transparent() {
 			t.Fatal("D must clear the cell")
@@ -142,7 +143,7 @@ func TestPaintAndDelete(t *testing.T) {
 		m := newEd(t)
 		m.PalIdx = 1
 		m.CursorR, m.CursorC = 0, 0
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		bgPal := 0
 		for i, p := range m.Atlas.Palette {
 			if p.BG >= 0 {
@@ -172,7 +173,7 @@ func TestPaintAndDelete(t *testing.T) {
 	t.Run("unhappy: I with no palette entry selected does not panic", func(t *testing.T) {
 		m := newEd(t)
 		m.PalIdx = -1
-		_ = send(m, key('i'))
+		_ = send(m, key('P'))
 	})
 }
 
@@ -207,15 +208,15 @@ func TestShadeKeys(t *testing.T) {
 }
 
 func TestWindows(t *testing.T) {
-	t.Run("happy: Ctrl-W L then Ctrl-W H move between canvas and palette like vim", func(t *testing.T) {
+	t.Run("happy: Ctrl-W L then Ctrl-W H move between canvas and symbols like vim", func(t *testing.T) {
 		m := newEd(t)
 		if m.Win != WinCanvas {
 			t.Fatal("editor must boot focused on the canvas")
 		}
 		m = send(m, keyType(tea.KeyCtrlW))
 		m = send(m, key('l'))
-		if m.Win != WinPalette {
-			t.Fatalf("Ctrl-W L must move to the palette, got %v", m.Win)
+		if m.Win != WinSymbols {
+			t.Fatalf("Ctrl-W L must move to the symbols list, got %v", m.Win)
 		}
 		m = send(m, keyType(tea.KeyCtrlW))
 		m = send(m, key('h'))
@@ -223,10 +224,18 @@ func TestWindows(t *testing.T) {
 			t.Fatalf("Ctrl-W H must return to the canvas, got %v", m.Win)
 		}
 	})
-	t.Run("happy: Ctrl-W J / K move between palette and frames", func(t *testing.T) {
+	t.Run("happy: Ctrl-W J / K move between symbols, palette, and frames", func(t *testing.T) {
 		m := newEd(t)
 		m = send(m, keyType(tea.KeyCtrlW))
 		m = send(m, key('l'))
+		if m.Win != WinSymbols {
+			t.Fatalf("Ctrl-W L must land on symbols, got %v", m.Win)
+		}
+		m = send(m, keyType(tea.KeyCtrlW))
+		m = send(m, key('j'))
+		if m.Win != WinPalette {
+			t.Fatalf("Ctrl-W J from symbols must land on palette, got %v", m.Win)
+		}
 		m = send(m, keyType(tea.KeyCtrlW))
 		m = send(m, key('j'))
 		if m.Win != WinFrames {
@@ -291,7 +300,7 @@ func TestSaveJSON(t *testing.T) {
 		m := New(sprite.Default(), path)
 		m.CursorR, m.CursorC = 0, 0
 		m.PalIdx = 1
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		if err := m.Save(); err != nil {
 			t.Fatalf("save: %v", err)
 		}

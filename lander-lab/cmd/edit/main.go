@@ -2,18 +2,20 @@ package main
 
 // lander-edit: a vim-ish terminal editor for the LM ASCII atlas.
 //
-//	h j k l     move (canvas / palette / frames)
+//	h j k l     move (canvas / symbols / palette / frames)
 //	1-0         clutch last 10 colors
-//	!@#$%^&*()  paint glyphs: ░▒▓█ ▀▄▌▐ ▖▗
+//	!@#$%^&*()  jump to ░▒▓█ ▀▄▌▐ ▖▗ on the symbol list
+//	p           cycle the symbol list (full / half / quarter / shade)
+//	P           paste the selected symbol in the current color
+//	i           one-shot insert: next character typed lands on the cell
 //	c           8-bit color dropdown (greys + cube; space picks, esc closes)
 //	space       toggle-select the cell under the cursor
-//	i           stamp selected glyph in selected color
 //	f / b       paint foreground / background only
 //	d           delete to transparent
 //	ctrl-a / b  increment / decrement shade (░▒▓█)
-//	ctrl-w h/l  focus canvas / palette (vim splits)
-//	ctrl-w j/k  focus frames / palette
-//	mouse       click a canvas cell to jump there
+//	ctrl-w h/l  focus canvas / symbols (vim splits)
+//	ctrl-w j/k  focus palette+frames / symbols
+//	mouse       click a canvas cell or a symbol to jump there
 //	ctrl-s      save JSON
 //	q           quit
 

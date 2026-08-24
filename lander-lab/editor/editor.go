@@ -15,6 +15,7 @@ type Window int
 
 const (
 	WinCanvas Window = iota
+	WinSymbols
 	WinPalette
 	WinFrames
 )
@@ -23,6 +24,8 @@ func (w Window) String() string {
 	switch w {
 	case WinCanvas:
 		return "canvas"
+	case WinSymbols:
+		return "symbols"
 	case WinPalette:
 		return "palette"
 	case WinFrames:
@@ -58,6 +61,8 @@ type Model struct {
 
 	Brush        Swatch
 	PaintCh      rune
+	SymIdx       int
+	Inserting    bool
 	RecentColors []Swatch
 	RecentGlyphs []rune
 	PickerOpen   bool
@@ -91,10 +96,11 @@ func New(a *sprite.Atlas, path string) Model {
 		sel:          map[cellKey]bool{},
 		Brush:        Swatch{FG: 252, BG: -1},
 		PaintCh:      '█',
+		SymIdx:       0,
 		RecentColors: seedColors(),
 		RecentGlyphs: seedGlyphs(),
 		PickerIdx:    23,
-		status:       "1-0 colors  !@# paints  c 8-bit  i stamp  d delete  ^W hjkl  q quit",
+		status:       "i insert one  P paste  p cycle  1-0 colors  !@# glyphs  c 8-bit  d delete  ^W hjkl  q quit",
 	}
 }
 
@@ -145,25 +151,23 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		r := runeFrom(msg)
 		switch unicode.ToLower(r) {
 		case 'h':
-			m.Win = WinCanvas
+			m.winLeft()
 		case 'l':
-			if m.Win == WinCanvas {
-				m.Win = WinPalette
-			}
+			m.winRight()
 		case 'j':
-			if m.Win == WinPalette || m.Win == WinCanvas {
-				m.Win = WinFrames
-			}
+			m.winDown()
 		case 'k':
-			if m.Win == WinFrames {
-				m.Win = WinPalette
-			}
+			m.winUp()
 		}
 		return m, nil
 	}
 
 	if m.PickerOpen {
 		return m.handlePickerKey(msg)
+	}
+
+	if m.Inserting {
+		return m.handleInsert(msg)
 	}
 
 	switch msg.Type {
@@ -174,6 +178,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyEsc:
 		m.sel = map[cellKey]bool{}
+		m.Inserting = false
 		return m, nil
 	case tea.KeyCtrlA:
 		if m.Win == WinCanvas {
@@ -201,12 +206,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.openPicker()
 	case 'p':
 		m.cyclePaint()
+	case 'P':
+		m.pasteSymbol()
 	case 'h', 'j', 'k', 'l':
 		m.move(r)
 	case 'i', 'I':
-		if m.Win == WinCanvas {
-			m.paint('i')
-		}
+		m.Inserting = true
+		m.status = "-- INSERT one char (esc cancel) --"
 	case 'd', 'D', 'x':
 		if m.Win == WinCanvas {
 			m.paint('d')
@@ -220,6 +226,65 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.paint('b')
 		}
 	}
+	return m, nil
+}
+
+func (m *Model) winRight() {
+	switch m.Win {
+	case WinCanvas:
+		m.Win = WinSymbols
+	case WinSymbols:
+		m.Win = WinPalette
+	}
+}
+
+func (m *Model) winLeft() {
+	switch m.Win {
+	case WinPalette, WinFrames:
+		m.Win = WinSymbols
+	case WinSymbols:
+		m.Win = WinCanvas
+	}
+}
+
+func (m *Model) winDown() {
+	switch m.Win {
+	case WinCanvas, WinSymbols:
+		m.Win = WinPalette
+	case WinPalette:
+		m.Win = WinFrames
+	}
+}
+
+func (m *Model) winUp() {
+	switch m.Win {
+	case WinFrames:
+		m.Win = WinPalette
+	case WinPalette:
+		m.Win = WinSymbols
+	}
+}
+
+func (m Model) handleInsert(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.Inserting = false
+		m.status = "insert cancelled"
+		return m, nil
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+	}
+	r := runeFrom(msg)
+	if r == 0 {
+		m.Inserting = false
+		m.status = "insert cancelled"
+		return m, nil
+	}
+	m.paintGlyph(r)
+	m.PaintCh = r
+	m.syncSymIdx()
+	m.Inserting = false
+	m.status = fmt.Sprintf("inserted %s", string(r))
 	return m, nil
 }
 
@@ -278,6 +343,11 @@ func (m *Model) space() {
 			m.status = "color " + p.Name
 		}
 	case WinFrames:
+	case WinSymbols:
+		if m.SymIdx >= 0 && m.SymIdx < len(SymbolList) {
+			m.PaintCh = SymbolList[m.SymIdx].Ch
+			m.status = fmt.Sprintf("symbol %s", SymbolList[m.SymIdx].Name)
+		}
 	}
 }
 
@@ -318,6 +388,19 @@ func (m *Model) move(r rune) {
 			p := m.Atlas.Palette[m.PalIdx]
 			m.Brush = Swatch{FG: p.FG, BG: p.BG}
 		}
+	case WinSymbols:
+		n := len(SymbolList)
+		if n == 0 {
+			return
+		}
+		switch r {
+		case 'k', 'h':
+			m.SymIdx = (m.SymIdx - 1 + n) % n
+		case 'j', 'l':
+			m.SymIdx = (m.SymIdx + 1) % n
+		}
+		m.PaintCh = SymbolList[m.SymIdx].Ch
+		m.status = fmt.Sprintf("symbol %s", SymbolList[m.SymIdx].Name)
 	case WinFrames:
 		switch r {
 		case 'h':
@@ -405,15 +488,6 @@ func (m *Model) paint(mode rune) {
 		switch mode {
 		case 'd':
 			c = sprite.Cell{Ch: ' ', FG: -1, BG: -1}
-		case 'i':
-			ch := m.PaintCh
-			if ch == 0 || ch == ' ' {
-				ch = '█'
-			}
-			c.Ch = ch
-			c.FG, c.BG = col.FG, col.BG
-			m.RecentGlyphs = rememberGlyph(m.RecentGlyphs, ch, 10)
-			m.RecentColors = rememberSwatch(m.RecentColors, col, 10)
 		case 'f':
 			if c.Ch == ' ' {
 				c.Ch = m.PaintCh
@@ -431,6 +505,38 @@ func (m *Model) paint(mode rune) {
 				}
 			}
 			c.BG = col.BG
+			m.RecentColors = rememberSwatch(m.RecentColors, col, 10)
+		}
+		sp.Set(k.R, k.C, c)
+	}
+	m.setCurrent(sp)
+}
+
+func (m *Model) pasteSymbol() {
+	if len(SymbolList) == 0 {
+		return
+	}
+	if m.SymIdx < 0 || m.SymIdx >= len(SymbolList) {
+		m.SymIdx = 0
+	}
+	m.PaintCh = SymbolList[m.SymIdx].Ch
+	m.paintGlyph(m.PaintCh)
+}
+
+func (m *Model) paintGlyph(ch rune) {
+	sp := cloneSprite(m.Current())
+	col := m.color()
+	if ch == 0 {
+		ch = '█'
+	}
+	for _, k := range m.targets() {
+		c := sp.At(k.R, k.C)
+		if ch == ' ' {
+			c = sprite.Cell{Ch: ' ', FG: -1, BG: -1}
+		} else {
+			c.Ch = ch
+			c.FG, c.BG = col.FG, col.BG
+			m.RecentGlyphs = rememberGlyph(m.RecentGlyphs, ch, 10)
 			m.RecentColors = rememberSwatch(m.RecentColors, col, 10)
 		}
 		sp.Set(k.R, k.C, c)
@@ -481,6 +587,27 @@ func (m *Model) handleMouse(msg tea.MouseMsg) {
 		m.clampCursor()
 		return
 	}
+	// symbols list sits in the right sidebar, starting at the same row as
+	// the canvas box (title is line 0, box top is line 1, inner is line 2).
+	sideX := sp.Width + 2 + 1
+	if x >= sideX {
+		rows := symbolRows()
+		// header line inside the symbols box is "full · half · quarter"
+		innerY := y - 2
+		if innerY >= 1 && innerY < 1+len(rows) {
+			row := rows[innerY-1]
+			m.Win = WinSymbols
+			if row.idx >= 0 {
+				m.SymIdx = row.idx
+				m.PaintCh = SymbolList[row.idx].Ch
+			}
+			return
+		}
+		if innerY == 0 || (y >= 1 && y < 2+1+len(rows)) {
+			m.Win = WinSymbols
+			return
+		}
+	}
 	// clicks off the canvas must not invent an out-of-range cursor
 	m.clampCursor()
 }
@@ -507,12 +634,16 @@ func (m Model) View() string {
 	}
 
 	canvas := renderCanvas(sp, m)
+	symbols := renderSymbols(m)
 	palette := renderPalette(m)
 	frames := renderFrames(m)
-	sidebar := joinVert(palette, frames)
+	sidebar := joinVert(joinVert(symbols, palette), frames)
 
 	body := joinHoriz(canvas, sidebar)
 	status := m.status
+	if m.Inserting && status == "" {
+		status = "-- INSERT one char (esc cancel) --"
+	}
 	if m.err != "" {
 		status = m.err
 	}
@@ -551,6 +682,43 @@ func renderCanvas(sp sprite.Sprite, m Model) string {
 	}
 	label := fmt.Sprintf(" canvas %dx%d %s ", sp.Width, sp.Height, m.Heading)
 	return box(label, inner, sp.Width)
+}
+
+func symbolRows() []symRow {
+	var rows []symRow
+	last := ""
+	for i, s := range SymbolList {
+		if s.Kind != last {
+			last = s.Kind
+			rows = append(rows, symRow{idx: -1, text: " " + s.Kind})
+		}
+		rows = append(rows, symRow{idx: i, text: fmt.Sprintf(" %c %s", s.Ch, s.Name)})
+	}
+	return rows
+}
+
+type symRow struct {
+	idx  int
+	text string
+}
+
+func renderSymbols(m Model) string {
+	const w = 22
+	rows := symbolRows()
+	lines := make([]string, 0, len(rows)+1)
+	lines = append(lines, padPlain("full · half · quarter", w))
+	for _, row := range rows {
+		text := row.text
+		if row.idx == m.SymIdx {
+			text = "\x1b[7m>" + strings.TrimPrefix(row.text, " ") + "\x1b[0m"
+		}
+		lines = append(lines, padPlain(text, w))
+	}
+	focus := ""
+	if m.Win == WinSymbols {
+		focus = "*"
+	}
+	return box(focus+" symbols ", lines, w)
 }
 
 func oneCell(c sprite.Cell) sprite.Sprite {

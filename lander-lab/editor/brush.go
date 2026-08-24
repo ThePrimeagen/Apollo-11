@@ -1,24 +1,59 @@
 package editor
 
-// Paint kit: ten clutch colors on 1-0, ten paint glyphs on the shift-number
-// row !@#$%^&*(), an 8-bit dropdown with the xterm greyscale (enough
-// whites to shade), and a brush that i stamps onto the canvas.
+// Paint kit: ten clutch colors on 1-0, a named symbol list of full / half /
+// quarter blocks, P pastes the selected symbol, and i enters one-shot insert
+// so you can type any character.
 
 import "fmt"
 
 // GlyphKeys is shift-1 through shift-0 — bang, at, hash, and friends.
 var GlyphKeys = []rune{'!', '@', '#', '$', '%', '^', '&', '*', '(', ')'}
 
-// DefaultGlyphs are the ten little rectangles: four densities, four halves,
-// two quadrants. The rest (▘▝▛▜▙▟) ride in the paint dropdown and then the
-// past-ten once you use them.
+// DefaultGlyphs maps GlyphKeys onto the first ten symbols: four densities,
+// four halves, two quadrants.
 var DefaultGlyphs = []rune{'░', '▒', '▓', '█', '▀', '▄', '▌', '▐', '▖', '▗'}
 
-// ExtraGlyphs are the other block-elements the dropdown can pick.
+// ExtraGlyphs are the other block-elements on the symbol list.
 var ExtraGlyphs = []rune{'▘', '▝', '▛', '▜', '▙', '▟', '▞', '▚'}
 
 // ColorKeys is 1-9 then 0 for clutch slots 1-10.
 var ColorKeys = []rune{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'}
+
+// Sym is one entry on the symbol selection list.
+type Sym struct {
+	Ch   rune
+	Name string
+	Kind string
+}
+
+// SymbolList is the selectable block alphabet: full, halves, shades, quarters,
+// three-quarter blocks, diagonals, and lower eighths.
+var SymbolList = []Sym{
+	{'█', "full", "full"},
+	{'▀', "up half", "half"},
+	{'▄', "lo half", "half"},
+	{'▌', "left half", "half"},
+	{'▐', "right half", "half"},
+	{'░', "light", "shade"},
+	{'▒', "medium", "shade"},
+	{'▓', "dark", "shade"},
+	{'▘', "UL 1/4", "quarter"},
+	{'▝', "UR 1/4", "quarter"},
+	{'▖', "LL 1/4", "quarter"},
+	{'▗', "LR 1/4", "quarter"},
+	{'▛', "UL 3/4", "quarter"},
+	{'▜', "UR 3/4", "quarter"},
+	{'▙', "LL 3/4", "quarter"},
+	{'▟', "LR 3/4", "quarter"},
+	{'▞', "diag /", "diag"},
+	{'▚', "diag \\", "diag"},
+	{'▁', "1/8", "eighth"},
+	{'▂', "2/8", "eighth"},
+	{'▃', "3/8", "eighth"},
+	{'▅', "5/8", "eighth"},
+	{'▆', "6/8", "eighth"},
+	{'▇', "7/8", "eighth"},
+}
 
 // Greys is xterm 232-255, dark to white. 250-255 are the near-whites.
 var Greys = func() []int {
@@ -127,24 +162,30 @@ func cubeColor(red, idx int) int {
 	return 16 + red*36 + green*cubeSide + blue
 }
 
-func allGlyphs() []rune {
-	return append(append([]rune(nil), DefaultGlyphs...), ExtraGlyphs...)
-}
-
 func (m *Model) cyclePaint() {
-	all := allGlyphs()
-	if len(all) == 0 {
+	n := len(SymbolList)
+	if n == 0 {
 		return
 	}
-	idx := 0
-	for i, ch := range all {
-		if ch == m.PaintCh {
-			idx = (i + 1) % len(all)
+	idx := m.SymIdx
+	for i, s := range SymbolList {
+		if s.Ch == m.PaintCh {
+			idx = i
 			break
 		}
 	}
-	m.PaintCh = all[idx]
-	m.status = fmt.Sprintf("paint %s", string(m.PaintCh))
+	m.SymIdx = (idx + 1) % n
+	m.PaintCh = SymbolList[m.SymIdx].Ch
+	m.status = fmt.Sprintf("paint %s %s", string(m.PaintCh), SymbolList[m.SymIdx].Name)
+}
+
+func (m *Model) syncSymIdx() {
+	for i, s := range SymbolList {
+		if s.Ch == m.PaintCh {
+			m.SymIdx = i
+			return
+		}
+	}
 }
 
 func (m *Model) applyGlyphKey(r rune) bool {
@@ -154,6 +195,7 @@ func (m *Model) applyGlyphKey(r rune) bool {
 	}
 	ch := DefaultGlyphs[i]
 	m.PaintCh = ch
+	m.syncSymIdx()
 	m.status = fmt.Sprintf("paint %s", string(ch))
 	return true
 }

@@ -3,7 +3,7 @@ package editor
 // Tests written FIRST. The paint kit: 1-0 clutch the last ten colors,
 // !@#$%^&*() clutch the ten paint glyphs (shades, halves, quadrants),
 // c opens an 8-bit picker with a greyscale ramp that has enough whites
-// to shade, and i stamps the selected glyph in the selected color.
+// to shade, P pastes the selected symbol, and i inserts one typed character.
 
 import (
 	"strings"
@@ -25,10 +25,10 @@ func TestGlyphKeysPaintPartialBlocks(t *testing.T) {
 			if m.PaintCh != tc.ch {
 				t.Fatalf("key %q: PaintCh %q, want %q", string(tc.key), string(m.PaintCh), string(tc.ch))
 			}
-			m = send(m, key('i'))
+			m = send(m, key('P'))
 			got := m.Current().At(0, 0).Ch
 			if got != tc.ch {
-				t.Fatalf("i after %q painted %q, want %q", string(tc.key), string(got), string(tc.ch))
+				t.Fatalf("P after %q pasted %q, want %q", string(tc.key), string(got), string(tc.ch))
 			}
 		}
 	})
@@ -65,9 +65,9 @@ func TestColorClutch(t *testing.T) {
 		if m.Brush != want {
 			t.Fatalf("3 must load clutch slot 3, got %+v want %+v", m.Brush, want)
 		}
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		if m.Current().At(0, 0).FG != want.FG {
-			t.Fatalf("i must paint clutch fg %d, got %d", want.FG, m.Current().At(0, 0).FG)
+			t.Fatalf("P must paint clutch fg %d, got %d", want.FG, m.Current().At(0, 0).FG)
 		}
 	})
 	t.Run("happy: 0 is the tenth slot, not a zero color", func(t *testing.T) {
@@ -108,9 +108,9 @@ func TestRecentMemory(t *testing.T) {
 		m := newEd(t)
 		m.CursorR, m.CursorC = 0, 0
 		m = send(m, key(')')) // ▗
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		if m.RecentGlyphs[0] != '▗' {
-			t.Fatalf("painted glyph must become past-paint 1, got %q", string(m.RecentGlyphs[0]))
+			t.Fatalf("pasted glyph must become past-paint 1, got %q", string(m.RecentGlyphs[0]))
 		}
 	})
 	t.Run("unhappy: remembering a color that is already first does not grow past 10", func(t *testing.T) {
@@ -186,10 +186,10 @@ func TestViewShowsPaintKit(t *testing.T) {
 }
 
 func TestPaintDropdownExtras(t *testing.T) {
-	t.Run("happy: p cycles onto the extra quadrants (▘ ▝ ▛ ▜ ▙ ▟ ▞ ▚)", func(t *testing.T) {
+	t.Run("happy: p cycles the symbol list onto extra quadrants (▘ ▝ ▛ ▜ ▙ ▟ ▞ ▚)", func(t *testing.T) {
 		m := newEd(t)
 		seen := map[rune]bool{}
-		for i := 0; i < len(DefaultGlyphs)+len(ExtraGlyphs)+2; i++ {
+		for i := 0; i < len(SymbolList)+2; i++ {
 			m = send(m, key('p'))
 			seen[m.PaintCh] = true
 		}
@@ -209,23 +209,149 @@ func TestPaintDropdownExtras(t *testing.T) {
 }
 
 func TestIUsesBrushGlyphNotAlwaysFullBlock(t *testing.T) {
-	t.Run("happy: i with a half-block selected paints ▀, not █", func(t *testing.T) {
+	t.Run("happy: P with a half-block selected pastes ▀, not █", func(t *testing.T) {
 		m := newEd(t)
 		m.CursorR, m.CursorC = 0, 0
 		m = send(m, key('%'))
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		if m.Current().At(0, 0).Ch != '▀' {
 			t.Fatalf("expected upper half, got %q", string(m.Current().At(0, 0).Ch))
 		}
 	})
-	t.Run("unhappy: i still no-ops a transparent delete path via d, not the glyph keys", func(t *testing.T) {
+	t.Run("unhappy: d still clears after a partial-block paste", func(t *testing.T) {
 		m := newEd(t)
 		m.CursorR, m.CursorC = 0, 0
 		m = send(m, key('%'))
-		m = send(m, key('i'))
+		m = send(m, key('P'))
 		m = send(m, key('d'))
 		if !m.Current().At(0, 0).Transparent() {
-			t.Fatal("d must still clear, even after a partial-block paint")
+			t.Fatal("d must still clear, even after a partial-block paste")
+		}
+	})
+}
+
+func TestInsertOneCharacter(t *testing.T) {
+	t.Run("happy: i then a character inserts that character in the current color", func(t *testing.T) {
+		m := newEd(t)
+		m.CursorR, m.CursorC = 0, 0
+		m.PalIdx = 1
+		m = send(m, key('i'))
+		if !m.Inserting {
+			t.Fatal("i must enter one-shot insert")
+		}
+		m = send(m, key('▀'))
+		if m.Inserting {
+			t.Fatal("insert consumes one character and leaves")
+		}
+		c := m.Current().At(0, 0)
+		if c.Ch != '▀' {
+			t.Fatalf("inserted %q, want ▀", string(c.Ch))
+		}
+		if c.FG != m.Atlas.Palette[1].FG {
+			t.Fatalf("insert must keep the current color, fg %d", c.FG)
+		}
+	})
+	t.Run("happy: i then a typed ASCII letter inserts that letter", func(t *testing.T) {
+		m := newEd(t)
+		m.CursorR, m.CursorC = 0, 0
+		m = send(m, key('i'))
+		m = send(m, key('A'))
+		if m.Current().At(0, 0).Ch != 'A' {
+			t.Fatalf("got %q", string(m.Current().At(0, 0).Ch))
+		}
+	})
+	t.Run("unhappy: i then esc cancels and does not touch the cell", func(t *testing.T) {
+		m := newEd(t)
+		m.CursorR, m.CursorC = 0, 0
+		before := m.Current().At(0, 0)
+		m = send(m, key('i'))
+		m = send(m, keyType(tea.KeyEsc))
+		if m.Inserting {
+			t.Fatal("esc must leave insert")
+		}
+		if m.Current().At(0, 0) != before {
+			t.Fatal("esc must not stamp a character")
+		}
+	})
+	t.Run("unhappy: i then h inserts h, it does not move the cursor", func(t *testing.T) {
+		m := newEd(t)
+		m.CursorR, m.CursorC = 2, 2
+		m = send(m, key('i'))
+		m = send(m, key('h'))
+		if m.CursorR != 2 || m.CursorC != 2 {
+			t.Fatalf("insert must consume h, cursor moved to (%d,%d)", m.CursorR, m.CursorC)
+		}
+		if m.Current().At(2, 2).Ch != 'h' {
+			t.Fatalf("inserted %q, want h", string(m.Current().At(2, 2).Ch))
+		}
+		if m.Inserting {
+			t.Fatal("one-shot insert must end after the character")
+		}
+	})
+}
+
+func TestPasteFromSymbolList(t *testing.T) {
+	t.Run("happy: the list has halves and quarters, P pastes the selected one", func(t *testing.T) {
+		m := newEd(t)
+		kinds := map[string]bool{}
+		for _, s := range SymbolList {
+			kinds[s.Kind] = true
+		}
+		for _, want := range []string{"full", "half", "quarter", "shade"} {
+			if !kinds[want] {
+				t.Fatalf("symbol list missing %s blocks", want)
+			}
+		}
+		m.CursorR, m.CursorC = 0, 0
+		m.SymIdx = 1 // ▀ up half
+		m.PaintCh = SymbolList[1].Ch
+		m = send(m, key('P'))
+		if m.Current().At(0, 0).Ch != SymbolList[1].Ch {
+			t.Fatalf("P must paste list[%d]=%q", 1, string(SymbolList[1].Ch))
+		}
+	})
+	t.Run("happy: the view shows a symbols list with halves and quarters", func(t *testing.T) {
+		m := newEd(t)
+		m.TermW, m.TermH = 100, 36
+		v := m.View()
+		for _, want := range []string{"symbols", "▀", "▖", "half", "quarter"} {
+			if !strings.Contains(strings.ToLower(v), strings.ToLower(want)) && !strings.Contains(v, want) {
+				t.Fatalf("view missing %q in symbol list", want)
+			}
+		}
+	})
+	t.Run("unhappy: P on an empty selection still pastes onto the cursor, not panic", func(t *testing.T) {
+		m := newEd(t)
+		m.sel = map[cellKey]bool{}
+		m.CursorR, m.CursorC = 0, 0
+		_ = send(m, key('P'))
+	})
+}
+
+func TestSymbolListNavigation(t *testing.T) {
+	t.Run("happy: j/k in the symbols window walk the list", func(t *testing.T) {
+		m := newEd(t)
+		m.Win = WinSymbols
+		m.SymIdx = 1
+		m = send(m, key('j'))
+		if m.SymIdx != 2 {
+			t.Fatalf("j must move to the next symbol, idx=%d", m.SymIdx)
+		}
+		m = send(m, key('k'))
+		if m.SymIdx != 1 {
+			t.Fatalf("k must move to the previous symbol, idx=%d", m.SymIdx)
+		}
+		if m.PaintCh != SymbolList[1].Ch {
+			t.Fatalf("walking the list must select %q, got %q", string(SymbolList[1].Ch), string(m.PaintCh))
+		}
+	})
+	t.Run("unhappy: j past the last symbol wraps instead of panicking", func(t *testing.T) {
+		m := newEd(t)
+		m.Win = WinSymbols
+		m.SymIdx = len(SymbolList) - 1
+		m = send(m, key('j'))
+		if m.SymIdx != 0 {
+			t.Fatalf("j at the end must wrap to 0, idx=%d", m.SymIdx)
 		}
 	})
 }
