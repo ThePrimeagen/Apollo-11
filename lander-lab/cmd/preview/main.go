@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/components/fire"
+	"github.com/theprimeagen/apollo-11/lander-lab/components/rocket"
 	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
 )
 
@@ -22,7 +23,20 @@ func main() {
 	dump := flag.String("dump", "", "write the atlas JSON to this path")
 	playFire := flag.Bool("fire", false, "play the left-to-right booster flame")
 	tape := flag.String("tape", "", "write a 20s booster tape (dir) and encode mp4 next to it")
+	playRocket := flag.Bool("rocket", false, "play the size-4 rocket over its down-firing booster")
+	rocketTape := flag.String("rocket-tape", "", "write a 12s rocket tape (dir) and encode mp4 next to it")
 	flag.Parse()
+	if *rocketTape != "" {
+		if err := writeRocketTape(*rocketTape); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if *playRocket {
+		playRocketFlame()
+		return
+	}
 	if *tape != "" {
 		if err := writeFireTape(*tape); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -69,6 +83,38 @@ func playFlame() {
 		fmt.Println(sprite.Render(f.View()))
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+func playRocketFlame() {
+	r := rocket.New(1)
+	for {
+		r.Update(1.0 / 20)
+		fmt.Print("\x1b[2J\x1b[H")
+		fmt.Printf("size-4 rocket  booster S (down)  (ctrl-c quit)\n\n")
+		fmt.Println(r.Render())
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func writeRocketTape(dir string) error {
+	const (
+		seconds = 12
+		rate    = 20
+		cellW   = 32
+	)
+	frames := seconds * rate
+	sub := filepath.Join(dir, "rocket")
+	if _, err := rocket.WriteTape(sub, rocket.New(1), frames, cellW); err != nil {
+		return err
+	}
+	still := rocket.New(1)
+	for i := 0; i < 24; i++ {
+		still.Update(1.0 / 20)
+	}
+	if err := fire.WritePNG(filepath.Join(dir, "rocket-still.png"), still.View(), cellW); err != nil {
+		return err
+	}
+	return encodeMP4(sub, filepath.Join(dir, "rocket.mp4"), rate)
 }
 
 func writeFireTape(dir string) error {
