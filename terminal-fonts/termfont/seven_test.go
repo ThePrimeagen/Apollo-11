@@ -139,6 +139,19 @@ func TestRenderSevenGeometry(t *testing.T) {
 			}
 		}
 	})
+	t.Run("happy: the height 5 display cell is one column wider than height 4", func(t *testing.T) {
+		_, w4, err := RenderSeven(4, "0")
+		if err != nil {
+			t.Fatalf("height 4 '0': %v", err)
+		}
+		_, w5, err := RenderSeven(5, "0")
+		if err != nil {
+			t.Fatalf("height 5 '0': %v", err)
+		}
+		if w5 != w4+1 {
+			t.Fatalf("height 5 cell must be one wider than height 4 (%d), got %d", w4, w5)
+		}
+	})
 	t.Run("happy: RenderSeven is pure — identical calls yield identical buffers", func(t *testing.T) {
 		a, wa, _ := RenderSeven(5, "1969")
 		b, wb, _ := RenderSeven(5, "1969")
@@ -208,7 +221,7 @@ func TestRenderSevenKnownGlyphs(t *testing.T) {
 			2: {"|_|", "|_|"},
 			3: {" _ ", "|_|", "|_|"},
 			4: {" _ ", "| |", "|_|", "|_|"},
-			5: {" _ ", "| |", "|_|", "| |", "|_|"},
+			5: {" __ ", "|  |", "|__|", "|  |", "|__|"},
 		}
 		for h, rows := range want {
 			buf, width, err := RenderSeven(h, "8")

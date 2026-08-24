@@ -223,7 +223,7 @@ func TestRenderKnownGlyphs(t *testing.T) {
 			2: {" /\\ ", "/--\\"},
 			3: {" _ ", "|_|", "| |"},
 			4: {" _ ", "| |", "|_|", "| |"},
-			5: {" _ ", "| |", "|_|", "| |", "| |"},
+			5: {" __ ", "|  |", "|__|", "|  |", "|  |"},
 		}
 		for h, rows := range want {
 			buf, width, err := Render(h, "A")
@@ -255,6 +255,34 @@ func TestRenderKnownGlyphs(t *testing.T) {
 		for i := range want {
 			if got[i] != want[i] {
 				t.Fatalf("height 5 B row %d: %q, want %q\nfull: %q", i, got[i], want[i], got)
+			}
+		}
+	})
+	t.Run("happy: height 5 is the wide cut, narrow glyphs stay narrow", func(t *testing.T) {
+		for _, r := range "AEHOSU08" {
+			_, w4, err := Render(4, string(r))
+			if err != nil {
+				t.Fatalf("height 4 %q: %v", r, err)
+			}
+			_, w5, err := Render(5, string(r))
+			if err != nil {
+				t.Fatalf("height 5 %q: %v", r, err)
+			}
+			if w5 != w4+1 {
+				t.Fatalf("%q: height 5 must be one column wider than height 4 (%d), got %d", r, w4, w5)
+			}
+		}
+		for _, r := range "IT1" {
+			_, w4, err := Render(4, string(r))
+			if err != nil {
+				t.Fatalf("height 4 %q: %v", r, err)
+			}
+			_, w5, err := Render(5, string(r))
+			if err != nil {
+				t.Fatalf("height 5 %q: %v", r, err)
+			}
+			if w5 != w4 {
+				t.Fatalf("%q is naturally narrow and must keep its cut: height 4 %d vs height 5 %d", r, w4, w5)
 			}
 		}
 	})
