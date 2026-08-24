@@ -107,53 +107,45 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestColor(t *testing.T) {
-	t.Run("happy: occupancy becomes yellow, orange, then small red", func(t *testing.T) {
+	t.Run("happy: two particles show a little; more occupancy shows more", func(t *testing.T) {
 		y := Color(20)
 		if y.Ch != '█' || y.FG < 0 {
 			t.Fatalf("dense core should be a solid yellow block, got %+v", y)
 		}
-		o := Color(4)
-		if o.Ch == y.Ch || o.FG == y.FG {
-			t.Fatalf("mid flame should look different from the core, got %+v", o)
+		mid := Color(5)
+		if mid.Transparent() || mid.Ch == y.Ch {
+			t.Fatalf("mid occupancy should be visible and not solid yellow, got %+v", mid)
 		}
-		r := Color(1)
-		if r.Ch == '█' {
-			t.Fatalf("a single particle should be a small red tip, got %+v", r)
+		two := Color(2)
+		if two.Transparent() {
+			t.Fatal("two particles must show a little")
 		}
-		if y.FG == r.FG {
-			t.Fatal("core and tip must use different colors")
+		if two.Ch == '█' {
+			t.Fatalf("two particles must not be a solid block, got %+v", two)
 		}
 	})
-	t.Run("happy: a warmed trail has a bright core and red tips", func(t *testing.T) {
+	t.Run("happy: a warmed trail has a bright core", func(t *testing.T) {
 		f := New(6)
 		warm(f, 0.6)
-		var yellows, reds int
+		var yellows int
 		sp := f.Sprite()
 		for row := 0; row < sp.Height; row++ {
 			for col := 0; col < sp.Width; col++ {
-				c := sp.At(row, col)
-				if c.Transparent() {
-					continue
-				}
-				switch c.Ch {
-				case '█':
+				if sp.At(row, col).Ch == '█' {
 					yellows++
-				case '·', '░':
-					reds++
 				}
 			}
 		}
 		if yellows == 0 {
 			t.Fatal("expected a yellow core")
 		}
-		if reds == 0 {
-			t.Fatal("expected red tips along the trail")
-		}
 	})
-	t.Run("unhappy: zero occupancy paints nothing", func(t *testing.T) {
-		c := Color(0)
-		if !c.Transparent() {
-			t.Fatalf("count 0 must be empty, got %+v", c)
+	t.Run("unhappy: a single particle is invisible", func(t *testing.T) {
+		if !Color(1).Transparent() {
+			t.Fatalf("one particle must paint nothing, got %+v", Color(1))
+		}
+		if !Color(0).Transparent() {
+			t.Fatalf("count 0 must be empty, got %+v", Color(0))
 		}
 		if !Color(-3).Transparent() {
 			t.Fatal("negative occupancy must be empty")
