@@ -16,7 +16,7 @@ import (
 	"strings"
 	"unicode"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/seg-lab/seg"
 )
@@ -58,10 +58,11 @@ func (m demoModel) nextStyle() seg.Style {
 
 func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
+		}
+		switch msg.Code {
 		case tea.KeyTab:
 			m.style = m.nextStyle()
 		case tea.KeyEsc:
@@ -71,8 +72,11 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				rs := []rune(m.text)
 				m.text = string(rs[:len(rs)-1])
 			}
-		case tea.KeyRunes:
-			for _, r := range msg.Runes {
+		case tea.KeySpace:
+			// v1 delivered space as a non-rune key, so it never typed;
+			// the port keeps that behavior.
+		default:
+			for _, r := range msg.Text {
 				if unicode.IsPrint(r) && r != '\t' {
 					m.text += string(unicode.ToUpper(r))
 				}
@@ -82,7 +86,7 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m demoModel) View() string {
+func (m demoModel) View() tea.View {
 	var b strings.Builder
 	b.WriteString(fg(colTitle) + "SEGMENTED LETTER VIEWER" + reset)
 	b.WriteString(fg(colDim) + "  ·  " + m.style.String() + reset + "\n\n")
@@ -106,7 +110,9 @@ func (m demoModel) View() string {
 	}
 
 	b.WriteString("\n" + fg(colDim) + "tab style · type to edit · backspace · esc clear · ctrl-c quit" + reset + "\n")
-	return b.String()
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
 }
 
 func catalog(style seg.Style) string {
@@ -128,7 +134,7 @@ func catalog(style seg.Style) string {
 }
 
 func main() {
-	if _, err := tea.NewProgram(newDemo(), tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(newDemo()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "seg-lab:", err)
 		os.Exit(1)
 	}
