@@ -9,19 +9,19 @@ import (
 
 func TestStyle(t *testing.T) {
 	t.Run("happy: the ladder runs single-dot, two-dot, half-square, then bright yellow", func(t *testing.T) {
-		one := Style(1)
+		one := Style(3)
 		if one.Ch != '⠁' {
-			t.Fatalf("H=1 should be a single braille dot, got %q", string(one.Ch))
+			t.Fatalf("H=3 should be a single braille dot, got %q", string(one.Ch))
 		}
-		two := Style(2)
+		two := Style(10)
 		if two.Ch != '⠒' {
-			t.Fatalf("H=2 should be two braille dots, got %q", string(two.Ch))
+			t.Fatalf("H=10 should be two braille dots, got %q", string(two.Ch))
 		}
-		half := Style(18)
+		half := Style(90)
 		if half.Ch != '▄' && half.Ch != '▌' {
 			t.Fatalf("mid heat should be a half square, got %q", string(half.Ch))
 		}
-		core := Style(80)
+		core := Style(250)
 		if core.Ch != '█' {
 			t.Fatalf("high heat should be solid, got %q", string(core.Ch))
 		}

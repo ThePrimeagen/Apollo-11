@@ -19,8 +19,8 @@ func TestDefault(t *testing.T) {
 		if err := f.Eng.Validate(); err != nil {
 			t.Fatalf("default config: %v", err)
 		}
-		if f.Eng.Cfg.Count != 1 {
-			t.Fatalf("count %d, want 1 per spawn", f.Eng.Cfg.Count)
+		if f.Eng.Cfg.Count != 5 {
+			t.Fatalf("count %d, want 5 per spawn", f.Eng.Cfg.Count)
 		}
 		d := f.Eng.Cfg.Direction
 		if math.Abs(math.Abs(d.X)-math.Abs(d.Y)) > 1e-9 {
@@ -47,8 +47,8 @@ func TestUpdate(t *testing.T) {
 		f := New(2)
 		f.Update(0.01)
 		n := len(f.Eng.Particles)
-		if n < 10 || n > 11 {
-			t.Fatalf("live %d, want ~10", n)
+		if n < 50 || n > 55 {
+			t.Fatalf("live %d, want ~50 (5 per ms)", n)
 		}
 	})
 	t.Run("happy: particles travel down-right along the diagonal", func(t *testing.T) {
@@ -104,11 +104,11 @@ func TestUpdate(t *testing.T) {
 
 func TestColor(t *testing.T) {
 	t.Run("happy: Color is Style, so the ladder still holds", func(t *testing.T) {
-		if Color(80).Ch != '█' {
-			t.Fatalf("high heat should be solid, got %+v", Color(80))
+		if Color(250).Ch != '█' {
+			t.Fatalf("high heat should be solid, got %+v", Color(250))
 		}
-		if Color(2).Ch != '⠒' {
-			t.Fatalf("H=2 should be two dots, got %+v", Color(2))
+		if Color(10).Ch != '⠒' {
+			t.Fatalf("H=10 should be two dots, got %+v", Color(10))
 		}
 	})
 	t.Run("happy: a warmed trail has a bright core", func(t *testing.T) {

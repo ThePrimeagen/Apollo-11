@@ -9,14 +9,14 @@ import (
 )
 
 func TestBooster(t *testing.T) {
-	t.Run("happy: 500 live particles, 1ms spawn, normal spread, left-to-right", func(t *testing.T) {
+	t.Run("happy: 2500 live particles, 5 per 1ms, normal spread, left-to-right", func(t *testing.T) {
 		f := Booster(1)
 		if err := f.Eng.Validate(); err != nil {
 			t.Fatalf("booster config: %v", err)
 		}
 		cfg := f.Eng.Cfg
-		if cfg.Count != 1 {
-			t.Fatalf("count %d, want 1 particle per spawn", cfg.Count)
+		if cfg.Count != 5 {
+			t.Fatalf("count %d, want 5 particles per spawn", cfg.Count)
 		}
 		if math.Abs(cfg.Period-0.001) > 1e-9 {
 			t.Fatalf("period %v, want 1ms", cfg.Period)
@@ -30,8 +30,8 @@ func TestBooster(t *testing.T) {
 		}
 		warm(f, 0.55)
 		n := len(f.Eng.Particles)
-		if n < 400 || n > 650 {
-			t.Fatalf("live %d, want ~500", n)
+		if n < 2000 || n > 3250 {
+			t.Fatalf("live %d, want ~2500", n)
 		}
 		var near, far int
 		for _, p := range f.Eng.Particles {
