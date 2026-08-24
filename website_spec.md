@@ -52,6 +52,8 @@ modification** to prove the TUI's behavior did not change.
 | Fidelity suite: `TestSleepingJobHoldsResources`, `TestLRReadCadence`, `TestLRLockDutyCost`, `TestHigatjobVACHold`, `TestP64FirstAlarmIs1201`, `TestP63TypingGives1202`, `TestBoundaryAlignmentNoFalseAlarm` (`fidelity_test.go`); `TestV37E63EStartsDescent` (`dsky_program_test.go`) | `exec-tui/sim` | Unchanged — these pin the sleep-segment mechanics, the P63-1202/P64-1201 alarm-code split, and typed program selection that the website's forensics and DSKY depend on |
 | Pause/typing/keybinding tests: `ui_test.go` (pause freeze, state preservation across pause, keybindings) and `typing_test.go` (cadence, speed scaling, paused-holds-keys) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** They assert through `m.Paused()` / `m.PendingKeys()` / `Update(FrameMsg{})`; after the Director refactor these delegate but behave identically |
 | Switch-panel tests: `switches_test.go` (`TestSwitchPanelRender`, `TestSwitchFlip` incl. the typing-mode-swallows-space case, `TestPauseMovedToDot`), `active_state_test.go` (key-bar active states) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** Switch flips queue DSKY keys through the same pending-key path the Director absorbs; `.`-pause semantics carry into the Director |
+| Flight-recreation tests: `flight_test.go` (`TestFlightPlan` — the 'f' plan fires real engine actions at true mission times; `TestLanderPanel`) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** The `flightPlan()` queue lives in the model exactly like pending keys; M2 promotes it into the Director as the scenario script driver |
+| `lander-lab` component tests (`TestGeometry`, `TestAltitudeScale`, `TestAttitudes`, `TestAlarmMarkers`, `TestCountdown`, `TestPlumeFlicker`, `TestCaptions`, plus the demo's descent/playback/truthfulness suite) | `lander-lab/` | Unchanged — pin the √-altitude scale, per-phase attitudes, and persistent alarm markers the web scene mirrors |
 | `button-lab` component tests (`button/button_test.go`, `lab_test.go`) | `button-lab/` | Unchanged — the reusable cockpit toggle; the web widgets mirror its look (§7), not its code |
 | `dsky-lab` component tests (`TestGeometry`, `TestSevenSegmentDigits`, `TestVerbNounFlash`, `TestLights`) and `dsky_panel_test.go` (`TestDSKYStateMapping`, `TestDSKYPanelEmbedded`, `TestEngineLampAccessors`) | `dsky-lab/`, `exec-tui/ui` | Unchanged — pin the DSKY layout, flash semantics, and the engine's `RestartRecently`/`CompActy` lamp accessors the web replica consumes |
 | Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs, `color_test.go`, the compact-layout suite `layout_test.go`/`layout2_test.go`/`layout3_test.go`/`zoom_test.go`, and `rowcost_test.go`) | `exec-tui/ui` | Unchanged — TUI rendering untouched by this feature |
@@ -63,10 +65,12 @@ modification** to prove the TUI's behavior did not change.
 - [ ] `TestGETClockMapping` — happy: with the PDI anchor set, `AGCTimeMs` ↔ GET converts
   both ways and `GET 102:33:05.01` ≡ scenario T+0; unhappy: querying GET before the
   scenario window clamps to the window start and reports `ok=false` rather than panicking.
-- [ ] `TestFlightScriptDriver` — happy: running the historical script unattended fires
-  `StartDescent`, LR lock, `V16N68` keystrokes, `EnterP64`, `AttHold`, P66 at their
-  scripted GETs (order and ±1 cycle tolerance asserted); unhappy: a script with
-  out-of-order or duplicate entries is rejected at load with a descriptive error.
+- [ ] `TestFlightScriptDriver` — happy: the historical script — **promoting the existing
+  UI-side 'f' recreation (`flightPlan()` in `exec-tui/ui`) into the Director** — fires
+  descent start, LR lock, `V16N68`/`V57E` keystrokes, `EnterP64`, `AttHold`, P66 at their
+  scripted GETs (order and ±1 cycle tolerance asserted, timings matching the proven UI
+  plan); unhappy: a script with out-of-order or duplicate entries is rejected at load
+  with a descriptive error.
 - [ ] `TestScenarioHappyCase` — happy: the same full script with the RR switch scripted to
   LGC (no ECDU theft) runs PDI → touchdown with **zero alarms, zero restarts**, and core
   set usage never exceeding a small bound (≤ 5 of 8) even with V16N68 up; unhappy: the
@@ -254,7 +258,7 @@ subject: altitude *is* the vertical axis.
 | # | Zone | Height | Contents |
 | :--- | :--- | :--- | :--- |
 | 1 | Mission clocks | 90 px | GET (large), UTC, T+PDI, phase badge P63/P64/P66, scenario badge (ACTUAL/HAPPY/SANDBOX) |
-| 2 | Descent scene | 840 px | Vertical star-field column; LM descends the column against a log-scale altitude ladder; terrain + West Crater + site marker at the bottom; Earth appears after the 102:36:55 yaw-around; plume ∝ throttle; dust < 100 ft; alarm flash overlay |
+| 2 | Descent scene | 840 px | Vertical star-field column; LM descends against a **√-scaled altitude ladder** (the `lander-lab` convention — the final thousand feet stay readable), attitude by phase (horizontal in P63, pitched at high gate, vertical in P66), **persistent alarm markers pinned at the altitudes where they fired**, plume ∝ throttle with flicker, touchdown countdown; terrain + West Crater + site marker at the bottom; Earth appears after the 102:36:55 yaw-around; dust < 100 ft; alarm flash overlay (cog toggle) |
 | 3 | DSKY | 300 px | PROG/VERB/NOUN + R1–R3 in seven-segment digits, COMP ACTY, verb/noun **flash**, and the four story lights (**PROG, RESTART, ALT, VEL**) — the same compact layout as `dsky-lab/dsky`; keyboard with replay key-lighting |
 | 4 | Executive board | 420 px | 8 core-set + 5 VAC cells (owner/prio, with running/**sleeping**/stub states distinct), free-compute bar, duty rows with **per-job ms costs over the trailing 2 s window** (engine `UsedMs`, as in the TUI's row-cost display), restart counter — same semantics as the TUI panels; **ghost overlay** of the happy case in compare mode; forensics drawer expands from here |
 | 5 | Hand controls | 200 px | ACA joystick, ROD switch, AUTO/ATT HOLD mode switch |
@@ -272,7 +276,7 @@ collapse. Every collapsed zone can be re-pinned from the cog.
 │  ·  ✦    ·  │
 │ ·    ★   ˚ ·│
 │   🌍        │  zone 2 · the descent column:
-│      ▲      │  LM at 33,500 ft on a log ladder,
+│      ▲      │  LM at 33,500 ft on a √ ladder,
 │     ▕▂▏     │  plume, stars, terrain rising
 │    ══╧══    │
 │─── terrain ─│
@@ -328,7 +332,8 @@ One object owns everything two frontends must agree on:
 - the **engine** (sole writer — all mutation flows through the Director's command loop,
   one goroutine, verified with `-race`),
 - the **clock**: paused, rate (wall↔AGC), pending scripted keystrokes,
-- the **scenario** (actual / happy / sandbox) and the flight-script driver,
+- the **scenario** (actual / happy / sandbox) and the flight-script driver (today this is
+  the model-owned `flightPlan()` queue behind the TUI's 'f' key — it moves here whole),
 - **breakpoints** (`pauseOn` event kinds) — evaluated *inside* the advance loop so a halt
   lands on the exact event frame, not the next UI tick,
 - the **frame broadcaster**: after each advance it publishes an immutable `StateFrame`
@@ -482,6 +487,13 @@ The P64/P66 fine-grain anchors are transcribed from the ALSJ corrected transcrip
 
 Remaining trajectory M0 work: P63 mid-phase altitude points and the pitch profile
 (digitize from Bennett AIAA 70-1028 / Klumpp R-695).
+
+Note: exec-tui's 'f' recreation carries a second in-repo encoding of these anchors
+(`flightPath` in `exec-tui/ui/ui.go`, ALT/VEL vs T+PDI). The M0 validation script
+cross-checks `events.json`/`trajectory.json` against `flightPlan()`/`flightPath` and
+flags drift beyond tolerance (exact events ±2 s, `~` events ±20 s). Known current
+deltas, all inside tolerance: LR data good +274 s vs ~+288 s (both interpolations) and
+contact +757 s vs +755 s.
 
 ### 4.3 Computer-state truth (from the engine, not hand-authored)
 
@@ -770,7 +782,8 @@ one. New code lives in `descent-web/` and `exec-tui/cmd/`; `exec-tui/sim` and
   contract (§1.1), the Model keeps its accessors, and `TestServeOffIsInert` proves the
   no-server path is unchanged.
 - **Narrow-scene legibility.** 600 px must carry sky + lander + ladder + flash overlays.
-  Mitigation: the vertical column layout makes altitude the long axis; alarm flashes take
+  Mitigation: the vertical column layout makes altitude the long axis; the √ altitude
+  scale is already proven legible in `lander-lab`'s 40×30 cell view; alarm flashes take
   the full column width; M3 includes a screenshot review at true 600×2160 before M4
   builds on it.
 - **Dual-recording alignment.** Actual/happy files must stay frame-index-compatible or
