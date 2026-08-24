@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/stars-lab/stars"
 )
@@ -93,31 +93,38 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m, tick()
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC {
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if msg.Type == tea.KeySpace {
+		if msg.Code == tea.KeySpace {
 			m.paused = !m.paused
 			return m, nil
 		}
-		if len(msg.Runes) == 1 {
-			switch msg.Runes[0] {
+		if r, ok := keyRune(msg); ok {
+			switch r {
 			case 'q':
 				return m, tea.Quit
 			case 'n':
 				m.idx = (m.idx + 1) % len(m.strats)
 			case 'p':
 				m.idx = (m.idx + len(m.strats) - 1) % len(m.strats)
-			case ' ':
-				m.paused = !m.paused
 			}
 		}
 	}
 	return m, nil
 }
 
-func (m demoModel) View() string {
+// keyRune returns the single printable rune of a key press, if any.
+func keyRune(msg tea.KeyPressMsg) (rune, bool) {
+	rs := []rune(msg.Text)
+	if len(rs) != 1 {
+		return 0, false
+	}
+	return rs[0], true
+}
+
+func (m demoModel) View() tea.View {
 	s := m.strategy()
 	skyH := m.h - 2
 	if skyH < 4 {
@@ -162,7 +169,9 @@ func (m demoModel) View() string {
 	b.WriteString(dim)
 	b.WriteString(help)
 	b.WriteString(reset)
-	return b.String()
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
 }
 
 func pad(s string, w int) string {
@@ -179,7 +188,7 @@ func main() {
 	flag.Parse()
 	m := newDemo(strategyOrDefault(*name))
 	m.seconds = *seconds
-	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "stars-lab:", err)
 		os.Exit(1)
 	}

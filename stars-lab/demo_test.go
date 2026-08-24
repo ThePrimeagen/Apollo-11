@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/stars-lab/stars"
 )
 
 func key(m demoModel, r rune) demoModel {
-	mm, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	mm, _ := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	return mm.(demoModel)
 }
 
@@ -24,7 +24,7 @@ func TestStarLab(t *testing.T) {
 		if m.strategy().Name != "dust-rush" {
 			t.Fatalf("default strategy %q", m.strategy().Name)
 		}
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "dust-rush") {
 			t.Fatal("the UI must name the strategy")
 		}
@@ -74,7 +74,7 @@ func TestStarLab(t *testing.T) {
 	})
 	t.Run("unhappy: q quits", func(t *testing.T) {
 		m := newDemo(stars.FarFast)
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		_, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 		if cmd == nil {
 			t.Fatal("q must quit")
 		}
@@ -83,7 +83,7 @@ func TestStarLab(t *testing.T) {
 		}
 	})
 	t.Run("unhappy: the demo does not pull in the lander", func(t *testing.T) {
-		v := newDemo(stars.FarFast).View()
+		v := newDemo(stars.FarFast).View().Content
 		for _, gone := range []string{"P63", "ALT ", "VEL ", "ft/s"} {
 			if strings.Contains(v, gone) {
 				t.Fatalf("star lab must be stars only, found %q", gone)
@@ -98,7 +98,7 @@ func TestLookupFlag(t *testing.T) {
 		if m.strategy().Name != "still" {
 			t.Fatalf("got %q", m.strategy().Name)
 		}
-		if !strings.Contains(m.View(), "still") {
+		if !strings.Contains(m.View().Content, "still") {
 			t.Fatal("the UI must name the still strategy")
 		}
 	})
