@@ -314,6 +314,42 @@ func TestOccupancy(t *testing.T) {
 	})
 }
 
+func TestNozzle(t *testing.T) {
+	t.Run("happy: a thick nozzle spawns across the slit, not a point", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Spread = 0
+		cfg.Direction = Vec2{X: 1, Y: 0}
+		cfg.Origin = Vec2{X: 4, Y: 10}
+		cfg.Nozzle = 4
+		cfg.Count = 80
+		e := New(9, cfg)
+		e.Update(0.01)
+		var minY, maxY float64
+		minY = 1e9
+		for i, p := range e.Particles {
+			if math.Abs(p.Vel.Y) > 1e-9 {
+				t.Fatalf("nozzle is thickness, not spread: particle %d has VY=%v", i, p.Vel.Y)
+			}
+			if p.Pos.Y < minY {
+				minY = p.Pos.Y
+			}
+			if p.Pos.Y > maxY {
+				maxY = p.Pos.Y
+			}
+		}
+		if maxY-minY < 2 {
+			t.Fatalf("nozzle 4 should span Y, span=%.2f", maxY-minY)
+		}
+	})
+	t.Run("unhappy: a negative nozzle is rejected", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Nozzle = -1
+		if err := New(1, cfg).Validate(); !errors.Is(err, ErrNozzle) {
+			t.Fatalf("got %v, want ErrNozzle", err)
+		}
+	})
+}
+
 func avgX(ps []Particle) float64 {
 	if len(ps) == 0 {
 		return 0
