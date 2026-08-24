@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestGlyphKeysPaintPartialBlocks(t *testing.T) {
@@ -145,7 +145,7 @@ func TestEightBitPicker(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 100, 30
 		m = send(m, key('c'))
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "8-bit") && !strings.Contains(v, "8BIT") && !strings.Contains(strings.ToLower(v), "8-bit") {
 			if !strings.Contains(v, "grey") && !strings.Contains(v, "gray") && !strings.Contains(v, "picker") {
 				t.Fatalf("open picker must be visible in the view, got %q", v[:min(200, len(v))])
@@ -171,7 +171,7 @@ func TestViewShowsPaintKit(t *testing.T) {
 	t.Run("happy: the view lists clutch digits and paint symbols", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 100, 30
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"1", "0", "!", "@", "#", "░", "█"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("view missing paint-kit mark %q", want)
@@ -181,7 +181,7 @@ func TestViewShowsPaintKit(t *testing.T) {
 	t.Run("unhappy: a tiny terminal still includes the kit without panicking", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 10, 4
-		_ = m.View()
+		_ = m.View().Content
 	})
 }
 
@@ -313,7 +313,7 @@ func TestPasteFromSymbolList(t *testing.T) {
 	t.Run("happy: the view shows a symbols list with halves and quarters", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 100, 36
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"symbols", "▀", "▖", "half", "quarter"} {
 			if !strings.Contains(strings.ToLower(v), strings.ToLower(want)) && !strings.Contains(v, want) {
 				t.Fatalf("view missing %q in symbol list", want)
