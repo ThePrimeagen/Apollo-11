@@ -14,7 +14,7 @@ import (
 const (
 	Rows      = 4
 	Cols      = 14
-	Particles = 500
+	Particles = 2500
 	ViewCols  = 20
 	ViewRows  = 10
 	fps       = 20
@@ -27,7 +27,7 @@ func DefaultConfig() particle.Config {
 		Height:    float64(Rows)*particle.CellHeightUnits - 0.01,
 		Origin:    particle.Vec2{X: 1.5, Y: 1.0},
 		Direction: particle.Vec2{X: 1, Y: 1},
-		Count:     1,
+		Count:     5,
 		Period:    0.001,
 		MinLife:   0.45,
 		MaxLife:   0.55,
@@ -38,8 +38,8 @@ func DefaultConfig() particle.Config {
 	}
 }
 
-// BoosterConfig is left-to-right fire: one particle every millisecond,
-// a normal around the axis, about 500 live. The box is wide enough for
+// BoosterConfig is left-to-right fire: five particles every millisecond,
+// a normal around the axis, about 2500 live. The box is wide enough for
 // the cone and the red fringe to show.
 func BoosterConfig() particle.Config {
 	return particle.Config{
@@ -47,7 +47,7 @@ func BoosterConfig() particle.Config {
 		Height:    12 - 0.01,
 		Origin:    particle.Vec2{X: 1.0, Y: 6.0},
 		Direction: particle.Vec2{X: 1, Y: 0},
-		Count:     1,
+		Count:     5,
 		Period:    0.001,
 		MinLife:   0.45,
 		MaxLife:   0.55,

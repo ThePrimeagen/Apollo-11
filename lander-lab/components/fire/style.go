@@ -21,14 +21,14 @@ type Band struct {
 // ceiling; nothing uses xterm 231 (white).
 func Bands() []Band {
 	return []Band{
-		{Min: 1, Max: 1, Glyph: '⠁', Name: "single braille", FG: 88, BG: -1, Eq: "H == 1"},
-		{Min: 2, Max: 2, Glyph: '⠒', Name: "two-dot braille", FG: 124, BG: -1, Eq: "H == 2"},
-		{Min: 3, Max: 4, Glyph: '⠶', Name: "four-dot braille", FG: 160, BG: -1, Eq: "3 <= H <= 4"},
-		{Min: 5, Max: 8, Glyph: '░', Name: "quarter shade", FG: 166, BG: -1, Eq: "5 <= H <= 8"},
-		{Min: 9, Max: 14, Glyph: '▒', Name: "half shade", FG: 202, BG: -1, Eq: "9 <= H <= 14"},
-		{Min: 15, Max: 24, Glyph: '▄', Name: "half square", FG: 208, BG: 52, Eq: "15 <= H <= 24"},
-		{Min: 25, Max: 39, Glyph: '▓', Name: "heavy shade", FG: 220, BG: 166, Eq: "25 <= H <= 39"},
-		{Min: 40, Max: 1 << 30, Glyph: '█', Name: "solid bright yellow", FG: 226, BG: 220, Eq: "H >= 40"},
+		{Min: 1, Max: 5, Glyph: '⠁', Name: "single braille", FG: 88, BG: -1, Eq: "1 <= H <= 5"},
+		{Min: 6, Max: 10, Glyph: '⠒', Name: "two-dot braille", FG: 124, BG: -1, Eq: "6 <= H <= 10"},
+		{Min: 11, Max: 20, Glyph: '⠶', Name: "four-dot braille", FG: 160, BG: -1, Eq: "11 <= H <= 20"},
+		{Min: 21, Max: 40, Glyph: '░', Name: "quarter shade", FG: 166, BG: -1, Eq: "21 <= H <= 40"},
+		{Min: 41, Max: 70, Glyph: '▒', Name: "half shade", FG: 202, BG: -1, Eq: "41 <= H <= 70"},
+		{Min: 71, Max: 120, Glyph: '▄', Name: "half square", FG: 208, BG: 52, Eq: "71 <= H <= 120"},
+		{Min: 121, Max: 195, Glyph: '▓', Name: "heavy shade", FG: 220, BG: 166, Eq: "121 <= H <= 195"},
+		{Min: 200, Max: 1 << 30, Glyph: '█', Name: "solid bright yellow", FG: 226, BG: 220, Eq: "H >= 200"},
 	}
 }
 

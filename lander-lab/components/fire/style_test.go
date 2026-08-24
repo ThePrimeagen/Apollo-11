@@ -63,7 +63,7 @@ func TestHeat(t *testing.T) {
 func TestGuide(t *testing.T) {
 	t.Run("happy: the guide lists every band and its equation", func(t *testing.T) {
 		g := Guide()
-		for _, want := range []string{"⠁", "⠒", "▄", "█", "H =", "226"} {
+		for _, want := range []string{"⠁", "⠒", "▄", "█", "H(c)", "226"} {
 			if !strings.Contains(g, want) {
 				t.Fatalf("guide missing %q\n%s", want, g)
 			}
