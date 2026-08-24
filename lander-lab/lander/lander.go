@@ -205,7 +205,7 @@ func Render(s State) string {
 		Width:    Width,
 		Height:   Height,
 		Tick:     tick,
-		Strategy: stars.FarFast,
+		Strategy: stars.DustRush,
 		Frozen:   s.Attitude == Landed,
 	}.Paint(func(row, col int, ch rune, fg int) {
 		if row < 0 || row >= Height || col < 0 || col >= Width {

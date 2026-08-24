@@ -279,11 +279,11 @@ func TestStrategies(t *testing.T) {
 			t.Fatal("frozen still means a night sky, not an empty one")
 		}
 	})
-	t.Run("unhappy: a zero strategy falls back to far-fast", func(t *testing.T) {
+	t.Run("unhappy: a zero strategy falls back to dust-rush", func(t *testing.T) {
 		z := field(Strategy{}, 1)
-		ff := field(FarFast, 1)
+		ff := field(DustRush, 1)
 		if plain(z.Render()) != plain(ff.Render()) {
-			t.Fatal("the zero strategy must fly like far-fast")
+			t.Fatal("the zero strategy must fly like dust-rush")
 		}
 	})
 	t.Run("unhappy: a zero delay on one layer is clamped to 1", func(t *testing.T) {
@@ -312,6 +312,73 @@ func TestLookup(t *testing.T) {
 		}
 		if _, ok := Lookup(""); ok {
 			t.Fatal("empty name must not succeed")
+		}
+	})
+}
+
+func countKinds(f Field) [4]int {
+	var n [4]int
+	f.Paint(func(row, col int, ch rune, fg int) {
+		for i, g := range Glyphs {
+			if ch == g {
+				n[i]++
+				return
+			}
+		}
+	})
+	return n
+}
+
+func TestPopulation(t *testing.T) {
+	t.Run("happy: dust and sparks stay thick; * and ✦ drop ~75%", func(t *testing.T) {
+		n := countKinds(Field{Width: 80, Height: 30, Strategy: DustRush})
+		dust, spark, mid, near := n[0], n[1], n[2], n[3]
+		if dust < 80 || spark < 40 {
+			t.Fatalf("dust/spark must stay thick, got ·%d ˚%d", dust, spark)
+		}
+		large, small := mid+near, dust+spark
+		if large*4 > small {
+			t.Fatalf("large stars (*%d ✦%d) should be ~75%% fewer than the dust layers (·%d ˚%d)", mid, near, dust, spark)
+		}
+	})
+	t.Run("unhappy: the sky is not only dust — at least one * and one ✦ remain", func(t *testing.T) {
+		n := countKinds(Field{Width: 40, Height: 24, Strategy: DustRush})
+		if n[2] < 1 || n[3] < 1 {
+			t.Fatalf("need at least one mid and one near star, got *%d ✦%d", n[2], n[3])
+		}
+	})
+}
+
+func TestStarColors(t *testing.T) {
+	t.Run("happy: real-star tints — white-blue and white-red, not a flat gold field", func(t *testing.T) {
+		out := Field{Width: 80, Height: 30, Strategy: DustRush}.Render()
+		blue := false
+		for _, code := range []string{"38;5;153", "38;5;189", "38;5;195", "38;5;111", "38;5;109", "38;5;103", "38;5;60"} {
+			if strings.Contains(out, code) {
+				blue = true
+				break
+			}
+		}
+		red := false
+		for _, code := range []string{"38;5;224", "38;5;217", "38;5;181", "38;5;174", "38;5;138", "38;5;95"} {
+			if strings.Contains(out, code) {
+				red = true
+				break
+			}
+		}
+		if !blue {
+			t.Fatal("need a lightish blue-white like real hot stars")
+		}
+		if !red {
+			t.Fatal("need a slight red-white like real cool stars")
+		}
+	})
+	t.Run("unhappy: the near stars are not gold/yellow", func(t *testing.T) {
+		out := Field{Width: 80, Height: 30, Strategy: DustRush}.Render()
+		for _, gold := range []string{"38;5;229", "38;5;226", "38;5;220", "38;5;178"} {
+			if strings.Contains(out, gold) {
+				t.Fatalf("too yellow: found %s", gold)
+			}
 		}
 	})
 }

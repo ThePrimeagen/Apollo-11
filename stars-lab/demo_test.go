@@ -19,13 +19,13 @@ func key(m demoModel, r rune) demoModel {
 }
 
 func TestStarLab(t *testing.T) {
-	t.Run("happy: boots on far-fast with a flying field", func(t *testing.T) {
-		m := newDemo(stars.FarFast)
-		if m.strategy().Name != "far-fast" {
+	t.Run("happy: boots on dust-rush with a flying field", func(t *testing.T) {
+		m := newDemo(stars.DustRush)
+		if m.strategy().Name != "dust-rush" {
 			t.Fatalf("default strategy %q", m.strategy().Name)
 		}
 		v := m.View()
-		if !strings.Contains(v, "far-fast") {
+		if !strings.Contains(v, "dust-rush") {
 			t.Fatal("the UI must name the strategy")
 		}
 		for _, g := range stars.Glyphs {
@@ -99,9 +99,9 @@ func TestLookupFlag(t *testing.T) {
 			t.Fatalf("got %q", m.strategy().Name)
 		}
 	})
-	t.Run("unhappy: unknown -strategy falls back to far-fast", func(t *testing.T) {
+	t.Run("unhappy: unknown -strategy falls back to dust-rush", func(t *testing.T) {
 		s := strategyOrDefault("not-a-style")
-		if s.Name != "far-fast" {
+		if s.Name != "dust-rush" {
 			t.Fatalf("fallback %q", s.Name)
 		}
 	})

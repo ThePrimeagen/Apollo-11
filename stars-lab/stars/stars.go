@@ -11,9 +11,6 @@ import (
 // The four background stars, far/dim → near/bright. Glyphs only — no twinkle.
 var Glyphs = [4]rune{'·', '˚', '*', '✦'}
 
-// Colors are xterm-256 indices matching Glyphs.
-var Colors = [4]int{238, 244, 252, 229}
-
 const (
 	kindDust  = 0
 	kindSpark = 1
@@ -21,28 +18,43 @@ const (
 	kindNear  = 3
 )
 
+// palettes are xterm-256 tints per kind: mostly white, with a light blue
+// and a slight red like real stars. No gold.
+var palettes = [4][]int{
+	{238, 242, 60, 66, 95},         // dust: dim gray / blue-gray / rose
+	{244, 247, 109, 103, 138},      // spark: mid gray / muted blue / muted rose
+	{252, 255, 153, 189, 217},      // mid: white / blue-white / rose-white
+	{255, 254, 195, 153, 224, 218}, // near: bright white / pale blue / pale rose
+}
+
+func tint(kind, row, col int) int {
+	p := palettes[kind]
+	h := uint32(row*131 + col*17 + kind*97)
+	return p[int(h)%len(p)]
+}
+
 // Strategy is one fly style. Delay[kind] is ticks per cell of travel;
-// smaller means faster. The zero Strategy flies as FarFast.
+// smaller means faster. The zero Strategy flies as DustRush.
 type Strategy struct {
 	Name  string
 	Delay [4]int
 }
 
-// Named fly-through styles. FarFast is the default: distant dust streaks
-// past, near stars almost hang — the "we're flying" read.
+// Named fly-through styles. DustRush is the default: dust streaks past,
+// the bigger stars almost hang.
 var (
+	DustRush    = Strategy{Name: "dust-rush", Delay: [4]int{1, 2, 8, 10}}
 	FarFast     = Strategy{Name: "far-fast", Delay: [4]int{1, 2, 4, 8}}
 	NearFast    = Strategy{Name: "near-fast", Delay: [4]int{8, 4, 2, 1}}
 	Uniform     = Strategy{Name: "uniform", Delay: [4]int{2, 2, 2, 2}}
 	UniformSlow = Strategy{Name: "uniform-slow", Delay: [4]int{5, 5, 5, 5}}
 	Hyperspace  = Strategy{Name: "hyperspace", Delay: [4]int{1, 1, 1, 1}}
-	DustRush    = Strategy{Name: "dust-rush", Delay: [4]int{1, 2, 8, 10}}
 	Drift       = Strategy{Name: "drift", Delay: [4]int{4, 6, 8, 12}}
 )
 
 // Strategies returns every named fly style in demo order.
 func Strategies() []Strategy {
-	return []Strategy{FarFast, NearFast, Uniform, UniformSlow, Hyperspace, DustRush, Drift}
+	return []Strategy{DustRush, FarFast, NearFast, Uniform, UniformSlow, Hyperspace, Drift}
 }
 
 // Lookup finds a named strategy (case-sensitive).
@@ -57,7 +69,7 @@ func Lookup(name string) (Strategy, bool) {
 
 func (s Strategy) delays() [4]int {
 	if s.Delay == [4]int{} {
-		return FarFast.Delay
+		return DustRush.Delay
 	}
 	out := s.Delay
 	for i, d := range out {
@@ -82,7 +94,7 @@ type Field struct {
 	Frozen        bool
 }
 
-type star struct{ row, col, kind int }
+type star struct{ row, col, kind, fg int }
 
 // Paint calls put for every star cell this frame. Draw this FIRST — put
 // overwrites whatever is there, and the caller then paints craft/UI on top.
@@ -99,7 +111,7 @@ func (f Field) Paint(put func(row, col int, ch rune, fg int)) {
 	for _, st := range catalog(f.Width, f.Height) {
 		d := delays[st.kind]
 		col := wrap(st.col-tick/d, f.Width)
-		put(st.row, col, Glyphs[st.kind], Colors[st.kind])
+		put(st.row, col, Glyphs[st.kind], st.fg)
 	}
 }
 
@@ -159,8 +171,8 @@ func catalog(w, h int) []star {
 	counts := [4]int{
 		max(3, w*h/18),
 		max(3, w*h/30),
-		max(2, w*h/42),
-		max(2, w*h/58),
+		max(1, w*h/168), // *  ~25% of the old mid density
+		max(1, w*h/232), // ✦  ~25% of the old near density
 	}
 	seen := make(map[int]bool, w*h/8)
 	out := make([]star, 0, counts[0]+counts[1]+counts[2]+counts[3]+4)
@@ -181,14 +193,25 @@ func catalog(w, h int) []star {
 			return false
 		}
 		seen[key] = true
-		out = append(out, star{row, col, kind})
+		out = append(out, star{row, col, kind, tint(kind, row, col)})
 		return true
 	}
 	mid := h / 2
 	if w >= 10 {
-		kinds := []int{kindDust, kindSpark, kindMid, kindNear}
-		for i, col := 0, 4; col < w; i, col = i+1, col+6 {
-			place(mid, col, kinds[i%4])
+		place(mid, 4, kindDust)
+		place(mid, 10, kindSpark)
+		place(mid, 16, kindMid)
+		if w > 22 {
+			place(mid, 22, kindNear)
+		} else {
+			place(mid, w-1, kindNear)
+		}
+		for col := 0; col < w; col += 5 {
+			k := kindDust
+			if (col/5)%2 == 1 {
+				k = kindSpark
+			}
+			place(mid, col, k)
 		}
 	}
 	for kind := 0; kind < 4; kind++ {

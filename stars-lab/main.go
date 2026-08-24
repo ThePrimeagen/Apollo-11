@@ -4,7 +4,7 @@
 //	space     pause
 //	q         quit
 //
-//	go run . -strategy far-fast
+//	go run . -strategy dust-rush
 //	go run . -strategy hyperspace -seconds 4
 package main
 
@@ -58,13 +58,13 @@ func strategyOrDefault(name string) stars.Strategy {
 	if s, ok := stars.Lookup(name); ok {
 		return s
 	}
-	return stars.FarFast
+	return stars.DustRush
 }
 
 func mustStrategy(name string) stars.Strategy {
 	s, ok := stars.Lookup(name)
 	if !ok {
-		return stars.FarFast
+		return stars.DustRush
 	}
 	return s
 }
@@ -171,7 +171,7 @@ func pad(s string, w int) string {
 }
 
 func main() {
-	name := flag.String("strategy", "far-fast", "opening fly style")
+	name := flag.String("strategy", "dust-rush", "opening fly style")
 	seconds := flag.Float64("seconds", 0, "auto-quit after N seconds (0 = interactive)")
 	flag.Parse()
 	m := newDemo(strategyOrDefault(*name))
