@@ -5,38 +5,30 @@ by itself.
 
 ```bash
 cd seg-lab
-./run.sh          # loads the 14-seg alpha font, then the TUI
-go run .          # same TUI; letters tofu unless the font is installed
+go run .
 ```
 
-`tab` cycles styles. Type to edit. `esc` clears to the A–Z catalog.
-`ctrl-c` quits. `q` is a letter.
+Pass a string and a height. Height is the number of terminal rows.
+Height 1 is the terminal's default font. Heights 3–5 are constructed
+14-seg. Height 2 is not possible (a 14-seg letter needs a top, mid,
+and bottom) and returns `ErrHeight`, as does anything else outside
+1, 3, 4, 5.
 
-## What Unicode actually has
-
-Unicode 13 added **ten segmented digits** and nothing else:
-
-| Codepoints | Glyphs |
-| --- | --- |
-| `U+1FBF0`–`U+1FBF9` | 🯰🯱🯲🯳🯴🯵🯶🯷🯸🯹 |
-
-There are no official segmented letter codepoints. Alpha is a 14-segment
-font we ship (`font/SegmentedAlpha.ttf`) mapped onto the Private Use Area
-`U+E000`–`U+E019` (A–Z). One cell per letter, same idea as the digits.
-
-Regenerate the font:
-
-```bash
-python3 font/genfont.py
+```go
+font.Render("HELLO WORLD", 1) // default font
+font.Render("HELLO WORLD", 3)
+font.Render("HELLO WORLD", 4)
+font.Render("HELLO WORLD", 5)
 ```
 
-## Styles
+`tab` cycles 1→3→4→5→1. Digits `1`, `3`, `4`, `5` set the unit. Type
+to edit. `esc` clears to the A–Z catalog. `ctrl-c` quits. `q` is a
+letter.
 
-| `tab` | How it draws | Letters |
-| --- | --- | --- |
-| `alpha` | One cell, 14-seg font at `U+E000`–`U+E019` | Full A–Z |
-| `unicode` | Official `U+1FBF0`–`U+1FBF9` cells | Blank — no codepoints |
-| `7-seg` | 3×3 `_`/`\|` strokes (same language as the DSKY) | A b C d E F … — not K/M/V/W/X |
-| `14-seg` | 5×5 box-drawing, no font required | Full A–Z |
-
-The component is `seg.Render(text, style)`. Pure. No TUI imports.
+| height | what |
+|--------|------|
+| 1      | terminal default font (1 row) |
+| 2      | not supported |
+| 3      | constructed 14-seg, 5×3 |
+| 4      | constructed 14-seg, 7×4 |
+| 5      | constructed 14-seg, 7×5 |

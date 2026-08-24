@@ -1,9 +1,11 @@
-// seg-lab: a standalone terminal segmented-letter viewer.
+// seg-lab: a standalone terminal viewer for the font package.
 //
-// Unicode only encodes segmented digits (U+1FBF0–U+1FBF9). Letters have no
-// codepoints, so 7-seg and 14-seg compose them from box-drawing strokes.
+//	font.Render(s, 1)  // terminal default font
+//	font.Render(s, 3)  // constructed 14-seg, 3 rows
+//	font.Render(s, 5)  // constructed 14-seg, 5 rows
 //
-//	tab        cycle alpha / unicode / 7-seg / 14-seg
+//	tab        cycle height 1→3→4→5→1 (2 is skipped)
+//	1,3,4,5    set the height unit
 //	type       edit the message (q is a letter)
 //	backspace  delete
 //	esc        clear — shows the A–Z catalog
@@ -18,7 +20,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/theprimeagen/apollo-11/seg-lab/seg"
+	"github.com/theprimeagen/apollo-11/seg-lab/font"
 )
 
 const (
@@ -33,28 +35,15 @@ func fg(n int) string { return fmt.Sprintf("\x1b[38;5;%dm", n) }
 const reset = "\x1b[0m"
 
 type demoModel struct {
-	text  string
-	style seg.Style
+	text   string
+	height int
 }
 
 func newDemo() demoModel {
-	return demoModel{text: "HELLO WORLD", style: seg.StyleAlpha}
+	return demoModel{text: "HELLO WORLD", height: 3}
 }
 
 func (m demoModel) Init() tea.Cmd { return nil }
-
-func (m demoModel) nextStyle() seg.Style {
-	switch m.style {
-	case seg.StyleAlpha:
-		return seg.StyleUnicode
-	case seg.StyleUnicode:
-		return seg.StyleSeven
-	case seg.StyleSeven:
-		return seg.StyleFourteen
-	default:
-		return seg.StyleAlpha
-	}
-}
 
 func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -63,7 +52,16 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyTab:
-			m.style = m.nextStyle()
+			switch m.height {
+			case 1:
+				m.height = 3
+			case 3:
+				m.height = 4
+			case 4:
+				m.height = 5
+			default:
+				m.height = 1
+			}
 		case tea.KeyEsc:
 			m.text = ""
 		case tea.KeyBackspace:
@@ -73,6 +71,14 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case tea.KeyRunes:
 			for _, r := range msg.Runes {
+				if r == '1' || r == '3' || r == '4' || r == '5' {
+					m.height = int(r - '0')
+					continue
+				}
+				if r == '2' {
+					// Height 2 is not possible. Do not type a 2 either.
+					continue
+				}
 				if unicode.IsPrint(r) && r != '\t' {
 					m.text += string(unicode.ToUpper(r))
 				}
@@ -85,46 +91,35 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m demoModel) View() string {
 	var b strings.Builder
 	b.WriteString(fg(colTitle) + "SEGMENTED LETTER VIEWER" + reset)
-	b.WriteString(fg(colDim) + "  ·  " + m.style.String() + reset + "\n\n")
-
-	b.WriteString(fg(colNote) + "Unicode digits U+1FBF0–U+1FBF9  " + reset)
-	b.WriteString(fg(colSeg) + seg.Render("0123456789", seg.StyleUnicode) + reset + "\n")
-	b.WriteString(fg(colDim) + "No official letter codepoints. alpha = 14-seg font (U+E000–U+E019)." + reset + "\n\n")
+	b.WriteString(fmt.Sprintf("%s  ·  height %d%s\n", fg(colDim), m.height, reset))
+	b.WriteString(fg(colDim) + fmt.Sprintf("font.Render(s, %d)", m.height) + reset + "\n\n")
 
 	if m.text == "" {
 		b.WriteString(fg(colNote) + "alphabet catalog" + reset + "\n\n")
-		b.WriteString(fg(colSeg) + catalog(m.style) + reset + "\n")
+		b.WriteString(fg(colSeg) + catalog(m.height) + reset + "\n")
 	} else {
-		b.WriteString(fg(colSeg) + seg.Render(m.text, m.style) + reset + "\n")
-		if m.style == seg.StyleUnicode {
-			b.WriteString("\n" + fg(colDim) + "letters stay blank in unicode — tab to alpha" + reset + "\n")
-		} else if m.style == seg.StyleSeven {
-			b.WriteString("\n" + fg(colDim) + "7-seg cannot draw K M V W X — tab to 14-seg or alpha" + reset + "\n")
-		} else if m.style == seg.StyleAlpha {
-			b.WriteString("\n" + fg(colDim) + "one cell per letter (needs Segmented Alpha font)" + reset + "\n")
-		}
+		b.WriteString(fg(colSeg) + render(m.text, m.height) + reset + "\n")
 	}
 
-	b.WriteString("\n" + fg(colDim) + "tab style · type to edit · backspace · esc clear · ctrl-c quit" + reset + "\n")
+	b.WriteString("\n" + fg(colDim) + "tab / 1 3 4 5 height · type to edit · backspace · esc clear · ctrl-c quit" + reset + "\n")
 	return b.String()
 }
 
-func catalog(style seg.Style) string {
-	switch style {
-	case seg.StyleUnicode:
-		return seg.Render("0123456789", style)
-	case seg.StyleAlpha:
-		return seg.Render("ABCDEFGHIJKLMNOPQRSTUVWXYZ", style) + "\n" +
-			seg.Render("0123456789", style)
-	case seg.StyleSeven:
-		return seg.Render("ABCDEFGHIJ", style) + "\n\n" +
-			seg.Render("LNOPQRSTUY", style) + "\n\n" +
-			seg.Render("Z0123456789", style)
-	default:
-		return seg.Render("ABCDEFGHIJKLM", style) + "\n\n" +
-			seg.Render("NOPQRSTUVWXYZ", style) + "\n\n" +
-			seg.Render("0123456789", style)
+func render(text string, height int) string {
+	out, err := font.Render(text, height)
+	if err != nil {
+		return err.Error()
 	}
+	return out
+}
+
+func catalog(height int) string {
+	if height >= 3 {
+		return render("ABCDEFGHIJKLM", height) + "\n\n" +
+			render("NOPQRSTUVWXYZ", height)
+	}
+	return render("ABCDEFGHIJKLMNOPQRSTUVWXYZ", height) + "\n\n" +
+		render("0123456789", height)
 }
 
 func main() {

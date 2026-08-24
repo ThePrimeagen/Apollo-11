@@ -1,16 +1,13 @@
 package main
 
-// Demo harness tests, written first. The lab is a standalone segmented
-// letter viewer: type a string, tab cycles unicode / 7-seg / 14-seg, esc
-// clears, ctrl-c quits. Empty text shows the A–Z catalog.
+// Demo harness tests, written first. The lab is a Go font viewer: pass a
+// string and a height unit 1–5. Tab cycles the unit. Digits 1–5 set it.
 
 import (
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/theprimeagen/apollo-11/seg-lab/seg"
 )
 
 func key(m demoModel, r rune) demoModel {
@@ -24,20 +21,23 @@ func keyType(m demoModel, t tea.KeyType) demoModel {
 }
 
 func TestViewerBoot(t *testing.T) {
-	t.Run("happy: boots on alpha showing HELLO WORLD", func(t *testing.T) {
+	t.Run("happy: boots HELLO WORLD at height 3", func(t *testing.T) {
 		m := newDemo()
-		if m.style != seg.StyleAlpha {
-			t.Fatalf("boot style %s, want alpha", m.style)
+		if m.height != 3 {
+			t.Fatalf("boot height %d, want 3", m.height)
 		}
 		if m.text != "HELLO WORLD" {
 			t.Fatalf("boot text %q", m.text)
 		}
 		v := m.View()
-		if !strings.Contains(v, "alpha") {
-			t.Fatal("the UI must name the active style")
+		if !strings.Contains(v, "3") {
+			t.Fatal("the UI must name the height unit")
 		}
-		if !strings.Contains(v, "U+1FBF0") && !strings.Contains(v, "1FBF0") {
-			t.Fatal("the UI must mention the Unicode segmented-digit range")
+		if strings.Contains(v, "font.Small") || strings.Contains(v, "font.Large") {
+			t.Fatal("Small/Large is gone; height is an int")
+		}
+		if strings.Contains(v, "genfont") || strings.Contains(v, ".py") || strings.Contains(v, "U+E000") {
+			t.Fatal("the Python / PUA font path is gone")
 		}
 	})
 	t.Run("unhappy: a lone q is a letter, not a quit", func(t *testing.T) {
@@ -75,30 +75,75 @@ func TestViewerTyping(t *testing.T) {
 	})
 }
 
-func TestViewerStyles(t *testing.T) {
-	t.Run("happy: tab walks alpha → unicode → 7-seg → 14-seg", func(t *testing.T) {
+func TestViewerHeight1Plain(t *testing.T) {
+	t.Run("happy: height 1 shows the message in the default font", func(t *testing.T) {
 		m := newDemo()
-		seen := []seg.Style{m.style}
-		for i := 0; i < 4; i++ {
-			m = keyType(m, tea.KeyTab)
-			seen = append(seen, m.style)
+		m = key(m, '1')
+		if m.height != 1 {
+			t.Fatalf("digit 1 → %d", m.height)
 		}
-		want := []seg.Style{seg.StyleAlpha, seg.StyleUnicode, seg.StyleSeven, seg.StyleFourteen, seg.StyleAlpha}
-		if len(seen) != len(want) {
-			t.Fatalf("tab cycle %v", seen)
-		}
-		for i := range want {
-			if seen[i] != want[i] {
-				t.Fatalf("tab cycle %v, want %v", seen, want)
-			}
+		v := m.View()
+		if !strings.Contains(v, "HELLO WORLD") {
+			t.Fatal("height 1 must show the terminal's own letters")
 		}
 	})
-	t.Run("unhappy: unknown keys do not wipe the text", func(t *testing.T) {
+	t.Run("unhappy: the viewer never asks for height 6", func(t *testing.T) {
+		m := newDemo()
+		m.height = 6
+		v := m.View()
+		if !strings.Contains(strings.ToLower(v), "height") {
+			t.Fatal("an illegal height must still be named so the error is visible")
+		}
+		if strings.Contains(v, "█") {
+			t.Fatal("height 6 must not draw bars")
+		}
+	})
+}
+
+func TestViewerHeight(t *testing.T) {
+	t.Run("happy: tab walks 3→4→5→1 and skips 2", func(t *testing.T) {
+		m := newDemo()
+		if m.height != 3 {
+			t.Fatal("boot 3")
+		}
+		m = keyType(m, tea.KeyTab)
+		if m.height != 4 {
+			t.Fatalf("tab → %d, want 4", m.height)
+		}
+		m = keyType(m, tea.KeyTab)
+		if m.height != 5 {
+			t.Fatalf("tab → %d, want 5", m.height)
+		}
+		m = keyType(m, tea.KeyTab)
+		if m.height != 1 {
+			t.Fatalf("tab wraps → %d, want 1", m.height)
+		}
+		m = keyType(m, tea.KeyTab)
+		if m.height != 3 {
+			t.Fatalf("tab from 1 skips 2 → %d, want 3", m.height)
+		}
+		m = key(m, '5')
+		if m.height != 5 || m.text != "HELLO WORLD" {
+			t.Fatalf("digit 5 must set height, not type; height=%d text=%q", m.height, m.text)
+		}
+	})
+	t.Run("unhappy: digit 2 does not select an impossible height", func(t *testing.T) {
+		m := newDemo()
+		m = key(m, '2')
+		if m.height == 2 {
+			t.Fatal("height 2 is skipped; digit 2 must not select it")
+		}
+		if m.text != "HELLO WORLD" {
+			t.Fatalf("digit 2 must not type, text=%q", m.text)
+		}
+	})
+	t.Run("unhappy: unknown keys do not wipe the text or the height", func(t *testing.T) {
 		m := newDemo()
 		before := m.text
+		h := m.height
 		m = keyType(m, tea.KeyUp)
-		if m.text != before {
-			t.Fatal("arrow keys must not clear the message")
+		if m.text != before || m.height != h {
+			t.Fatal("arrow keys must not change the message or the height")
 		}
 	})
 }
@@ -110,12 +155,9 @@ func TestViewerCatalog(t *testing.T) {
 		if m.text != "" {
 			t.Fatal("esc must clear")
 		}
-		v := m.View()
-		if !strings.Contains(v, "A") || !strings.Contains(strings.ToUpper(v), "CATALOG") && !strings.Contains(v, "ABCDEF") {
-			// catalog may be segmented; the caption should still say so
-			if !strings.Contains(strings.ToLower(v), "catalog") {
-				t.Fatalf("empty viewer must announce the alphabet catalog:\n%s", v)
-			}
+		v := strings.ToLower(m.View())
+		if !strings.Contains(v, "catalog") {
+			t.Fatalf("empty viewer must announce the alphabet catalog:\n%s", m.View())
 		}
 	})
 	t.Run("unhappy: catalog is not shown while a message is typed", func(t *testing.T) {
