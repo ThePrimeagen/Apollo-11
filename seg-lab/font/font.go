@@ -1,6 +1,8 @@
 // Package font draws a string in 14-segment LED bars.
 //
-// Unicode has no segmented letters. Pass a string and Small or Large.
+// Unicode has no segmented letters. Pass a string and a height unit 1–5.
+//
+//	font.Render("HELLO WORLD", 3)
 //
 // The old look was a TTF: the terminal's font rasterizer drew smooth
 // filled bars in one cell. This package keeps that same outline
@@ -15,35 +17,25 @@ import (
 	"unicode"
 )
 
-// Size is the writing scale.
-type Size int
-
-const (
-	Small Size = iota
-	Large
-)
-
-func (s Size) String() string {
-	switch s {
-	case Small:
-		return "small"
-	case Large:
-		return "large"
-	}
-	return ""
+// heightCell is the per-letter cell (width × rows) for units 1–5.
+// Width is greater than rows: a terminal cell is about twice as tall
+// as it is wide, so a square grid of █ renders as a skinny stick.
+// Index 0 is unused; 2 is the old "small", 4 is the old "large".
+var heightCell = [...][2]int{
+	1: {5, 3},
+	2: {7, 5},
+	3: {10, 7},
+	4: {13, 9},
+	5: {16, 11},
 }
 
-// GlyphSize is the per-letter cell (width × height) for size.
-// Width is greater than height: a terminal cell is about twice as tall
-// as it is wide, so a square grid of █ renders as a skinny stick.
-func GlyphSize(size Size) (w, h int) {
-	switch size {
-	case Small:
-		return 7, 5
-	case Large:
-		return 13, 9
+// GlyphSize is the per-letter cell (width × rows) for a height unit 1–5.
+func GlyphSize(height int) (w, rows int) {
+	if height < 1 || height >= len(heightCell) {
+		return 0, 0
 	}
-	return 0, 0
+	c := heightCell[height]
+	return c[0], c[1]
 }
 
 // 14-segment bits. Same map as the TTF.
@@ -120,9 +112,10 @@ const (
 
 type point struct{ x, y float64 }
 
-// Render draws text at size. Empty text or an unknown size yield "".
-func Render(text string, size Size) string {
-	w, h := GlyphSize(size)
+// Render draws text at a height unit 1–5. Empty text or a height
+// outside that range yield "".
+func Render(text string, height int) string {
+	w, h := GlyphSize(height)
 	if w == 0 || h == 0 {
 		return ""
 	}

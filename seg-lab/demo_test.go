@@ -1,15 +1,13 @@
 package main
 
 // Demo harness tests, written first. The lab is a Go font viewer: pass a
-// string, tab toggles small / large writing. No Python, no TTF.
+// string and a height unit 1–5. Tab cycles the unit. Digits 1–5 set it.
 
 import (
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/theprimeagen/apollo-11/seg-lab/font"
 )
 
 func key(m demoModel, r rune) demoModel {
@@ -23,17 +21,20 @@ func keyType(m demoModel, t tea.KeyType) demoModel {
 }
 
 func TestViewerBoot(t *testing.T) {
-	t.Run("happy: boots HELLO WORLD in large writing", func(t *testing.T) {
+	t.Run("happy: boots HELLO WORLD at height 3", func(t *testing.T) {
 		m := newDemo()
-		if m.size != font.Large {
-			t.Fatalf("boot size %s, want large", m.size)
+		if m.height != 3 {
+			t.Fatalf("boot height %d, want 3", m.height)
 		}
 		if m.text != "HELLO WORLD" {
 			t.Fatalf("boot text %q", m.text)
 		}
 		v := m.View()
-		if !strings.Contains(v, "large") {
-			t.Fatal("the UI must name the size")
+		if !strings.Contains(v, "3") {
+			t.Fatal("the UI must name the height unit")
+		}
+		if strings.Contains(v, "font.Small") || strings.Contains(v, "font.Large") {
+			t.Fatal("Small/Large is gone; height is an int")
 		}
 		if strings.Contains(v, "genfont") || strings.Contains(v, ".py") || strings.Contains(v, "U+E000") {
 			t.Fatal("the Python / PUA font path is gone")
@@ -74,27 +75,36 @@ func TestViewerTyping(t *testing.T) {
 	})
 }
 
-func TestViewerSize(t *testing.T) {
-	t.Run("happy: tab flips large ↔ small", func(t *testing.T) {
+func TestViewerHeight(t *testing.T) {
+	t.Run("happy: tab walks 3→4→5→1 and digits set the unit", func(t *testing.T) {
 		m := newDemo()
-		if m.size != font.Large {
-			t.Fatal("boot large")
+		if m.height != 3 {
+			t.Fatal("boot 3")
 		}
 		m = keyType(m, tea.KeyTab)
-		if m.size != font.Small {
-			t.Fatalf("tab → %s, want small", m.size)
+		if m.height != 4 {
+			t.Fatalf("tab → %d, want 4", m.height)
 		}
 		m = keyType(m, tea.KeyTab)
-		if m.size != font.Large {
-			t.Fatalf("tab again → %s, want large", m.size)
+		if m.height != 5 {
+			t.Fatalf("tab → %d, want 5", m.height)
+		}
+		m = keyType(m, tea.KeyTab)
+		if m.height != 1 {
+			t.Fatalf("tab wraps → %d, want 1", m.height)
+		}
+		m = key(m, '2')
+		if m.height != 2 || m.text != "HELLO WORLD" {
+			t.Fatalf("digit 2 must set height, not type; height=%d text=%q", m.height, m.text)
 		}
 	})
-	t.Run("unhappy: unknown keys do not wipe the text", func(t *testing.T) {
+	t.Run("unhappy: unknown keys do not wipe the text or the height", func(t *testing.T) {
 		m := newDemo()
 		before := m.text
+		h := m.height
 		m = keyType(m, tea.KeyUp)
-		if m.text != before {
-			t.Fatal("arrow keys must not clear the message")
+		if m.text != before || m.height != h {
+			t.Fatal("arrow keys must not change the message or the height")
 		}
 	})
 }
