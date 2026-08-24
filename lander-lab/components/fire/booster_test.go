@@ -8,71 +8,88 @@ import (
 )
 
 func TestBooster(t *testing.T) {
-	t.Run("happy: left-to-right, four cells wide, two cells tall, no fan", func(t *testing.T) {
+	t.Run("happy: 500 live particles, 1ms spawn, normal spread, left-to-right", func(t *testing.T) {
 		f := Booster(1)
 		if err := f.Eng.Validate(); err != nil {
 			t.Fatalf("booster config: %v", err)
 		}
 		cfg := f.Eng.Cfg
-		if cfg.Count != Particles {
-			t.Fatalf("count %d, want %d", cfg.Count, Particles)
+		if cfg.Count != 1 {
+			t.Fatalf("count %d, want 1 particle per spawn", cfg.Count)
 		}
-		if cfg.Spread != 0 {
-			t.Fatalf("spread %v, want 0 — particles stack, they do not fan", cfg.Spread)
+		if math.Abs(cfg.Period-0.001) > 1e-9 {
+			t.Fatalf("period %v, want 1ms", cfg.Period)
 		}
-		if math.Abs(cfg.Width-4) > 0.05 {
-			t.Fatalf("width %.2f units, want 4", cfg.Width)
-		}
-		// two terminal rows = four units of height
-		if math.Abs(cfg.Height-4) > 0.05 {
-			t.Fatalf("height %.2f units, want 4 (two cells)", cfg.Height)
+		if cfg.Spread <= 0 {
+			t.Fatal("spread must be a normal around the direction")
 		}
 		d := cfg.Direction
 		if math.Abs(d.X-1) > 1e-9 || math.Abs(d.Y) > 1e-9 {
-			t.Fatalf("direction %+v, want (1, 0) left-to-right", d)
+			t.Fatalf("direction %+v, want (1, 0)", d)
 		}
-		sp := f.Sprite()
-		if sp.Width != 4 || sp.Height != 2 {
-			t.Fatalf("sprite %dx%d, want 4x2", sp.Width, sp.Height)
+		warm(f, 0.55)
+		n := len(f.Eng.Particles)
+		if n < 400 || n > 650 {
+			t.Fatalf("live %d, want ~500", n)
+		}
+		var near, far int
+		for _, p := range f.Eng.Particles {
+			ang := math.Atan2(p.Vel.Y, p.Vel.X)
+			if math.Abs(ang) < cfg.Spread*0.7 {
+				near++
+			}
+			if math.Abs(ang) > cfg.Spread*1.5 {
+				far++
+			}
+		}
+		if near <= far {
+			t.Fatalf("normal should be denser on the axis, near=%d far=%d", near, far)
 		}
 	})
-	t.Run("happy: a running booster fills both rows and travels right", func(t *testing.T) {
+	t.Run("happy: a warmed booster uses more than one glyph", func(t *testing.T) {
 		f := Booster(2)
-		f.Update(0.01)
-		for i, p := range f.Eng.Particles {
-			if math.Abs(p.Vel.Y) > 1e-9 {
-				t.Fatalf("particle %d fanned (VY=%v); travel must stay left-to-right", i, p.Vel.Y)
+		warm(f, 0.55)
+		seen := map[rune]int{}
+		sp := f.Sprite()
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				ch := sp.At(r, c).Ch
+				if ch != 0 && ch != ' ' {
+					seen[ch]++
+				}
 			}
 		}
-		ox, _ := avgPos(f.Eng.Particles)
-		f.Update(0.1)
-		ax, _ := avgPos(f.Eng.Particles)
-		if ax <= ox {
-			t.Fatalf("left-to-right should increase x, %.2f → %.2f", ox, ax)
-		}
-		warm(f, 0.4)
-		rows := map[int]bool{}
-		for cell := range f.Eng.Occupancy() {
-			rows[cell.Row] = true
-			if cell.Row < 0 || cell.Row > 1 {
-				t.Fatalf("two-row flame left rows 0..1 at row %d", cell.Row)
-			}
-			if cell.Col < 0 || cell.Col >= 4 {
-				t.Fatalf("four-unit flame left the box at col %d", cell.Col)
-			}
-		}
-		if len(rows) != 2 {
-			t.Fatalf("booster must occupy both rows, got %d", len(rows))
+		if len(seen) < 3 {
+			t.Fatalf("expected a mix of styles, got %v", seen)
 		}
 	})
-	t.Run("unhappy: one stray particle on the booster does not paint", func(t *testing.T) {
+	t.Run("unhappy: dt<=0 still emits nothing", func(t *testing.T) {
 		f := Booster(3)
+		f.Update(0)
+		if len(f.Eng.Particles) != 0 {
+			t.Fatal("dt<=0 must be a no-op")
+		}
+	})
+	t.Run("unhappy: a lone particle is a dark-red dot, not a hole and not yellow", func(t *testing.T) {
+		f := Booster(4)
 		f.Eng.Particles = []particle.Particle{{
-			Pos:  particle.Vec2{X: 2.2, Y: 2.0},
+			Pos:  particle.Vec2{X: 3.2, Y: 3.0},
 			Life: 1,
 		}}
-		if !blank(f.Sprite()) {
-			t.Fatal("occupancy 1 must not light a cell")
+		sp := f.Sprite()
+		var lit sprite.Cell
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				if !sp.At(r, c).Transparent() {
+					lit = sp.At(r, c)
+				}
+			}
+		}
+		if lit.Ch != '⠁' {
+			t.Fatalf("H=1 should be a single braille, got %+v", lit)
+		}
+		if lit.Ch == '█' {
+			t.Fatal("a lone particle must not be solid yellow")
 		}
 	})
 }

@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/particle"
-	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
 )
 
 func TestDefault(t *testing.T) {
@@ -19,8 +18,8 @@ func TestDefault(t *testing.T) {
 		if err := f.Eng.Validate(); err != nil {
 			t.Fatalf("default config: %v", err)
 		}
-		if f.Eng.Cfg.Count != Particles {
-			t.Fatalf("count %d, want %d", f.Eng.Cfg.Count, Particles)
+		if f.Eng.Cfg.Count != 1 {
+			t.Fatalf("count %d, want 1 per spawn", f.Eng.Cfg.Count)
 		}
 		d := f.Eng.Cfg.Direction
 		if math.Abs(math.Abs(d.X)-math.Abs(d.Y)) > 1e-9 {
@@ -43,16 +42,11 @@ func TestDefault(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	t.Run("happy: the first emit drops 100 particles on the nozzle", func(t *testing.T) {
+	t.Run("happy: 10ms of 1ms spawns drops 10 particles", func(t *testing.T) {
 		f := New(2)
 		f.Update(0.01)
-		if len(f.Eng.Particles) != Particles {
-			t.Fatalf("live %d, want %d", len(f.Eng.Particles), Particles)
-		}
-		occ := f.Eng.Occupancy()
-		origin := particle.CellOf(f.Eng.Cfg.Origin.X, f.Eng.Cfg.Origin.Y)
-		if occ[origin] != Particles {
-			t.Fatalf("nozzle occupancy %d, want %d", occ[origin], Particles)
+		if len(f.Eng.Particles) != 10 {
+			t.Fatalf("live %d, want 10", len(f.Eng.Particles))
 		}
 	})
 	t.Run("happy: particles travel down-right along the diagonal", func(t *testing.T) {
@@ -107,21 +101,12 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestColor(t *testing.T) {
-	t.Run("happy: two particles show a little; more occupancy shows more", func(t *testing.T) {
-		y := Color(20)
-		if y.Ch != '█' || y.FG < 0 {
-			t.Fatalf("dense core should be a solid yellow block, got %+v", y)
+	t.Run("happy: Color is Style, so the ladder still holds", func(t *testing.T) {
+		if Color(80).Ch != '█' {
+			t.Fatalf("high heat should be solid, got %+v", Color(80))
 		}
-		mid := Color(5)
-		if mid.Transparent() || mid.Ch == y.Ch {
-			t.Fatalf("mid occupancy should be visible and not solid yellow, got %+v", mid)
-		}
-		two := Color(2)
-		if two.Transparent() {
-			t.Fatal("two particles must show a little")
-		}
-		if two.Ch == '█' {
-			t.Fatalf("two particles must not be a solid block, got %+v", two)
+		if Color(2).Ch != '⠒' {
+			t.Fatalf("H=2 should be two dots, got %+v", Color(2))
 		}
 	})
 	t.Run("happy: a warmed trail has a bright core", func(t *testing.T) {
@@ -140,15 +125,9 @@ func TestColor(t *testing.T) {
 			t.Fatal("expected a yellow core")
 		}
 	})
-	t.Run("unhappy: a single particle is invisible", func(t *testing.T) {
-		if !Color(1).Transparent() {
-			t.Fatalf("one particle must paint nothing, got %+v", Color(1))
-		}
+	t.Run("unhappy: zero heat is empty", func(t *testing.T) {
 		if !Color(0).Transparent() {
 			t.Fatalf("count 0 must be empty, got %+v", Color(0))
-		}
-		if !Color(-3).Transparent() {
-			t.Fatal("negative occupancy must be empty")
 		}
 	})
 }
