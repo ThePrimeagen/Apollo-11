@@ -190,10 +190,12 @@ func TestRenderGeometry(t *testing.T) {
 			text   string
 			height int
 			gWidth int
+			gap    int
 		}{
-			{StyleSeven, "HI", 3, 3},
-			{StyleFourteen, "HI", 5, 5},
-			{StyleUnicode, "12", 1, 1},
+			{StyleSeven, "HI", 3, 3, 1},
+			{StyleFourteen, "HI", 5, 5, 1},
+			// Official segmented digits sit in adjacent cells; no composed gap.
+			{StyleUnicode, "12", 1, 1, 0},
 		}
 		for _, tc := range cases {
 			out := stripANSI(Render(tc.text, tc.style))
@@ -201,8 +203,8 @@ func TestRenderGeometry(t *testing.T) {
 			if len(ls) != tc.height {
 				t.Fatalf("%s %q: %d lines, want %d", tc.style, tc.text, len(ls), tc.height)
 			}
-			// two glyphs + one-column gap
-			wantW := len([]rune(tc.text))*tc.gWidth + (len([]rune(tc.text)) - 1)
+			n := len([]rune(tc.text))
+			wantW := n*tc.gWidth + (n-1)*tc.gap
 			for i, l := range ls {
 				if got := len([]rune(l)); got != wantW {
 					t.Fatalf("%s %q line %d: width %d, want %d (%q)", tc.style, tc.text, i, got, wantW, l)

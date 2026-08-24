@@ -90,7 +90,7 @@ func TestViewerStyles(t *testing.T) {
 	t.Run("unhappy: unknown keys do not wipe the text", func(t *testing.T) {
 		m := newDemo()
 		before := m.text
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp}).(demoModel)
+		m = keyType(m, tea.KeyUp)
 		if m.text != before {
 			t.Fatal("arrow keys must not clear the message")
 		}
