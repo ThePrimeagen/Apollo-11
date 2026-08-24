@@ -238,6 +238,26 @@ func TestRenderKnownGlyphs(t *testing.T) {
 			}
 		}
 	})
+	t.Run("happy: B at height 5 is the wider four-column cut", func(t *testing.T) {
+		buf, width, err := Render(5, "B")
+		if err != nil {
+			t.Fatalf("height 5 B: %v", err)
+		}
+		_, w4, err := Render(4, "B")
+		if err != nil {
+			t.Fatalf("height 4 B: %v", err)
+		}
+		if width != w4+1 {
+			t.Fatalf("height 5 B must be one column wider than the height 4 cut: got %d, want %d", width, w4+1)
+		}
+		want := []string{" __ ", "|  )", "|__)", "|  )", "|__)"}
+		got := rowsOf(t, buf, 5, width)
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("height 5 B row %d: %q, want %q\nfull: %q", i, got[i], want[i], got)
+			}
+		}
+	})
 	t.Run("happy: ABC at height 3 composes glyphs with one-column gaps", func(t *testing.T) {
 		buf, width, err := Render(3, "ABC")
 		if err != nil {
