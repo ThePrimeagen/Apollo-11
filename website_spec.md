@@ -54,7 +54,7 @@ modification** to prove the TUI's behavior did not change.
 | Switch-panel tests: `switches_test.go` (`TestSwitchPanelRender`, `TestSwitchFlip` incl. the typing-mode-swallows-space case, `TestPauseMovedToDot`), `active_state_test.go` (key-bar active states) | `exec-tui/ui` | **Refactor contract — must pass unchanged.** Switch flips queue DSKY keys through the same pending-key path the Director absorbs; `.`-pause semantics carry into the Director |
 | `button-lab` component tests (`button/button_test.go`, `lab_test.go`) | `button-lab/` | Unchanged — the reusable cockpit toggle; the web widgets mirror its look (§7), not its code |
 | `dsky-lab` component tests (`TestGeometry`, `TestSevenSegmentDigits`, `TestVerbNounFlash`, `TestLights`) and `dsky_panel_test.go` (`TestDSKYStateMapping`, `TestDSKYPanelEmbedded`, `TestEngineLampAccessors`) | `dsky-lab/`, `exec-tui/ui` | Unchanged — pin the DSKY layout, flash semantics, and the engine's `RestartRecently`/`CompActy` lamp accessors the web replica consumes |
-| Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs, `color_test.go`, and the compact-layout suite `layout_test.go`/`layout2_test.go`/`layout3_test.go`/`zoom_test.go`) | `exec-tui/ui` | Unchanged — TUI rendering untouched by this feature |
+| Remaining `exec-tui/ui` render tests (header, DSKY panel, timelines, badges, knife-edge, stubs, `color_test.go`, the compact-layout suite `layout_test.go`/`layout2_test.go`/`layout3_test.go`/`zoom_test.go`, and `rowcost_test.go`) | `exec-tui/ui` | Unchanged — TUI rendering untouched by this feature |
 | `timeline-tui` render tests | `timeline-tui` | Unchanged — not part of this feature |
 | `npm run lint` (markdownlint) | root | Must pass for this spec and all new docs |
 
@@ -256,7 +256,7 @@ subject: altitude *is* the vertical axis.
 | 1 | Mission clocks | 90 px | GET (large), UTC, T+PDI, phase badge P63/P64/P66, scenario badge (ACTUAL/HAPPY/SANDBOX) |
 | 2 | Descent scene | 840 px | Vertical star-field column; LM descends the column against a log-scale altitude ladder; terrain + West Crater + site marker at the bottom; Earth appears after the 102:36:55 yaw-around; plume ∝ throttle; dust < 100 ft; alarm flash overlay |
 | 3 | DSKY | 300 px | PROG/VERB/NOUN + R1–R3 in seven-segment digits, COMP ACTY, verb/noun **flash**, and the four story lights (**PROG, RESTART, ALT, VEL**) — the same compact layout as `dsky-lab/dsky`; keyboard with replay key-lighting |
-| 4 | Executive board | 420 px | 8 core-set + 5 VAC cells (owner/prio, with running/**sleeping**/stub states distinct), free-compute bar, duty rows, restart counter — same semantics as the TUI panels; **ghost overlay** of the happy case in compare mode; forensics drawer expands from here |
+| 4 | Executive board | 420 px | 8 core-set + 5 VAC cells (owner/prio, with running/**sleeping**/stub states distinct), free-compute bar, duty rows with **per-job ms costs over the trailing 2 s window** (engine `UsedMs`, as in the TUI's row-cost display), restart counter — same semantics as the TUI panels; **ghost overlay** of the happy case in compare mode; forensics drawer expands from here |
 | 5 | Hand controls | 200 px | ACA joystick, ROD switch, AUTO/ATT HOLD mode switch |
 | 6 | Event feed / captions | 200 px | Air-to-ground captions at logged GETs (light-delay toggle), clickable event index — the TUI's compact layout dropped its own event log, so in companion mode this feed is the narrative record |
 | 7 | Transport | 110 px | Play/pause, rate presets 0.1–16×, −10 ms/+10 ms/+2 s steps, scrub bar with event pips (alarms red, keystrokes amber, program changes cyan, voice grey) |
@@ -550,7 +550,11 @@ With **pause on alarms** enabled (cog, default ON in ACTUAL), the Director halts
 exact BAILOUT frame (`TestEventBreakpoints`). The alarm card opens over zone 2 and states,
 from the frame's `forensics` block — never hand-written prose for the numbers:
 
-1. **What fired:** `1202 — EXECUTIVE OVERFLOW, NO CORE SETS` (FAILREG `01202`).
+1. **What fired:** `1202 — EXECUTIVE OVERFLOW, NO CORE SETS` (FAILREG `01202`). On the
+   DSKY replica the codes read out flight-style — **V05 N09 with the FAILREG codes,
+   unsigned, in the registers** (the TUI dropped its banner text for exactly this
+   presentation); the scene's full-width alarm flash remains a website-only affordance
+   with a cog toggle.
 2. **The failing request:** which job asked (e.g. `READACCS → FINDVAC: SERVICER`,
    needs core set + VAC) and that it was the request the Executive could not fill.
 3. **Who holds everything:** the 8 core sets / 5 VAC areas by owner **and state** at that
