@@ -1,9 +1,9 @@
 // Package seg renders segmented terminal characters.
 //
 // Unicode only encodes the ten seven-segment digits U+1FBF0 through
-// U+1FBF9. There are no segmented letter codepoints, so A-Z are composed:
-// 7-segment for the letters that fit a calculator display, and 14-segment
-// (box-drawing) for the full alphabet.
+// U+1FBF9. Letters have no official cells, so A-Z are either composed
+// (7-seg / 14-seg box-drawing) or mapped onto a one-cell 14-seg font in
+// the Private Use Area (U+E000–U+E019). See font/SegmentedAlpha.ttf.
 package seg
 
 import (
@@ -27,11 +27,25 @@ const FirstAlpha = '\uE000'
 
 // Alpha maps a letter onto a one-cell 14-segment PUA glyph, or a digit
 // onto the official Unicode segmented digit. Unsupported runes fail.
-func Alpha(r rune) (rune, bool) { return 0, false }
+func Alpha(r rune) (rune, bool) {
+	if r == ' ' {
+		return ' ', true
+	}
+	if r >= '0' && r <= '9' {
+		return firstSegDigit + (r - '0'), true
+	}
+	if r >= 'a' && r <= 'z' {
+		r = r - 'a' + 'A'
+	}
+	if r >= 'A' && r <= 'Z' {
+		return FirstAlpha + (r - 'A'), true
+	}
+	return 0, false
+}
 
 // Styles returns the viewer styles in cycle order, starting at unicode.
 func Styles() []Style {
-	return []Style{StyleUnicode, StyleSeven, StyleFourteen}
+	return []Style{StyleUnicode, StyleSeven, StyleFourteen, StyleAlpha}
 }
 
 func (s Style) String() string {
@@ -42,6 +56,8 @@ func (s Style) String() string {
 		return "7-seg"
 	case StyleFourteen:
 		return "14-seg"
+	case StyleAlpha:
+		return "alpha"
 	}
 	return ""
 }
@@ -328,6 +344,19 @@ func Render(text string, style Style) string {
 			rows, _ := Fourteen(r)
 			return rows[:]
 		})
+	case StyleAlpha:
+		if text == "" {
+			return ""
+		}
+		var b strings.Builder
+		for _, r := range text {
+			if g, ok := Alpha(r); ok {
+				b.WriteRune(g)
+			} else {
+				b.WriteByte(' ')
+			}
+		}
+		return b.String()
 	default:
 		return ""
 	}

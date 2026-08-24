@@ -3,7 +3,7 @@
 // Unicode only encodes segmented digits (U+1FBF0–U+1FBF9). Letters have no
 // codepoints, so 7-seg and 14-seg compose them from box-drawing strokes.
 //
-//	tab        cycle unicode / 7-seg / 14-seg
+//	tab        cycle alpha / unicode / 7-seg / 14-seg
 //	type       edit the message (q is a letter)
 //	backspace  delete
 //	esc        clear — shows the A–Z catalog
@@ -38,19 +38,21 @@ type demoModel struct {
 }
 
 func newDemo() demoModel {
-	return demoModel{text: "APOLLO 11", style: seg.StyleFourteen}
+	return demoModel{text: "HELLO WORLD", style: seg.StyleAlpha}
 }
 
 func (m demoModel) Init() tea.Cmd { return nil }
 
 func (m demoModel) nextStyle() seg.Style {
 	switch m.style {
-	case seg.StyleFourteen:
+	case seg.StyleAlpha:
 		return seg.StyleUnicode
 	case seg.StyleUnicode:
 		return seg.StyleSeven
-	default:
+	case seg.StyleSeven:
 		return seg.StyleFourteen
+	default:
+		return seg.StyleAlpha
 	}
 }
 
@@ -87,7 +89,7 @@ func (m demoModel) View() string {
 
 	b.WriteString(fg(colNote) + "Unicode digits U+1FBF0–U+1FBF9  " + reset)
 	b.WriteString(fg(colSeg) + seg.Render("0123456789", seg.StyleUnicode) + reset + "\n")
-	b.WriteString(fg(colDim) + "No segmented letter codepoints exist. 7-seg / 14-seg are composed." + reset + "\n\n")
+	b.WriteString(fg(colDim) + "No official letter codepoints. alpha = 14-seg font (U+E000–U+E019)." + reset + "\n\n")
 
 	if m.text == "" {
 		b.WriteString(fg(colNote) + "alphabet catalog" + reset + "\n\n")
@@ -95,9 +97,11 @@ func (m demoModel) View() string {
 	} else {
 		b.WriteString(fg(colSeg) + seg.Render(m.text, m.style) + reset + "\n")
 		if m.style == seg.StyleUnicode {
-			b.WriteString("\n" + fg(colDim) + "letters stay blank in unicode — tab to 7-seg or 14-seg" + reset + "\n")
+			b.WriteString("\n" + fg(colDim) + "letters stay blank in unicode — tab to alpha" + reset + "\n")
 		} else if m.style == seg.StyleSeven {
-			b.WriteString("\n" + fg(colDim) + "7-seg cannot draw K M V W X — tab to 14-seg for those" + reset + "\n")
+			b.WriteString("\n" + fg(colDim) + "7-seg cannot draw K M V W X — tab to 14-seg or alpha" + reset + "\n")
+		} else if m.style == seg.StyleAlpha {
+			b.WriteString("\n" + fg(colDim) + "one cell per letter (needs Segmented Alpha font)" + reset + "\n")
 		}
 	}
 
@@ -109,6 +113,9 @@ func catalog(style seg.Style) string {
 	switch style {
 	case seg.StyleUnicode:
 		return seg.Render("0123456789", style)
+	case seg.StyleAlpha:
+		return seg.Render("ABCDEFGHIJKLMNOPQRSTUVWXYZ", style) + "\n" +
+			seg.Render("0123456789", style)
 	case seg.StyleSeven:
 		return seg.Render("ABCDEFGHIJ", style) + "\n\n" +
 			seg.Render("LNOPQRSTUY", style) + "\n\n" +
