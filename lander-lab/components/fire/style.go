@@ -21,7 +21,7 @@ type Band struct {
 // heat is 15% above the original ladder (first visible stays H=1).
 // Bright yellow is the ceiling; nothing uses xterm 231 (white).
 func Bands() []Band {
-	return DefaultHeat().Bands()
+	return activeHeat.Bands()
 }
 
 // Style maps neighborhood heat onto a flame cell.

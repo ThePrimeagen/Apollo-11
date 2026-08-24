@@ -29,6 +29,22 @@ func DefaultHeat() HeatConfig {
 	return HeatConfig{Thresholds: []int{1, 7, 13, 24, 47, 82, 139, 230}}
 }
 
+var activeHeat = DefaultHeat()
+
+// UseHeat makes Bands and Style read these thresholds.
+func UseHeat(c HeatConfig) error {
+	if err := c.Validate(); err != nil {
+		return err
+	}
+	activeHeat = HeatConfig{Thresholds: append([]int(nil), c.Thresholds...)}
+	return nil
+}
+
+// ResetHeat restores the 15% default ladder.
+func ResetHeat() {
+	_ = UseHeat(DefaultHeat())
+}
+
 // Validate reports the first thing wrong with c.
 func (c HeatConfig) Validate() error {
 	if len(c.Thresholds) != RungCount {

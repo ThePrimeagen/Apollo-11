@@ -8,6 +8,7 @@ import (
 )
 
 func TestBands(t *testing.T) {
+	ResetHeat()
 	t.Run("happy: each rung needs 15% more heat than the old ladder", func(t *testing.T) {
 		// old mins 1,6,11,21,41,71,121,200 → round(min*1.15), first stays 1
 		want := []struct {

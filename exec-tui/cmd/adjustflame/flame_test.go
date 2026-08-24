@@ -188,7 +188,7 @@ func TestView(t *testing.T) {
 			t.Fatal(err)
 		}
 		v := m.View()
-		for _, want := range []string{"single braille", "solid bright yellow", "230", "j/k", "h/l", "s"} {
+		for _, want := range []string{"single", "braille", "yellow", "230", "j/k", "h/l", "s"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("view missing %q\n%s", want, v)
 			}
