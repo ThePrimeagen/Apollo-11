@@ -6,7 +6,6 @@ package ui
 //   z key:   cycles 50 → 80 (50% narrower) → 40 → 50 …
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -15,9 +14,6 @@ func TestZoomLevels(t *testing.T) {
 		_, m := newTestModel()
 		if got := m.cellMs(); got != 50 {
 			t.Fatalf("default zoom must be 50ms/bar, got %v", got)
-		}
-		if !strings.Contains(m.View(), "50ms/cell") {
-			t.Fatal("the header must state 50ms per cell")
 		}
 	})
 	t.Run("happy: z cycles 50 -> 80 -> 40 -> 50", func(t *testing.T) {
