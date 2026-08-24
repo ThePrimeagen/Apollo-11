@@ -43,6 +43,18 @@ func (m Model) dskyState() dsky.State {
 		Alt:     ph != sim.P00 && !e.LandingRadarAcquired(),
 		Vel:     ph != sim.P00 && !e.LandingRadarAcquired(),
 	}
+	// Right after a restart the panel shows the failure the way the crew
+	// read it: V05 N09 with the FAILREG codes, unsigned, in the registers.
+	if fr := e.FailReg(); len(fr) > 0 && e.RestartRecently(2500) {
+		st.Verb, st.Noun = "05", "09"
+		regs := []*string{&st.R1, &st.R2, &st.R3}
+		for i := range regs {
+			*regs[i] = ""
+			if i < len(fr) {
+				*regs[i] = " 0" + fr[i]
+			}
+		}
+	}
 	return st
 }
 
@@ -78,10 +90,6 @@ type Model struct {
 	pending []pendingKey
 	sel     int // selected switch: 0 DESCENT, 1 DELTAH, 2 RR STEAL
 	zoom    int // timeline zoom level index (see zoomBPC)
-
-	seenAlarms int
-	flashLeft  int
-	lastAlarm  sim.Alarm
 }
 
 // NewModel wraps an engine.
@@ -159,13 +167,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.eng.PressKey(m.pending[0].key)
 				m.pending = m.pending[1:]
 			}
-		}
-		if n := len(m.eng.Alarms()); n > m.seenAlarms {
-			m.seenAlarms = n
-			m.lastAlarm = m.eng.Alarms()[n-1]
-			m.flashLeft = 90
-		} else if m.flashLeft > 0 {
-			m.flashLeft--
 		}
 		return m, frameTick()
 	case tea.KeyMsg:
@@ -255,8 +256,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case 'x':
 		m.eng.Reset()
 		m.pending = nil
-		m.seenAlarms = 0
-		m.flashLeft = 0
 	}
 	return m, nil
 }
@@ -365,58 +364,45 @@ func (m Model) View() string {
 	return b.String()
 }
 
-// viewSwitches renders the three switches side by side (they live on the
-// right, under the DSKY). h/l selects, space (or enter) flicks.
+// viewSwitches renders the three switches as a tight bank that fits
+// completely under the 25-cell DSKY. State shows in the label color: light
+// gray when off, amber when on; focus shows on the switch frame itself.
+// h/l selects, space (or enter) flicks.
 func (m Model) viewSwitches() string {
 	e := m.eng
-	keying := len(m.pending) > 0
 	specs := []struct {
-		label, caption string
-		on             bool
+		label string
+		on    bool
 	}{
-		{"DESCENT", "V37E 63E", e.Phase() != sim.P00},
-		{"DELTAH", "V16 N68", e.MonitorActive()},
-		{"RR STEAL", "SLEW/AUTO", e.RadarBug()},
+		{"DESCENT", e.Phase() != sim.P00},
+		{"DELTAH", e.MonitorActive()},
+		{"RR STEAL", e.RadarBug()},
 	}
+	sGrayLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	sOnLabel := lipgloss.NewStyle().Foreground(cAmber).Bold(true)
 	cols := make([]string, 3)
 	for i, sp := range specs {
 		sw := button.NewSwitch(sp.label)
 		sw.On = sp.on
 		sw.Focused = i == m.sel
-		labelStyle, capStyle := sDim, sDim
-		if sw.Focused {
-			labelStyle = lipgloss.NewStyle().Foreground(cAmber).Bold(true)
+		style := sGrayLabel
+		if sp.on {
+			style = sOnLabel
 		}
-		state := sDim.Render("○ OFF")
-		switch {
-		case sp.on:
-			state = lipgloss.NewStyle().Foreground(cGreen).Bold(true).Render("● ON")
-		case keying && i != 2 && i == m.sel:
-			state = lipgloss.NewStyle().Foreground(cYellow).Render("keying…")
-		}
-		colW := 11
+		colW := len(sp.label)
 		center := func(s string) string { return lipgloss.PlaceHorizontal(colW, lipgloss.Center, s) }
 		cols[i] = lipgloss.JoinVertical(lipgloss.Left,
 			center(sw.Render()),
-			center(labelStyle.Render(sp.label)),
-			center(capStyle.Render(sp.caption)+" "+state),
+			center(style.Render(sp.label)),
 		)
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, cols[0], " ", cols[1], " ", cols[2])
 }
 
 // viewHeader is ONE line: the effective free compute — idle minus deficit —
-// which goes NEGATIVE under overload. Below zero means broken. During an
-// alarm the line flashes the alarm banner instead.
+// which goes NEGATIVE under overload. Breakage shows on the DSKY (PROG lamp
+// + V05 N09 alarm codes), not as header text.
 func (m Model) viewHeader() string {
-	if m.flashLeft > 0 && (m.flashLeft/8)%2 == 0 {
-		what := "NO CORE SETS AVAILABLE"
-		if m.lastAlarm.Code == "1201" {
-			what = "NO VAC AREAS AVAILABLE"
-		}
-		return sAlarm.Render(fmt.Sprintf(" ⚠ PROG ALARM %s — EXECUTIVE OVERFLOW: %s — BAILOUT → RESTART ", m.lastAlarm.Code, what))
-	}
-
 	a := m.eng.Accounting()
 	free := a.IdlePct - a.DeficitPct
 
@@ -439,8 +425,11 @@ func (m Model) viewHeader() string {
 	}
 	bar := freeStyle.Render(strings.Repeat("█", fill)) + sDim.Render(strings.Repeat("░", barW-fill))
 	line := freeStyle.Render(fmt.Sprintf("FREE COMPUTE %+6.1f%%", free)) + " " + bar
-	if free < 0 {
-		line += " " + sAlarm.Render(" BROKEN ")
+	if m.typing {
+		line += " " + sAlarm.Render(" TYPING ")
+	}
+	if m.paused {
+		line += " " + sAlarm.Render(" PAUSED ")
 	}
 	return line
 }
@@ -466,7 +455,6 @@ func cellsFor(w, bpc int) int {
 const gridBGColor = "240"
 
 func (m Model) viewLeft() string {
-	labelW := 9
 	bucketsPerCell := m.bpc()
 	trackW := cellsFor(m.w, bucketsPerCell)
 	buckets := m.eng.History(trackW*bucketsPerCell + bucketsPerCell)
@@ -487,15 +475,16 @@ func (m Model) viewLeft() string {
 	// cover it, shades let it glow through, and blanks show it plainly
 	gridEvery := int(sim.CyclePeriodMs / (float64(bucketsPerCell) * sim.BucketMs))
 
+	e := m.eng
 	var b strings.Builder
-	b.WriteString(sDim.Render(fmt.Sprintf("%-*s", labelW, "")) +
-		sDim.Render(fmt.Sprintf("◀ %0.1fs of AGC time, %.0fms/cell · ruler marks 2s · [z] zoom",
-			float64(trackW)*float64(bucketsPerCell)*sim.BucketMs/1000, float64(bucketsPerCell)*sim.BucketMs)))
-	b.WriteString("\n")
 	for _, r := range rows {
 		style := lipgloss.NewStyle().Foreground(r.color)
 		gridStyle := style.Background(lipgloss.Color(gridBGColor))
-		b.WriteString(style.Render(fmt.Sprintf("%-*s", labelW, r.label)))
+		used := e.UsedMs(r.c)
+		if used > 9999 {
+			used = 9999
+		}
+		b.WriteString(style.Render(fmt.Sprintf("%-9s%4.0fms ", r.label, used)))
 		type cell struct {
 			ch   rune
 			grid bool
@@ -549,37 +538,7 @@ func (m Model) viewLeft() string {
 		flush()
 		b.WriteString("\n")
 	}
-
-	// the stats line closes the timeline block and carries the indicators
-	e := m.eng
-	stats := sDim.Render(fmt.Sprintf("cycles %d  copies %d  restarts %d  alarms %d",
-		e.CycleCount(), e.ServicerCopies(), e.RestartCount(), len(e.Alarms())))
-	if fr := e.FailReg(); len(fr) > 0 {
-		stats += " " + lipgloss.NewStyle().Foreground(cRed).Bold(true).Render("FAILREG "+strings.Join(fr, " "))
-	}
-	if e.MonitorActive() {
-		stats += " " + lipgloss.NewStyle().Foreground(cYellow).Render("MON 1Hz")
-	}
-	if m.typing {
-		stats += " " + sAlarm.Render(" TYPING ")
-	}
-	if m.paused {
-		stats += " " + sAlarm.Render(" PAUSED ")
-	}
-	if stubs := e.StubCount(); stubs > 0 {
-		stats += lipgloss.NewStyle().Foreground(cRed).Bold(true).
-			Render(fmt.Sprintf("  ⚠ %d stubs leaked (%d words)", stubs, stubs*55))
-	} else if e.KnifeEdge() {
-		// Flight truth: with the theft active but no monitor, Eagle flew a
-		// quiet knife edge for ~5 minutes — margin gone, nothing overrun.
-		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("  ⚠ knife edge: margin ≈ 0")
-	} else if e.RecoveredRecently(5000) {
-		stats += lipgloss.NewStyle().Foreground(cYellow).
-			Render("  ⟳ overrun recovering")
-	}
-	b.WriteString(stats)
-	return b.String()
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func (m Model) boxFor(label string, s sim.SlotState, w int) string {

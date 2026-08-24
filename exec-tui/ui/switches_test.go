@@ -15,17 +15,38 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 )
+
+func lipglossWidth(s string) int { return lipgloss.Width(s) }
 
 func space(m Model) Model {
 	mm, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
 	return mm.(Model)
 }
 
+// labelSGR returns the SGR codes styling a switch label in the view.
+func labelSGR(t *testing.T, v, label string) string {
+	t.Helper()
+	for _, line := range strings.Split(v, "\n") {
+		idx := strings.Index(line, label)
+		if idx < 0 || !strings.Contains(stripAnsi(line), "DESCENT") {
+			continue
+		}
+		from := idx - 24
+		if from < 0 {
+			from = 0
+		}
+		return line[from:idx]
+	}
+	t.Fatalf("label %q not found", label)
+	return ""
+}
+
 func TestSwitchPanelRender(t *testing.T) {
-	t.Run("happy: three labeled switches with their DSKY captions", func(t *testing.T) {
+	t.Run("happy: three labels, no caption row underneath", func(t *testing.T) {
 		_, m := newTestModel()
 		v := m.View()
 		for _, want := range []string{"DESCENT", "DELTAH", "RR STEAL"} {
@@ -33,27 +54,30 @@ func TestSwitchPanelRender(t *testing.T) {
 				t.Fatalf("switch panel missing %q", want)
 			}
 		}
-		for _, want := range []string{"V37E 63E", "V16 N68", "SLEW/AUTO"} {
-			if !strings.Contains(v, want) {
-				t.Fatalf("switch captions missing %q", want)
+		for _, gone := range []string{"V37E 63E", "V16 N68", "SLEW/AUTO", "● ON", "○ OFF"} {
+			if strings.Contains(v, gone) {
+				t.Fatalf("the caption row must be gone, found %q", gone)
 			}
 		}
-		if strings.Contains(v, "● ON") {
-			t.Fatal("no switch may claim ON before anything is engaged")
-		}
 	})
-	t.Run("happy: the big story cards are gone", func(t *testing.T) {
-		_, m := newTestModel()
-		v := m.View()
-		if strings.Contains(v, "powered descent") || strings.Contains(v, "Buzz's monitor") {
-			t.Fatal("the old card row must not render anymore")
-		}
-	})
-	t.Run("unhappy: exactly one ON caption when only the RR switch is up", func(t *testing.T) {
+	t.Run("happy: labels are light gray off, amber when on", func(t *testing.T) {
+		withColor(t)
 		e, m := newTestModel()
-		e.SetRadarBug(true)
-		if got := strings.Count(m.View(), "● ON"); got != 1 {
-			t.Fatalf("want exactly 1 ● ON, got %d", got)
+		if sgr := labelSGR(t, m.View(), "DESCENT"); !strings.Contains(sgr, "38;5;245") {
+			t.Fatalf("an off switch label must be light gray, got %q", sgr)
+		}
+		e.StartDescent()
+		if sgr := labelSGR(t, m.View(), "DESCENT"); !strings.Contains(sgr, "38;5;214") {
+			t.Fatalf("an on switch label must be amber, got %q", sgr)
+		}
+		if sgr := labelSGR(t, m.View(), "RR STEAL"); strings.Contains(sgr, "38;5;214") {
+			t.Fatal("an off switch must stay gray while others light up")
+		}
+	})
+	t.Run("happy: the switch bank fits completely under the DSKY", func(t *testing.T) {
+		_, m := newTestModel()
+		if got := lipglossWidth(m.viewSwitches()); got > 25 {
+			t.Fatalf("the switch bank must be ≤ the 25-cell DSKY width, got %d", got)
 		}
 	})
 }

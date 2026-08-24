@@ -29,19 +29,11 @@ func TestStubVisibility(t *testing.T) {
 			t.Fatal("abandoned SERVICER slots must render as STUB")
 		}
 	})
-	t.Run("happy: stats line calls out the leaked stubs", func(t *testing.T) {
-		m := overloadedModel(t)
-		v := m.View()
-		if !strings.Contains(v, "stubs leaked") {
-			t.Fatal("stats line must call out leaked stubs")
-		}
-	})
 	t.Run("unhappy: healthy descent shows no stub markers", func(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(6500)
-		v := m.View()
-		if strings.Contains(v, "STUB") || strings.Contains(v, "stubs leaked") {
+		if strings.Contains(m.View(), "STUB") {
 			t.Fatal("healthy descent must not show stub markers")
 		}
 	})
