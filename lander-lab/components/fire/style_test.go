@@ -7,6 +7,47 @@ import (
 	"github.com/theprimeagen/apollo-11/lander-lab/particle"
 )
 
+func TestBands(t *testing.T) {
+	t.Run("happy: each rung needs 15% more heat than the old ladder", func(t *testing.T) {
+		// old mins 1,6,11,21,41,71,121,200 → round(min*1.15), first stays 1
+		want := []struct {
+			min, max int
+			glyph    rune
+		}{
+			{1, 6, '⠁'},
+			{7, 12, '⠒'},
+			{13, 23, '⠶'},
+			{24, 46, '░'},
+			{47, 81, '▒'},
+			{82, 138, '▄'},
+			{139, 229, '▓'},
+			{230, 1 << 30, '█'},
+		}
+		got := Bands()
+		if len(got) != len(want) {
+			t.Fatalf("bands %d, want %d", len(got), len(want))
+		}
+		for i, w := range want {
+			if got[i].Min != w.min || got[i].Max != w.max || got[i].Glyph != w.glyph {
+				t.Fatalf("band %d is %d..%d %q, want %d..%d %q",
+					i, got[i].Min, got[i].Max, string(got[i].Glyph),
+					w.min, w.max, string(w.glyph))
+			}
+		}
+	})
+	t.Run("unhappy: the old cutoffs no longer reach the next glyph", func(t *testing.T) {
+		if Style(200).Ch == '█' {
+			t.Fatal("H=200 used to be solid yellow; after +15% it must not be")
+		}
+		if Style(121).Ch == '▓' {
+			t.Fatal("H=121 used to be heavy shade; after +15% it must not be")
+		}
+		if Style(71).Ch == '▄' {
+			t.Fatal("H=71 used to be a half square; after +15% it must not be")
+		}
+	})
+}
+
 func TestStyle(t *testing.T) {
 	t.Run("happy: the ladder runs single-dot, two-dot, half-square, then bright yellow", func(t *testing.T) {
 		one := Style(3)
@@ -27,6 +68,20 @@ func TestStyle(t *testing.T) {
 		}
 		if core.FG == 231 || core.BG == 231 {
 			t.Fatal("core must stay bright yellow, never white")
+		}
+	})
+	t.Run("happy: the 15% cutoffs map onto the next glyph", func(t *testing.T) {
+		if Style(6).Ch != '⠁' {
+			t.Fatalf("H=6 should still be a single dot, got %q", string(Style(6).Ch))
+		}
+		if Style(7).Ch != '⠒' {
+			t.Fatalf("H=7 should be two dots, got %q", string(Style(7).Ch))
+		}
+		if Style(229).Ch != '▓' {
+			t.Fatalf("H=229 should be heavy shade, got %q", string(Style(229).Ch))
+		}
+		if Style(230).Ch != '█' {
+			t.Fatalf("H=230 should be solid yellow, got %q", string(Style(230).Ch))
 		}
 	})
 	t.Run("unhappy: zero and negative heat paint nothing", func(t *testing.T) {
@@ -63,7 +118,7 @@ func TestHeat(t *testing.T) {
 func TestGuide(t *testing.T) {
 	t.Run("happy: the guide lists every band and its equation", func(t *testing.T) {
 		g := Guide()
-		for _, want := range []string{"⠁", "⠒", "▄", "█", "H(c)", "226"} {
+		for _, want := range []string{"⠁", "⠒", "▄", "█", "H(c)", "226", "H >= 230", "1 <= H <= 6"} {
 			if !strings.Contains(g, want) {
 				t.Fatalf("guide missing %q\n%s", want, g)
 			}
