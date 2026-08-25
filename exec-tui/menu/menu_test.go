@@ -114,7 +114,7 @@ func TestMenuSections(t *testing.T) {
 		order := []struct{ header, first string }{
 			{"MAIN PROGRAM", "SCREENPLAY"},
 			{"CONFIG", "FLAME CONFIG"},
-			{"DEMO", "LANDER LAB"},
+			{"DEMO", "LANDER DEMO"},
 			{"LEGACY TUIS", "LEGACY EXEC"},
 		}
 		prev := -1
@@ -340,7 +340,7 @@ func TestMenuStatus(t *testing.T) {
 func TestLocateModule(t *testing.T) {
 	t.Run("happy: walks up from a nested dir to a sibling module", func(t *testing.T) {
 		root := t.TempDir()
-		mod := filepath.Join(root, "screenplay-lab")
+		mod := filepath.Join(root, "dsky-lab")
 		deep := filepath.Join(root, "exec-tui", "cmd", "deep")
 		if err := os.MkdirAll(mod, 0o755); err != nil {
 			t.Fatal(err)
@@ -351,7 +351,7 @@ func TestLocateModule(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(mod, "go.mod"), []byte("module x\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		got, err := LocateModule(deep, "screenplay-lab")
+		got, err := LocateModule(deep, "dsky-lab")
 		if err != nil {
 			t.Fatalf("LocateModule: %v", err)
 		}
@@ -435,12 +435,68 @@ func TestCatalog(t *testing.T) {
 	})
 	t.Run("unhappy: launch specs are consistent", func(t *testing.T) {
 		for _, e := range Catalog() {
-			if e.Module == "" && e.Pkg != "" {
-				t.Fatalf("in-process entry %q must not carry a pkg path", e.ID)
+			switch {
+			case e.Module != "":
+				// A sibling module: go run Pkg inside Module's dir.
+				if !strings.HasPrefix(e.Pkg, ".") {
+					t.Fatalf("external entry %q needs a ./-relative pkg path, got %q", e.ID, e.Pkg)
+				}
+			case e.Pkg != "":
+				// This module: go run Pkg from our own module root, so
+				// everything we own launches out of cmd/.
+				if !strings.HasPrefix(e.Pkg, "./cmd/") {
+					t.Fatalf("in-module entry %q must live under ./cmd/, got %q", e.ID, e.Pkg)
+				}
 			}
-			if e.Module != "" && !strings.HasPrefix(e.Pkg, ".") {
-				t.Fatalf("external entry %q needs a ./-relative pkg path, got %q", e.ID, e.Pkg)
+		}
+	})
+	t.Run("happy: in-module entries point at real cmd packages", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.Module != "" || e.Pkg == "" {
+				continue
 			}
+			dir := filepath.Join("..", filepath.FromSlash(e.Pkg))
+			info, err := os.Stat(dir)
+			if err != nil || !info.IsDir() {
+				t.Fatalf("entry %q points at %q which is not a package dir: %v", e.ID, e.Pkg, err)
+			}
+			glob, err := filepath.Glob(filepath.Join(dir, "*.go"))
+			if err != nil || len(glob) == 0 {
+				t.Fatalf("entry %q points at %q which holds no Go files", e.ID, e.Pkg)
+			}
+		}
+	})
+	t.Run("unhappy: the dissolved lab modules are gone from the launcher", func(t *testing.T) {
+		for _, e := range Catalog() {
+			switch e.Module {
+			case "lander-lab", "stars-lab", "screenplay-lab":
+				t.Fatalf("entry %q still launches into the dissolved %q module", e.ID, e.Module)
+			}
+		}
+	})
+}
+
+func TestModuleRoot(t *testing.T) {
+	t.Run("happy: walks up from a nested dir to this module's go.mod", func(t *testing.T) {
+		root := t.TempDir()
+		deep := filepath.Join(root, "cmd", "deep", "deeper")
+		if err := os.MkdirAll(deep, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got, err := ModuleRoot(deep)
+		if err != nil {
+			t.Fatalf("ModuleRoot: %v", err)
+		}
+		if got != root {
+			t.Fatalf("got %q, want %q", got, root)
+		}
+	})
+	t.Run("unhappy: no go.mod above means a clear error", func(t *testing.T) {
+		if _, err := ModuleRoot(t.TempDir()); err == nil {
+			t.Fatal("a dir outside any module must error")
 		}
 	})
 }

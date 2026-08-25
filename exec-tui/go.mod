@@ -6,20 +6,20 @@ require (
 	charm.land/bubbletea/v2 v2.0.9
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/colorprofile v0.4.3
+	github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886
+	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/theprimeagen/apollo-11/button-lab v0.0.0
 	github.com/theprimeagen/apollo-11/dsky-lab v0.0.0
-	github.com/theprimeagen/apollo-11/lander-lab v0.0.0
+	github.com/theprimeagen/apollo-11/terminal-fonts v0.0.0
 )
 
 replace github.com/theprimeagen/apollo-11/button-lab => ../button-lab
 
 replace github.com/theprimeagen/apollo-11/dsky-lab => ../dsky-lab
 
-replace github.com/theprimeagen/apollo-11/lander-lab => ../lander-lab
+replace github.com/theprimeagen/apollo-11/terminal-fonts => ../terminal-fonts
 
 require (
-	github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886 // indirect
-	github.com/charmbracelet/x/ansi v0.11.8 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect

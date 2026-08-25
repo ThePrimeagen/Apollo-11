@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-	path := flag.String("config", "cmd/adjustflame/flame.json", "heat threshold JSON")
+	path := flag.String("config", adjustflame.DefaultConfigPath, "heat threshold JSON")
 	tape := flag.String("tape", "", "write a 20s runner tape (dir) and encode mp4 next to it")
 	flag.Parse()
 	m, err := adjustflame.Open(*path)
