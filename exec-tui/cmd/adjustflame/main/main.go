@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
+	"github.com/theprimeagen/apollo-11/exec-tui/ui"
 )
 
 func main() {
@@ -31,7 +32,13 @@ func main() {
 		}
 		return
 	}
-	p := tea.NewProgram(m)
+	// Same escape hatch as the main TUI: detached ptys and tape rigs
+	// fail profile detection and would strip the plumes to monochrome.
+	var opts []tea.ProgramOption
+	if p, ok := ui.ForcedColorProfile(); ok {
+		opts = append(opts, tea.WithColorProfile(p))
+	}
+	p := tea.NewProgram(m, opts...)
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
