@@ -90,12 +90,24 @@ type Cell struct {
 	Fg int
 }
 
+// DefaultDensity is how thick each layer scatters, in stars per 1000
+// cells: dust, spark, mid, near. A Field with a zero Density paints
+// with exactly these.
+var DefaultDensity = [4]int{56, 33, 6, 4}
+
+// MaxDensity caps a layer so an absurd knob cannot ask for more stars
+// than a sky can hold.
+const MaxDensity = 400
+
 // Field is one starfield instance. Width/Height are in terminal cells.
+// Density[kind] is stars per 1000 cells for that layer; zero or
+// negative means DefaultDensity for that layer.
 type Field struct {
 	Width, Height int
 	Tick          int
 	Strategy      Strategy
 	Frozen        bool
+	Density       [4]int
 }
 
 type star struct{ row, col, kind, fg int }
