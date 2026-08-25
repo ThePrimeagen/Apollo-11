@@ -32,4 +32,17 @@ func (f *Starfield) Update(dt float64) {
 
 // Render fills the screen with this instant's sky.
 func (f *Starfield) Render(scr *screenplay.Screen) {
+	if f == nil || scr == nil {
+		return
+	}
+	w, h := scr.Size()
+	field := stars.Field{
+		Width:    w,
+		Height:   h,
+		Tick:     int(f.clock * StarFPS),
+		Strategy: f.Strategy,
+	}
+	field.Paint(func(row, col int, ch rune, fg int) {
+		PutCell(scr, col, row, ch, fg, -1)
+	})
 }

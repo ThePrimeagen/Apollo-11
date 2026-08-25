@@ -32,4 +32,18 @@ func (t *Title) Update(dt float64) {}
 // Render centers the card on the screen; edges clip on a screen too
 // small for it.
 func (t *Title) Render(scr *screenplay.Screen) {
+	if t == nil || scr == nil || len(t.lines) == 0 {
+		return
+	}
+	w, h := scr.Size()
+	top := (h - len(t.lines)) / 2
+	left := (w - len(t.lines[0])) / 2
+	for r, line := range t.lines {
+		for c, ch := range line {
+			if ch == ' ' {
+				continue
+			}
+			PutCell(scr, left+c, top+r, ch, TitleFG, -1)
+		}
+	}
 }

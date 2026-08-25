@@ -33,18 +33,44 @@ type Ensemble struct {
 
 // Start assembles the cast.
 func (e *Ensemble) Start() {
+	if e == nil || e.Assemble == nil {
+		return
+	}
+	e.cast = e.Assemble()
 }
 
 // Update forwards dt seconds to every actor in cast order. dt <= 0 is
 // a no-op: time never runs backwards mid-scene.
 func (e *Ensemble) Update(dt float64) {
+	if e == nil || dt <= 0 {
+		return
+	}
+	for _, a := range e.cast {
+		if a == nil {
+			continue
+		}
+		a.Update(dt)
+	}
 }
 
 // Render draws the cast in order — later actors land on top. Without a
 // screen there is nothing to draw on, so the cast is never called.
 func (e *Ensemble) Render(scr *Screen) {
+	if e == nil || scr == nil {
+		return
+	}
+	for _, a := range e.cast {
+		if a == nil {
+			continue
+		}
+		a.Render(scr)
+	}
 }
 
 // Stop drops the cast.
 func (e *Ensemble) Stop() {
+	if e == nil {
+		return
+	}
+	e.cast = nil
 }

@@ -25,46 +25,81 @@ type Screen struct {
 // NewScreen allocates a blank w×h screen. Negative dimensions clamp to
 // zero: a screen that takes nothing and renders empty.
 func NewScreen(w, h int) *Screen {
-	return &Screen{}
+	w, h = max(w, 0), max(h, 0)
+	return &Screen{
+		canvas: lipgloss.NewCanvas(w, h),
+		width:  w,
+		height: h,
+	}
 }
 
 // Size is the screen dimensions in terminal cells.
 func (s *Screen) Size() (w, h int) {
-	return 0, 0
+	if s == nil {
+		return 0, 0
+	}
+	return s.width, s.height
 }
 
 // Resize follows the terminal to w×h and flags the change so the next
 // render knows everything must be repainted. Same-size calls are no-ops.
 func (s *Screen) Resize(w, h int) {
+	if s == nil {
+		return
+	}
+	w, h = max(w, 0), max(h, 0)
+	if w == s.width && h == s.height {
+		return
+	}
+	s.canvas.Resize(w, h)
+	s.width, s.height = w, h
+	s.resized = true
 }
 
 // Resized reports whether this frame is the first after a size change.
 // The screenplay clears the flag once the frame has rendered.
 func (s *Screen) Resized() bool {
-	return false
+	return s != nil && s.resized
 }
 
 // Clear blanks every cell.
 func (s *Screen) Clear() {
+	if s == nil {
+		return
+	}
+	s.canvas.Clear()
 }
 
 // Put writes one cell: a rune plus the lip gloss style to draw it with.
 // Out of bounds is ignored.
 func (s *Screen) Put(x, y int, ch rune, st uv.Style) {
+	if s == nil || x < 0 || y < 0 || x >= s.width || y >= s.height {
+		return
+	}
+	s.canvas.SetCell(x, y, &uv.Cell{Content: string(ch), Style: st, Width: 1})
 }
 
 // Cell reads a cell back, or nil out of bounds.
 func (s *Screen) Cell(x, y int) *uv.Cell {
-	return nil
+	if s == nil || x < 0 || y < 0 || x >= s.width || y >= s.height {
+		return nil
+	}
+	return s.canvas.CellAt(x, y)
 }
 
 // Canvas is the underlying lip gloss canvas, for callers that want to
 // compose layers or drive it directly.
 func (s *Screen) Canvas() *lipgloss.Canvas {
-	return nil
+	if s == nil {
+		return nil
+	}
+	return s.canvas
 }
 
 // Render is the styled string of the whole grid.
 func (s *Screen) Render() string {
-	return ""
+	if s == nil || s.width < 1 || s.height < 1 {
+		return ""
+	}
+	return s.canvas.Render()
 }

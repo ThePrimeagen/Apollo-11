@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/theprimeagen/apollo-11/stars-lab/stars"
 )
@@ -155,6 +156,22 @@ func TestPremiere(t *testing.T) {
 	t.Run("happy: Init schedules the first frame", func(t *testing.T) {
 		if newModel(0).Init() == nil {
 			t.Fatal("Init must start the clock")
+		}
+	})
+}
+
+func TestForcedColorProfile(t *testing.T) {
+	t.Run("happy: CLICOLOR_FORCE forces ANSI256 for tapes and CI", func(t *testing.T) {
+		t.Setenv("CLICOLOR_FORCE", "1")
+		p, ok := forcedColorProfile()
+		if !ok || p != colorprofile.ANSI256 {
+			t.Fatalf("got %v/%v, want ANSI256 forced", p, ok)
+		}
+	})
+	t.Run("unhappy: without the flag, detection is left alone", func(t *testing.T) {
+		t.Setenv("CLICOLOR_FORCE", "")
+		if _, ok := forcedColorProfile(); ok {
+			t.Fatal("an empty CLICOLOR_FORCE must not force a profile")
 		}
 	})
 }

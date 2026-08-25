@@ -89,6 +89,15 @@ func (s *Ship) Clock() float64 {
 // Render composes fire first, hull second, so the hull always wins the
 // overlap at the tail and the plume appears from behind the bell.
 func (s *Ship) Render(scr *screenplay.Screen) {
+	if s == nil || scr == nil {
+		return
+	}
+	w, h := scr.Size()
+	row, col := FlightPath(w, h, s.clock)
+	if s.Flame != nil {
+		BlitSprite(scr, col+FlameCol, row+FlameRow, s.Flame.Sprite())
+	}
+	BlitSprite(scr, col, row, s.Body)
 }
 
 // FlightPath is the hull's top-left at t seconds into the scene, on a
