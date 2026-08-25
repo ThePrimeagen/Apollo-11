@@ -14,10 +14,30 @@ type Scene struct {
 	Cast []Actor
 }
 
-// Advance forwards dt seconds to every actor. dt <= 0 is a no-op.
+// Advance forwards dt seconds to every actor in cast order. dt <= 0 is
+// a no-op: time never runs backwards mid-scene.
 func (s *Scene) Advance(dt float64) {
+	if s == nil || dt <= 0 {
+		return
+	}
+	for _, a := range s.Cast {
+		if a == nil {
+			continue
+		}
+		a.Advance(dt)
+	}
 }
 
-// Paint draws the cast in order onto the stage.
+// Paint draws the cast in order onto the stage. Without a stage there
+// is nothing to paint on, so the cast is never called.
 func (s *Scene) Paint(st *Stage) {
+	if s == nil || st == nil {
+		return
+	}
+	for _, a := range s.Cast {
+		if a == nil {
+			continue
+		}
+		a.Paint(st)
+	}
 }
