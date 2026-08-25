@@ -6,7 +6,10 @@ package stars
 // must be flat — a uniform hash, never a normal distribution bunching
 // stars around the middle. Happy + unhappy throughout.
 
-import "testing"
+import (
+	"sort"
+	"testing"
+)
 
 // rowCounts paints f once and tallies stars per row. Tick 0 places
 // every star on its own cell, so put fires exactly once per star.
@@ -74,6 +77,67 @@ func TestScatterDistribution(t *testing.T) {
 		if middle*100 > total*47 || middle*100 < total*20 {
 			t.Fatalf("middle third of columns holds %d of %d stars (%d%%), want roughly a third",
 				middle, total, middle*100/total)
+		}
+	})
+	t.Run("happy: every row is evenly spread — no gaping holes", func(t *testing.T) {
+		for _, sz := range [][2]int{{128, 30}, {200, 50}, {80, 24}, {60, 24}} {
+			f := Field{Width: sz[0], Height: sz[1], Strategy: Still}
+			byRow := make(map[int][]int)
+			f.Paint(func(row, col int, ch rune, fg int) {
+				byRow[row] = append(byRow[row], col)
+			})
+			for r, cs := range byRow {
+				if len(cs) < 6 {
+					continue
+				}
+				sort.Ints(cs)
+				maxGap := f.Width - cs[len(cs)-1] + cs[0] // cyclic gap
+				for i := 1; i < len(cs); i++ {
+					if g := cs[i] - cs[i-1]; g > maxGap {
+						maxGap = g
+					}
+				}
+				// fair spacing is w/len; a hole over 3.5x fair reads
+				// as an empty stretch, not an even random spread
+				if fair := f.Width / len(cs); maxGap*2 > fair*7 {
+					t.Fatalf("%dx%d row %d: a %d-cell hole between %d stars (fair spacing %d) — stars must spread evenly",
+						f.Width, f.Height, r, maxGap, len(cs), fair)
+				}
+			}
+		}
+	})
+	t.Run("happy: columns spread evenly across quarters, still randomly ordered", func(t *testing.T) {
+		// quarters are the scale the eye reads; finer slices hold so
+		// few stars that honest randomness swamps the fair share. A
+		// normal distribution would hand the middle quarters ~2x
+		// theirs and starve the edges.
+		for _, sz := range [][2]int{{128, 30}, {200, 50}, {80, 24}} {
+			f := Field{Width: sz[0], Height: sz[1], Strategy: Still}
+			tot := 0
+			var quarter [4]int
+			f.Paint(func(row, col int, ch rune, fg int) {
+				quarter[col*4/f.Width]++
+				tot++
+			})
+			for q, n := range quarter {
+				if n*100 < tot*15 || n*100 > tot*35 {
+					t.Fatalf("%dx%d quarter %d holds %d of %d stars (%d%%), want 15%%..35%%",
+						f.Width, f.Height, q, n, tot, n*100/tot)
+				}
+			}
+		}
+	})
+	t.Run("unhappy: a one-column sky stays safe and starred", func(t *testing.T) {
+		f := Field{Width: 1, Height: 20, Strategy: Still}
+		n := 0
+		f.Paint(func(row, col int, ch rune, fg int) {
+			if col != 0 || row < 0 || row >= f.Height {
+				t.Fatalf("star out of bounds at %d,%d", row, col)
+			}
+			n++
+		})
+		if n < 3 {
+			t.Fatalf("a one-column sky must still hold stars, got %d", n)
 		}
 	})
 	t.Run("unhappy: a field too narrow for anchors still paints a safe sky", func(t *testing.T) {

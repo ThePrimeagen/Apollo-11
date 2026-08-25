@@ -196,14 +196,17 @@ func layerCount(w, h, density, kind int) int {
 	return max(floor, w*h*density/1000)
 }
 
-// catalog is a deterministic uniform scatter for (w,h) at the given
-// per-layer densities, plus four fixed anchors on the mid row so every
-// glyph is present and motion tests have a known line. Rows are
-// stratified — each layer walks the sky with a stride coprime to the
-// height — and columns are hashed, so the spread stays flat: never a
-// normal distribution, and no row collects a stripe of stars the way
-// independent draws deterministically can (the old scatter doubled up
-// the middle row of a 30-row sky).
+// catalog is a deterministic scatter for (w,h) at the given per-layer
+// densities, plus four fixed anchors on the mid row so every glyph is
+// present and motion tests have a known line. The scatter is evenly
+// spread in a random order — never a normal distribution: rows are
+// stratified (each layer walks the sky with a stride coprime to the
+// height, so no row collects a stripe), and columns are stratified too
+// (each star owns an evenly spaced slice of its row and lands at a
+// hashed offset inside it, with a per-row phase so rows never align
+// into a lattice). Pure hashing would leave holes and clumps — a
+// 30-row sky used to double up its middle row and open half-screen
+// gaps inside rows.
 func catalog(w, h int, density [4]int) []star {
 	if w < 1 || h < 1 {
 		return nil
@@ -250,15 +253,54 @@ func catalog(w, h int, density [4]int) []star {
 	stride := rowStride(h)
 	for kind := 0; kind < 4; kind++ {
 		start := kind * h / 4
-		for n, attempts := 0, 0; n < counts[kind] && attempts < counts[kind]*24; attempts++ {
+		// span is the layer's fair column spacing within one row; each
+		// star owns one span-wide stratum and jitters inside half of
+		// it, so a row is evenly covered yet randomly placed. Sparse
+		// layers (under one star per row) roam the whole width.
+		perRow := counts[kind] / h
+		if perRow < 1 {
+			perRow = 1
+		}
+		span := w / perRow
+		if span < 1 {
+			span = 1
+		}
+		for n, attempts, stall := 0, 0, 0; n < counts[kind] && attempts < counts[kind]*24; attempts++ {
 			r := (start + n*stride) % h
-			c := int(next() % uint64(w))
+			// the stride visits every row once per h stars, so n/h is
+			// which stratum of its row this star fills; the hashed
+			// phase de-aligns the strata from row to row. A stalled
+			// star widens its jitter window until it escapes a
+			// congested stratum.
+			stratum := n / h * span
+			phase := int(hash2(r, kind) % uint64(span))
+			base := span / 2
+			if perRow == 1 {
+				base = span // sparse layers roam the whole width
+			}
+			window := max(1, base) * (1 + stall)
+			if window > w {
+				window = w
+			}
+			c := (stratum + phase + int(next()%uint64(window))) % w
 			if place(r, c, kind) {
 				n++
+				stall = 0
+			} else {
+				stall++
 			}
 		}
 	}
 	return out
+}
+
+// hash2 mixes two small ints into a well-avalanched 64-bit hash, so
+// per-row stratum phases never form diagonal patterns.
+func hash2(a, b int) uint64 {
+	z := uint64(a)*0x9E3779B97F4A7C15 + uint64(b)*0xBF58476D1CE4E5B9
+	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9
+	z = (z ^ (z >> 27)) * 0x94D049BB133111EB
+	return z ^ (z >> 31)
 }
 
 // rowStride is a row step coprime with h, close to h/φ, so a layer's

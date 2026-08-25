@@ -38,17 +38,16 @@ func lines(f Field) []string {
 	return strings.Split(plain(f.Render()), "\n")
 }
 
+// glyphCols reads a glyph's columns on one row straight from Paint, so
+// motion checks see every star even when a faster layer momentarily
+// crosses a slower one (Render lets the later star cover the earlier).
 func glyphCols(f Field, row int, g rune) []int {
-	ls := lines(f)
-	if row < 0 || row >= len(ls) {
-		return nil
-	}
 	var cols []int
-	for i, r := range []rune(ls[row]) {
-		if r == g {
-			cols = append(cols, i)
+	f.Paint(func(r, c int, ch rune, fg int) {
+		if r == row && ch == g {
+			cols = append(cols, c)
 		}
-	}
+	})
 	return cols
 }
 
