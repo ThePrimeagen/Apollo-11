@@ -1,7 +1,9 @@
 // Package menu is the exec-tui launcher: a scrollable list of every lab
-// and configurator in the repo. j/k (or arrows) move, enter runs the
+// and configurator in the repo, grouped by category — the main program,
+// the configurators, the demo labs, and the legacy TUIs. j/k (or arrows)
+// move over entries (headers are never selectable), enter runs the
 // highlighted program, q quits. Running exec-tui with no arguments opens
-// this menu instead of the sim — the sim is the LEGACY EXEC TUI entry.
+// this menu instead of the sim — the sim is the LEGACY EXEC entry.
 package menu
 
 import (
@@ -17,28 +19,32 @@ import (
 // Entry is one runnable program. In-process programs (built into the
 // exec-tui binary) leave Module empty; external labs carry the sibling
 // module directory name plus the package path `go run` needs inside it.
+// Section is the category header the entry renders under; entries with
+// the same section must sit together, and an empty section renders as
+// a plain, header-less list.
 type Entry struct {
-	ID     string
-	Title  string
-	Desc   string
-	Module string
-	Pkg    string
+	ID      string
+	Title   string
+	Desc    string
+	Module  string
+	Pkg     string
+	Section string
 }
 
-// Catalog lists every runnable program, the four headliners first.
+// Catalog lists every runnable program by category: the main program,
+// then the configurators, then the demo labs, then the legacy TUIs.
 func Catalog() []Entry {
 	return []Entry{
-		{ID: "screenplay", Title: "SCREENPLAY", Desc: "the two-scene premiere: arrival, then THE END", Module: "screenplay-lab", Pkg: "."},
-		{ID: "flame", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
-		{ID: "stars-config", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Module: "screenplay-lab", Pkg: "./cmd/adjuststars/main"},
-		{ID: "legacy", Title: "LEGACY EXEC TUI", Desc: "the AGC Executive sim during the powered descent (in-process)"},
-		{ID: "lander", Title: "LANDER LAB", Desc: "the continuous descent with alarms at their true moments", Module: "lander-lab", Pkg: "."},
-		{ID: "editor", Title: "SPRITE EDITOR", Desc: "vim-ish editor for the LM ASCII atlas (mouse works)", Module: "lander-lab", Pkg: "./cmd/edit"},
-		{ID: "stars", Title: "STARS LAB", Desc: "browse the starfield fly strategies", Module: "stars-lab", Pkg: "."},
-		{ID: "dsky", Title: "DSKY LAB", Desc: "a lone DSKY replaying the descent displays", Module: "dsky-lab", Pkg: "."},
-		{ID: "seg", Title: "SEG LAB", Desc: "segmented-letter viewer: unicode, 7-seg, 14-seg", Module: "seg-lab", Pkg: "."},
-		{ID: "button", Title: "BUTTON LAB", Desc: "the cockpit toggle switch playground", Module: "button-lab", Pkg: "."},
-		{ID: "timeline", Title: "TIMELINE TUI", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
+		{ID: "screenplay", Section: "MAIN PROGRAM", Title: "SCREENPLAY", Desc: "the two-scene premiere: arrival, then THE END", Module: "screenplay-lab", Pkg: "."},
+		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
+		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Module: "screenplay-lab", Pkg: "./cmd/adjuststars/main"},
+		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish editor for the LM ASCII atlas (mouse works)", Module: "lander-lab", Pkg: "./cmd/edit"},
+		{ID: "lander", Section: "DEMO", Title: "LANDER LAB", Desc: "the continuous descent with alarms at their true moments", Module: "lander-lab", Pkg: "."},
+		{ID: "stars", Section: "DEMO", Title: "STARS LAB", Desc: "browse the starfield fly strategies", Module: "stars-lab", Pkg: "."},
+		{ID: "dsky", Section: "DEMO", Title: "DSKY LAB", Desc: "a lone DSKY replaying the descent displays", Module: "dsky-lab", Pkg: "."},
+		{ID: "button", Section: "DEMO", Title: "BUTTON LAB", Desc: "the cockpit toggle switch playground", Module: "button-lab", Pkg: "."},
+		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
+		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
 	}
 }
 
@@ -65,6 +71,7 @@ var (
 	sDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	sSel    = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
 	sName   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	sHead   = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true)
 	sStatus = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 )
 
@@ -96,6 +103,42 @@ func (m Model) Chosen() (Entry, bool) {
 	return m.entries[m.chosen], true
 }
 
+// row is one rendered list line: a section header, a spacer between
+// sections, or an entry (an index into m.entries).
+type row struct {
+	head  string
+	entry int
+}
+
+// rows lays the entries out with a header above each section and a
+// blank spacer between sections. Sectionless entries stay plain rows,
+// so a synthetic flat list renders exactly as before.
+func (m Model) rows() []row {
+	rs := make([]row, 0, len(m.entries))
+	last := ""
+	for i, e := range m.entries {
+		if e.Section != "" && e.Section != last {
+			if len(rs) > 0 {
+				rs = append(rs, row{entry: -1})
+			}
+			rs = append(rs, row{head: e.Section, entry: -1})
+		}
+		last = e.Section
+		rs = append(rs, row{entry: i})
+	}
+	return rs
+}
+
+// selRow is the list row carrying the selected entry.
+func (m Model) selRow(rs []row) int {
+	for i, r := range rs {
+		if r.entry == m.sel {
+			return i
+		}
+	}
+	return 0
+}
+
 // visible is how many list rows fit under the fixed chrome.
 func (m Model) visible() int {
 	rows := m.h - chrome
@@ -105,22 +148,30 @@ func (m Model) visible() int {
 	if rows < 1 {
 		rows = 1
 	}
-	if rows > len(m.entries) {
-		rows = len(m.entries)
+	if n := len(m.rows()); rows > n {
+		rows = n
 	}
 	return rows
 }
 
-// clampWindow slides the window so the cursor stays visible.
+// clampWindow slides the window of list rows so the cursor stays
+// visible, pulling a section header along when the cursor sits on the
+// first entry of its section.
 func (m *Model) clampWindow() {
+	rs := m.rows()
 	vis := m.visible()
-	if m.sel < m.offset {
-		m.offset = m.sel
+	sel := m.selRow(rs)
+	top := sel
+	for top > 0 && rs[top-1].entry < 0 {
+		top--
 	}
-	if m.sel >= m.offset+vis {
-		m.offset = m.sel - vis + 1
+	if top < m.offset {
+		m.offset = top
 	}
-	if max := len(m.entries) - vis; m.offset > max {
+	if sel >= m.offset+vis {
+		m.offset = sel - vis + 1
+	}
+	if max := len(rs) - vis; m.offset > max {
 		m.offset = max
 	}
 	if m.offset < 0 {
@@ -168,14 +219,22 @@ func (m Model) View() tea.View {
 			titleW = len(e.Title)
 		}
 	}
+	rs := m.rows()
 	vis := m.visible()
-	for i := m.offset; i < m.offset+vis && i < len(m.entries); i++ {
-		e := m.entries[i]
-		name := fmt.Sprintf("%-*s", titleW, e.Title)
-		if i == m.sel {
-			b.WriteString(sSel.Render("▸ "+name) + "  " + sDim.Render(e.Desc) + "\n")
-		} else {
-			b.WriteString("  " + sName.Render(name) + "  " + sDim.Render(e.Desc) + "\n")
+	for i := m.offset; i < m.offset+vis && i < len(rs); i++ {
+		switch r := rs[i]; {
+		case r.head != "":
+			b.WriteString(sHead.Render(r.head) + "\n")
+		case r.entry < 0:
+			b.WriteString("\n")
+		default:
+			e := m.entries[r.entry]
+			name := fmt.Sprintf("%-*s", titleW, e.Title)
+			if r.entry == m.sel {
+				b.WriteString(sSel.Render("▸ "+name) + "  " + sDim.Render(e.Desc) + "\n")
+			} else {
+				b.WriteString("  " + sName.Render(name) + "  " + sDim.Render(e.Desc) + "\n")
+			}
 		}
 	}
 
