@@ -10,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/lander"
 )
 
 func key(m demoModel, r rune) demoModel {
-	mm, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	mm, _ := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	return mm.(demoModel)
 }
 
@@ -157,7 +157,7 @@ func TestPlaybackControls(t *testing.T) {
 	})
 	t.Run("happy: q quits", func(t *testing.T) {
 		m := newDemoModel()
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		_, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 		if cmd == nil {
 			t.Fatal("q must quit")
 		}

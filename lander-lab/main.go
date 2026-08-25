@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/lander"
 )
@@ -132,12 +132,12 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tick++
 		m.advance(frameMs)
 		return m, tick()
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC {
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if len(msg.Runes) == 1 {
-			switch msg.Runes[0] {
+		if r, ok := keyRune(msg); ok {
+			switch r {
 			case 'q':
 				return m, tea.Quit
 			case '[':
@@ -162,18 +162,29 @@ func (m demoModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m demoModel) View() string {
+// keyRune returns the single printable rune of a key press, if any.
+func keyRune(msg tea.KeyPressMsg) (rune, bool) {
+	rs := []rune(msg.Text)
+	if len(rs) != 1 {
+		return 0, false
+	}
+	return rs[0], true
+}
+
+func (m demoModel) View() tea.View {
 	dim := "\x1b[38;5;240m"
 	reset := "\x1b[0m"
 	status := fmt.Sprintf("%.0f× time · [ ] speed · [r] realtime · [.] pause · [q] quit", m.scale)
 	if m.paused {
 		status = "PAUSED · " + status
 	}
-	return lander.Render(m.state()) + "\n" + dim + status + reset + "\n"
+	v := tea.NewView(lander.Render(m.state()) + "\n" + dim + status + reset + "\n")
+	v.AltScreen = true
+	return v
 }
 
 func main() {
-	if _, err := tea.NewProgram(newDemoModel(), tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(newDemoModel()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lander-lab:", err)
 		os.Exit(1)
 	}

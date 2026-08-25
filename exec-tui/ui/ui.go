@@ -5,13 +5,14 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/theprimeagen/apollo-11/button-lab/button"
 	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
@@ -114,13 +115,16 @@ func (m Model) dskyState() dsky.State {
 	return st
 }
 
-// ForceColorIfRequested forces a 256-color profile when CLICOLOR_FORCE is
-// set — profile detection fails in detached ptys (tmux capture, CI), which
-// would otherwise strip every color from recordings.
-func ForceColorIfRequested() {
+// ForcedColorProfile reports the color profile the program must force:
+// profile detection fails in detached ptys (tmux capture, CI), which would
+// otherwise strip every color from recordings. When CLICOLOR_FORCE is set
+// the program runs with an ANSI256 profile; otherwise detection is left
+// alone and the second return is false.
+func ForcedColorProfile() (colorprofile.Profile, bool) {
 	if os.Getenv("CLICOLOR_FORCE") != "" {
-		lipgloss.SetColorProfile(termenv.ANSI256)
+		return colorprofile.ANSI256, true
 	}
+	return 0, false
 }
 
 // FrameMsg advances the simulation by one wall-clock frame (~33ms).
@@ -237,26 +241,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, frameTick()
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
 	return m, nil
 }
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.typing {
-		switch msg.Type {
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		switch msg.Code {
 		case tea.KeyEsc:
 			m.typing = false
 			return m, nil
 		case tea.KeyEnter:
 			m.eng.PressKey('E')
 			return m, nil
-		case tea.KeyCtrlC:
-			return m, tea.Quit
 		}
-		if len(msg.Runes) == 1 {
-			r := msg.Runes[0]
+		if r, ok := keyRune(msg); ok {
 			switch {
 			case r >= '0' && r <= '9':
 				m.eng.PressKey(byte(r))
@@ -273,9 +277,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg.Type {
-	case tea.KeyCtrlC:
+	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
+	}
+	switch msg.Code {
 	case tea.KeySpace, tea.KeyEnter:
 		m.engage()
 		return m, nil
@@ -286,16 +291,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.sel = (m.sel + 1) % 3
 		return m, nil
 	}
-	if len(msg.Runes) != 1 {
+	r, ok := keyRune(msg)
+	if !ok {
 		return m, nil
 	}
-	switch msg.Runes[0] {
+	switch r {
 	case 'q':
 		return m, tea.Quit
 	case '.':
 		m.paused = !m.paused
-	case ' ':
-		m.engage()
 	case 'h':
 		m.sel = (m.sel + 2) % 3
 	case 'l':
@@ -368,7 +372,7 @@ var (
 type rowSpec struct {
 	label string
 	c     sim.Consumer
-	color lipgloss.Color
+	color color.Color
 }
 
 var rows = []rowSpec{
@@ -415,8 +419,24 @@ func shortOwner(name string) string {
 	}
 }
 
-// View renders the whole screen.
-func (m Model) View() string {
+// View wraps the rendered screen for bubbletea, declaring the alt screen.
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+// keyRune returns the single printable rune of a key press, if any.
+func keyRune(msg tea.KeyPressMsg) (rune, bool) {
+	rs := []rune(msg.Text)
+	if len(rs) != 1 {
+		return 0, false
+	}
+	return rs[0], true
+}
+
+// viewContent renders the whole screen.
+func (m Model) viewContent() string {
 	if m.w < 20 || m.h < 5 {
 		return "AGC EXECUTIVE — terminal too small"
 	}

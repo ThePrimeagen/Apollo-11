@@ -24,7 +24,7 @@ func overloadedModel(t *testing.T) Model {
 func TestStubVisibility(t *testing.T) {
 	t.Run("happy: abandoned slots render a STUB marker", func(t *testing.T) {
 		m := overloadedModel(t)
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "STUB") {
 			t.Fatal("abandoned SERVICER slots must render as STUB")
 		}
@@ -33,7 +33,7 @@ func TestStubVisibility(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(6500)
-		if strings.Contains(m.View(), "STUB") {
+		if strings.Contains(m.View().Content, "STUB") {
 			t.Fatal("healthy descent must not show stub markers")
 		}
 	})
@@ -47,7 +47,7 @@ func TestTimelineShades(t *testing.T) {
 	t.Run("happy: brief work paints a '░' shade cell on its row", func(t *testing.T) {
 		e, m := newTestModel()
 		e.AdvanceAGC(500) // idle: T4RUPT/DOWNLINK run briefly, never dominate
-		v := m.View()
+		v := m.View().Content
 		found := false
 		for _, line := range strings.Split(v, "\n") {
 			if strings.Contains(line, "DOWNLINK") && strings.Contains(line, "░") {
@@ -64,7 +64,7 @@ func TestTimelineShades(t *testing.T) {
 		e.AcquireLandingRadar()
 		e.SetRadarBug(true)
 		e.AdvanceAGC(6500)
-		v := m.View()
+		v := m.View().Content
 		if strings.Contains(v, "▂") {
 			t.Fatal("timeline must not use vertically-cut-off '▂' cells")
 		}

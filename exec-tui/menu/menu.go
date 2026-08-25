@@ -1,0 +1,191 @@
+// Package menu is the exec-tui launcher: a scrollable list of every lab
+// and configurator in the repo. j/k (or arrows) move, enter runs the
+// highlighted program, q quits. Running exec-tui with no arguments opens
+// this menu instead of the sim — the sim is the LEGACY EXEC TUI entry.
+package menu
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+)
+
+// Entry is one runnable program. In-process programs (built into the
+// exec-tui binary) leave Module empty; external labs carry the sibling
+// module directory name plus the package path `go run` needs inside it.
+type Entry struct {
+	ID     string
+	Title  string
+	Desc   string
+	Module string
+	Pkg    string
+}
+
+// Catalog lists every runnable program, the four headliners first.
+func Catalog() []Entry {
+	return []Entry{
+		{ID: "screenplay", Title: "SCREENPLAY", Desc: "the two-scene premiere: arrival, then THE END", Module: "screenplay-lab", Pkg: "."},
+		{ID: "flame", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
+		{ID: "stars-config", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Module: "screenplay-lab", Pkg: "./cmd/adjuststars/main"},
+		{ID: "legacy", Title: "LEGACY EXEC TUI", Desc: "the AGC Executive sim during the powered descent (in-process)"},
+		{ID: "lander", Title: "LANDER LAB", Desc: "the continuous descent with alarms at their true moments", Module: "lander-lab", Pkg: "."},
+		{ID: "editor", Title: "SPRITE EDITOR", Desc: "vim-ish editor for the LM ASCII atlas (mouse works)", Module: "lander-lab", Pkg: "./cmd/edit"},
+		{ID: "stars", Title: "STARS LAB", Desc: "browse the starfield fly strategies", Module: "stars-lab", Pkg: "."},
+		{ID: "dsky", Title: "DSKY LAB", Desc: "a lone DSKY replaying the descent displays", Module: "dsky-lab", Pkg: "."},
+		{ID: "seg", Title: "SEG LAB", Desc: "segmented-letter viewer: unicode, 7-seg, 14-seg", Module: "seg-lab", Pkg: "."},
+		{ID: "button", Title: "BUTTON LAB", Desc: "the cockpit toggle switch playground", Module: "button-lab", Pkg: "."},
+		{ID: "timeline", Title: "TIMELINE TUI", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
+	}
+}
+
+// LocateModule walks up from startDir looking for module/go.mod, so the
+// launcher finds its sibling labs whether it runs from the repo root,
+// from exec-tui/, or anywhere deeper.
+func LocateModule(startDir, module string) (string, error) {
+	dir := startDir
+	for {
+		cand := filepath.Join(dir, module)
+		if _, err := os.Stat(filepath.Join(cand, "go.mod")); err == nil {
+			return cand, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("module %s not found above %s — run from the apollo-11 checkout", module, startDir)
+		}
+		dir = parent
+	}
+}
+
+var (
+	sTitle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
+	sDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	sSel    = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
+	sName   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	sStatus = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+)
+
+// chrome is the fixed line budget around the list: two title lines, a
+// blank above the list, a blank below it, and the footer.
+const chrome = 5
+
+// Model is the launcher menu.
+type Model struct {
+	entries []Entry
+	status  string
+	sel     int
+	offset  int
+	w, h    int
+	chosen  int
+}
+
+// New builds a menu over the given entries. status, when non-empty, is
+// shown under the list — the launch loop feeds errors back through it.
+func New(entries []Entry, status string) Model {
+	return Model{entries: entries, status: status, w: 80, h: 24, chosen: -1}
+}
+
+// Chosen reports the entry picked with enter, if any.
+func (m Model) Chosen() (Entry, bool) {
+	if m.chosen < 0 || m.chosen >= len(m.entries) {
+		return Entry{}, false
+	}
+	return m.entries[m.chosen], true
+}
+
+// visible is how many list rows fit under the fixed chrome.
+func (m Model) visible() int {
+	rows := m.h - chrome
+	if m.status != "" {
+		rows--
+	}
+	if rows < 1 {
+		rows = 1
+	}
+	if rows > len(m.entries) {
+		rows = len(m.entries)
+	}
+	return rows
+}
+
+// clampWindow slides the window so the cursor stays visible.
+func (m *Model) clampWindow() {
+	vis := m.visible()
+	if m.sel < m.offset {
+		m.offset = m.sel
+	}
+	if m.sel >= m.offset+vis {
+		m.offset = m.sel - vis + 1
+	}
+	if max := len(m.entries) - vis; m.offset > max {
+		m.offset = max
+	}
+	if m.offset < 0 {
+		m.offset = 0
+	}
+}
+
+func (m Model) Init() tea.Cmd { return nil }
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.w, m.h = msg.Width, msg.Height
+		m.clampWindow()
+		return m, nil
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		switch msg.Code {
+		case 'j', tea.KeyDown:
+			m.sel = (m.sel + 1) % len(m.entries)
+			m.clampWindow()
+		case 'k', tea.KeyUp:
+			m.sel = (m.sel + len(m.entries) - 1) % len(m.entries)
+			m.clampWindow()
+		case 'q':
+			return m, tea.Quit
+		case tea.KeyEnter:
+			m.chosen = m.sel
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
+func (m Model) View() tea.View {
+	var b strings.Builder
+	b.WriteString(sTitle.Render("APOLLO-11 LABS") + "\n")
+	b.WriteString(sDim.Render("what do you want to run?") + "\n\n")
+
+	titleW := 0
+	for _, e := range m.entries {
+		if len(e.Title) > titleW {
+			titleW = len(e.Title)
+		}
+	}
+	vis := m.visible()
+	for i := m.offset; i < m.offset+vis && i < len(m.entries); i++ {
+		e := m.entries[i]
+		name := fmt.Sprintf("%-*s", titleW, e.Title)
+		if i == m.sel {
+			b.WriteString(sSel.Render("▸ "+name) + "  " + sDim.Render(e.Desc) + "\n")
+		} else {
+			b.WriteString("  " + sName.Render(name) + "  " + sDim.Render(e.Desc) + "\n")
+		}
+	}
+
+	b.WriteString("\n")
+	if m.status != "" {
+		b.WriteString(sStatus.Render(m.status) + "\n")
+	}
+	b.WriteString(sDim.Render("j/k move · enter run · q quit"))
+
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
+}

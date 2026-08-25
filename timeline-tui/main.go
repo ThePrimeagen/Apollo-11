@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/lucasb-eyer/go-colorful"
 )
 
@@ -459,7 +460,7 @@ func initialModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(tick(), tea.EnterAltScreen)
+	return tick()
 }
 
 func tick() tea.Cmd {
@@ -500,7 +501,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tick()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -537,7 +538,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = fmt.Sprintf("%s — n step · p play · j/k jobs · h toggle",
 				scenarioName(m.scenario))
 			return m, nil
-		case "n", "right", " ", "enter":
+		case "n", "right", "space", "enter":
 			if m.playing {
 				return m, nil
 			}
@@ -601,7 +602,14 @@ func fadeT(m model) float64 {
 	return t
 }
 
-func (m model) View() string {
+// View wraps the rendered screen for bubbletea, declaring the alt screen.
+func (m model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+func (m model) viewContent() string {
 	ft := fadeT(m)
 	if m.width == 0 {
 		return ""
@@ -641,7 +649,7 @@ func (m model) View() string {
 		Render(body)
 }
 
-func blendHex(from, to string, t float64) lipgloss.Color {
+func blendHex(from, to string, t float64) color.Color {
 	if t <= 0 {
 		return lipgloss.Color(from)
 	}
@@ -723,7 +731,7 @@ func (m model) renderBoard(width int) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(rpOverlay).
 		Padding(0, 1).
-		Width(width - 2)
+		Width(width)
 	return box.Render(s)
 }
 
@@ -753,7 +761,7 @@ func barCells(frac float64, cells int) (full int, partial rune) {
 	}
 }
 
-func barLine(label string, filled, total float64, width int, fill lipgloss.Color, ghost float64) string {
+func barLine(label string, filled, total float64, width int, fill color.Color, ghost float64) string {
 	inner := width - 28
 	if inner < 8 {
 		inner = 8
@@ -915,7 +923,7 @@ func (m model) renderBars(width int) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(rpPine).
 		Padding(0, 1).
-		Width(width - 2)
+		Width(width)
 	return box.Render(body)
 }
 
@@ -1090,7 +1098,7 @@ func (m model) viewStepCode(width int) string {
 		Foreground(rpText).
 		Background(rpSurface).
 		Padding(1, 2).
-		Width(width - 2)
+		Width(width)
 
 	lines := strings.Split(strings.TrimRight(ev.code, "\n"), "\n")
 	var rendered []string
@@ -1118,7 +1126,7 @@ func max(a, b int) int {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("error: %v\n", err)
 	}

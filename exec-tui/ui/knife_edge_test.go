@@ -35,7 +35,7 @@ func TestKnifeEdgeIndicator(t *testing.T) {
 		e.AcquireLandingRadar()
 		e.SetRadarBug(true)
 		e.AdvanceAGC(10000)
-		if got := freePct(t, m.View()); got < -1 || got > 2 {
+		if got := freePct(t, m.View().Content); got < -1 || got > 2 {
 			t.Fatalf("knife edge must pin the free number near zero, got %v", got)
 		}
 	})
@@ -43,10 +43,10 @@ func TestKnifeEdgeIndicator(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(10000)
-		if got := freePct(t, m.View()); got < 10 {
+		if got := freePct(t, m.View().Content); got < 10 {
 			t.Fatalf("healthy descent must show a double-digit margin, got %v", got)
 		}
-		if strings.Contains(m.View(), "knife edge") {
+		if strings.Contains(m.View().Content, "knife edge") {
 			t.Fatal("no knife-edge text may ever render")
 		}
 	})

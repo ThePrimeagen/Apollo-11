@@ -24,7 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/editor"
 	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
@@ -41,7 +41,7 @@ func main() {
 		os.Exit(1)
 	}
 	m := editor.New(a, path)
-	p := tea.NewProgram(wrapSave{Model: m}, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(wrapSave{Model: m})
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lander-edit:", err)
 		os.Exit(1)
@@ -68,7 +68,7 @@ type wrapSave struct {
 }
 
 func (w wrapSave) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyMsg); ok && k.Type == tea.KeyCtrlS {
+	if k, ok := msg.(tea.KeyPressMsg); ok && k.String() == "ctrl+s" {
 		if err := w.Save(); err != nil {
 			w.Model.SetErr(err.Error())
 		} else {

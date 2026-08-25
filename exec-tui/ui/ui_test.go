@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 )
@@ -21,7 +21,7 @@ func newTestModel() (*sim.Engine, Model) {
 }
 
 func key(m Model, r rune) Model {
-	mm, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	mm, _ := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	return mm.(Model)
 }
 
@@ -41,7 +41,7 @@ func TestHeaderFreeCompute(t *testing.T) {
 	t.Run("happy: FREE COMPUTE text with a percent", func(t *testing.T) {
 		_, m := newTestModel()
 		m = tick(m, 5)
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "FREE COMPUTE") {
 			t.Fatal("header must show FREE COMPUTE")
 		}
@@ -53,7 +53,7 @@ func TestHeaderFreeCompute(t *testing.T) {
 		e := sim.New()
 		m := NewModel(e)
 		mm, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 10})
-		v := mm.(Model).View()
+		v := mm.(Model).View().Content
 		if len(v) == 0 {
 			t.Fatal("view must not be empty at small sizes")
 		}
@@ -67,7 +67,7 @@ func TestHeaderFreeCompute(t *testing.T) {
 func TestCoreAndVacBoxes(t *testing.T) {
 	t.Run("happy: all 13 boxes labeled", func(t *testing.T) {
 		_, m := newTestModel()
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"CS1", "CS2", "CS3", "CS4", "CS5", "CS6", "CS7", "CS8", "VC1", "VC2", "VC3", "VC4", "VC5"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("view missing box label %s", want)
@@ -81,7 +81,7 @@ func TestCoreAndVacBoxes(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(5)
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "SERV") {
 			t.Fatal("busy core set / VAC should display SERVICER ownership")
 		}
@@ -92,7 +92,7 @@ func TestCoreAndVacBoxes(t *testing.T) {
 			e.ScheduleJob("HOG", 25, 1e9, false)
 		}
 		e.ScheduleJob("STRAW", 25, 10, false) // 1202 + restart wipes pools
-		v := m.View()
+		v := m.View().Content
 		if strings.Contains(v, "HOG") {
 			t.Fatal("after the restart no box should still show HOG")
 		}
@@ -106,7 +106,7 @@ func TestCoreAndVacBoxes(t *testing.T) {
 func TestTimelineRows(t *testing.T) {
 	t.Run("happy: fixed rows are labeled", func(t *testing.T) {
 		_, m := newTestModel()
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"SERVICER", "DAP", "MONITOR", "CHARIN", "T4RUPT", "RR STEAL", "IDLE"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("timeline missing row %s", want)
@@ -117,7 +117,7 @@ func TestTimelineRows(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(500)
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "█") {
 			t.Fatal("running work should paint filled timeline cells")
 		}
@@ -125,7 +125,7 @@ func TestTimelineRows(t *testing.T) {
 	t.Run("unhappy: idle engine paints the idle row, not job rows", func(t *testing.T) {
 		e, m := newTestModel()
 		e.AdvanceAGC(500)
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "IDLE") {
 			t.Fatal("idle row must exist")
 		}
@@ -205,7 +205,7 @@ func TestKeybindings(t *testing.T) {
 		if e.DSKY().Verb != "16" {
 			t.Fatalf("typed V16 should set the verb display, got %q", e.DSKY().Verb)
 		}
-		mm, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		mm, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 		m = mm.(Model)
 		if m.TypingMode() {
 			t.Fatal("esc should leave typing mode")
@@ -233,7 +233,7 @@ func TestKeybindings(t *testing.T) {
 		if m.TimeScale() >= s0 {
 			t.Fatal("[ should slow down")
 		}
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		_, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 		if cmd == nil {
 			t.Fatal("q should produce a quit command")
 		}
@@ -275,7 +275,7 @@ func TestDSKYPanel(t *testing.T) {
 		if st.Verb != "16" || st.Noun != "68" {
 			t.Fatalf("DSKY should show VERB 16 NOUN 68, got V%q N%q", st.Verb, st.Noun)
 		}
-		if !strings.Contains(m.View(), "|_") {
+		if !strings.Contains(m.View().Content, "|_") {
 			t.Fatal("the panel must render the digits as seven-segment strokes")
 		}
 	})

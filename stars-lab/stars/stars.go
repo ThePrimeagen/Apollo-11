@@ -90,12 +90,24 @@ type Cell struct {
 	Fg int
 }
 
+// DefaultDensity is how thick each layer scatters, in stars per 1000
+// cells: dust, spark, mid, near. A Field with a zero Density paints
+// with exactly these.
+var DefaultDensity = [4]int{56, 33, 6, 4}
+
+// MaxDensity caps a layer so an absurd knob cannot ask for more stars
+// than a sky can hold.
+const MaxDensity = 400
+
 // Field is one starfield instance. Width/Height are in terminal cells.
+// Density[kind] is stars per 1000 cells for that layer; zero or
+// negative means DefaultDensity for that layer.
 type Field struct {
 	Width, Height int
 	Tick          int
 	Strategy      Strategy
 	Frozen        bool
+	Density       [4]int
 }
 
 type star struct{ row, col, kind, fg int }
@@ -112,7 +124,7 @@ func (f Field) Paint(put func(row, col int, ch rune, fg int)) {
 		tick = 0
 	}
 	delays := f.Strategy.delays()
-	for _, st := range catalog(f.Width, f.Height) {
+	for _, st := range catalog(f.Width, f.Height, f.Density) {
 		d := delays[st.kind]
 		col := wrap(st.col-tick/d, f.Width)
 		put(st.row, col, Glyphs[st.kind], st.fg)
@@ -166,17 +178,36 @@ func wrap(col, w int) int {
 	return ((col % w) + w) % w
 }
 
-// catalog is a deterministic scatter for (w,h), plus four anchors on the
-// mid row so every glyph is present and motion tests have a known line.
-func catalog(w, h int) []star {
+// layerCount is one layer's scatter target: density stars per 1000
+// cells, the stock density when the knob is unset or negative, capped
+// so a flood cannot swamp the scatter loop, floored so a sky is never
+// empty of a layer.
+func layerCount(w, h, density, kind int) int {
+	if density <= 0 {
+		density = DefaultDensity[kind]
+	}
+	if density > MaxDensity {
+		density = MaxDensity
+	}
+	floor := 3
+	if kind >= kindMid {
+		floor = 1
+	}
+	return max(floor, w*h*density/1000)
+}
+
+// catalog is a deterministic scatter for (w,h) at the given per-layer
+// densities, plus four anchors on the mid row so every glyph is present
+// and motion tests have a known line.
+func catalog(w, h int, density [4]int) []star {
 	if w < 1 || h < 1 {
 		return nil
 	}
 	counts := [4]int{
-		max(3, w*h/18),
-		max(3, w*h/30),
-		max(1, w*h/168), // *  ~25% of the old mid density
-		max(1, w*h/232), // ✦  ~25% of the old near density
+		layerCount(w, h, density[0], kindDust),
+		layerCount(w, h, density[1], kindSpark),
+		layerCount(w, h, density[2], kindMid),
+		layerCount(w, h, density[3], kindNear),
 	}
 	seen := make(map[int]bool, w*h/8)
 	out := make([]star, 0, counts[0]+counts[1]+counts[2]+counts[3]+4)

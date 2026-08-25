@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
 )
@@ -29,12 +29,16 @@ func send(m Model, msg tea.Msg) Model {
 	return got.(Model)
 }
 
-func key(r rune) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+func key(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
 }
 
-func keyType(t tea.KeyType) tea.KeyMsg {
-	return tea.KeyMsg{Type: t}
+func keyType(code rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: code}
+}
+
+func keyCtrl(c rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: c, Mod: tea.ModCtrl}
 }
 
 func TestCursorHJKL(t *testing.T) {
@@ -181,17 +185,17 @@ func TestShadeKeys(t *testing.T) {
 	t.Run("happy: Ctrl-A increments the cell, Ctrl-B decrements it", func(t *testing.T) {
 		m := newEd(t)
 		m.CursorR, m.CursorC = 0, 0
-		m = send(m, keyType(tea.KeyCtrlA))
+		m = send(m, keyCtrl('a'))
 		a := m.Current().At(0, 0)
 		if a.Transparent() {
 			t.Fatal("Ctrl-A on empty must start the shade ramp")
 		}
-		m = send(m, keyType(tea.KeyCtrlA))
+		m = send(m, keyCtrl('a'))
 		b := m.Current().At(0, 0)
 		if b.Ch == a.Ch {
 			t.Fatal("a second Ctrl-A must change the glyph")
 		}
-		m = send(m, keyType(tea.KeyCtrlB))
+		m = send(m, keyCtrl('b'))
 		c := m.Current().At(0, 0)
 		if c.Ch != a.Ch {
 			t.Fatalf("Ctrl-B must undo one step, got %q want %q", string(c.Ch), string(a.Ch))
@@ -200,7 +204,7 @@ func TestShadeKeys(t *testing.T) {
 	t.Run("unhappy: Ctrl-B on empty stays empty", func(t *testing.T) {
 		m := newEd(t)
 		m.CursorR, m.CursorC = 0, 0
-		m = send(m, keyType(tea.KeyCtrlB))
+		m = send(m, keyCtrl('b'))
 		if !m.Current().At(0, 0).Transparent() {
 			t.Fatal("Ctrl-B on empty must not invent a glyph")
 		}
@@ -213,12 +217,12 @@ func TestWindows(t *testing.T) {
 		if m.Win != WinCanvas {
 			t.Fatal("editor must boot focused on the canvas")
 		}
-		m = send(m, keyType(tea.KeyCtrlW))
+		m = send(m, keyCtrl('w'))
 		m = send(m, key('l'))
 		if m.Win != WinSymbols {
 			t.Fatalf("Ctrl-W L must move to the symbols list, got %v", m.Win)
 		}
-		m = send(m, keyType(tea.KeyCtrlW))
+		m = send(m, keyCtrl('w'))
 		m = send(m, key('h'))
 		if m.Win != WinCanvas {
 			t.Fatalf("Ctrl-W H must return to the canvas, got %v", m.Win)
@@ -226,22 +230,22 @@ func TestWindows(t *testing.T) {
 	})
 	t.Run("happy: Ctrl-W J / K move between symbols, palette, and frames", func(t *testing.T) {
 		m := newEd(t)
-		m = send(m, keyType(tea.KeyCtrlW))
+		m = send(m, keyCtrl('w'))
 		m = send(m, key('l'))
 		if m.Win != WinSymbols {
 			t.Fatalf("Ctrl-W L must land on symbols, got %v", m.Win)
 		}
-		m = send(m, keyType(tea.KeyCtrlW))
+		m = send(m, keyCtrl('w'))
 		m = send(m, key('j'))
 		if m.Win != WinPalette {
 			t.Fatalf("Ctrl-W J from symbols must land on palette, got %v", m.Win)
 		}
-		m = send(m, keyType(tea.KeyCtrlW))
+		m = send(m, keyCtrl('w'))
 		m = send(m, key('j'))
 		if m.Win != WinFrames {
 			t.Fatalf("Ctrl-W J from palette must land on frames, got %v", m.Win)
 		}
-		m = send(m, keyType(tea.KeyCtrlW))
+		m = send(m, keyCtrl('w'))
 		m = send(m, key('k'))
 		if m.Win != WinPalette {
 			t.Fatalf("Ctrl-W K from frames must land on palette, got %v", m.Win)
@@ -249,7 +253,7 @@ func TestWindows(t *testing.T) {
 	})
 	t.Run("unhappy: a dangling Ctrl-W is cancelled by escape, not treated as h/j/k/l", func(t *testing.T) {
 		m := newEd(t)
-		m = send(m, keyType(tea.KeyCtrlW))
+		m = send(m, keyCtrl('w'))
 		m = send(m, keyType(tea.KeyEsc))
 		m = send(m, key('l'))
 		if m.Win != WinCanvas {
@@ -266,10 +270,9 @@ func TestMouseSelect(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 80, 24
 		// View has a 1-cell border; canvas origin is (1,1) in the view.
-		m = send(m, tea.MouseMsg{
+		m = send(m, tea.MouseClickMsg{
 			X: 4, Y: 3,
-			Action: tea.MouseActionPress,
-			Button: tea.MouseButtonLeft,
+			Button: tea.MouseLeft,
 		})
 		if m.CursorC == 0 && m.CursorR == 0 {
 			t.Fatal("click must move the cursor off the origin")
@@ -282,10 +285,9 @@ func TestMouseSelect(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 80, 24
 		sp := m.Current()
-		m = send(m, tea.MouseMsg{
+		m = send(m, tea.MouseClickMsg{
 			X: 79, Y: 23,
-			Action: tea.MouseActionPress,
-			Button: tea.MouseButtonLeft,
+			Button: tea.MouseLeft,
 		})
 		if m.CursorR < 0 || m.CursorR >= sp.Height || m.CursorC < 0 || m.CursorC >= sp.Width {
 			t.Fatalf("cursor escaped the sprite: (%d,%d)", m.CursorR, m.CursorC)
@@ -333,7 +335,7 @@ func TestViewShowsWindows(t *testing.T) {
 	t.Run("happy: the view contains the canvas, a palette, and the frames list", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 80, 24
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"silver", "gold", "N", "NE"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("view missing %q", want)
@@ -343,7 +345,7 @@ func TestViewShowsWindows(t *testing.T) {
 	t.Run("unhappy: a tiny terminal still renders without panicking", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 10, 4
-		if m.View() == "" {
+		if m.View().Content == "" {
 			t.Fatal("tiny view should still produce something")
 		}
 	})

@@ -8,18 +8,18 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/seg-lab/seg"
 )
 
 func key(m demoModel, r rune) demoModel {
-	mm, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	mm, _ := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	return mm.(demoModel)
 }
 
-func keyType(m demoModel, t tea.KeyType) demoModel {
-	mm, _ := m.Update(tea.KeyMsg{Type: t})
+func keyType(m demoModel, code rune) demoModel {
+	mm, _ := m.Update(tea.KeyPressMsg{Code: code})
 	return mm.(demoModel)
 }
 
@@ -32,7 +32,7 @@ func TestViewerBoot(t *testing.T) {
 		if m.text != "HELLO WORLD" {
 			t.Fatalf("boot text %q", m.text)
 		}
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "alpha") {
 			t.Fatal("the UI must name the active style")
 		}
@@ -110,7 +110,7 @@ func TestViewerCatalog(t *testing.T) {
 		if m.text != "" {
 			t.Fatal("esc must clear")
 		}
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "A") || !strings.Contains(strings.ToUpper(v), "CATALOG") && !strings.Contains(v, "ABCDEF") {
 			// catalog may be segmented; the caption should still say so
 			if !strings.Contains(strings.ToLower(v), "catalog") {
@@ -120,7 +120,7 @@ func TestViewerCatalog(t *testing.T) {
 	})
 	t.Run("unhappy: catalog is not shown while a message is typed", func(t *testing.T) {
 		m := newDemo()
-		v := strings.ToLower(m.View())
+		v := strings.ToLower(m.View().Content)
 		if strings.Contains(v, "catalog") {
 			t.Fatal("a typed message must not show the catalog caption")
 		}
