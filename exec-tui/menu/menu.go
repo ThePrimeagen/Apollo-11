@@ -17,11 +17,13 @@ import (
 )
 
 // Entry is one runnable program. In-process programs (built into the
-// exec-tui binary) leave Module empty; external labs carry the sibling
-// module directory name plus the package path `go run` needs inside it.
-// Section is the category header the entry renders under; entries with
-// the same section must sit together, and an empty section renders as
-// a plain, header-less list.
+// exec-tui binary) leave Module and Pkg empty. Programs in this module
+// leave Module empty and carry the ./cmd package path `go run` needs
+// from the module root. External labs carry the sibling module
+// directory name plus the package path inside it. Section is the
+// category header the entry renders under; entries with the same
+// section must sit together, and an empty section renders as a plain,
+// header-less list.
 type Entry struct {
 	ID      string
 	Title   string
@@ -32,17 +34,19 @@ type Entry struct {
 }
 
 // Catalog lists every runnable program by category: the main program,
-// then the configurators, then the demo labs, then the legacy TUIs.
+// then the config editors, then the demos, then the legacy TUIs.
+// Everything this module owns launches out of its own cmd/ folder;
+// only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
 	return []Entry{
-		{ID: "screenplay", Section: "MAIN PROGRAM", Title: "SCREENPLAY", Desc: "the two-scene premiere: arrival, then THE END", Module: "screenplay-lab", Pkg: "."},
+		{ID: "screenplay", Section: "MAIN PROGRAM", Title: "SCREENPLAY", Desc: "the two-scene premiere: arrival, then THE END", Pkg: "./cmd/premiere"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
-		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Module: "screenplay-lab", Pkg: "./cmd/adjuststars/main"},
-		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish editor for the LM ASCII atlas (mouse works)", Module: "lander-lab", Pkg: "./cmd/edit"},
-		{ID: "lander", Section: "DEMO", Title: "LANDER LAB", Desc: "the continuous descent with alarms at their true moments", Module: "lander-lab", Pkg: "."},
-		{ID: "stars", Section: "DEMO", Title: "STARS LAB", Desc: "browse the starfield fly strategies", Module: "stars-lab", Pkg: "."},
-		{ID: "dsky", Section: "DEMO", Title: "DSKY LAB", Desc: "a lone DSKY replaying the descent displays", Module: "dsky-lab", Pkg: "."},
-		{ID: "button", Section: "DEMO", Title: "BUTTON LAB", Desc: "the cockpit toggle switch playground", Module: "button-lab", Pkg: "."},
+		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
+		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish editor for the LM ASCII atlas (mouse works)", Pkg: "./cmd/editor/main"},
+		{ID: "lander", Section: "DEMO", Title: "LANDER DEMO", Desc: "the continuous descent with alarms at their true moments", Pkg: "./cmd/lander"},
+		{ID: "stars", Section: "DEMO", Title: "STARS DEMO", Desc: "browse the starfield fly strategies", Pkg: "./cmd/stars"},
+		{ID: "dsky", Section: "DEMO", Title: "DSKY DEMO", Desc: "a lone DSKY replaying the descent displays", Module: "dsky-lab", Pkg: "."},
+		{ID: "button", Section: "DEMO", Title: "BUTTON DEMO", Desc: "the cockpit toggle switch playground", Module: "button-lab", Pkg: "."},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
 	}
@@ -61,6 +65,23 @@ func LocateModule(startDir, module string) (string, error) {
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			return "", fmt.Errorf("module %s not found above %s — run from the apollo-11 checkout", module, startDir)
+		}
+		dir = parent
+	}
+}
+
+// ModuleRoot walks up from startDir to this module's own go.mod, so
+// in-module programs and their relative config paths work no matter
+// how deep the launcher was started.
+func ModuleRoot(startDir string) (string, error) {
+	dir := startDir
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("no go.mod above %s — run from inside the module", startDir)
 		}
 		dir = parent
 	}

@@ -60,6 +60,9 @@ func launch(e menu.Entry) error {
 	if e.Module != "" {
 		return runExternal(e)
 	}
+	if e.Pkg != "" {
+		return runLocal(e)
+	}
 	switch e.ID {
 	case "legacy":
 		_, err := tea.NewProgram(ui.NewModel(sim.New()), colorOpts()...).Run()
@@ -70,23 +73,44 @@ func launch(e menu.Entry) error {
 	return fmt.Errorf("unknown in-process program %q", e.ID)
 }
 
-// runFlame opens the heat-threshold configurator on the same JSON the
-// standalone cmd/adjustflame runner edits.
+// runFlame opens the heat-threshold configurator on the fire
+// component's own config — the same JSON the standalone
+// cmd/adjustflame runner edits.
 func runFlame() error {
-	cwd, err := os.Getwd()
+	root, err := ownModuleRoot()
 	if err != nil {
 		return err
 	}
-	dir, err := menu.LocateModule(cwd, "exec-tui")
-	if err != nil {
-		return err
-	}
-	m, err := adjustflame.Open(filepath.Join(dir, "cmd", "adjustflame", "flame.json"))
+	m, err := adjustflame.Open(filepath.Join(root, filepath.FromSlash(adjustflame.DefaultConfigPath)))
 	if err != nil {
 		return err
 	}
 	_, err = tea.NewProgram(m, colorOpts()...).Run()
 	return err
+}
+
+// ownModuleRoot finds this module's root, so in-module programs and
+// their relative config paths work no matter where the launcher runs.
+func ownModuleRoot() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return menu.ModuleRoot(cwd)
+}
+
+// runLocal hands the terminal to one of our own cmd/ programs via
+// `go run` from the module root, so every default config path — all
+// relative to the root — keeps working.
+func runLocal(e menu.Entry) error {
+	root, err := ownModuleRoot()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("go", "run", e.Pkg)
+	cmd.Dir = root
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return cmd.Run()
 }
 
 // runExternal hands the terminal to a sibling lab via `go run`, from the

@@ -13,7 +13,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/theprimeagen/apollo-11/lander-lab/components/fire"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/fire"
 )
 
 func writeCfg(t *testing.T, c fire.HeatConfig) string {

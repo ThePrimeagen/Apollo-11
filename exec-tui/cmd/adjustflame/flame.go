@@ -13,9 +13,14 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/theprimeagen/apollo-11/lander-lab/components/fire"
-	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/fire"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
+
+// DefaultConfigPath is the fire component's own config file — the JSON
+// lives with the component it tunes, relative to the module root the
+// launcher and `go run` start from.
+const DefaultConfigPath = "components/fire/config.json"
 
 const (
 	ListCols = 36

@@ -17,7 +17,7 @@ import (
 	"github.com/theprimeagen/apollo-11/button-lab/button"
 	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
-	"github.com/theprimeagen/apollo-11/lander-lab/lander"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/lander/descent"
 )
 
 // ---------------------------------------------------------------------------
@@ -462,10 +462,10 @@ func (m Model) viewContent() string {
 	}
 	// during a flight, the lander descends in the center gap — when there
 	// is room for it
-	if m.flight && gap >= lander.Width+2 {
-		mid := lander.Render(m.landerState())
-		pad1 := (gap - lander.Width) / 2
-		pad2 := gap - lander.Width - pad1
+	if m.flight && gap >= descent.Width+2 {
+		mid := descent.Render(m.landerState())
+		pad1 := (gap - descent.Width) / 2
+		pad2 := gap - descent.Width - pad1
 		body := lipgloss.JoinHorizontal(lipgloss.Top,
 			left, strings.Repeat(" ", pad1), mid, strings.Repeat(" ", pad2), right)
 		b.WriteString(body)
@@ -479,11 +479,11 @@ func (m Model) viewContent() string {
 // landerState feeds the descent panel from the ENGINE: mission time drives
 // the interpolated path, and the markers are the engine's real alarms at
 // the altitude the flight was passing when each one fired.
-func (m Model) landerState() lander.State {
+func (m Model) landerState() descent.State {
 	e := m.eng
 	sec := e.AGCTimeMs() / 1000
 	alt, vel := pathAt(sec)
-	st := lander.State{
+	st := descent.State{
 		AltFt: alt, VelFps: vel, TimeSec: sec, Tick: m.frame,
 		Event: m.flightCaption,
 	}
@@ -498,14 +498,14 @@ func (m Model) landerState() lander.State {
 	case sim.P66:
 		st.Phase = "P66 LANDING"
 	}
-	st.Attitude = lander.Vertical
+	st.Attitude = descent.Vertical
 	if alt <= 0 {
-		st.Attitude = lander.Landed
+		st.Attitude = descent.Landed
 		st.Phase = "P66 LANDED"
 	}
 	for _, a := range e.Alarms() {
 		aAlt, _ := pathAt(a.AGCTimeMs / 1000)
-		st.Alarms = append(st.Alarms, lander.Alarm{Code: a.Code, AltFt: aAlt})
+		st.Alarms = append(st.Alarms, descent.Alarm{Code: a.Code, AltFt: aAlt})
 	}
 	return st
 }
