@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func lineWith(v, needle string) string {
@@ -25,7 +25,7 @@ func lineWith(v, needle string) string {
 func TestCoreSetsStacked(t *testing.T) {
 	t.Run("happy: CS1 shares a row with CS5, not with CS2", func(t *testing.T) {
 		_, m := newTestModel()
-		l := lineWith(m.View(), "CS1")
+		l := lineWith(m.View().Content, "CS1")
 		if l == "" {
 			t.Fatal("CS1 missing")
 		}
@@ -38,7 +38,7 @@ func TestCoreSetsStacked(t *testing.T) {
 	})
 	t.Run("happy: all four stack rows pair up (CSn with CSn+4)", func(t *testing.T) {
 		_, m := newTestModel()
-		v := m.View()
+		v := m.View().Content
 		for i := 1; i <= 4; i++ {
 			l := lineWith(v, "CS"+itoa(i))
 			if !strings.Contains(l, "CS"+itoa(i+4)) {
@@ -48,7 +48,7 @@ func TestCoreSetsStacked(t *testing.T) {
 	})
 	t.Run("happy: VACs are one stack — VC1 alone on its row", func(t *testing.T) {
 		_, m := newTestModel()
-		v := m.View()
+		v := m.View().Content
 		l := lineWith(v, "VC1")
 		if l == "" || strings.Contains(l, "VC2") {
 			t.Fatalf("VC1 must sit alone in the VAC stack, got %q", stripAnsi(l))
@@ -62,7 +62,7 @@ func TestCoreSetsStacked(t *testing.T) {
 func TestNoHelpMenu(t *testing.T) {
 	t.Run("happy: the key-bar hints are gone", func(t *testing.T) {
 		_, m := newTestModel()
-		v := m.View()
+		v := m.View().Content
 		for _, gone := range []string{"[h/l]", "[space]", "[.]", "[q] quit", "[x] reset"} {
 			if strings.Contains(v, gone) {
 				t.Fatalf("the help menu must be gone, found %q", gone)
@@ -75,7 +75,7 @@ func TestNoHelpMenu(t *testing.T) {
 		if m.Selected() != 1 {
 			t.Fatal("l must still move the selection")
 		}
-		mm, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+		mm, _ := m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		m = mm.(Model)
 		if !e.MonitorActive() && m.PendingKeys() == 0 {
 			t.Fatal("space must still flip the selected switch")
@@ -92,7 +92,7 @@ func TestSwitchesOnRight(t *testing.T) {
 		_, m := newTestModel()
 		// DESCENT is unique to the switch panel; its line carries all three
 		// labels side by side ("RR STEAL" alone would match the timeline row).
-		l := stripAnsi(lineWith(m.View(), "DESCENT"))
+		l := stripAnsi(lineWith(m.View().Content, "DESCENT"))
 		if l == "" {
 			t.Fatal("switch label line missing")
 		}
@@ -108,7 +108,7 @@ func TestSwitchesOnRight(t *testing.T) {
 	})
 	t.Run("happy: switches render below the DSKY registers", func(t *testing.T) {
 		_, m := newTestModel()
-		lines := strings.Split(m.View(), "\n")
+		lines := strings.Split(m.View().Content, "\n")
 		verbRow, descentRow := -1, -1
 		for i, l := range lines {
 			p := stripAnsi(l)

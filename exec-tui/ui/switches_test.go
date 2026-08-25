@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 )
@@ -23,7 +23,7 @@ import (
 func lipglossWidth(s string) int { return lipgloss.Width(s) }
 
 func space(m Model) Model {
-	mm, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	mm, _ := m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 	return mm.(Model)
 }
 
@@ -48,7 +48,7 @@ func labelSGR(t *testing.T, v, label string) string {
 func TestSwitchPanelRender(t *testing.T) {
 	t.Run("happy: three labels, no caption row underneath", func(t *testing.T) {
 		_, m := newTestModel()
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"DESCENT", "DELTAH", "RR STEAL"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("switch panel missing %q", want)
@@ -61,16 +61,15 @@ func TestSwitchPanelRender(t *testing.T) {
 		}
 	})
 	t.Run("happy: labels are light gray off, amber when on", func(t *testing.T) {
-		withColor(t)
 		e, m := newTestModel()
-		if sgr := labelSGR(t, m.View(), "DESCENT"); !strings.Contains(sgr, "38;5;245") {
+		if sgr := labelSGR(t, m.View().Content, "DESCENT"); !strings.Contains(sgr, "38;5;245") {
 			t.Fatalf("an off switch label must be light gray, got %q", sgr)
 		}
 		e.StartDescent()
-		if sgr := labelSGR(t, m.View(), "DESCENT"); !strings.Contains(sgr, "38;5;214") {
+		if sgr := labelSGR(t, m.View().Content, "DESCENT"); !strings.Contains(sgr, "38;5;214") {
 			t.Fatalf("an on switch label must be amber, got %q", sgr)
 		}
-		if sgr := labelSGR(t, m.View(), "RR STEAL"); strings.Contains(sgr, "38;5;214") {
+		if sgr := labelSGR(t, m.View().Content, "RR STEAL"); strings.Contains(sgr, "38;5;214") {
 			t.Fatal("an off switch must stay gray while others light up")
 		}
 	})

@@ -23,7 +23,6 @@ func TestPhaseAndStateVisibility(t *testing.T) {
 		}
 	})
 	t.Run("unhappy: reset blanks the phase and every switch state", func(t *testing.T) {
-		withColor(t)
 		_, m := newTestModel()
 		m = key(m, 'd')
 		m = key(m, 'r')
@@ -31,7 +30,7 @@ func TestPhaseAndStateVisibility(t *testing.T) {
 		if got := m.dskyState().Prog; got != "" {
 			t.Fatalf("reset must blank PROG, got %q", got)
 		}
-		if sgr := labelSGR(t, m.View(), "DESCENT"); strings.Contains(sgr, "38;5;214") {
+		if sgr := labelSGR(t, m.View().Content, "DESCENT"); strings.Contains(sgr, "38;5;214") {
 			t.Fatal("reset must return every switch label to gray")
 		}
 	})

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/components/fire"
 	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
@@ -66,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Rose.Update(1.0 / float64(fps))
 		}
 		return m, tick()
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch strings.ToLower(msg.String()) {
 		case "j", "down":
 			if m.Cursor < len(m.Thresholds)-1 {
@@ -118,7 +118,11 @@ func (m Model) applyHeat() {
 	_ = fire.UseHeat(fire.HeatConfig{Thresholds: append([]int(nil), m.Thresholds...)})
 }
 
-func (m Model) View() string { return sprite.Render(m.Page()) }
+func (m Model) View() tea.View {
+	v := tea.NewView(sprite.Render(m.Page()))
+	v.AltScreen = true
+	return v
+}
 
 // Page is the runner canvas: threshold sliders on the left, all eight
 // headings playing on the right.
