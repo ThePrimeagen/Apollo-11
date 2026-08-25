@@ -87,6 +87,98 @@ func TestMenuBoot(t *testing.T) {
 	})
 }
 
+// headerLine finds the line rendered as exactly the section name (so
+// "CONFIG" never matches the "STARS CONFIG" entry), or -1.
+func headerLine(v, name string) int {
+	for i, l := range strings.Split(v, "\n") {
+		if strings.TrimSpace(l) == name {
+			return i
+		}
+	}
+	return -1
+}
+
+// entryLine finds the first line containing the entry title, or -1.
+func entryLine(v, title string) int {
+	for i, l := range strings.Split(v, "\n") {
+		if strings.Contains(l, title) {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestMenuSections(t *testing.T) {
+	t.Run("happy: each category header renders once, above its entries", func(t *testing.T) {
+		v := stripAnsi(sized(New(Catalog(), ""), 100, 40).View().Content)
+		order := []struct{ header, first string }{
+			{"MAIN PROGRAM", "SCREENPLAY"},
+			{"CONFIG", "FLAME CONFIG"},
+			{"DEMO", "LANDER LAB"},
+			{"LEGACY TUIS", "LEGACY EXEC"},
+		}
+		prev := -1
+		for _, s := range order {
+			hi := headerLine(v, s.header)
+			if hi < 0 {
+				t.Fatalf("menu missing the %q header:\n%s", s.header, v)
+			}
+			if hi <= prev {
+				t.Fatalf("header %q out of order at line %d:\n%s", s.header, hi, v)
+			}
+			ei := entryLine(v, s.first)
+			if ei < hi {
+				t.Fatalf("entry %q renders above its %q header:\n%s", s.first, s.header, v)
+			}
+			seen := 0
+			for _, l := range strings.Split(v, "\n") {
+				if strings.TrimSpace(l) == s.header {
+					seen++
+				}
+			}
+			if seen != 1 {
+				t.Fatalf("header %q must render exactly once, saw %d", s.header, seen)
+			}
+			prev = hi
+		}
+	})
+	t.Run("happy: headers are never selectable — j walks entry to entry", func(t *testing.T) {
+		m := sized(New(Catalog(), ""), 100, 40)
+		m = key(m, 'j')
+		if got := Catalog()[m.sel].ID; got != "flame" {
+			t.Fatalf("j from screenplay must land on flame, got %q", got)
+		}
+		m = key(m, 'k')
+		m = key(m, 'k')
+		if got := Catalog()[m.sel].ID; got != "timeline" {
+			t.Fatalf("k from the top must wrap to timeline, got %q", got)
+		}
+		v := stripAnsi(m.View().Content)
+		for _, line := range strings.Split(v, "\n") {
+			if strings.Contains(line, "▸") && !strings.Contains(line, "TIMELINE") {
+				t.Fatalf("the marker sits on a non-selected line: %q", line)
+			}
+		}
+	})
+	t.Run("unhappy: sectionless entries render without headers or spacers", func(t *testing.T) {
+		es := fakeEntries(5)
+		v := stripAnsi(sized(New(es, ""), 80, 30).View().Content)
+		if got, want := len(strings.Split(v, "\n")), len(es)+chrome; got != want {
+			t.Fatalf("a sectionless menu must add no rows: %d lines, want %d:\n%s", got, want, v)
+		}
+	})
+	t.Run("unhappy: a tiny terminal keeps the selection visible through every section", func(t *testing.T) {
+		m := sized(New(Catalog(), ""), 30, 6)
+		for range Catalog() {
+			want := Catalog()[m.sel].Title
+			if v := stripAnsi(m.View().Content); !strings.Contains(v, want) {
+				t.Fatalf("selected entry %q fell out of the tiny window:\n%s", want, v)
+			}
+			m = key(m, 'j')
+		}
+	})
+}
+
 func TestMenuNavigation(t *testing.T) {
 	t.Run("happy: j and k move with wrap at both ends", func(t *testing.T) {
 		m := sized(New(fakeEntries(5), ""), 80, 30)
@@ -279,15 +371,53 @@ func TestLocateModule(t *testing.T) {
 }
 
 func TestCatalog(t *testing.T) {
-	t.Run("happy: the four named programs lead the list", func(t *testing.T) {
+	t.Run("happy: the catalog runs main program, config, demo, legacy", func(t *testing.T) {
 		c := Catalog()
-		if len(c) < 4 {
-			t.Fatalf("catalog too small: %d", len(c))
+		want := []string{
+			"screenplay",
+			"flame", "stars-config", "editor",
+			"lander", "stars", "dsky", "button",
+			"legacy", "timeline",
 		}
-		want := []string{"screenplay", "flame", "stars-config", "legacy"}
+		if len(c) != len(want) {
+			t.Fatalf("catalog holds %d entries, want %d", len(c), len(want))
+		}
 		for i, id := range want {
 			if c[i].ID != id {
 				t.Fatalf("entry %d must be %q, got %q", i, id, c[i].ID)
+			}
+		}
+	})
+	t.Run("happy: entries group under their category headers in order", func(t *testing.T) {
+		wantSections := map[string]string{
+			"screenplay":   "MAIN PROGRAM",
+			"flame":        "CONFIG",
+			"stars-config": "CONFIG",
+			"editor":       "CONFIG",
+			"lander":       "DEMO",
+			"stars":        "DEMO",
+			"dsky":         "DEMO",
+			"button":       "DEMO",
+			"legacy":       "LEGACY TUIS",
+			"timeline":     "LEGACY TUIS",
+		}
+		seen := map[string]bool{}
+		last := ""
+		for _, e := range Catalog() {
+			if want := wantSections[e.ID]; e.Section != want {
+				t.Fatalf("entry %q sits in section %q, want %q", e.ID, e.Section, want)
+			}
+			if e.Section != last && seen[e.Section] {
+				t.Fatalf("section %q is split — categories must stay contiguous", e.Section)
+			}
+			seen[e.Section] = true
+			last = e.Section
+		}
+	})
+	t.Run("unhappy: the seg lab is gone from the launcher", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.ID == "seg" || strings.Contains(e.Title, "SEG") {
+				t.Fatalf("the seg lab must not be listed, found %+v", e)
 			}
 		}
 	})
