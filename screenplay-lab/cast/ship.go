@@ -69,8 +69,8 @@ func shipFlameConfig() particle.Config {
 	return cfg
 }
 
-// Advance moves the ship's clock and burns the fire. dt <= 0 holds.
-func (s *Ship) Advance(dt float64) {
+// Update moves the ship's clock and burns the fire. dt <= 0 holds.
+func (s *Ship) Update(dt float64) {
 	if s == nil || dt <= 0 {
 		return
 	}
@@ -86,18 +86,9 @@ func (s *Ship) Clock() float64 {
 	return s.clock
 }
 
-// Paint composes fire first, hull second, so the hull always wins the
+// Render composes fire first, hull second, so the hull always wins the
 // overlap at the tail and the plume appears from behind the bell.
-func (s *Ship) Paint(st *screenplay.Stage) {
-	if s == nil || st == nil {
-		return
-	}
-	w, h := st.Size()
-	row, col := FlightPath(w, h, s.clock)
-	if s.Flame != nil {
-		st.Blit(row+FlameRow, col+FlameCol, s.Flame.Sprite())
-	}
-	st.Blit(row, col, s.Body)
+func (s *Ship) Render(scr *screenplay.Screen) {
 }
 
 // FlightPath is the hull's top-left at t seconds into the scene, on a

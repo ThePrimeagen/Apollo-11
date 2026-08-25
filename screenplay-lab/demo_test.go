@@ -1,16 +1,18 @@
 package main
 
 // Demo harness tests, written first: screenplay-lab premieres a
-// two-scene bill. Scene one, "arrival": a drifting starfield with the
-// westbound craft sliding in from the right wing to park and bobble at
-// center stage. Space cuts to scene two, "the end": the height-5 banner
-// card. Space on the final scene holds; q and ctrl+c close the house.
+// two-scene bill on the shared screen. Scene one, "arrival": a drifting
+// starfield with the westbound craft sliding in from the right wing to
+// park and bobble at center stage. Space cuts to scene two, "the end":
+// the height-5 banner card. Space on the final scene holds; q and
+// ctrl+c close the house. The view is the rendered screen plus one
+// status line, always exactly window-height lines.
 
 import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/stars-lab/stars"
 )
@@ -23,12 +25,14 @@ func frames(m model, n int) model {
 	return m
 }
 
-func press(m model, msg tea.KeyMsg) model {
+func press(m model, msg tea.Msg) model {
 	mm, _ := m.Update(msg)
 	return mm.(model)
 }
 
-func space() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}} }
+func space() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "} }
+
+func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
 
 func hasStar(v string) bool {
 	for _, g := range stars.Glyphs {
@@ -42,7 +46,7 @@ func hasStar(v string) bool {
 func TestPremiere(t *testing.T) {
 	t.Run("happy: the house opens on scene 1/2, arrival, under stars", func(t *testing.T) {
 		m := newModel(0)
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"1/2", "arrival", "space", "quit"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
@@ -60,11 +64,11 @@ func TestPremiere(t *testing.T) {
 		if m.elapsed < 2.9 || m.elapsed > 3.1 {
 			t.Fatalf("elapsed %f after 90 frames, want ~3.0", m.elapsed)
 		}
-		v := m.View()
+		v := m.View().Content
 		if !strings.ContainsRune(v, '▓') {
-			t.Fatal("three seconds in, the hull must be on stage")
+			t.Fatal("three seconds in, the hull must be on screen")
 		}
-		if !strings.ContainsAny(v, "⠁⠒⠶░▒") {
+		if !strings.ContainsAny(v, "⠁⠒⠶▒") {
 			t.Fatal("the booster fire must be burning behind the craft")
 		}
 	})
@@ -78,7 +82,7 @@ func TestPremiere(t *testing.T) {
 	t.Run("happy: space cuts to scene 2/2 — THE END, centered", func(t *testing.T) {
 		m := frames(newModel(0), 30)
 		m = press(m, space())
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"2/2", "the end", "___"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the end card is missing %q", want)
@@ -91,19 +95,28 @@ func TestPremiere(t *testing.T) {
 			t.Fatal("the craft does not appear in the end card")
 		}
 	})
+	t.Run("happy: the cut restarts the clock for the new scene's cast", func(t *testing.T) {
+		m := frames(newModel(0), 30)
+		m = press(m, space())
+		before := m.View().Content
+		m = frames(m, 30)
+		if m.View().Content == before {
+			t.Fatal("the end card's sky must drift on after the cut")
+		}
+	})
 	t.Run("unhappy: space on the final scene holds the card", func(t *testing.T) {
 		m := press(newModel(0), space())
 		m = press(m, space())
-		m = press(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-		v := m.View()
+		m = press(m, runeKey(' '))
+		v := m.View().Content
 		if !strings.Contains(v, "2/2") || !strings.Contains(v, "the end") {
 			t.Fatal("extra spaces must hold on the final scene")
 		}
 	})
 	t.Run("unhappy: q and ctrl+c close the house", func(t *testing.T) {
-		for _, msg := range []tea.KeyMsg{
-			{Type: tea.KeyRunes, Runes: []rune{'q'}},
-			{Type: tea.KeyCtrlC},
+		for _, msg := range []tea.Msg{
+			runeKey('q'),
+			tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl},
 		} {
 			_, cmd := newModel(0).Update(msg)
 			if cmd == nil {
@@ -126,12 +139,17 @@ func TestPremiere(t *testing.T) {
 			t.Fatal("two frames pass 0.05s — the curtain must fall")
 		}
 	})
-	t.Run("happy: the view fills the window, one status line included", func(t *testing.T) {
-		m := press(newModel(0), tea.KeyMsg{}) // no-op key first
+	t.Run("happy: the view fills the window even when the sky runs short", func(t *testing.T) {
+		m := newModel(0)
 		mm, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 20})
 		m = mm.(model)
-		if got := len(strings.Split(m.View(), "\n")); got != 20 {
+		if got := len(strings.Split(m.View().Content, "\n")); got != 20 {
 			t.Fatalf("view has %d lines for a 20-line window", got)
+		}
+		mm, _ = m.Update(tea.WindowSizeMsg{Width: 90, Height: 32})
+		m = mm.(model)
+		if got := len(strings.Split(m.View().Content, "\n")); got != 32 {
+			t.Fatalf("view has %d lines for a 32-line window", got)
 		}
 	})
 	t.Run("happy: Init schedules the first frame", func(t *testing.T) {

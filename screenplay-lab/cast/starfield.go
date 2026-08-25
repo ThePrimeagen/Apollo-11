@@ -1,7 +1,6 @@
 package cast
 
 import (
-	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
 	"github.com/theprimeagen/apollo-11/stars-lab/stars"
 
 	"github.com/theprimeagen/apollo-11/screenplay-lab/screenplay"
@@ -23,27 +22,14 @@ func NewStarfield(s stars.Strategy) *Starfield {
 	return &Starfield{Strategy: s}
 }
 
-// Advance accumulates time. dt <= 0 holds the sky.
-func (f *Starfield) Advance(dt float64) {
+// Update accumulates time. dt <= 0 holds the sky.
+func (f *Starfield) Update(dt float64) {
 	if f == nil || dt <= 0 {
 		return
 	}
 	f.clock += dt
 }
 
-// Paint fills the stage with this instant's sky.
-func (f *Starfield) Paint(st *screenplay.Stage) {
-	if f == nil || st == nil {
-		return
-	}
-	w, h := st.Size()
-	field := stars.Field{
-		Width:    w,
-		Height:   h,
-		Tick:     int(f.clock * StarFPS),
-		Strategy: f.Strategy,
-	}
-	field.Paint(func(row, col int, ch rune, fg int) {
-		st.Put(row, col, sprite.Cell{Ch: ch, FG: fg, BG: -1})
-	})
+// Render fills the screen with this instant's sky.
+func (f *Starfield) Render(scr *screenplay.Screen) {
 }

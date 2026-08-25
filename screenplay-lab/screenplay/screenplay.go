@@ -1,53 +1,66 @@
 package screenplay
 
-// Screenplay is scenes in order with a cursor on the one now playing.
-// Time only ever reaches the current scene, so the next scene's clocks
-// start the moment the play cuts to it.
-type Screenplay struct {
-	scenes []*Scene
-	idx    int
+// Entry is one scene on the bill, with the name the marquee shows.
+type Entry struct {
+	Name  string
+	Scene Scene
 }
 
-// New binds scenes into a screenplay opened on the first scene.
-func New(scenes ...*Scene) *Screenplay {
-	return &Screenplay{scenes: scenes}
+// Screenplay is scenes in order with a cursor on the one now playing.
+// Nothing runs until Start; after that, every frame is Update then
+// Render on the current scene only, Next cuts (stop the old, start the
+// new), and Stop brings the house lights up.
+type Screenplay struct {
+	bill    []Entry
+	idx     int
+	running bool
+}
+
+// New binds the bill. No scene starts until the screenplay does.
+func New(entries ...Entry) *Screenplay {
+	return &Screenplay{}
 }
 
 // Len is the number of scenes on the bill.
 func (p *Screenplay) Len() int {
-	if p == nil {
-		return 0
-	}
-	return len(p.scenes)
+	return 0
 }
 
 // SceneIndex is the 0-based index of the current scene.
 func (p *Screenplay) SceneIndex() int {
-	if p == nil {
-		return 0
-	}
-	return p.idx
+	return 0
 }
 
-// Current is the scene now playing, or nil for an empty screenplay.
-func (p *Screenplay) Current() *Scene {
-	if p == nil || p.idx >= len(p.scenes) {
-		return nil
-	}
-	return p.scenes[p.idx]
+// CurrentName is the marquee name of the current scene, or "" for an
+// empty bill.
+func (p *Screenplay) CurrentName() string {
+	return ""
 }
 
-// Next cuts to the following scene and reports whether it moved. On the
-// final scene — or an empty screenplay — it holds and reports false.
+// Start raises the first curtain. It is a no-op on an empty bill or a
+// screenplay that is already running.
+func (p *Screenplay) Start() {
+}
+
+// Update forwards dt seconds to the scene now playing. Before Start,
+// after Stop, and for dt <= 0 it is a no-op.
+func (p *Screenplay) Update(dt float64) {
+}
+
+// Render clears the screen, has the current scene paint it, and
+// consumes the screen's resized flag. Before Start or without a screen
+// it is a no-op.
+func (p *Screenplay) Render(scr *Screen) {
+}
+
+// Next cuts to the following scene — the old scene stops, then the new
+// one starts — and reports whether it moved. On the final scene, before
+// Start, or on an empty bill it holds and reports false.
 func (p *Screenplay) Next() bool {
-	if p == nil || p.idx+1 >= len(p.scenes) {
-		return false
-	}
-	p.idx++
-	return true
+	return false
 }
 
-// Advance forwards dt seconds to the current scene only.
-func (p *Screenplay) Advance(dt float64) {
-	p.Current().Advance(dt)
+// Stop stops the scene now playing and ends the run. Further calls are
+// no-ops.
+func (p *Screenplay) Stop() {
 }
