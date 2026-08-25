@@ -22,9 +22,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/cast"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -37,21 +38,21 @@ const (
 )
 
 // premiere is the bill: arrival, then the end card. Each scene's cast
-// is assembled when its curtain rises, not before.
+// of components is assembled when its curtain rises, not before.
 func premiere() *screenplay.Screenplay {
 	return screenplay.New(
 		screenplay.Entry{Name: "arrival", Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Actor {
-				return []screenplay.Actor{
-					cast.NewTunedStarfield(),
-					cast.NewShip(11),
+			Assemble: func() []screenplay.Component {
+				return []screenplay.Component{
+					stars.NewTunedStarfield(),
+					lander.NewShip(11),
 				}
 			},
 		}},
 		screenplay.Entry{Name: "the end", Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Actor {
-				return []screenplay.Actor{
-					cast.NewTunedStarfield(),
+			Assemble: func() []screenplay.Component {
+				return []screenplay.Component{
+					stars.NewTunedStarfield(),
 					mustTitle("THE END", 5),
 				}
 			},
@@ -61,8 +62,8 @@ func premiere() *screenplay.Screenplay {
 
 // mustTitle fails at boot, not on stage: the bill is static, so a bad
 // card is a programming error.
-func mustTitle(text string, height int) *cast.Title {
-	t, err := cast.NewTitle(text, height)
+func mustTitle(text string, height int) *title.Title {
+	t, err := title.New(text, height)
 	if err != nil {
 		panic(err)
 	}

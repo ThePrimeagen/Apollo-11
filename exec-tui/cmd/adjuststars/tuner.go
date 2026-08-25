@@ -10,7 +10,6 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/cast"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -103,7 +102,7 @@ func (t *Tuner) Render(scr *screenplay.Screen) {
 	}
 	w, h := scr.Size()
 	t.field(w, h).Paint(func(row, col int, ch rune, fg int) {
-		cast.PutCell(scr, col, row, ch, fg, -1)
+		scr.PutCell(col, row, ch, fg, -1)
 	})
 	t.panel(scr)
 }
@@ -142,7 +141,7 @@ func (t *Tuner) panel(scr *screenplay.Screen) {
 // occludes the sky beneath it.
 func putText(scr *screenplay.Screen, x, y int, text string, fg int) {
 	for i, r := range []rune(text) {
-		cast.PutCell(scr, x+i, y, r, fg, -1)
+		scr.PutCell(x+i, y, r, fg, -1)
 	}
 }
 

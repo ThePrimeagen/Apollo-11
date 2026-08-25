@@ -1,18 +1,11 @@
-// Package cast is the screenplay-lab troupe: the actors the demo puts on
-// stage. Each one wraps an existing lab component — the LM sprite atlas
-// and booster fire from lander-lab, the starfield from stars-lab, the
-// banner font from terminal-fonts — behind the screenplay.Actor face.
-package cast
+package lander
 
 import (
 	"math"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/fire"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/particle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
-
-	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
 const (
@@ -35,22 +28,36 @@ const (
 	FlameCol = 19
 )
 
-// Ship is the Apollo craft flying west: the size-4 W-heading frame with
-// its baked tilde plume stripped and a live left-to-right booster fire
-// trailing from the tail. It slides in from the right wing, parks at
-// center stage, and bobbles on a slow sine.
+// Ship is the Apollo craft as a scene component: the size-4 W-heading
+// frame with its baked tilde plume stripped and a live left-to-right
+// booster fire trailing from the tail. It slides in from the right
+// wing, parks at center stage, and bobbles on a slow sine. Start
+// builds the hull and arms the fire for its stage; Stop drops both so
+// a stopped ship holds no allocation, and a later Start rebuilds them.
 type Ship struct {
 	Body  sprite.Sprite
 	Flame *fire.Flame
+	seed  int64
 	clock float64
+	w, h  int
 }
 
-// NewShip builds the westbound craft. The fire has not yet emitted.
+// NewShip binds the craft to its fire seed. Nothing is built until
+// Start — the curtain owns the allocation.
 func NewShip(seed int64) *Ship {
-	return &Ship{
-		Body:  stripPlume(lander.DefaultAtlas().MustFrame(sprite.Size4, sprite.W)),
-		Flame: &fire.Flame{Eng: particle.New(seed, shipFlameConfig())},
+	return &Ship{seed: seed}
+}
+
+// Start builds the hull from the atlas and arms a fresh booster fire
+// for a w×h stage. The clock carries across restarts, so a resize
+// never replays the fly-in.
+func (s *Ship) Start(w, h int) {
+	if s == nil {
+		return
 	}
+	s.w, s.h = w, h
+	s.Body = stripPlume(DefaultAtlas().MustFrame(sprite.Size4, sprite.W))
+	s.Flame = &fire.Flame{Eng: particle.New(s.seed, shipFlameConfig())}
 }
 
 // shipFlameConfig slims the stock left-to-right booster to a cruise
@@ -87,18 +94,29 @@ func (s *Ship) Clock() float64 {
 	return s.clock
 }
 
-// Render composes fire first, hull second, so the hull always wins the
-// overlap at the tail and the plume appears from behind the bell.
-func (s *Ship) Render(scr *screenplay.Screen) {
-	if s == nil || scr == nil {
+// Render composes fire first, hull second, into a stage-sized sprite,
+// so the hull always wins the overlap at the tail and the plume
+// appears from behind the bell. Before Start and after Stop there is
+// nothing built, so the stage is empty.
+func (s *Ship) Render() sprite.Sprite {
+	if s == nil || s.Flame == nil || s.w < 1 || s.h < 1 {
+		return sprite.Sprite{}
+	}
+	stage := sprite.New(s.w, s.h)
+	row, col := FlightPath(s.w, s.h, s.clock)
+	sprite.Blit(stage, col+FlameCol, row+FlameRow, s.Flame.Sprite())
+	sprite.Blit(stage, col, row, s.Body)
+	return stage
+}
+
+// Stop drops the hull and the fire for the collector; a fresh Start
+// rebuilds both.
+func (s *Ship) Stop() {
+	if s == nil {
 		return
 	}
-	w, h := scr.Size()
-	row, col := FlightPath(w, h, s.clock)
-	if s.Flame != nil {
-		BlitSprite(scr, col+FlameCol, row+FlameRow, s.Flame.Sprite())
-	}
-	BlitSprite(scr, col, row, s.Body)
+	s.Body = sprite.Sprite{}
+	s.Flame = nil
 }
 
 // FlightPath is the hull's top-left at t seconds into the scene, on a

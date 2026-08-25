@@ -1,6 +1,6 @@
 package main
 
-// Demo harness tests, written first: screenplay-lab premieres a
+// Demo harness tests, written first: the premiere plays a
 // two-scene bill on the shared screen. Scene one, "arrival": a drifting
 // starfield with the westbound craft sliding in from the right wing to
 // park and bobble at center stage. Space cuts to scene two, "the end":
@@ -63,7 +63,9 @@ func TestPremiere(t *testing.T) {
 		}
 	})
 	t.Run("happy: frames run the clock and fly the craft in, fire and all", func(t *testing.T) {
-		m := frames(newModel(0), 90) // three seconds
+		m := newModel(0)
+		_ = m.View()      // the opening paint stages the cast, as bubbletea does
+		m = frames(m, 90) // three seconds
 		if m.elapsed < 2.9 || m.elapsed > 3.1 {
 			t.Fatalf("elapsed %f after 90 frames, want ~3.0", m.elapsed)
 		}

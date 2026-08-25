@@ -112,23 +112,54 @@ type Field struct {
 
 type star struct{ row, col, kind, fg int }
 
-// Paint calls put for every star cell this frame. Draw this FIRST — put
-// overwrites whatever is there, and the caller then paints craft/UI on top.
-// put may be nil (no-op).
+// Catalog is the cached scatter for one stage: every star's home cell,
+// laid out once for a width×height sky at the given densities. A
+// component builds it on Start, paints it every frame with just a tick
+// and a strategy, and drops it on Stop — the array lives exactly as
+// long as the scene that asked for it.
+type Catalog struct {
+	w, h  int
+	stars []star
+}
+
+// NewCatalog scatters the sky once. Zero or negative dimensions make
+// an empty catalog that paints nothing.
+func NewCatalog(w, h int, density [4]int) *Catalog {
+	return &Catalog{w: w, h: h, stars: catalog(w, h, density)}
+}
+
+// Paint calls put for every star at tick, flying with s. Draw this
+// FIRST — put overwrites whatever is there, and the caller then paints
+// craft/UI on top. Still strategies and negative ticks freeze the sky
+// at its opening frame. put may be nil (no-op).
+func (c *Catalog) Paint(tick int, s Strategy, put func(row, col int, ch rune, fg int)) {
+	if c == nil || put == nil || c.w < 1 || c.h < 1 {
+		return
+	}
+	if s.Name == Still.Name || tick < 0 {
+		tick = 0
+	}
+	delays := s.delays()
+	for _, st := range c.stars {
+		d := delays[st.kind]
+		col := wrap(st.col-tick/d, c.w)
+		put(st.row, col, Glyphs[st.kind], st.fg)
+	}
+}
+
+// Paint calls put for every star cell this frame — a one-shot render
+// that scatters and paints in one breath. Callers that paint every
+// frame should hold a Catalog instead and paint that. put may be nil
+// (no-op).
 func (f Field) Paint(put func(row, col int, ch rune, fg int)) {
 	if put == nil || f.Width < 1 || f.Height < 1 {
 		return
 	}
 	tick := f.Tick
-	if f.Frozen || f.Strategy.Name == Still.Name || tick < 0 {
+	if f.Frozen {
 		tick = 0
 	}
-	delays := f.Strategy.delays()
-	for _, st := range catalog(f.Width, f.Height, f.Density) {
-		d := delays[st.kind]
-		col := wrap(st.col-tick/d, f.Width)
-		put(st.row, col, Glyphs[st.kind], st.fg)
-	}
+	NewCatalog(f.Width, f.Height, f.Density).Paint(tick, f.Strategy, put)
 }
 
 // Render is the standalone ANSI view of the field. Pure.

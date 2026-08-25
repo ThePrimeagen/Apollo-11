@@ -1,22 +1,21 @@
-package cast
+package lander
 
 // Tests written FIRST: the ship is the full zoomed-in (size-4, 26×10)
 // craft flying west — nose left, tail right — with the atlas's baked
 // tilde plume stripped and the live left-to-right booster fire trailing
-// off the tail. FlightPath is the whole choreography: fully off the
-// right wing at t=0, an eased slide that parks at center stage by
-// FlyInSeconds, then a ±1-cell sine bobble with a 10-second period.
-// Update moves the clock; Render writes styled cells into the screen.
+// off the tail. As a component: Start(w, h) builds the hull and arms
+// the fire for that stage, Update moves the clock and burns the fire,
+// Render composes fire-then-hull into a stage-sized sprite, and Stop
+// drops both so a stopped ship holds no allocation. FlightPath is the
+// whole choreography: fully off the right wing at t=0, an eased slide
+// that parks at center stage by FlyInSeconds, then a ±1-cell sine
+// bobble with a ten-second period.
 
 import (
 	"math"
 	"testing"
 
-	"github.com/charmbracelet/x/ansi"
-
-	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
-
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -25,7 +24,10 @@ const (
 	screenH = 28
 )
 
-// centerRow/centerCol is where the hull's top-left parks on the test screen.
+// The compile-time pin: a Ship plays as a screenplay component.
+var _ screenplay.Component = (*Ship)(nil)
+
+// centerRow/centerCol is where the hull's top-left parks on the test stage.
 var (
 	centerRow = (screenH - BodyRows) / 2
 	centerCol = (screenW - BodyCols) / 2
@@ -39,21 +41,34 @@ func warmShip(s *Ship, seconds float64) {
 }
 
 // flameGlyph is the fire heat ladder's glyph set — no hull rune is in it.
-func flameGlyph(s string) bool {
-	switch s {
-	case "⠁", "⠒", "⠶", "░", "▒", "▄", "▓", "█":
+func flameGlyph(ch rune) bool {
+	switch ch {
+	case '⠁', '⠒', '⠶', '░', '▒', '▄', '▓', '█':
 		return true
 	}
 	return false
 }
 
+func opaqueCells(sp sprite.Sprite) int {
+	n := 0
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			if !sp.At(r, c).Transparent() {
+				n++
+			}
+		}
+	}
+	return n
+}
+
 func TestNewShip(t *testing.T) {
-	t.Run("happy: the body is the size-4 west frame minus its baked plume", func(t *testing.T) {
+	t.Run("happy: start builds the size-4 west frame minus its baked plume", func(t *testing.T) {
 		s := NewShip(1)
+		s.Start(screenW, screenH)
 		if s.Body.Width != BodyCols || s.Body.Height != BodyRows {
 			t.Fatalf("body %dx%d, want %dx%d", s.Body.Width, s.Body.Height, BodyCols, BodyRows)
 		}
-		want := lander.DefaultAtlas().MustFrame(sprite.Size4, sprite.W)
+		want := DefaultAtlas().MustFrame(sprite.Size4, sprite.W)
 		for r := 0; r < want.Height; r++ {
 			for c := 0; c < want.Width; c++ {
 				wc := want.At(r, c)
@@ -70,8 +85,12 @@ func TestNewShip(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: the fire is valid and aimed left-to-right", func(t *testing.T) {
+	t.Run("happy: start arms a valid fire aimed left-to-right", func(t *testing.T) {
 		s := NewShip(2)
+		s.Start(screenW, screenH)
+		if s.Flame == nil || s.Flame.Eng == nil {
+			t.Fatal("start must arm the booster fire")
+		}
 		if err := s.Flame.Eng.Validate(); err != nil {
 			t.Fatalf("flame config: %v", err)
 		}
@@ -80,11 +99,19 @@ func TestNewShip(t *testing.T) {
 			t.Fatalf("direction %+v, want (1, 0) — fire out the right side", d)
 		}
 	})
-	t.Run("unhappy: before any tick the whole screen stays dark", func(t *testing.T) {
+	t.Run("unhappy: before start there is nothing to allocate or render", func(t *testing.T) {
 		s := NewShip(3)
-		scr := screenplay.NewScreen(screenW, screenH)
-		s.Render(scr)
-		if n := litCount(scr); n != 0 {
+		if s.Flame != nil {
+			t.Fatal("nothing may allocate before Start")
+		}
+		if sp := s.Render(); sp.Width != 0 || sp.Height != 0 {
+			t.Fatalf("an unstarted ship rendered %dx%d", sp.Width, sp.Height)
+		}
+	})
+	t.Run("unhappy: at t=0 the whole stage stays dark — the craft is offstage", func(t *testing.T) {
+		s := NewShip(3)
+		s.Start(screenW, screenH)
+		if n := opaqueCells(s.Render()); n != 0 {
 			t.Fatalf("an unticked ship lit %d cells — it is offstage and unlit", n)
 		}
 	})
@@ -156,22 +183,25 @@ func TestFlightPath(t *testing.T) {
 			t.Fatalf("t<0 at (%d,%d), want the t=0 mark (%d,%d)", row, col, r0, c0)
 		}
 	})
-	t.Run("unhappy: a screen smaller than the craft still answers", func(t *testing.T) {
+	t.Run("unhappy: a stage smaller than the craft still answers", func(t *testing.T) {
 		if row, col := FlightPath(8, 3, 100); col > 8 {
-			t.Fatalf("tiny screen answered (%d,%d) — parked col can never sit right of the screen", row, col)
+			t.Fatalf("tiny stage answered (%d,%d) — parked col can never sit right of the stage", row, col)
 		}
 	})
 }
 
-func TestShipOnScreen(t *testing.T) {
-	t.Run("happy: a warmed ship parks with styled hull cells and fire off the tail", func(t *testing.T) {
+func TestShipOnStage(t *testing.T) {
+	t.Run("happy: a warmed ship parks with hull cells intact and fire off the tail", func(t *testing.T) {
 		s := NewShip(4)
+		s.Start(screenW, screenH)
 		warmShip(s, 5.0)
 		if math.Abs(s.Clock()-5.0) > 1e-9 {
 			t.Fatalf("clock %f, want 5.0", s.Clock())
 		}
-		scr := screenplay.NewScreen(screenW, screenH)
-		s.Render(scr)
+		stage := s.Render()
+		if stage.Width != screenW || stage.Height != screenH {
+			t.Fatalf("stage %dx%d, want %dx%d", stage.Width, stage.Height, screenW, screenH)
+		}
 		row, col := FlightPath(screenW, screenH, s.Clock())
 		for r := 0; r < s.Body.Height; r++ {
 			for c := 0; c < s.Body.Width; c++ {
@@ -179,22 +209,15 @@ func TestShipOnScreen(t *testing.T) {
 				if b.Transparent() {
 					continue
 				}
-				got := scr.Cell(col+c, row+r)
-				if got == nil || got.Content != string(b.Ch) {
-					t.Fatalf("hull cell (%d,%d) burned or moved: %q -> %+v", r, c, string(b.Ch), got)
-				}
-				if b.FG >= 0 && got.Style.Fg != ansi.IndexedColor(uint8(b.FG)) {
-					t.Fatalf("hull ink at (%d,%d): %v, want indexed %d", r, c, got.Style.Fg, b.FG)
-				}
-				if b.BG >= 0 && got.Style.Bg != ansi.IndexedColor(uint8(b.BG)) {
-					t.Fatalf("hull paper at (%d,%d): %v, want indexed %d", r, c, got.Style.Bg, b.BG)
+				if got := stage.At(row+r, col+c); got != b {
+					t.Fatalf("hull cell (%d,%d) burned or moved: %+v -> %+v", r, c, b, got)
 				}
 			}
 		}
 		fire := 0
-		for y := 0; y < screenH; y++ {
-			for x := col + BodyCols; x < screenW; x++ {
-				if flameGlyph(contentAt(scr, x, y)) {
+		for r := 0; r < stage.Height; r++ {
+			for c := col + BodyCols; c < stage.Width; c++ {
+				if flameGlyph(stage.At(r, c).Ch) {
 					fire++
 				}
 			}
@@ -203,45 +226,63 @@ func TestShipOnScreen(t *testing.T) {
 			t.Fatal("no fire right of the hull — the plume must trail the tail")
 		}
 	})
-	t.Run("happy: the baked tilde plume never reaches the screen", func(t *testing.T) {
+	t.Run("happy: the baked tilde plume never reaches the stage", func(t *testing.T) {
 		s := NewShip(5)
+		s.Start(screenW, screenH)
 		warmShip(s, 5.0)
-		scr := screenplay.NewScreen(screenW, screenH)
-		s.Render(scr)
-		for y := 0; y < screenH; y++ {
-			for x := 0; x < screenW; x++ {
-				if got := contentAt(scr, x, y); got == "~" || got == "≈" {
-					t.Fatalf("static plume glyph %q at (%d,%d); the live fire is the plume", got, x, y)
+		stage := s.Render()
+		for r := 0; r < stage.Height; r++ {
+			for c := 0; c < stage.Width; c++ {
+				if ch := stage.At(r, c).Ch; ch == '~' || ch == '≈' {
+					t.Fatalf("static plume glyph %q at (%d,%d); the live fire is the plume", string(ch), r, c)
 				}
 			}
 		}
 	})
+	t.Run("happy: stop drops the hull and the fire; a fresh start re-arms", func(t *testing.T) {
+		s := NewShip(6)
+		s.Start(screenW, screenH)
+		warmShip(s, 5.0)
+		s.Stop()
+		if s.Flame != nil {
+			t.Fatal("stop must drop the fire for the collector")
+		}
+		if sp := s.Render(); sp.Width != 0 || sp.Height != 0 {
+			t.Fatalf("a stopped ship rendered %dx%d", sp.Width, sp.Height)
+		}
+		s.Start(screenW, screenH)
+		if s.Flame == nil {
+			t.Fatal("a fresh start must re-arm the fire")
+		}
+		if math.Abs(s.Clock()-5.0) > 1e-9 {
+			t.Fatalf("the clock must survive a restage, got %f", s.Clock())
+		}
+	})
 	t.Run("unhappy: dt<=0 holds the clock and the mark", func(t *testing.T) {
 		s := NewShip(6)
+		s.Start(screenW, screenH)
 		s.Update(0)
 		s.Update(-1)
 		if s.Clock() != 0 {
 			t.Fatalf("clock %f moved on dt<=0", s.Clock())
 		}
-		scr := screenplay.NewScreen(screenW, screenH)
-		s.Render(scr)
-		if n := litCount(scr); n != 0 {
+		if n := opaqueCells(s.Render()); n != 0 {
 			t.Fatalf("held ship lit %d cells, want 0 (still offstage)", n)
 		}
 	})
-	t.Run("unhappy: a screen smaller than the craft clips instead of panicking", func(t *testing.T) {
+	t.Run("unhappy: a stage smaller than the craft clips instead of panicking", func(t *testing.T) {
 		s := NewShip(7)
+		s.Start(8, 3)
 		warmShip(s, 5.0)
-		scr := screenplay.NewScreen(8, 3)
-		s.Render(scr)
-		if n := litCount(scr); n > 8*3 {
-			t.Fatalf("tiny screen lit %d cells, has only %d", n, 8*3)
+		if n := opaqueCells(s.Render()); n > 8*3 {
+			t.Fatalf("tiny stage lit %d cells, has only %d", n, 8*3)
 		}
 	})
-	t.Run("unhappy: a nil ship and a nil screen both skip the cue", func(t *testing.T) {
+	t.Run("unhappy: a nil ship skips every cue", func(t *testing.T) {
 		var ghost *Ship
+		ghost.Start(4, 2)
 		ghost.Update(0.1)
-		ghost.Render(screenplay.NewScreen(4, 2))
-		NewShip(8).Render(nil)
+		ghost.Render()
+		ghost.Stop()
 	})
 }

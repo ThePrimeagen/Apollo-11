@@ -10,6 +10,9 @@ package screenplay
 import (
 	lipgloss "charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
 // Screen is the render target every scene is handed a pointer to: the
@@ -77,6 +80,43 @@ func (s *Screen) Put(x, y int, ch rune, st uv.Style) {
 		return
 	}
 	s.canvas.SetCell(x, y, &uv.Cell{Content: string(ch), Style: st, Width: 1})
+}
+
+// styleFor converts the components' xterm-256 indexes (-1 for "no
+// color") into the lip gloss style a screen cell carries.
+func styleFor(fg, bg int) uv.Style {
+	var st uv.Style
+	if fg >= 0 && fg < 256 {
+		st.Fg = ansi.IndexedColor(uint8(fg))
+	}
+	if bg >= 0 && bg < 256 {
+		st.Bg = ansi.IndexedColor(uint8(bg))
+	}
+	return st
+}
+
+// PutCell writes one cell in the components' native color language:
+// xterm-256 indexes, -1 for "no color". Out of bounds is ignored.
+func (s *Screen) PutCell(x, y int, ch rune, fg, bg int) {
+	s.Put(x, y, ch, styleFor(fg, bg))
+}
+
+// Blit lays a sprite onto the screen with its top-left cell at (x, y).
+// Transparent sprite cells do not overwrite what is already there;
+// anything past an edge is clipped.
+func (s *Screen) Blit(x, y int, sp sprite.Sprite) {
+	if s == nil {
+		return
+	}
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			cell := sp.At(r, c)
+			if cell.Transparent() {
+				continue
+			}
+			s.PutCell(x+c, y+r, cell.Ch, cell.FG, cell.BG)
+		}
+	}
 }
 
 // Cell reads a cell back, or nil out of bounds.
