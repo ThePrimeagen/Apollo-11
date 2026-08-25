@@ -1,31 +1,67 @@
-# exec-tui — fly the Apollo 11 guidance computer
+# exec-tui — the Apollo 11 show, one module
 
-An interactive, real-time TUI simulation of the Lunar Module guidance computer's
-**Executive** (its operating system) during the powered descent. You don't fly the
-spacecraft — you fly the *computer*: start the 2-second guidance cycles, type on the
-DSKY (every keystroke costs real compute), flip on the rendezvous-radar bug that
-stole ~15% of the machine, and watch the 1201/1202 alarms of July 20, 1969 develop,
-fire, and recover — exactly the way they did at 33,000 feet.
-
-Built for an educational video. Every number is sourced: see [`RESEARCH.md`](RESEARCH.md).
-Design and controls: [`ROADMAP.md`](ROADMAP.md).
-
-## Run
+Everything lives here now: the scene components, the screenplay that
+plays them, and every editor, demo, and config tuner. Running the
+launcher opens a menu of all of it.
 
 ```bash
 cd exec-tui
 go run .
 ```
 
-Best at ≥140×45. Time runs at 20× slow motion by default (1 wall second = 50 ms of
-AGC time) so you can watch individual preemptions; `]` speeds it up.
+## Layout
 
-## The screen
+```
+components/   everything a scene puts together
+  sprite/     the pixel model: Sprite = width × height cells (rune + fg/bg)
+  particle/   the particle engine
+  fire/       flame, booster, compass — owns its config.json
+  stars/      the four-layer starfield — owns its config.json
+  lander/     the Apollo LM: atlas art, lm.json, the Ship component
+    descent/  the legacy descent-view renderer (used by the sim UI)
+  rocket/     the size-4 rocket over a down-firing booster
+  title/      banner cards set in terminal-fonts
+screenplay/   Screenplay → Scene → Component; the lip gloss Screen
+cmd/          every runnable: editors, demos, tuners
+  premiere/   the two-scene screenplay (arrival, THE END)
+  lander/     the continuous-descent demo
+  stars/      the starfield strategy browser
+  preview/    atlas / fire / rocket previews and tapes
+  editor/     the vim-ish LM sprite editor (edits components/lander/lm.json)
+  adjustflame/  tunes components/fire/config.json
+  adjuststars/  tunes components/stars/config.json
+menu/ sim/ ui/  the launcher and the legacy Executive sim
+```
 
-- **Top**: how much **free compute** is left (the star of the show), duty, counter
-  steal, deficit, PROG lamp, FAILREG alarm codes.
-- **2s CYCLE bar**: progress through the current READACCS/SERVICER guidance period,
-  plus the DSKY (verb/noun/R3).
+Components live one lifecycle (see `screenplay/README.md`): `Start(w, h)`
+allocates for the stage, `Update(dt)` runs the clock, `Render()` returns a
+stage-sized `sprite.Sprite`, `Stop()` frees — and `Start` may come again.
+Each component's tuning file sits beside its code, so the tuners, the
+premiere, and the editor all read the same home.
+
+## The legacy Executive sim
+
+An interactive, real-time TUI simulation of the Lunar Module guidance
+computer's **Executive** (its operating system) during the powered descent
+— the LEGACY EXEC entry in the launcher. You don't fly the spacecraft —
+you fly the *computer*: start the 2-second guidance cycles, type on the
+DSKY (every keystroke costs real compute), flip on the rendezvous-radar
+bug that stole ~15% of the machine, and watch the 1201/1202 alarms of
+July 20, 1969 develop, fire, and recover — exactly the way they did at
+33,000 feet.
+
+Built for an educational video. Every number is sourced: see
+[`RESEARCH.md`](RESEARCH.md). Design and controls: [`ROADMAP.md`](ROADMAP.md).
+
+Best at ≥140×45. Time runs at 20× slow motion by default (1 wall second =
+50 ms of AGC time) so you can watch individual preemptions; `]` speeds it up.
+
+### The screen
+
+- **Top**: how much **free compute** is left (the star of the show), duty,
+  counter steal, deficit, PROG lamp, FAILREG alarm codes.
+- **2s CYCLE bar**: progress through the current READACCS/SERVICER guidance
+  period, plus the DSKY (verb/noun/R3).
 - **Left, long lines**: the tasks that need computing — one scrolling execution
   timeline per job/interrupt (SERVICER, MONITOR, CHARIN, DAP, T4RUPT, …), plus the
   invisible **RR STEAL** row and the shrinking **IDLE** row.
@@ -40,7 +76,7 @@ AGC time) so you can watch individual preemptions; `]` speeds it up.
   job takes the CPU and the newest copy wins the rescan.
 - **Bottom dashes**: your controls.
 
-## Controls
+### Controls
 
 | Key | Action |
 | :-- | :----- |
@@ -57,7 +93,7 @@ AGC time) so you can watch individual preemptions; `]` speeds it up.
 | `x` | Reset |
 | `q` | Quit |
 
-## Reproduce July 20, 1969
+### Reproduce July 20, 1969
 
 1. `d` — PDI. Watch a healthy 2-second cycle: SERVICER finishes with room to spare.
 2. `l` — landing radar locks. Margin shrinks. **Don't skip this one**: without the

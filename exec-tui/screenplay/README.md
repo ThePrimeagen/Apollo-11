@@ -1,11 +1,11 @@
-# screenplay-lab
+# screenplay
 
-A screenplay is scenes in order; a scene is anything that can start,
-update, render, and stop. `space` cuts to the next scene. The lab
-premieres a two-scene bill:
+A screenplay is scenes in order; a scene is a cast of components playing
+over time. `space` cuts to the next scene. The premiere plays a
+two-scene bill:
 
 - **Scene 1 — arrival.** A drifting starfield. The full zoomed-in craft
-  (the size-4, 26×10 west-facing frame from the lander-lab atlas) slides in
+  (the size-4, 26×10 west-facing frame from the lander atlas) slides in
   from the right wing with live left-to-right booster fire trailing off its
   tail, parks at center stage, then bobbles one full cell up and down on a
   sine with a 10-second period. (Half a cell needs half-shifted art the
@@ -14,40 +14,17 @@ premieres a two-scene bill:
   centered under the same sky.
 
 ```bash
-cd screenplay-lab
-go run .                # interactive
-go run . -seconds 30    # auto-quit, handy for tapes
+cd exec-tui
+go run ./cmd/premiere                # interactive
+go run ./cmd/premiere -seconds 30    # auto-quit, handy for tapes
 ```
 
 `space` cuts to the next scene (the final scene holds). `q` / `ctrl+c` quit.
 
-## adjuststars: the sky tuner
-
-Another adjusting scene, in the adjustflame mold: the whole starfield
-plays behind a panel of eight numbers — a fly **delay** (ticks per cell,
-lower is faster) and a **density** (stars per 1000 cells) for each of the
-four star layers (`·` dust, `˚` spark, `*` mid, `✦` near). The sky reacts
-live as you turn the knobs.
-
-```bash
-go run ./cmd/adjuststars/main               # edits cmd/adjuststars/stars.json
-go run ./cmd/adjuststars/main -seconds 15   # auto-quit, handy for tapes
-```
-
-`j`/`k` (or arrows) pick a number, `h`/`l` change it, `s` **saves the
-config file and quits** (the same file-loading shape as the fire's
-`flame.json`), `q` quits without saving. The tuner is itself a
-`screenplay.Scene` on a one-scene bill — the same lifecycle that runs the
-premiere runs the tool.
-
-The premiere reads the same file at boot (`-stars`, default
-`cmd/adjuststars/stars.json`) and its scenes cast `NewTunedStarfield()`,
-which follows the active sky every frame — so a tuned sky just works in
-any scene, and a missing file just means the stock sky.
-
 ## The shape
 
-Every scene implements the same four verbs:
+Two interfaces carry the whole show. A scene is anything that can start,
+update, render onto the shared screen, and stop:
 
 ```go
 type Scene interface {
@@ -58,29 +35,78 @@ type Scene interface {
 }
 ```
 
+A component is one performer inside a scene. It never touches the
+screen — every frame it hands back a sprite, and the scene composites
+the cast in its own order:
+
+```go
+type Component interface {
+    Start(width, height int) // allocate everything for a w×h stage
+    Update(dt float64)       // advance internal clocks; no render data
+    Render() sprite.Sprite   // this instant's pixels, stage-sized
+    Stop()                   // free what Start built; Start may come again
+}
+```
+
+The lifecycle loops — Start, update, render, update, render, …, Stop —
+and a later Start re-allocates from scratch, so a stopped component
+holds nothing. The stars are the model citizen: `Start` scatters and
+caches the star catalog, `Render` flies it by tick, `Stop` deletes the
+array, and the next `Start` scatters again.
+
+`Ensemble` is the common scene shape: `Assemble` builds the cast at the
+curtain, the components start on the first render (the moment the stage
+size is known), a resize is a stop-and-restart at the new size, and
+render order is cast order — later sprites land on top, transparent
+cells sparing whatever is beneath. There is no z-index: every scene
+decides ordering by how it lines up its cast.
+
 The `Screen` is the shared render target: one Lip Gloss v2 canvas — a
-`uv.Cell` of content plus style (foreground, background, attributes) per
-terminal cell, everything lip gloss needs to draw it — plus `Resize` /
-`Resized` bookkeeping so a terminal change repaints everything. The
-screenplay owns the frame loop: it hands the same screen pointer to the
-current scene's `Render` after clearing it, updates only the scene now
-playing (so each scene's clocks start at its cut), and `Next()` stops the
-old scene before starting the new. The TUI then puts `screen.Render()` on
-the terminal.
+`uv.Cell` of content plus style per terminal cell — plus `Resize` /
+`Resized` bookkeeping. `Screen.PutCell` and `Screen.Blit` speak the
+components' xterm-256 color language (-1 for "no color"), so the whole
+canvas goes to lip gloss in one `screen.Render()`. The screenplay owns
+the frame loop: it clears the screen, updates only the scene now playing
+(so each scene's clocks start at its cut), renders it, and `Next()`
+stops the old scene before starting the new.
 
 | Package | What it owns |
 | --- | --- |
-| `screenplay` | `Screen` (the lip gloss cell canvas + frame bookkeeping), `Scene` (the four-verb interface), `Ensemble` (the common scene shape: a cast of `Actor`s assembled at curtain, dropped at Stop), `Screenplay` (the lifecycle cursor) |
-| `cast` | The troupe: `Ship` (atlas hull + slimmed booster plume + `FlightPath` choreography), `Starfield` (wraps `stars.Field`), `Title` (wraps `termfont`), and the blit bridge from the labs' xterm-256 sprites onto screen cells |
+| `screenplay` | `Screen` (the lip gloss cell canvas + xterm blit bridge), `Scene` and `Component` (the four-verb interfaces), `Ensemble` (the common scene shape), `Screenplay` (the lifecycle cursor) |
+| `components/stars` | `Starfield` — the cached-catalog sky |
+| `components/lander` | `Ship` — atlas hull + slimmed booster plume + `FlightPath` choreography |
+| `components/title` | `Title` — banner cards set in terminal-fonts |
 
-The `screenplay` package knows nothing about the lander, stars, or fonts —
-it speaks lip gloss cells only. The labs' art crosses over in one place,
-`cast/blit.go`.
+The `screenplay` package knows nothing about landers, stars, or fonts —
+it speaks sprites and lip gloss cells only.
+
+## adjuststars: the sky tuner
+
+Another adjusting scene, in the adjustflame mold: the whole starfield
+plays behind a panel of eight numbers — a fly **delay** (ticks per cell,
+lower is faster) and a **density** (stars per 1000 cells) for each of the
+four star layers (`·` dust, `˚` spark, `*` mid, `✦` near). The sky reacts
+live as you turn the knobs.
+
+```bash
+go run ./cmd/adjuststars/main               # edits components/stars/config.json
+go run ./cmd/adjuststars/main -seconds 15   # auto-quit, handy for tapes
+```
+
+`j`/`k` (or arrows) pick a number, `h`/`l` change it, `s` **saves the
+config file and quits**, `q` quits without saving. The tuner is itself a
+`screenplay.Scene` on a one-scene bill — the same lifecycle that runs the
+premiere runs the tool.
+
+The premiere reads the same file at boot (`-stars`, default
+`components/stars/config.json`) and its scenes cast `NewTunedStarfield()`,
+which samples the active sky when it starts — so a tuned sky just works
+in any scene, and a missing file just means the stock sky.
 
 ## Reuse, not rewrites
 
 The ship is composed entirely from existing parts: the size-4 `W` frame
-(`sprite.Default()`), its baked tilde plume stripped, over a `fire`/
+(`lander.DefaultAtlas()`), its baked tilde plume stripped, over a `fire`/
 `particle` booster aimed `{X:1, Y:0}` — left-to-right fire out the tail
-while the craft flies west. Nothing in `lander-lab`, `stars-lab`, or
-`terminal-fonts` changed to put this on stage.
+while the craft flies west. Every part lives in `components/`, ready to
+be lifted into another project whole.

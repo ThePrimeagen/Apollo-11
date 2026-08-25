@@ -1,12 +1,12 @@
-# stars-lab
+# components/stars
 
-Standalone one-cell starfield. **Not wired into the lander or exec-tui** — run
-it by itself, then paint it behind whatever you want.
+The one-cell starfield component. Paint it first; everything else lands
+on top.
 
 ```bash
-cd stars-lab
-go run .                         # dust-rush (flying)
-go run . -strategy still         # stars hold still
+cd exec-tui
+go run ./cmd/stars                       # the demo: dust-rush (flying)
+go run ./cmd/stars -strategy still       # stars hold still
 ```
 
 `n` / `p` cycle styles. `space` pauses. `q` quits.
@@ -22,52 +22,32 @@ go run . -strategy still         # stars hold still
 Glyphs: `·` dust, `˚` spark, `*` mid, `✦` near. Colors are white with a little
 blue-white and red-white. `*` / `✦` are sparse (~25% of the dust layers).
 
-`Field.Density` is the per-layer frequency knob: stars per 1000 cells for
-dust, spark, mid, near. The zero value paints the stock sky
-(`DefaultDensity`, `{56, 33, 6, 4}`); larger numbers thicken a layer,
-capped at `MaxDensity` (400). Speed stays on `Strategy.Delay` — ticks per
-cell of travel, lower is faster.
+## The component
 
-`SkyConfig` is the file config, the same shape the fire's heat ladder
-uses: a JSON of the eight knobs (`delay` + `density` per layer) with
-`LoadSky` / `Save` / `Validate`, and a package-active setting —
-`UseSky` / `ActiveSky` / `ResetSky` — that consumers (like the
-screenplay-lab premiere and its `adjuststars` tuner) read so a tuned file
-just works.
+`Starfield` plays as a `screenplay.Component`: `Start(w, h)` scatters and
+**caches** the star catalog for that stage (`NewCatalog` — every star's
+home cell, laid out once), `Update(dt)` runs the fly clock, `Render()`
+paints the cached catalog into a stage-sized sprite, and `Stop()` deletes
+the array — a stopped sky holds no allocation, and the next `Start`
+re-scatters. `NewTunedStarfield()` samples the active sky settings at
+`Start`, so a tuned config just works in any scene.
 
-## How to integrate (lander, exec-tui, anything)
+`Field` is the one-shot shape underneath: `Field.Paint` scatters and
+paints in one breath (the demo and the tuner use it), and `Field.Density`
+is the per-layer frequency knob — stars per 1000 cells for dust, spark,
+mid, near. The zero value paints the stock sky (`DefaultDensity`,
+`{56, 33, 6, 4}`); larger numbers thicken a layer, capped at `MaxDensity`
+(400). Speed stays on `Strategy.Delay` — ticks per cell of travel, lower
+is faster.
 
-The component has **no** lander/DSKY imports. Paint it **first** so everything
-else overwrites the sky.
+## The config
 
-1. In the consumer module (`lander-lab/go.mod`, `exec-tui/go.mod`):
+`config.json` in this folder is the component's own tuning file — one
+`delay` and one `density` per layer. `SkyConfig` carries it: `LoadSky` /
+`Save` / `Validate`, plus the package-active setting — `UseSky` /
+`ActiveSky` / `ResetSky` — that consumers (the premiere, the
+`adjuststars` tuner) read so a tuned file just works.
 
+```bash
+go run ./cmd/adjuststars/main            # tunes components/stars/config.json
 ```
-require github.com/theprimeagen/apollo-11/stars-lab v0.0.0
-replace github.com/theprimeagen/apollo-11/stars-lab => ../stars-lab
-```
-
-2. Import `"github.com/theprimeagen/apollo-11/stars-lab/stars"`.
-
-3. After you allocate an empty cell grid, **before** header / craft / surface:
-
-```go
-stars.Field{
-    Width:    width,   // same as the destination grid
-    Height:   height,
-    Tick:     frame,   // ignored when Strategy is stars.Still
-    Strategy: stars.DustRush, // or stars.Still
-    Frozen:   false,   // true also freezes any flying style
-}.Paint(func(row, col int, ch rune, fg int) {
-    grid[row][col] = cell{ch, fg} // your cell type
-})
-```
-
-4. Then draw the lander, DSKY, captions on top as usual. Occupied cells
-   replace stars. Empty cells keep the sky.
-
-`Paint` is pure. `Render()` is the ANSI string the standalone TUI uses — you
-don't need it if you already have a grid.
-
-Not wired today: `lander-lab/lander.Render` and `exec-tui` do not import this
-package. That is intentional.

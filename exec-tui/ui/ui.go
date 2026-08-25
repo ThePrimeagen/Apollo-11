@@ -16,8 +16,8 @@ import (
 
 	"github.com/theprimeagen/apollo-11/button-lab/button"
 	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
-	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander/descent"
+	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 )
 
 // ---------------------------------------------------------------------------
