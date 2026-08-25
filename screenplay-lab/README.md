@@ -30,13 +30,20 @@ four star layers (`·` dust, `˚` spark, `*` mid, `✦` near). The sky reacts
 live as you turn the knobs.
 
 ```bash
-go run ./cmd/adjuststars/main
+go run ./cmd/adjuststars/main               # edits cmd/adjuststars/stars.json
 go run ./cmd/adjuststars/main -seconds 15   # auto-quit, handy for tapes
 ```
 
-`j`/`k` (or arrows) pick a number, `h`/`l` change it, `q` quits. The tuner
-is itself a `screenplay.Scene` on a one-scene bill — the same lifecycle
-that runs the premiere runs the tool.
+`j`/`k` (or arrows) pick a number, `h`/`l` change it, `s` **saves the
+config file and quits** (the same file-loading shape as the fire's
+`flame.json`), `q` quits without saving. The tuner is itself a
+`screenplay.Scene` on a one-scene bill — the same lifecycle that runs the
+premiere runs the tool.
+
+The premiere reads the same file at boot (`-stars`, default
+`cmd/adjuststars/stars.json`) and its scenes cast `NewTunedStarfield()`,
+which follows the active sky every frame — so a tuned sky just works in
+any scene, and a missing file just means the stock sky.
 
 ## The shape
 

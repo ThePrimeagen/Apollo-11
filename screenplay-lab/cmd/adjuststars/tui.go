@@ -8,6 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
+	"github.com/theprimeagen/apollo-11/stars-lab/stars"
+
 	"github.com/theprimeagen/apollo-11/screenplay-lab/screenplay"
 )
 
@@ -37,7 +39,24 @@ type Model struct {
 // Open reads the sky-config JSON at path, makes it the active sky, and
 // seeds the tuner from it. A missing or invalid file is an error.
 func Open(path string, seconds float64) (Model, error) {
-	return Model{}, nil
+	c, err := stars.LoadSky(path)
+	if err != nil {
+		return Model{}, err
+	}
+	if err := stars.UseSky(c); err != nil {
+		return Model{}, err
+	}
+	m := NewModel(seconds)
+	m.Path = path
+	return m, nil
+}
+
+// sky is the config the knobs currently describe.
+func (m Model) sky() stars.SkyConfig {
+	return stars.SkyConfig{
+		Delay:   m.tuner.Delays[:],
+		Density: m.tuner.Densities[:],
+	}
 }
 
 // NewModel opens the tuner scene, optionally auto-quitting after
@@ -96,16 +115,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tuner.Move(-1)
 		case "l", "right":
 			m.tuner.Nudge(1)
+			m.apply()
 		case "h", "left":
 			m.tuner.Nudge(-1)
+			m.apply()
+		case "s":
+			if m.Path == "" {
+				m.note = "no config path — open the tool with -config"
+				return m, nil
+			}
+			if err := m.sky().Save(m.Path); err != nil {
+				m.note = "save failed: " + err.Error()
+				return m, nil
+			}
+			m.Saved = true
+			m.play.Stop()
+			return m, tea.Quit
 		}
 	}
 	return m, nil
 }
 
-// View is the rendered screen, exactly window height.
+// apply puts the knobs in effect as the active sky, live, so any
+// tuned scene in the process follows along. The rails sit inside the
+// config bounds, so this cannot fail.
+func (m Model) apply() {
+	_ = stars.UseSky(m.sky())
+}
+
+// View is the rendered screen, exactly window height, with the save
+// note (if any) pinned under the panel.
 func (m Model) View() tea.View {
 	m.play.Render(m.screen)
+	if m.note != "" {
+		putText(m.screen, 0, 1+Rows, m.note+" ", 203)
+	}
 	_, h := m.screen.Size()
 	rows := strings.Split(m.screen.Render(), "\n")
 	for len(rows) < h {

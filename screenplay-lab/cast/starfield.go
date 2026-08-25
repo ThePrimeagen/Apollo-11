@@ -27,7 +27,7 @@ func NewStarfield(s stars.Strategy) *Starfield {
 // NewTunedStarfield opens a sky that follows the active sky settings
 // on every frame, so a tuned config file just works in any scene.
 func NewTunedStarfield() *Starfield {
-	return &Starfield{}
+	return &Starfield{Tuned: true}
 }
 
 // Update accumulates time. dt <= 0 holds the sky.
@@ -49,6 +49,11 @@ func (f *Starfield) Render(scr *screenplay.Screen) {
 		Height:   h,
 		Tick:     int(f.clock * StarFPS),
 		Strategy: f.Strategy,
+	}
+	if f.Tuned {
+		sky := stars.ActiveSky()
+		field.Strategy = sky.FlyStrategy()
+		field.Density = sky.DensityLayers()
 	}
 	field.Paint(func(row, col int, ch rune, fg int) {
 		PutCell(scr, col, row, ch, fg, -1)

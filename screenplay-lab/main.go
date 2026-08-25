@@ -43,7 +43,7 @@ func premiere() *screenplay.Screenplay {
 		screenplay.Entry{Name: "arrival", Scene: &screenplay.Ensemble{
 			Assemble: func() []screenplay.Actor {
 				return []screenplay.Actor{
-					cast.NewStarfield(stars.Drift),
+					cast.NewTunedStarfield(),
 					cast.NewShip(11),
 				}
 			},
@@ -51,7 +51,7 @@ func premiere() *screenplay.Screenplay {
 		screenplay.Entry{Name: "the end", Scene: &screenplay.Ensemble{
 			Assemble: func() []screenplay.Actor {
 				return []screenplay.Actor{
-					cast.NewStarfield(stars.Drift),
+					cast.NewTunedStarfield(),
 					mustTitle("THE END", 5),
 				}
 			},
@@ -74,7 +74,17 @@ func mustTitle(text string, height int) *cast.Title {
 // — the premiere just works with or without a tuning session behind
 // it. A broken file is an error worth stopping for.
 func applySky(path string) (bool, error) {
-	return false, nil
+	c, err := stars.LoadSky(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := stars.UseSky(c); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // forcedColorProfile mirrors exec-tui: profile detection fails in
@@ -185,7 +195,13 @@ func pad(s string, w int) string {
 
 func main() {
 	seconds := flag.Float64("seconds", 0, "auto-quit after N seconds (0 = interactive)")
+	skyPath := flag.String("stars", "cmd/adjuststars/stars.json",
+		"sky config JSON (adjuststars); a missing file keeps the stock sky")
 	flag.Parse()
+	if _, err := applySky(*skyPath); err != nil {
+		fmt.Fprintln(os.Stderr, "screenplay-lab:", err)
+		os.Exit(1)
+	}
 	var opts []tea.ProgramOption
 	if p, ok := forcedColorProfile(); ok {
 		opts = append(opts, tea.WithColorProfile(p))

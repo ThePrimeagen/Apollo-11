@@ -28,6 +28,13 @@ dust, spark, mid, near. The zero value paints the stock sky
 capped at `MaxDensity` (400). Speed stays on `Strategy.Delay` — ticks per
 cell of travel, lower is faster.
 
+`SkyConfig` is the file config, the same shape the fire's heat ladder
+uses: a JSON of the eight knobs (`delay` + `density` per layer) with
+`LoadSky` / `Save` / `Validate`, and a package-active setting —
+`UseSky` / `ActiveSky` / `ResetSky` — that consumers (like the
+screenplay-lab premiere and its `adjuststars` tuner) read so a tuned file
+just works.
+
 ## How to integrate (lander, exec-tui, anything)
 
 The component has **no** lander/DSKY imports. Paint it **first** so everything

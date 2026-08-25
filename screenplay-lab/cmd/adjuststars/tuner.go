@@ -44,13 +44,15 @@ func NewTuner() *Tuner {
 	return &Tuner{}
 }
 
-// Start seeds the knobs: the drift delays and the stock densities.
+// Start seeds the knobs from the active sky — the stock drift settings
+// until a config file has been loaded or used.
 func (t *Tuner) Start() {
 	if t == nil {
 		return
 	}
-	t.Delays = stars.Drift.Delay
-	t.Densities = stars.DefaultDensity
+	sky := stars.ActiveSky()
+	t.Delays = sky.FlyStrategy().Delay
+	t.Densities = sky.DensityLayers()
 	t.Cursor = 0
 	t.clock = 0
 }
@@ -114,7 +116,7 @@ func (t *Tuner) field(w, h int) stars.Field {
 
 // panel is the header and the eight rows, opaque over the sky.
 func (t *Tuner) panel(scr *screenplay.Screen) {
-	putText(scr, 0, 0, "adjust stars   j/k select  h/l change  q quit ", 245)
+	putText(scr, 0, 0, "adjust stars   j/k select  h/l change  s save+quit  q quit ", 245)
 	for i := 0; i < Rows; i++ {
 		kind := i / 2
 		marker, fg := "  ", 250

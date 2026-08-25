@@ -1,6 +1,7 @@
-// adjuststars tunes the starfield live: the whole sky plays behind a
-// panel of eight numbers — a fly delay and a density for each of the
-// four star layers. j/k select, h/l change, q quits.
+// adjuststars reads the sky-config JSON, tunes the starfield live —
+// the whole sky plays behind a panel of eight numbers, a fly delay and
+// a density for each of the four star layers — and writes the file
+// back on save. j/k select, h/l change, s saves and quits, q quits.
 //
 //	go run ./cmd/adjuststars/main
 //	go run ./cmd/adjuststars/main -seconds 15
@@ -17,13 +18,18 @@ import (
 )
 
 func main() {
+	path := flag.String("config", "cmd/adjuststars/stars.json", "sky config JSON")
 	seconds := flag.Float64("seconds", 0, "auto-quit after N seconds (0 = interactive)")
 	flag.Parse()
+	m, err := adjuststars.Open(*path, *seconds)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "adjuststars:", err)
+		os.Exit(1)
+	}
 	var opts []tea.ProgramOption
 	if p, ok := adjuststars.ForcedColorProfile(); ok {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
-	m := adjuststars.NewModel(*seconds)
 	if _, err := tea.NewProgram(m, opts...).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "adjuststars:", err)
 		os.Exit(1)
