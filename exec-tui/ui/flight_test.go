@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 )
@@ -109,7 +109,7 @@ func TestLanderPanel(t *testing.T) {
 		e, m := newWideTestModel()
 		m = key(m, 'f')
 		m = flyTo(t, e, m, 3)
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "ft/s") {
 			t.Fatal("the lander telemetry must render during the flight")
 		}
@@ -124,14 +124,14 @@ func TestLanderPanel(t *testing.T) {
 		if len(e.Alarms()) == 0 {
 			t.Fatal("precondition: an alarm must have fired")
 		}
-		v := stripAnsi(m.View())
+		v := stripAnsi(m.View().Content)
 		if !strings.Contains(v, "◄ 120") {
 			t.Fatal("the engine's alarm must appear as a marker on the descent")
 		}
 	})
 	t.Run("unhappy: no lander outside a flight, and none on narrow screens", func(t *testing.T) {
 		_, m := newWideTestModel()
-		if strings.Contains(m.View(), "ft/s") {
+		if strings.Contains(m.View().Content, "ft/s") {
 			t.Fatal("no lander panel before a flight starts")
 		}
 		e2 := sim.New()
@@ -140,7 +140,7 @@ func TestLanderPanel(t *testing.T) {
 		m2 = mm.(Model)
 		m2 = key(m2, 'f')
 		m2 = flyTo(t, e2, m2, 3)
-		if strings.Contains(m2.View(), "ft/s") {
+		if strings.Contains(m2.View().Content, "ft/s") {
 			t.Fatal("narrow terminals must skip the lander panel instead of wrapping")
 		}
 	})

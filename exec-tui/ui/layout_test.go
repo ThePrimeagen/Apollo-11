@@ -32,7 +32,7 @@ func TestPoolsRowWise(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(100)
-		v := m.View()
+		v := m.View().Content
 		if !strings.Contains(v, "CORE SETS") || !strings.Contains(v, "VAC AREAS") {
 			t.Fatal("pool titles must render")
 		}
@@ -50,7 +50,7 @@ func TestNoEventLog(t *testing.T) {
 		if len(e.Events()) == 0 {
 			t.Fatal("the engine must still record events")
 		}
-		v := m.View()
+		v := m.View().Content
 		if strings.Contains(v, "READACCS: read PIPAs") || strings.Contains(v, "powered descent —") {
 			t.Fatal("the event log must not render anymore")
 		}
@@ -65,7 +65,7 @@ func TestNoEventLog(t *testing.T) {
 		if !e.KnifeEdge() {
 			t.Fatal("the engine must still report the knife edge")
 		}
-		if strings.Contains(m.View(), "knife edge") {
+		if strings.Contains(m.View().Content, "knife edge") {
 			t.Fatal("no knife-edge text may render — the number tells it")
 		}
 	})
@@ -77,7 +77,7 @@ func TestCompactHeight(t *testing.T) {
 		e.StartDescent()
 		e.SetRadarBug(true)
 		e.AdvanceAGC(5000)
-		if got := len(strings.Split(m.View(), "\n")); got > 33 {
+		if got := len(strings.Split(m.View().Content, "\n")); got > 33 {
 			t.Fatalf("compact layout must fit in 33 lines, got %d", got)
 		}
 	})
@@ -87,7 +87,7 @@ func TestCompactHeight(t *testing.T) {
 		e.AdvanceAGC(100)
 		// The VERB label lives only on the DSKY; it must start in the right
 		// half of a 140-wide screen.
-		for _, line := range strings.Split(m.View(), "\n") {
+		for _, line := range strings.Split(m.View().Content, "\n") {
 			if i := strings.Index(stripAnsi(line), "VERB"); i >= 0 {
 				if i < 100 {
 					t.Fatalf("DSKY must hug the right edge, VERB at col %d", i)
@@ -99,7 +99,7 @@ func TestCompactHeight(t *testing.T) {
 	})
 	t.Run("unhappy: phase P00 still renders the full structure", func(t *testing.T) {
 		_, m := newTestModel()
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"SERVICER", "CORE SETS", "VAC AREAS", "PROG", "DESCENT", "RR STEAL"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("compact idle view missing %q", want)
@@ -113,11 +113,11 @@ func TestTimelineCellGrouping(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(2500)
-		prev := rowCells(t, m.View(), "DAP")
+		prev := rowCells(t, m.View().Content, "DAP")
 		shifts := 0
 		for i := 0; i < 40; i++ {
 			e.AdvanceAGC(10) // one bucket: at 5 buckets/cell most frames hold still
-			next := rowCells(t, m.View(), "DAP")
+			next := rowCells(t, m.View().Content, "DAP")
 			if !stableStep(prev, next) {
 				t.Fatalf("frame %d re-paired the row:\nprev %q\nnext %q", i, prev, next)
 			}

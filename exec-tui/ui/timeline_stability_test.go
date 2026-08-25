@@ -19,10 +19,11 @@ func rowCells(t *testing.T, v, label string) []rune {
 	t.Helper()
 	const labelW, trackW = 16, 48
 	for _, line := range strings.Split(v, "\n") {
-		if strings.HasPrefix(line, label) {
-			r := []rune(line)
+		plain := stripAnsi(line)
+		if strings.HasPrefix(plain, label) {
+			r := []rune(plain)
 			if len(r) < labelW+trackW {
-				t.Fatalf("row %q too short: %q", label, line)
+				t.Fatalf("row %q too short: %q", label, plain)
 			}
 			return r[labelW : labelW+trackW]
 		}
@@ -48,11 +49,11 @@ func TestTimelineNoBlinking(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(2500) // fill the track
-		prev := rowCells(t, m.View(), "DAP")
+		prev := rowCells(t, m.View().Content, "DAP")
 		shifts := 0
 		for i := 0; i < 30; i++ {
 			e.AdvanceAGC(10) // exactly one bucket
-			next := rowCells(t, m.View(), "DAP")
+			next := rowCells(t, m.View().Content, "DAP")
 			if !stableStep(prev, next) {
 				t.Fatalf("frame %d re-paired the row:\nprev %q\nnext %q", i, prev, next)
 			}
@@ -69,10 +70,10 @@ func TestTimelineNoBlinking(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(300)
-		prev := rowCells(t, m.View(), "SERVICER")
+		prev := rowCells(t, m.View().Content, "SERVICER")
 		for i := 0; i < 20; i++ {
 			e.AdvanceAGC(10)
-			next := rowCells(t, m.View(), "SERVICER")
+			next := rowCells(t, m.View().Content, "SERVICER")
 			if !stableStep(prev, next) {
 				t.Fatalf("young-history frame %d re-paired:\nprev %q\nnext %q", i, prev, next)
 			}

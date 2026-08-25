@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 	"github.com/theprimeagen/apollo-11/exec-tui/ui"
 )
 
 func main() {
-	ui.ForceColorIfRequested()
+	var opts []tea.ProgramOption
+	if p, ok := ui.ForcedColorProfile(); ok {
+		opts = append(opts, tea.WithColorProfile(p))
+	}
 	engine := sim.New()
-	p := tea.NewProgram(ui.NewModel(engine), tea.WithAltScreen())
+	p := tea.NewProgram(ui.NewModel(engine), opts...)
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "exec-tui:", err)
 		os.Exit(1)

@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
 )
@@ -31,7 +31,7 @@ func main() {
 		}
 		return
 	}
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

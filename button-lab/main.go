@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/theprimeagen/apollo-11/button-lab/button"
 )
@@ -39,10 +39,11 @@ func (m labModel) Init() tea.Cmd { return nil }
 
 func (m labModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC:
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
+		}
+		switch msg.Code {
 		case tea.KeyEnter, tea.KeySpace:
 			m.switches[m.col].Toggle()
 			return m, nil
@@ -51,8 +52,8 @@ func (m labModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyRight:
 			m.col = (m.col + 1) % 3
 		}
-		if len(msg.Runes) == 1 {
-			switch msg.Runes[0] {
+		if r, ok := keyRune(msg); ok {
+			switch r {
 			case 'q':
 				return m, tea.Quit
 			case 'h':
@@ -66,13 +67,22 @@ func (m labModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// keyRune returns the single printable rune of a key press, if any.
+func keyRune(msg tea.KeyPressMsg) (rune, bool) {
+	rs := []rune(msg.Text)
+	if len(rs) != 1 {
+		return 0, false
+	}
+	return rs[0], true
+}
+
 var (
 	dim    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	bright = lipgloss.NewStyle().Foreground(lipgloss.Color("223")).Bold(true)
 	title  = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
 )
 
-func (m labModel) View() string {
+func (m labModel) View() tea.View {
 	var b strings.Builder
 	b.WriteString(title.Render("SWITCH LAB · cockpit toggles") +
 		dim.Render("   h/l move · space/enter flick · q quit"))
@@ -89,11 +99,13 @@ func (m labModel) View() string {
 	}
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, cols[0], "   ", cols[1], "   ", cols[2]))
 	b.WriteString("\n")
-	return b.String()
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
 }
 
 func main() {
-	if _, err := tea.NewProgram(newLab(), tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(newLab()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "button-lab:", err)
 		os.Exit(1)
 	}

@@ -12,15 +12,12 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
-
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 )
 
 func TestTopIsJustFree(t *testing.T) {
 	t.Run("happy: the first line is the free percentage and nothing else", func(t *testing.T) {
 		_, m := newTestModel()
-		top := stripAnsi(strings.Split(m.View(), "\n")[0])
+		top := stripAnsi(strings.Split(m.View().Content, "\n")[0])
 		if !strings.Contains(top, "FREE COMPUTE") || !strings.Contains(top, "%") {
 			t.Fatalf("the top line must carry the free percentage, got %q", top)
 		}
@@ -34,7 +31,7 @@ func TestTopIsJustFree(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(1000)
-		v := m.View()
+		v := m.View().Content
 		for _, gone := range []string{"2s CYCLE", "of AGC time", "ms/cell", "ruler marks", "[z] zoom", "(ms per 2s cycle)"} {
 			if strings.Contains(v, gone) {
 				t.Fatalf("the explainer text must be gone, found %q", gone)
@@ -54,28 +51,18 @@ func TestTopIsJustFree(t *testing.T) {
 			e.PressKey(k)
 		}
 		e.AdvanceAGC(8000)
-		top := stripAnsi(strings.Split(m.View(), "\n")[0])
+		top := stripAnsi(strings.Split(m.View().Content, "\n")[0])
 		if !strings.Contains(top, "-") {
 			t.Fatalf("an overloaded machine must show a negative free percentage, got %q", top)
 		}
 	})
 }
 
-// withColor forces a color profile so background tints reach the test
-// output (lipgloss strips color without a TTY), restoring it afterwards.
-func withColor(t *testing.T) {
-	t.Helper()
-	prev := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.ANSI256)
-	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
-}
-
 func TestCycleGridlines(t *testing.T) {
 	t.Run("happy: a 2-second ruler tints every row at the same column", func(t *testing.T) {
-		withColor(t)
 		e, m := newTestModel()
 		e.AdvanceAGC(4100) // two absolute 2s marks inside the window
-		v := m.View()
+		v := m.View().Content
 		idleCols := markerCols(t, v, "IDLE")
 		if len(idleCols) == 0 {
 			t.Fatal("the idle row must show at least one 2s ruler tint")
@@ -86,10 +73,9 @@ func TestCycleGridlines(t *testing.T) {
 		}
 	})
 	t.Run("happy: ruler tints sit 40 cells (2.0s at 50ms) apart when two are visible", func(t *testing.T) {
-		withColor(t)
 		e, m := newTestModel()
 		e.AdvanceAGC(6100)
-		cols := markerCols(t, m.View(), "IDLE")
+		cols := markerCols(t, m.View().Content, "IDLE")
 		if len(cols) >= 2 {
 			if d := cols[1] - cols[0]; d != 40 {
 				t.Fatalf("ruler spacing must be 40 cells, got %d", d)
@@ -102,7 +88,7 @@ func TestCycleGridlines(t *testing.T) {
 		e.AdvanceAGC(4100)
 		// SERVICER dominates nearly every cell; the ruler must never replace
 		// its blocks with a marker glyph — it lives behind them.
-		row := rowCells(t, m.View(), "SERVICER")
+		row := rowCells(t, m.View().Content, "SERVICER")
 		blocks := 0
 		for _, r := range row {
 			if r == '█' {
@@ -124,18 +110,18 @@ func TestStatsCarriesTheRest(t *testing.T) {
 	t.Run("happy: PAUSED and TYPING chips live on the free line, only when active", func(t *testing.T) {
 		_, m := newTestModel()
 		m = key(m, '.')
-		if !strings.Contains(strings.Split(m.View(), "\n")[0], "PAUSED") {
+		if !strings.Contains(strings.Split(m.View().Content, "\n")[0], "PAUSED") {
 			t.Fatal("pause must show on the free line")
 		}
 		m = key(m, '.')
 		m = key(m, 't')
-		if !strings.Contains(strings.Split(m.View(), "\n")[0], "TYPING") {
+		if !strings.Contains(strings.Split(m.View().Content, "\n")[0], "TYPING") {
 			t.Fatal("typing mode must show on the free line")
 		}
 	})
 	t.Run("unhappy: no chips render when nothing is active", func(t *testing.T) {
 		_, m := newTestModel()
-		top := m.View()
+		top := m.View().Content
 		for _, gone := range []string{"PAUSED", "TYPING", "FAILREG", "knife edge", "stubs leaked"} {
 			if strings.Contains(top, gone) {
 				t.Fatalf("idle view must carry no %q text", gone)

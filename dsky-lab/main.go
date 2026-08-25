@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
 )
@@ -189,21 +189,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.frame++
 		m.d.advance(frameMs)
 		return m, tick()
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC {
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if len(msg.Runes) == 1 {
-			if msg.Runes[0] == 'q' {
+		if r, ok := keyRune(msg); ok {
+			if r == 'q' {
 				return m, tea.Quit
 			}
-			m.d.press(byte(msg.Runes[0]))
+			m.d.press(byte(r))
 		}
 	}
 	return m, nil
 }
 
-func (m model) View() string {
+// keyRune returns the single printable rune of a key press, if any.
+func keyRune(msg tea.KeyPressMsg) (rune, bool) {
+	rs := []rune(msg.Text)
+	if len(rs) != 1 {
+		return 0, false
+	}
+	return rs[0], true
+}
+
+func (m model) View() tea.View {
 	dim := "\x1b[38;5;240m"
 	reset := "\x1b[0m"
 	blinkOn := (m.frame/12)%2 == 0
@@ -217,11 +226,13 @@ func (m model) View() string {
 	}
 	b.WriteString("\n" + pad + dim + m.d.caption() + reset + "\n")
 	b.WriteString(pad + dim + "[d] descent  [n] V16N68  [a] alarm  [r] rset  [q] quit" + reset + "\n")
-	return b.String()
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
 }
 
 func main() {
-	if _, err := tea.NewProgram(model{d: newDemo()}, tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(model{d: newDemo()}).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "dsky-lab:", err)
 		os.Exit(1)
 	}

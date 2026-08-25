@@ -48,10 +48,9 @@ func TestZoomLevels(t *testing.T) {
 		}
 	})
 	t.Run("happy: the 2s ruler spacing follows the zoom", func(t *testing.T) {
-		withColor(t)
 		e, m := newTestModel()
 		e.AdvanceAGC(6100)
-		cols := markerCols(t, m.View(), "IDLE")
+		cols := markerCols(t, m.View().Content, "IDLE")
 		if len(cols) >= 2 {
 			if d := cols[1] - cols[0]; d != 40 {
 				t.Fatalf("at 50ms/bar the ruler must sit 40 cells apart, got %d", d)

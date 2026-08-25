@@ -37,7 +37,7 @@ func TestRowCosts(t *testing.T) {
 	t.Run("happy: every row shows a zero-filled 4-digit ms cost", func(t *testing.T) {
 		e, m := newTestModel()
 		e.AdvanceAGC(4100)
-		v := m.View()
+		v := m.View().Content
 		for _, label := range []string{"SERVICER", "MONITOR", "CHARIN", "DAP", "RR STEAL", "IDLE"} {
 			_ = rowCost(t, v, label)
 		}
@@ -45,7 +45,7 @@ func TestRowCosts(t *testing.T) {
 	t.Run("happy: an idle machine charges almost everything to IDLE", func(t *testing.T) {
 		e, m := newTestModel()
 		e.AdvanceAGC(4100)
-		v := m.View()
+		v := m.View().Content
 		if got := rowCost(t, v, "IDLE"); got < 1900 {
 			t.Fatalf("idle should hold ~2000ms of the 2s window, got %d", got)
 		}
@@ -60,7 +60,7 @@ func TestRowCosts(t *testing.T) {
 			e.PressKey(k)
 		}
 		e.AdvanceAGC(6100)
-		got := rowCost(t, m.View(), "MONITOR")
+		got := rowCost(t, m.View().Content, "MONITOR")
 		if got < 40 || got > 90 {
 			t.Fatalf("V16N68 at 1Hz should need ~60ms per cycle, got %d", got)
 		}
@@ -70,7 +70,7 @@ func TestRowCosts(t *testing.T) {
 		e.StartDescent()
 		e.SetRadarBug(true)
 		e.AdvanceAGC(6100)
-		v := m.View()
+		v := m.View().Content
 		if got := rowCost(t, v, "SERVICER"); got < 1000 {
 			t.Fatalf("SERVICER should consume >1000ms per cycle, got %d", got)
 		}
@@ -85,7 +85,7 @@ func TestRowCosts(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(4100)
-		v := m.View()
+		v := m.View().Content
 		for _, gone := range []string{"cycles ", "restarts ", "copies "} {
 			if strings.Contains(v, gone) {
 				t.Fatalf("the counters line must be gone, found %q", gone)
@@ -96,7 +96,7 @@ func TestRowCosts(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(2100)
-		v := m.View()
+		v := m.View().Content
 		start := -1
 		for _, line := range strings.Split(v, "\n") {
 			p := stripAnsi(line)

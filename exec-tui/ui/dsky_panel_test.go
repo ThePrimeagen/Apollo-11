@@ -120,7 +120,7 @@ func TestDSKYStateMapping(t *testing.T) {
 func TestDSKYPanelEmbedded(t *testing.T) {
 	t.Run("happy: the panel renders with its labels and lights", func(t *testing.T) {
 		_, m := newTestModel()
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"VERB", "NOUN", "PROG", "RESTART", "ALT", "VEL"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("embedded DSKY missing %q", want)
@@ -131,14 +131,14 @@ func TestDSKYPanelEmbedded(t *testing.T) {
 		e, m := newTestModel()
 		e.StartDescent()
 		e.AdvanceAGC(100)
-		if !strings.Contains(m.View(), "|_") {
+		if !strings.Contains(m.View().Content, "|_") {
 			t.Fatal("running descent must render seven-segment digits on the panel")
 		}
 	})
 	t.Run("unhappy: idle keeps the panel segment-dark", func(t *testing.T) {
 		e, m := newTestModel()
 		e.AdvanceAGC(100)
-		if strings.Contains(m.View(), "|_") {
+		if strings.Contains(m.View().Content, "|_") {
 			t.Fatal("an idle DSKY must show no lit segments")
 		}
 	})
@@ -152,7 +152,7 @@ func TestDSKYPanelEmbedded(t *testing.T) {
 		if !strings.Contains(m.dskyState().R1, "1202") {
 			t.Fatal("the alarm code must be readable on the DSKY")
 		}
-		if strings.Contains(m.View(), "FAILREG") {
+		if strings.Contains(m.View().Content, "FAILREG") {
 			t.Fatal("no FAILREG text may render — the DSKY carries the codes")
 		}
 	})

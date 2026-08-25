@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/components/fire"
 )
@@ -30,8 +30,8 @@ func send(m Model, msg tea.Msg) (Model, tea.Cmd) {
 	return got.(Model), cmd
 }
 
-func key(r rune) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+func key(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
 }
 
 func TestOpen(t *testing.T) {
@@ -187,7 +187,7 @@ func TestView(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"single", "braille", "yellow", "230", "j/k", "h/l", "s"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("view missing %q\n%s", want, v)
@@ -198,7 +198,7 @@ func TestView(t *testing.T) {
 		}
 	})
 	t.Run("unhappy: an empty model still renders", func(t *testing.T) {
-		v := Model{}.View()
+		v := Model{}.View().Content
 		if v == "" {
 			t.Fatal("empty model must still render something")
 		}
@@ -218,7 +218,7 @@ func TestPage(t *testing.T) {
 		if sp.Width < fire.CompassCols || sp.Height < fire.CompassRows {
 			t.Fatalf("page %dx%d is too small for the rose", sp.Width, sp.Height)
 		}
-		v := m.View()
+		v := m.View().Content
 		for _, want := range []string{"N", "NE", "E", "SE", "S", "SW", "W", "NW", "230"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("page missing %q\n%s", want, v)
@@ -239,7 +239,7 @@ func TestPage(t *testing.T) {
 	t.Run("unhappy: a tick with no rose does not panic", func(t *testing.T) {
 		m := Model{}
 		m, _ = send(m, TickMsg{})
-		if m.View() == "" {
+		if m.View().Content == "" {
 			t.Fatal("empty tick must still render")
 		}
 	})

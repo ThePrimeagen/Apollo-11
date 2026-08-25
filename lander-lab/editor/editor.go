@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/lander-lab/sprite"
 )
@@ -132,20 +132,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.TermW, m.TermH = msg.Width, msg.Height
 		return m, nil
-	case tea.MouseMsg:
+	case tea.MouseClickMsg:
 		m.handleMouse(msg)
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
 	return m, nil
 }
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.pendingWin {
 		m.pendingWin = false
-		switch msg.Type {
-		case tea.KeyEsc:
+		if msg.Code == tea.KeyEsc {
 			return m, nil
 		}
 		r := runeFrom(msg)
@@ -170,27 +169,27 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleInsert(msg)
 	}
 
-	switch msg.Type {
-	case tea.KeyCtrlC:
+	switch msg.String() {
+	case "ctrl+c":
 		return m, tea.Quit
-	case tea.KeyCtrlW:
+	case "ctrl+w":
 		m.pendingWin = true
 		return m, nil
-	case tea.KeyEsc:
+	case "esc":
 		m.sel = map[cellKey]bool{}
 		m.Inserting = false
 		return m, nil
-	case tea.KeyCtrlA:
+	case "ctrl+a":
 		if m.Win == WinCanvas {
 			m.shade(+1)
 		}
 		return m, nil
-	case tea.KeyCtrlB:
+	case "ctrl+b":
 		if m.Win == WinCanvas {
 			m.shade(-1)
 		}
 		return m, nil
-	case tea.KeySpace:
+	case "space":
 		m.space()
 		return m, nil
 	}
@@ -265,13 +264,13 @@ func (m *Model) winUp() {
 	}
 }
 
-func (m Model) handleInsert(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (m Model) handleInsert(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		m.Inserting = false
 		m.status = "insert cancelled"
 		return m, nil
-	case tea.KeyCtrlC:
+	case "ctrl+c":
 		return m, tea.Quit
 	}
 	r := runeFrom(msg)
@@ -288,15 +287,15 @@ func (m Model) handleInsert(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (m Model) handlePickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		m.closePicker(false)
 		return m, nil
-	case tea.KeySpace, tea.KeyEnter:
+	case "space", "enter":
 		m.closePicker(true)
 		return m, nil
-	case tea.KeyCtrlC:
+	case "ctrl+c":
 		return m, tea.Quit
 	}
 	r := runeFrom(msg)
@@ -312,16 +311,10 @@ func (m Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func runeFrom(msg tea.KeyMsg) rune {
-	if len(msg.Runes) == 1 {
-		return msg.Runes[0]
-	}
-	s := msg.String()
-	if s == " " {
-		return ' '
-	}
-	if len(s) == 1 {
-		return rune(s[0])
+func runeFrom(msg tea.KeyPressMsg) rune {
+	rs := []rune(msg.Text)
+	if len(rs) == 1 {
+		return rs[0]
 	}
 	return 0
 }
@@ -572,8 +565,8 @@ func cloneSprite(s sprite.Sprite) sprite.Sprite {
 	return out
 }
 
-func (m *Model) handleMouse(msg tea.MouseMsg) {
-	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+func (m *Model) handleMouse(msg tea.MouseClickMsg) {
+	if msg.Button != tea.MouseLeft {
 		return
 	}
 	x, y := msg.X, msg.Y
@@ -620,7 +613,7 @@ func (m Model) Save() error {
 	return m.Atlas.WriteFile(m.Path)
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	if m.TermW < 1 {
 		m.TermW = 80
 	}
@@ -651,7 +644,10 @@ func (m Model) View() string {
 	meta := fmt.Sprintf("cell (%d,%d) %q fg %d bg %d  [%s]",
 		m.CursorR, m.CursorC, string(cur.Ch), cur.FG, cur.BG, m.Win)
 
-	return title + "\n" + body + "\n" + meta + "\n" + status
+	v := tea.NewView(title + "\n" + body + "\n" + meta + "\n" + status)
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }
 
 func renderCanvas(sp sprite.Sprite, m Model) string {
