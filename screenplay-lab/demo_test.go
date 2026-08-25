@@ -9,6 +9,8 @@ package main
 // status line, always exactly window-height lines.
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -156,6 +158,39 @@ func TestPremiere(t *testing.T) {
 	t.Run("happy: Init schedules the first frame", func(t *testing.T) {
 		if newModel(0).Init() == nil {
 			t.Fatal("Init must start the clock")
+		}
+	})
+}
+
+func TestApplySky(t *testing.T) {
+	t.Run("happy: a tuned stars.json is applied as the active sky", func(t *testing.T) {
+		t.Cleanup(stars.ResetSky)
+		path := filepath.Join(t.TempDir(), "stars.json")
+		cfg := stars.SkyConfig{Delay: []int{1, 1, 1, 1}, Density: []int{99, 99, 99, 99}}
+		if err := cfg.Save(path); err != nil {
+			t.Fatalf("seed save: %v", err)
+		}
+		used, err := applySky(path)
+		if err != nil || !used {
+			t.Fatalf("applySky = %v/%v, want used and no error", used, err)
+		}
+		if stars.ActiveSky().DensityLayers() != [4]int{99, 99, 99, 99} {
+			t.Fatal("the premiere must fly the tuned sky")
+		}
+	})
+	t.Run("happy: a missing file quietly keeps the stock sky", func(t *testing.T) {
+		used, err := applySky(filepath.Join(t.TempDir(), "nowhere.json"))
+		if err != nil || used {
+			t.Fatalf("applySky = %v/%v, want quietly unused", used, err)
+		}
+	})
+	t.Run("unhappy: a broken file is an error worth stopping for", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "stars.json")
+		if err := os.WriteFile(path, []byte("{broken"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := applySky(path); err == nil {
+			t.Fatal("a broken sky file must surface its error")
 		}
 	})
 }

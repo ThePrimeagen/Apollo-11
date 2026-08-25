@@ -99,3 +99,53 @@ func TestStarfield(t *testing.T) {
 		f.Render(nil)
 	})
 }
+
+func TestTunedStarfield(t *testing.T) {
+	t.Run("happy: with the stock sky active it renders exactly the drift sky", func(t *testing.T) {
+		tuned := skySnapshot(NewTunedStarfield(), screenW, 26)
+		drift := skySnapshot(NewStarfield(stars.Drift), screenW, 26)
+		if !equalSky(tuned, drift) {
+			t.Fatal("an untouched tuned sky must be the stock drift sky, star for star")
+		}
+	})
+	t.Run("happy: a used sky config shows on the very next render", func(t *testing.T) {
+		t.Cleanup(stars.ResetSky)
+		f := NewTunedStarfield()
+		before := countSnapshot(skySnapshot(f, screenW, 26), string(stars.Glyphs[3]))
+		if err := stars.UseSky(stars.SkyConfig{
+			Delay:   []int{4, 6, 8, 12},
+			Density: []int{56, 33, 6, 120},
+		}); err != nil {
+			t.Fatalf("UseSky: %v", err)
+		}
+		after := countSnapshot(skySnapshot(f, screenW, 26), string(stars.Glyphs[3]))
+		if after <= before*3 {
+			t.Fatalf("near density 120 painted ✦%d -> ✦%d; a tuned scene must follow the config", before, after)
+		}
+	})
+	t.Run("unhappy: resetting the sky takes the tuning back out", func(t *testing.T) {
+		t.Cleanup(stars.ResetSky)
+		f := NewTunedStarfield()
+		stock := skySnapshot(f, screenW, 26)
+		if err := stars.UseSky(stars.SkyConfig{
+			Delay:   []int{1, 1, 1, 1},
+			Density: []int{200, 200, 200, 200},
+		}); err != nil {
+			t.Fatalf("UseSky: %v", err)
+		}
+		stars.ResetSky()
+		if !equalSky(stock, skySnapshot(f, screenW, 26)) {
+			t.Fatal("after ResetSky the tuned scene must fly the stock sky again")
+		}
+	})
+}
+
+func countSnapshot(snap map[[2]int]string, glyph string) int {
+	n := 0
+	for _, s := range snap {
+		if s == glyph {
+			n++
+		}
+	}
+	return n
+}

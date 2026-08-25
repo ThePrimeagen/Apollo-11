@@ -9,17 +9,25 @@ import (
 // StarFPS converts the starfield's seconds into stars.Field ticks.
 const StarFPS = 30
 
-// Starfield is the sky. It sizes itself to whatever stage it paints and
-// flies with the given strategy. Cast it first: everything else lands
-// on top.
+// Starfield is the sky. It sizes itself to whatever screen it renders
+// to and flies with the given strategy — or, when tuned, with whatever
+// sky settings are active (stars.UseSky / the adjuststars config).
+// Cast it first: everything else lands on top.
 type Starfield struct {
 	Strategy stars.Strategy
+	Tuned    bool
 	clock    float64
 }
 
 // NewStarfield opens a sky flying in the given style.
 func NewStarfield(s stars.Strategy) *Starfield {
 	return &Starfield{Strategy: s}
+}
+
+// NewTunedStarfield opens a sky that follows the active sky settings
+// on every frame, so a tuned config file just works in any scene.
+func NewTunedStarfield() *Starfield {
+	return &Starfield{}
 }
 
 // Update accumulates time. dt <= 0 holds the sky.

@@ -69,6 +69,14 @@ func mustTitle(text string, height int) *cast.Title {
 	return t
 }
 
+// applySky loads a tuned sky config (the file adjuststars saves) and
+// makes it the active sky. A missing file quietly keeps the stock sky
+// — the premiere just works with or without a tuning session behind
+// it. A broken file is an error worth stopping for.
+func applySky(path string) (bool, error) {
+	return false, nil
+}
+
 // forcedColorProfile mirrors exec-tui: profile detection fails in
 // detached ptys (tmux capture, CI), which would strip every color from
 // a recording. When CLICOLOR_FORCE is set the program runs with an

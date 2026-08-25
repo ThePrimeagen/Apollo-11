@@ -7,6 +7,8 @@ package adjuststars
 // same lifecycle that runs the premiere runs the tool.
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -294,6 +296,116 @@ func TestModel(t *testing.T) {
 		m = press(m, runeKey('x'))
 		if *m.tuner != before {
 			t.Fatal("a stray key must change nothing")
+		}
+	})
+}
+
+func TestFileLifecycle(t *testing.T) {
+	t.Run("happy: Open seeds the eight knobs from the file and makes it the active sky", func(t *testing.T) {
+		t.Cleanup(stars.ResetSky)
+		path := filepath.Join(t.TempDir(), "sky.json")
+		saved := stars.SkyConfig{Delay: []int{2, 3, 4, 5}, Density: []int{10, 20, 30, 40}}
+		if err := saved.Save(path); err != nil {
+			t.Fatalf("seed save: %v", err)
+		}
+		m, err := Open(path, 0)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		if m.Path != path {
+			t.Fatalf("path %q, want %q", m.Path, path)
+		}
+		if m.tuner.Delays != [4]int{2, 3, 4, 5} || m.tuner.Densities != [4]int{10, 20, 30, 40} {
+			t.Fatalf("knobs %v/%v, want the file's", m.tuner.Delays, m.tuner.Densities)
+		}
+		if stars.ActiveSky().DensityLayers() != [4]int{10, 20, 30, 40} {
+			t.Fatal("Open must put the file's sky in effect")
+		}
+	})
+	t.Run("happy: every nudge is applied as the active sky, live", func(t *testing.T) {
+		t.Cleanup(stars.ResetSky)
+		m := NewModel(0)
+		m = press(m, runeKey('j')) // dust density
+		m = press(m, runeKey('l'))
+		want := stars.DefaultDensity[0] + 1
+		if got := stars.ActiveSky().DensityLayers()[0]; got != want {
+			t.Fatalf("active dust density %d after l, want %d — the sky must follow the knobs", got, want)
+		}
+	})
+	t.Run("happy: s saves the file and quits, and the file round-trips", func(t *testing.T) {
+		t.Cleanup(stars.ResetSky)
+		path := filepath.Join(t.TempDir(), "sky.json")
+		if err := stars.DefaultSky().Save(path); err != nil {
+			t.Fatalf("seed save: %v", err)
+		}
+		m, err := Open(path, 0)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		m = press(m, runeKey('l')) // dust delay +1
+		mm, cmd := m.Update(runeKey('s'))
+		m = mm.(Model)
+		if cmd == nil {
+			t.Fatal("s must quit after a good save")
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Fatal("s must issue tea.Quit")
+		}
+		if !m.Saved {
+			t.Fatal("a good save must be marked saved")
+		}
+		got, err := stars.LoadSky(path)
+		if err != nil {
+			t.Fatalf("reload: %v", err)
+		}
+		if got.FlyStrategy().Delay[0] != stars.Drift.Delay[0]+1 {
+			t.Fatalf("saved dust delay %d, want the nudged %d", got.FlyStrategy().Delay[0], stars.Drift.Delay[0]+1)
+		}
+	})
+	t.Run("unhappy: Open on a missing or broken file is an error", func(t *testing.T) {
+		if _, err := Open(filepath.Join(t.TempDir(), "nope.json"), 0); err == nil {
+			t.Fatal("a missing file must error")
+		}
+		bad := filepath.Join(t.TempDir(), "bad.json")
+		if err := os.WriteFile(bad, []byte(`{"delay":[0,0,0,0],"density":[0,0,0,0]}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Open(bad, 0); err == nil {
+			t.Fatal("an out-of-range file must error")
+		}
+	})
+	t.Run("unhappy: a failed save keeps the tool open and says so", func(t *testing.T) {
+		t.Cleanup(stars.ResetSky)
+		path := filepath.Join(t.TempDir(), "sky.json")
+		if err := stars.DefaultSky().Save(path); err != nil {
+			t.Fatalf("seed save: %v", err)
+		}
+		m, err := Open(path, 0)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		m.Path = filepath.Join(t.TempDir(), "no", "such", "dir", "sky.json")
+		mm, cmd := m.Update(runeKey('s'))
+		m = mm.(Model)
+		if cmd != nil {
+			t.Fatal("a failed save must not quit")
+		}
+		if m.Saved {
+			t.Fatal("a failed save must not be marked saved")
+		}
+		if !strings.Contains(m.View().Content, "save failed") {
+			t.Fatal("the view must say the save failed")
+		}
+	})
+	t.Run("unhappy: s with no config path stays open and says so", func(t *testing.T) {
+		m := NewModel(0)
+		mm, cmd := m.Update(runeKey('s'))
+		m = mm.(Model)
+		if cmd != nil || m.Saved {
+			t.Fatal("saving nowhere must do nothing")
+		}
+		if !strings.Contains(m.View().Content, "no config") {
+			t.Fatal("the view must say there is no config path")
 		}
 	})
 }

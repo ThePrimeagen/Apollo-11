@@ -20,15 +20,24 @@ const (
 )
 
 // Model is the bubbletea shell around the tuner scene: it owns the
-// screen, forwards keys to the knobs, and puts the rendered grid on
-// the terminal.
+// screen, forwards keys to the knobs, applies every change as the
+// active sky, and puts the rendered grid on the terminal.
 type Model struct {
+	Path    string
+	Saved   bool
 	w, h    int
 	play    *screenplay.Screenplay
 	tuner   *Tuner
 	screen  *screenplay.Screen
 	seconds float64
 	elapsed float64
+	note    string
+}
+
+// Open reads the sky-config JSON at path, makes it the active sky, and
+// seeds the tuner from it. A missing or invalid file is an error.
+func Open(path string, seconds float64) (Model, error) {
+	return Model{}, nil
 }
 
 // NewModel opens the tuner scene, optionally auto-quitting after
