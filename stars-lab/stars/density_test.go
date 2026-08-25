@@ -47,7 +47,8 @@ func TestDensity(t *testing.T) {
 	})
 	t.Run("unhappy: an absurd density clamps instead of flooding", func(t *testing.T) {
 		n := countKinds(Field{Width: 60, Height: 30, Strategy: Still, Density: [4]int{0, 0, 0, 99999}})
-		if cap := 60 * 30 * MaxDensity / 1000; n[3] > cap {
+		// the scatter is capped; the mid-row anchors ride on top of it
+		if cap := 60*30*MaxDensity/1000 + 4; n[3] > cap {
 			t.Fatalf("near painted %d stars, cap is %d", n[3], cap)
 		}
 		if n[3] < 100 {

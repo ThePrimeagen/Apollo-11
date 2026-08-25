@@ -21,6 +21,23 @@ go run . -seconds 30    # auto-quit, handy for tapes
 
 `space` cuts to the next scene (the final scene holds). `q` / `ctrl+c` quit.
 
+## adjuststars: the sky tuner
+
+Another adjusting scene, in the adjustflame mold: the whole starfield
+plays behind a panel of eight numbers — a fly **delay** (ticks per cell,
+lower is faster) and a **density** (stars per 1000 cells) for each of the
+four star layers (`·` dust, `˚` spark, `*` mid, `✦` near). The sky reacts
+live as you turn the knobs.
+
+```bash
+go run ./cmd/adjuststars/main
+go run ./cmd/adjuststars/main -seconds 15   # auto-quit, handy for tapes
+```
+
+`j`/`k` (or arrows) pick a number, `h`/`l` change it, `q` quits. The tuner
+is itself a `screenplay.Scene` on a one-scene bill — the same lifecycle
+that runs the premiere runs the tool.
+
 ## The shape
 
 Every scene implements the same four verbs:
