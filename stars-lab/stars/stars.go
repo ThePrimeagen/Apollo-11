@@ -196,9 +196,14 @@ func layerCount(w, h, density, kind int) int {
 	return max(floor, w*h*density/1000)
 }
 
-// catalog is a deterministic scatter for (w,h) at the given per-layer
-// densities, plus four anchors on the mid row so every glyph is present
-// and motion tests have a known line.
+// catalog is a deterministic uniform scatter for (w,h) at the given
+// per-layer densities, plus four fixed anchors on the mid row so every
+// glyph is present and motion tests have a known line. Rows are
+// stratified — each layer walks the sky with a stride coprime to the
+// height — and columns are hashed, so the spread stays flat: never a
+// normal distribution, and no row collects a stripe of stars the way
+// independent draws deterministically can (the old scatter doubled up
+// the middle row of a 30-row sky).
 func catalog(w, h int, density [4]int) []star {
 	if w < 1 || h < 1 {
 		return nil
@@ -241,25 +246,39 @@ func catalog(w, h int, density [4]int) []star {
 		} else {
 			place(mid, w-1, kindNear)
 		}
-		for col := 0; col < w; col += 5 {
-			k := kindDust
-			if (col/5)%2 == 1 {
-				k = kindSpark
-			}
-			place(mid, col, k)
-		}
 	}
+	stride := rowStride(h)
 	for kind := 0; kind < 4; kind++ {
+		start := kind * h / 4
 		for n, attempts := 0, 0; n < counts[kind] && attempts < counts[kind]*24; attempts++ {
-			r := int(next() % uint64(h))
+			r := (start + n*stride) % h
 			c := int(next() % uint64(w))
-			if r == mid {
-				continue
-			}
 			if place(r, c, kind) {
 				n++
 			}
 		}
 	}
 	return out
+}
+
+// rowStride is a row step coprime with h, close to h/φ, so a layer's
+// stars visit every row in a low-discrepancy order: a sparse layer
+// spreads over the whole sky instead of banding, and no row is ever
+// visited twice before all rows are visited once.
+func rowStride(h int) int {
+	s := h * 13 / 21
+	if s < 1 {
+		s = 1
+	}
+	for gcd(s, h) != 1 {
+		s--
+	}
+	return s
+}
+
+func gcd(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
 }
