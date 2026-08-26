@@ -70,6 +70,22 @@ func markerCell(v string) (row, col int, ok bool) {
 	return 0, 0, false
 }
 
+// skyColumns is the leftmost n columns of every view row, ANSI
+// stripped — on the orbit scene that strip is pure sky, west of the
+// ring, so it watches the stars alone.
+func skyColumns(v string, n int) string {
+	var b strings.Builder
+	for _, line := range strings.Split(ansiPat.ReplaceAllString(v, ""), "\n") {
+		rs := []rune(line)
+		if len(rs) > n {
+			rs = rs[:n]
+		}
+		b.WriteString(string(rs))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
 func TestPremiere(t *testing.T) {
 	t.Run("happy: the house opens on scene 1/4, arrival, under stars", func(t *testing.T) {
 		m := newModel(0)
@@ -212,6 +228,21 @@ func TestPremiere(t *testing.T) {
 		}
 		if r0 == r1 && c0 == c1 {
 			t.Fatal("frames must fly the marker along the ring")
+		}
+	})
+	t.Run("happy: the orbit sky holds still — no stars move behind the moon", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 30)
+		m = press(m, space())
+		m = press(m, space())
+		before := skyColumns(m.View().Content, 12)
+		if !hasStar(before) {
+			t.Fatal("test premise: the strip west of the ring must hold stars")
+		}
+		m = frames(m, 90)
+		if got := skyColumns(m.View().Content, 12); got != before {
+			t.Fatal("the orbit scene's stars must hold perfectly still")
 		}
 	})
 	t.Run("happy: space cuts to scene 4/4 — THE END, centered", func(t *testing.T) {

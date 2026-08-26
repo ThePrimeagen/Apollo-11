@@ -141,8 +141,8 @@ func TestTunerLifecycle(t *testing.T) {
 		}
 		tu.Move(-99)
 		tu.Nudge(-99)
-		if tu.Delays[0] != MinDelay {
-			t.Fatalf("dust delay %d, want the floor %d", tu.Delays[0], MinDelay)
+		if tu.Delays[0] != 0 {
+			t.Fatalf("dust delay %d, want the floor 0 — zero movement parks the layer", tu.Delays[0])
 		}
 		tu.Nudge(999)
 		if tu.Delays[0] != MaxDelay {
@@ -289,8 +289,8 @@ func TestModel(t *testing.T) {
 		for i := 0; i < MaxDelay+9; i++ {
 			m = press(m, runeKey('h'))
 		}
-		if m.tuner.Delays[0] != MinDelay {
-			t.Fatalf("dust delay %d, want stuck at %d", m.tuner.Delays[0], MinDelay)
+		if m.tuner.Delays[0] != 0 {
+			t.Fatalf("dust delay %d, want stuck at the 0 floor", m.tuner.Delays[0])
 		}
 		before := *m.tuner
 		m = press(m, runeKey('x'))

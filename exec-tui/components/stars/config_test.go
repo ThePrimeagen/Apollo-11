@@ -76,10 +76,30 @@ func TestSkyConfig(t *testing.T) {
 			}
 		}
 	})
+	t.Run("happy: all movements at zero validate and describe a sky that holds still", func(t *testing.T) {
+		c := SkyConfig{Delay: []int{0, 0, 0, 0}, Density: []int{10, 20, 30, 40}}
+		if err := c.Validate(); err != nil {
+			t.Fatalf("zero movement must just work, got %v", err)
+		}
+		path := filepath.Join(t.TempDir(), "still-sky.json")
+		if err := c.Save(path); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+		got, err := LoadSky(path)
+		if err != nil {
+			t.Fatalf("load: %v", err)
+		}
+		s := got.FlyStrategy()
+		a := Field{Width: 60, Height: 24, Tick: 0, Strategy: s}
+		b := Field{Width: 60, Height: 24, Tick: 90, Strategy: s}
+		if a.Render() != b.Render() {
+			t.Fatal("a zero-movement sky must hold every star")
+		}
+	})
 	t.Run("unhappy: out-of-range knobs are range errors", func(t *testing.T) {
-		bad := SkyConfig{Delay: []int{0, 2, 3, 4}, Density: []int{1, 2, 3, 4}}
+		bad := SkyConfig{Delay: []int{-1, 2, 3, 4}, Density: []int{1, 2, 3, 4}}
 		if err := bad.Validate(); !errors.Is(err, ErrDelayRange) {
-			t.Fatalf("delay 0: got %v, want ErrDelayRange", err)
+			t.Fatalf("delay -1: got %v, want ErrDelayRange", err)
 		}
 		bad = SkyConfig{Delay: []int{1, 2, 3, MaxDelay + 1}, Density: []int{1, 2, 3, 4}}
 		if err := bad.Validate(); !errors.Is(err, ErrDelayRange) {
