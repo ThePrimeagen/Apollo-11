@@ -9,30 +9,31 @@ import "github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 //	D dark grey (boots, gloves, pack floor, chest box)   R red accent
 //
 // Anatomy, shared across poses: a seven-row helmet dome with a 4×2
-// gold visor window looking right, the pack hugging his back (left
-// edge — he only travels left to right) with no sky slit between pack
-// and ribs, a red flag patch and dark chest box, and chunky two-row
-// moon boots. Grounded poses stand on the last pixel row; airborne
-// poses (jump, both pole grips) leave the bottom rows empty.
+// gold visor window high on the face looking right, the pack hugging
+// his back (left edge — he only travels left to right) with no sky
+// slit between pack and ribs, a red flag patch and dark chest box,
+// and chunky moon boots. Grounded poses stand on the last pixel row;
+// airborne poses (jump, both pole grips) leave the bottom rows empty.
 //
 // The run is the classic three-frame contact → passing → contact
 // loop, and the planted foot sweeps backward through the body the way
-// a real stride does: run1 is the double-support V-split (lead boot
-// planted far forward, trailing toe still down), run2 is the passing
-// tuck (support boot under the hips, free boot folded aft, body
-// dipped one row for the bob), run3 is the opposite contact (left
-// boot planted at the back, right knee driving forward). All three
-// run frames and the airborne poses lean one column forward off the
-// stand so the sprint reads as motion, not a stamped cutout.
+// a real stride does: run1 is the forward contact (lead boot planted,
+// trailing boot at toe-off one row up), run2 is the passing tuck
+// (support boot under the hips, free leg folded aft in an L, body
+// dipped one row for the bob), run3 is the back contact (left boot
+// planted at the rear, right knee driving forward with its boot off a
+// white shin). All three run frames and the airborne poses lean one
+// column forward off the stand so the sprint reads as motion, not a
+// stamped cutout.
 
 var grids = map[sprite.Heading][]string{
 	PoseStand: {
 		//        0123456789012345
 		/*  0 */ ".....WWWWWW.....",
 		/*  1 */ "....WWWWWWWW....",
-		/*  2 */ "...WWWWWWWWWW...",
+		/*  2 */ "...WWWWWVVVVW...",
 		/*  3 */ ".HHWWWWWVVVVW...",
-		/*  4 */ ".HHWWWWWVVVVW...",
+		/*  4 */ ".HHWWWWWWWWWW...",
 		/*  5 */ ".HHWWWWWWWWWW...",
 		/*  6 */ ".HHHWWWWWWWW....",
 		/*  7 */ ".HHHWWRRWWWWW...",
@@ -49,9 +50,9 @@ var grids = map[sprite.Heading][]string{
 		//        0123456789012345
 		/*  0 */ "......WWWWWW....",
 		/*  1 */ ".....WWWWWWWW...",
-		/*  2 */ "....WWWWWWWWWW..",
+		/*  2 */ "....WWWWWVVVVW..",
 		/*  3 */ "..HHWWWWWVVVVW..",
-		/*  4 */ "..HHWWWWWVVVVW..",
+		/*  4 */ "..HHWWWWWWWWWW..",
 		/*  5 */ "..HHWWWWWWWWWW..",
 		/*  6 */ "..HHHWWWWWWWW...",
 		/*  7 */ "..HHHWWRRWWWWW..",
@@ -60,26 +61,26 @@ var grids = map[sprite.Heading][]string{
 		/* 10 */ "......WWWWWWW...",
 		/* 11 */ "....WWW...WWW...",
 		/* 12 */ "...WWW.....WWW..",
-		/* 13 */ "..WWW.......WW..",
-		/* 14 */ "..DDD.......DDD.",
-		/* 15 */ "..DDD.......DDDD",
+		/* 13 */ "...DDD......WW..",
+		/* 14 */ "...DDD.....DDD..",
+		/* 15 */ "...........DDDD.",
 	},
 	PoseRun2: {
 		//        0123456789012345
 		/*  0 */ "................",
 		/*  1 */ "......WWWWWW....",
 		/*  2 */ ".....WWWWWWWW...",
-		/*  3 */ "....WWWWWWWWWW..",
+		/*  3 */ "....WWWWWVVVVW..",
 		/*  4 */ "..HHWWWWWVVVVW..",
-		/*  5 */ "..HHWWWWWVVVVW..",
+		/*  5 */ "..HHWWWWWWWWWW..",
 		/*  6 */ "..HHWWWWWWWWWW..",
 		/*  7 */ "..HHHWWWWWWWW...",
 		/*  8 */ "..HHHWWRRWWWWW..",
 		/*  9 */ "..HHHWWWWWDDWW..",
 		/* 10 */ "..DDDWWWWWWWWDD.",
-		/* 11 */ "......WWWWWWW...",
-		/* 12 */ "....WWW.WWW.....",
-		/* 13 */ "...DDD..WW......",
+		/* 11 */ "....WWWWWWWWW...",
+		/* 12 */ "...WWW..WWW.....",
+		/* 13 */ "..DDD...WW......",
 		/* 14 */ "........WW......",
 		/* 15 */ ".......DDDD.....",
 	},
@@ -87,9 +88,9 @@ var grids = map[sprite.Heading][]string{
 		//        0123456789012345
 		/*  0 */ "......WWWWWW....",
 		/*  1 */ ".....WWWWWWWW...",
-		/*  2 */ "....WWWWWWWWWW..",
+		/*  2 */ "....WWWWWVVVVW..",
 		/*  3 */ "..HHWWWWWVVVVW..",
-		/*  4 */ "..HHWWWWWVVVVW..",
+		/*  4 */ "..HHWWWWWWWWWW..",
 		/*  5 */ "..HHWWWWWWWWWW..",
 		/*  6 */ "..HHHWWWWWWWW...",
 		/*  7 */ "..HHHWWRRWWWWW..",
@@ -97,8 +98,8 @@ var grids = map[sprite.Heading][]string{
 		/*  9 */ "..DDDWWWWWWWWW..",
 		/* 10 */ "......WWWWWWW...",
 		/* 11 */ "...DD.WWWWWWW...",
-		/* 12 */ ".....WWW..DDDD..",
-		/* 13 */ "....WWW.........",
+		/* 12 */ ".....WWWWWWWDDD.",
+		/* 13 */ "....WWW.....DDD.",
 		/* 14 */ "...DDD..........",
 		/* 15 */ "..DDDD..........",
 	},
@@ -106,11 +107,11 @@ var grids = map[sprite.Heading][]string{
 		//        0123456789012345
 		/*  0 */ "......WWWWWW....",
 		/*  1 */ ".....WWWWWWWW...",
-		/*  2 */ "....WWWWWWWWWW..",
+		/*  2 */ "....WWWWWVVVVW..",
 		/*  3 */ "..HHWWWWWVVVVW..",
-		/*  4 */ "..HHWWWWWVVVVW..",
-		/*  5 */ "..HHWWWWWWWWWW..",
-		/*  6 */ "..HHHWWWWWWWWWDD",
+		/*  4 */ "..HHWWWWWWWWWWDD",
+		/*  5 */ "..HHWWWWWWWWWWW.",
+		/*  6 */ "..HHHWWWWWWWWWW.",
 		/*  7 */ "..HHHWWRRWWWWWW.",
 		/*  8 */ "..HHHWWWWWDDWW..",
 		/*  9 */ "..DDDWWWWWWWWW..",
@@ -125,37 +126,37 @@ var grids = map[sprite.Heading][]string{
 		//        0123456789012345
 		/*  0 */ "......WWWWWW....",
 		/*  1 */ ".....WWWWWWWW...",
-		/*  2 */ "....WWWWWWWWWW..",
+		/*  2 */ "....WWWWWVVVVW..",
 		/*  3 */ "..HHWWWWWVVVVW..",
-		/*  4 */ "..HHWWWWWVVVVWDD",
-		/*  5 */ "..HHWWWWWWWWWWW.",
-		/*  6 */ "..HHHWWWWWWWW.W.",
+		/*  4 */ "..HHWWWWWWWWWW..",
+		/*  5 */ "..HHWWWWWWWWWWDD",
+		/*  6 */ "..HHHWWWWWWWWWW.",
 		/*  7 */ "..HHHWWRRWWWWW..",
 		/*  8 */ "..HHHWWWWWDDWWDD",
 		/*  9 */ "..DDDWWWWWWWWW..",
 		/* 10 */ "......WWWWWWW...",
 		/* 11 */ ".......WWWWWW...",
-		/* 12 */ ".........WWWW...",
-		/* 13 */ "..........DDDD..",
-		/* 14 */ ".........DDDD...",
+		/* 12 */ "........WWWW....",
+		/* 13 */ "........WW.DDD..",
+		/* 14 */ ".......DDD......",
 		/* 15 */ "................",
 	},
 	PosePole2: {
 		//        0123456789012345
 		/*  0 */ "......WWWWWW....",
 		/*  1 */ ".....WWWWWWWW...",
-		/*  2 */ "....WWWWWWWWWW..",
+		/*  2 */ "....WWWWWVVVVW..",
 		/*  3 */ "..HHWWWWWVVVVW..",
-		/*  4 */ "..HHWWWWWVVVVW..",
-		/*  5 */ "..HHWWWWWWWWWWDD",
-		/*  6 */ "..HHHWWWWWWWW.W.",
-		/*  7 */ "..HHHWWRRWWWWW..",
+		/*  4 */ "..HHWWWWWWWWWW..",
+		/*  5 */ "..HHWWWWWWWWWW..",
+		/*  6 */ "..HHHWWWWWWWWWDD",
+		/*  7 */ "..HHHWWRRWWWWWW.",
 		/*  8 */ "..HHHWWWWWDDWW..",
 		/*  9 */ "..DDDWWWWWWWWWDD",
 		/* 10 */ "......WWWWWWW...",
 		/* 11 */ ".......WWWWWW...",
-		/* 12 */ "........DDDD....",
-		/* 13 */ ".........DDDD...",
+		/* 12 */ "........WW.DDD..",
+		/* 13 */ ".......DDD......",
 		/* 14 */ "................",
 		/* 15 */ "................",
 	},

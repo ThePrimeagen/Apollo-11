@@ -100,7 +100,9 @@ func TestBuildAtlas(t *testing.T) {
 		for _, pose := range []sprite.Heading{PosePole1, PosePole2} {
 			sp, _ := a.Frame(Size, pose)
 			found := false
-			for r := 0; r <= 2 && !found; r++ {
+			// The upper grip lives somewhere in the sprite's upper
+			// half — the two frames stagger it a row for the shimmy.
+			for r := 0; r < Rows/2 && !found; r++ {
 				for c := GripCol - 1; c < Cols; c++ {
 					cell := sp.At(r, c)
 					if !cell.Transparent() && (cell.FG == dark || cell.BG == dark) {
