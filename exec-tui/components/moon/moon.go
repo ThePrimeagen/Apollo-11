@@ -20,8 +20,9 @@ const (
 	// OrbitSeconds is one full lap of the marker around the ring.
 	OrbitSeconds = 12.0
 	// ArriveSeconds is the fast streak from off the left wing to the
-	// top of the ring, where the orbit begins.
-	ArriveSeconds = 1.5
+	// top of the ring, where the orbit begins — long enough that the
+	// entry reads on screen, short enough to stay a streak.
+	ArriveSeconds = 2.5
 	// RingGlyph is one dot of the descent path.
 	RingGlyph = '◦'
 	// MarkerGlyph is the craft riding the path.
