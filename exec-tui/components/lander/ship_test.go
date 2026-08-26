@@ -579,6 +579,61 @@ func TestLandPath(t *testing.T) {
 	})
 }
 
+func TestLandEase(t *testing.T) {
+	start, end := -BodyRows, LandPadRow(screenH)
+	span := float64(end - start)
+	rowAt := func(tSec float64) int {
+		row, _ := LandPath(screenW, screenH, tSec, LandSeconds)
+		return row
+	}
+	progress := func(tSec float64) float64 {
+		return float64(rowAt(tSec)-start) / span
+	}
+
+	t.Run("happy: the drop is fast then a long crawl onto the pad", func(t *testing.T) {
+		// Ease-out quintic (and stronger): by 40% of the clock the hull
+		// has already covered most of the fall, then it clinks on.
+		if got := progress(0.4 * LandSeconds); got <= 0.85 {
+			t.Fatalf("at 40%% of the landing the hull is only %.2f of the way — want a heavy ease-out past 0.85", got)
+		}
+		first := rowAt(0.2*LandSeconds) - start
+		last := end - rowAt(0.8*LandSeconds)
+		if last >= first {
+			t.Fatalf("last 20%% of time moved %d rows, first 20%% moved %d — the finish must crawl", last, first)
+		}
+		s := NewShip(22).North().Land(LandSeconds)
+		s.Start(screenW, screenH)
+		warmShip(s, 0.4*LandSeconds)
+		got, _ := s.position()
+		if got != rowAt(s.Clock()) {
+			t.Fatalf("a Land ship must ride the eased path, row %d want %d", got, rowAt(s.Clock()))
+		}
+	})
+	t.Run("unhappy: a linear fall is rejected, and DropPath stays linear", func(t *testing.T) {
+		mid := rowAt(LandSeconds / 2)
+		linear := start + int(math.Round(0.5*span))
+		if mid == linear {
+			t.Fatalf("halfway row %d is the linear midpoint — the landing must ease out, not fall uniformly", mid)
+		}
+		if mid <= linear {
+			t.Fatalf("halfway row %d is not past the linear midpoint %d — ease-out covers distance early", mid, linear)
+		}
+		dropStart, dropEnd := -BodyRows, screenH
+		dropMid, _ := DropPath(screenW, screenH, DropSeconds/2, DropSeconds)
+		dropLinear := dropStart + int(math.Round(0.5*float64(dropEnd-dropStart)))
+		if dropMid != dropLinear {
+			t.Fatalf("the fall scene must stay linear, mid %d want %d — landing ease must not leak", dropMid, dropLinear)
+		}
+		if rowAt(-2) != start {
+			t.Fatal("t<0 must still be the opening mark")
+		}
+		snap, _ := LandPath(screenW, screenH, 1, 0)
+		if snap != end {
+			t.Fatalf("seconds<=0 must snap to the pad, got %d want %d", snap, end)
+		}
+	})
+}
+
 func TestLandThrottle(t *testing.T) {
 	t.Run("happy: full until the last three seconds, then ¾, ½, ¼, off at the pad", func(t *testing.T) {
 		if got := LandThrottle(0, LandSeconds); got != 1 {
