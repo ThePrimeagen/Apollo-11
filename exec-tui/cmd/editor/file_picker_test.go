@@ -36,7 +36,7 @@ func pickerEd(t *testing.T) (Model, string) {
 
 func TestFilePickerOpens(t *testing.T) {
 	t.Run("happy: ctrl-p lists every atlas in the folder and starts on the open file", func(t *testing.T) {
-		m, _ := pickerEd(t)
+		m, dir := pickerEd(t)
 		m = send(m, keyCtrl('p'))
 		if !m.FilePickerOpen {
 			t.Fatal("ctrl-p must open the file picker")
@@ -48,6 +48,14 @@ func TestFilePickerOpens(t *testing.T) {
 		for _, name := range []string{"alpha", "bravo", "charlie"} {
 			if !strings.Contains(v, name) {
 				t.Fatalf("picker view missing file %q", name)
+			}
+		}
+		if !strings.Contains(v, " files  "+filepath.Base(dir)+" ") {
+			t.Fatal("the picker title must carry the folder name unclipped")
+		}
+		for _, help := range []string{"type to filter  ^J/^K move", "enter open  esc close"} {
+			if !strings.Contains(v, help) {
+				t.Fatalf("the picker box must be wide enough for its help line %q", help)
 			}
 		}
 		files := m.filteredFiles()
