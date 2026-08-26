@@ -2,7 +2,7 @@
 
 A screenplay is scenes in order; a scene is a cast of components playing
 over time. `space` cuts to the next scene. The premiere plays a
-three-scene bill:
+four-scene bill:
 
 - **Scene 1 — arrival.** Three seconds of drifting sky, then a starfield
   that translates with the craft as it comes in: every star shifts left
@@ -16,7 +16,13 @@ three-scene bill:
 - **Scene 2 — dsky.** The parked craft stays. Over ~500ms the right
   third of the sky blanks out one column at a time from the right edge,
   and the DSKY (V16 N68 on P63) docks in that space.
-- **Scene 3 — the end.** `THE END` in the height-5 terminal-fonts banner,
+- **Scene 3 — descent orbit.** The explainer: a pixelated moon fills
+  center stage under a dotted ring — the descent path — and a gold
+  marker rides that ring westward over the top, trailing embers. This
+  is where the craft was, and why it flies sideways. All circle math
+  runs in half-cell pixels (a terminal cell is ~2× taller than wide),
+  so the moon and the ring read round on a real terminal.
+- **Scene 4 — the end.** `THE END` in the height-5 terminal-fonts banner,
   centered under the same sky.
 
 ```bash
@@ -82,6 +88,7 @@ stops the old scene before starting the new.
 | `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe |
 | `components/lander` | `Ship` — atlas hull + optional booster plume + `FlightPath` choreography |
 | `components/dsky` | `Panel` — the DSKY docking on the right third, column-by-column |
+| `components/moon` | `Moon` — the pixelated moon under the dotted descent path, gold marker riding it |
 | `components/title` | `Title` — banner cards set in terminal-fonts |
 
 The `screenplay` package knows nothing about landers, stars, or fonts —

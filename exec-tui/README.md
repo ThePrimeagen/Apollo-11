@@ -19,12 +19,13 @@ components/   everything a scene puts together
   stars/      the four-layer starfield — owns its config.json
   lander/     the Apollo LM: atlas art, lm.json, the Ship component
     descent/  the legacy descent-view renderer (used by the sim UI)
+  moon/       the pixelated moon + dotted descent-path ring + gold marker
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen
 cmd/          every runnable: editors, demos, tuners
-  premiere/   the three-scene screenplay (arrival, DSKY dock, THE END)
+  premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lander/     the continuous-descent demo
   stars/      the starfield strategy browser
   preview/    atlas / fire / rocket previews and tapes
