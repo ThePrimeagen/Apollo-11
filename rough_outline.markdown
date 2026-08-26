@@ -24,6 +24,7 @@ repo. Details in [`operations_and_timing.md`](operations_and_timing.md).
 | **LRVJOB** (LR velocity, 1 beam/cycle) | job, prio 32, NOVAC | 1 per cycle | ~2 ms | yes ~500 ms (sleeps through 5 samples) | **no** |
 | **1/GYRO** (IMU compensation) | job, prio 21, NOVAC | ~1/s (phase-offset from the 2 s mark) | ~7 ms | yes, briefly | **no** |
 | **HIGATJOB** (LR antenna to position 2) | job, prio 32→23, FINDVAC | once, at P64 entry | ~2 ms | yes ~8 s | **yes ~8 s** (parks on a VAC awaiting the discrete) |
+| **RODCOMP** (P66 rate-of-descent update, from ROD switch clicks) | job, prio 22, FINDVAC | every 1 s (`RODTASK`), P66 only | ~ms | yes, briefly | yes, briefly |
 | **DAP** (digital autopilot — points the thrust vector, fires RCS) | T5RUPT interrupt | every 100 ms | ~0.24 s (12%) | no | no |
 | **T4RUPT** (DSKY relays, housekeeping) | interrupt | every 120 ms | ~16 ms (0.8%) | no | no |
 | **DOWNRUPT** (telemetry downlink) | interrupt | every 20 ms (50/s) | ~20 ms (1%) | no | no |
@@ -58,7 +59,7 @@ Duty cycle = all known software (jobs + tasks + interrupts). The 15% theft sits 
 | P63 + radar locked | ~87% | ~102% | leaking slowly |
 | P63 + V16N68 keyed | ≥ 90% | **~105%** | 1202 in ~6 cycles (12 s) — twice |
 | P64 (redesignation, no monitor) | > 90% | **> 105%** | unsheddable: 1201 + 1202 + 1202 in 40 s |
-| P66 (ROD; ATT HOLD shed the load) | lower | < 100% | **zero alarms**, 2 min 20 s to touchdown |
+| P66 (ROD; SERVICER drops to ~0.9 s profile) | lower | < 100% | **zero alarms**, 2 min 20 s to touchdown |
 
 Design requirement was 10% margin for *unknown* loss; the unknown loss turned out to be
 13–15%. Deficit ≈ 0.05–0.10 s per cycle → about one leaked core-set+VAC pair per cycle.

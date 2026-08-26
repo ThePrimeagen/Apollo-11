@@ -1,7 +1,7 @@
-# Rough Descent Timeline — Four Regions, What Ran in Each
+# Rough Descent Timeline — What Ran in Each Region
 
-Program state of the LGC in four regions: before ignition, the 10% throttle phase, P63/P64
-under alarms, and P66. PDI = 102:33:05 GET. Full second-by-second record in
+The four regions asked for — pre-descent, P63, P64, P66 — with the 10% throttle phase
+broken out on its own. PDI = 102:33:05 GET. Full second-by-second record in
 [`timeline.markdown`](timeline.markdown); job intervals/costs in
 [`rough_outline.markdown`](rough_outline.markdown).
 
@@ -72,10 +72,12 @@ demand was > 105% on essentials alone, so restarts cured nothing.
 
 Correction to the premise: **no alarm ever occurred in P66.** The last alarm (102:42:58)
 was 22 s before P66 entry (102:43:20, ~430 ft, via the ROD switch). P66 *reduced* load —
-Armstrong flew attitude by hand while SERVICER kept only average-G + the vertical
-(rate-of-descent) channel; redesignation logic gone, no monitor. Demand dropped below
-100% even with the theft still running, and *Eagle* flew 2 min 20 s alarm-free to
-touchdown at 102:45:40.
+Armstrong flew attitude by hand while SERVICER dropped to a ~0.9 s vertical-channel
+profile (average-G + throttle only; redesignation gone, no monitor, lighter DAP work).
+P66 did add one small loop of its own — `RODTASK` every 1 s spawning `RODCOMP` (prio 22,
+takes a core set + VAC briefly) to fold Armstrong's ROD-switch clicks (±1 ft/s each) into
+the commanded descent rate — but total demand stayed well under 100% even with the theft
+still running, and *Eagle* flew 2 min 20 s alarm-free to touchdown at 102:45:40.
 
 ## The five alarms, one line
 
