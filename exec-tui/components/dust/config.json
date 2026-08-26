@@ -1,0 +1,18 @@
+{
+  "count": 26,
+  "period": 1.4,
+  "minLife": 1.1,
+  "maxLife": 2.1,
+  "minSpeed": 5,
+  "maxSpeed": 9,
+  "spread": 0.1,
+  "nozzle": 3,
+  "angleDeg": 15,
+  "gap": 8,
+  "loopUp": true,
+  "quarterAt": 3,
+  "halfAt": 6,
+  "brailleFG": 240,
+  "quarterFG": 246,
+  "halfFG": 252
+}
