@@ -406,7 +406,7 @@ func (m Model) handlePickerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		m.closePicker(false)
-	case 'h', 'j', 'k', 'l', '[', ']', 'g':
+	case 'h', 'j', 'k', 'l', '[', ']', 'g', 's':
 		m.movePicker(r)
 	}
 	return m, nil
@@ -544,51 +544,37 @@ func (m *Model) clampCursor() {
 	}
 }
 
-func nextHeading(h sprite.Heading) sprite.Heading {
-	for i, x := range sprite.Headings {
-		if x == h {
-			return sprite.Headings[(i+1)%len(sprite.Headings)]
-		}
-	}
-	return sprite.N
-}
-
-func prevHeading(h sprite.Heading) sprite.Heading {
-	for i, x := range sprite.Headings {
-		if x == h {
-			return sprite.Headings[(i-1+len(sprite.Headings))%len(sprite.Headings)]
-		}
-	}
-	return sprite.N
-}
-
+// stepHeading walks the frames that actually exist at the current
+// size — compass headings in canonical order, then pose-named frames
+// — so an animation atlas cycles run1 → run2 → jump the same way the
+// lander cycles N → NE.
 func (m *Model) stepHeading(delta int) {
-	n := len(sprite.Headings)
-	if n == 0 || m.Atlas == nil {
+	if m.Atlas == nil {
 		return
 	}
-	start := 0
-	for i, h := range sprite.Headings {
+	names := m.Atlas.FrameNames(m.Size)
+	n := len(names)
+	if n == 0 {
+		return
+	}
+	start := -1
+	for i, h := range names {
 		if h == m.Heading {
 			start = i
 			break
 		}
 	}
-	for i := 1; i <= n; i++ {
-		idx := start + delta*i
-		idx %= n
-		if idx < 0 {
-			idx += n
-		}
-		h := sprite.Headings[idx]
-		if _, ok := m.Atlas.Frame(m.Size, h); ok {
-			m.Heading = h
-			m.clampCursor()
-			m.sel = map[cellKey]bool{}
-			m.status = "heading " + string(h)
-			return
-		}
+	var next sprite.Heading
+	if start < 0 {
+		next = names[0]
+	} else {
+		idx := (start + delta%n + n) % n
+		next = names[idx]
 	}
+	m.Heading = next
+	m.clampCursor()
+	m.sel = map[cellKey]bool{}
+	m.status = "heading " + string(next)
 }
 
 func (m *Model) targets() []cellKey {
@@ -1237,6 +1223,13 @@ func (m *Model) handleRecentsClick(x, y int) bool {
 }
 
 func pickerLabel(m Model) string {
+	if m.PickerSystem {
+		fg := 0
+		if m.PickerIdx >= 0 && m.PickerIdx < len(SystemColors) {
+			fg = SystemColors[m.PickerIdx]
+		}
+		return fmt.Sprintf("system %d  s system", fg)
+	}
 	if m.PickerCube {
 		return fmt.Sprintf("cube r=%d  [ ] slice", m.CubeRed)
 	}
@@ -1249,6 +1242,24 @@ func pickerLabel(m Model) string {
 
 func renderPickerGrid(m Model, w int) []string {
 	var lines []string
+	if m.PickerSystem {
+		var row strings.Builder
+		for i, s := range SystemColors {
+			if i > 0 && i%8 == 0 {
+				lines = append(lines, padPlain(row.String(), w))
+				row.Reset()
+			}
+			cell := sprite.Render(oneCell(sprite.Cell{Ch: '█', FG: s, BG: -1}))
+			if i == m.PickerIdx {
+				cell = "\x1b[7m" + cell + "\x1b[0m"
+			}
+			row.WriteString(cell)
+		}
+		if row.Len() > 0 {
+			lines = append(lines, padPlain(row.String(), w))
+		}
+		return lines
+	}
 	if m.PickerCube {
 		var row strings.Builder
 		for i := 0; i < 36; i++ {
@@ -1287,6 +1298,7 @@ func renderPickerGrid(m Model, w int) []string {
 }
 
 func renderFrames(m Model) string {
+	const w = 36
 	var sizes []string
 	for _, sz := range sprite.Sizes {
 		s := fmt.Sprintf("%d", sz)
@@ -1295,20 +1307,21 @@ func renderFrames(m Model) string {
 		}
 		sizes = append(sizes, s)
 	}
+	names := m.Atlas.FrameNames(m.Size)
+	if len(names) == 0 {
+		names = sprite.Headings
+	}
 	var heads []string
-	for _, h := range sprite.Headings {
+	for _, h := range names {
 		s := string(h)
 		if h == m.Heading {
 			s = "[" + s + "]"
 		}
 		heads = append(heads, s)
 	}
-	lines := []string{
-		"size " + strings.Join(sizes, " "),
-		" " + strings.Join(heads, " "),
-		"shrink: 4 → 3 → 2 → 1",
-	}
-	w := 36
+	lines := []string{"size " + strings.Join(sizes, " ")}
+	lines = append(lines, wrapWords(heads, w-1)...)
+	lines = append(lines, "shrink: 4 → 3 → 2 → 1")
 	for i := range lines {
 		lines[i] = padPlain(lines[i], w)
 	}
@@ -1317,6 +1330,25 @@ func renderFrames(m Model) string {
 		focus = "*"
 	}
 	return box(focus+" frames ", lines, w)
+}
+
+// wrapWords greedily packs words into lines no wider than w, one
+// leading space each, so a long pose list never clips off the popup.
+func wrapWords(words []string, w int) []string {
+	var lines []string
+	cur := ""
+	for _, word := range words {
+		cand := cur + " " + word
+		if cur != "" && displayLen(cand) > w {
+			lines = append(lines, cur)
+			cand = " " + word
+		}
+		cur = cand
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	return lines
 }
 
 func box(title string, inner []string, innerW int) string {
