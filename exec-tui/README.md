@@ -27,6 +27,7 @@ screenplay/   Screenplay → Scene → Component; the lip gloss Screen
 cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lander/     the continuous-descent demo
+  moon/       the descent-orbit scene solo (moon + dotted path + gold marker)
   stars/      the starfield strategy browser
   preview/    atlas / fire / rocket previews and tapes
   editor/     the vim-ish LM sprite editor (edits components/lander/lm.json)
