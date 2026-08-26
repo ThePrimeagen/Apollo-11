@@ -8,9 +8,12 @@
 // down, drops from the top of the stage to the bottom. Space cuts to
 // "landing": a huge moon horizon as a colored floor (five rows high
 // in the middle, one row at the edges) and the lander coming down
-// onto it — booster full, then ¾, ½, ¼, then off on the pad. Space
-// on the last scene ends the show. One stars.Continuity seeds every
-// scene's sky, so no cut ever jumps a star.
+// onto it — booster full, then ¾, ½, ¼, then off on the pad. When
+// the booster starts slowing the craft, and again at touchdown,
+// mirrored dust kicks blow out of the pad on both sides of the bell
+// and count down to nothing in two seconds. Space on the last scene
+// ends the show. One stars.Continuity seeds every scene's sky, so no
+// cut ever jumps a star.
 //
 //	space     next scene (past the last one, the show ends)
 //	q         quit

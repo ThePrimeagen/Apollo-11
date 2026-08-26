@@ -12,6 +12,11 @@
 // down onto it. The fall eases out — fast off the top, then a long
 // crawl that clinks onto the pad. The booster stays full until the
 // last three seconds, then steps ¾, ½, ¼, and cuts off on the pad.
+// The pad answers twice: the moment the booster starts slowing the
+// craft, and again at touchdown, mirrored dust kicks blow out of the
+// surface on both sides of the bell — leftward and rightward,
+// climbing away at a shallow angle — and each kick counts its
+// particles down from the full cloud to nothing over two seconds.
 // After that there is nothing left — the runner ends the show.
 //
 // One stars.Continuity seeds every scene's sky, so a cut never jumps

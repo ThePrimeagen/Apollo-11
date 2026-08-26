@@ -3,6 +3,7 @@ package lander
 import (
 	"math"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/fire"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/particle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
@@ -52,27 +53,36 @@ const (
 	// landSurfaceRows is the moon horizon's center thickness — the
 	// hull parks with its feet on that ridge.
 	landSurfaceRows = 5
+	// dustRowOffset lifts a stage-sized dust cloud so its shared
+	// floor point rides the pad surface the feet land on: the cloud's
+	// nozzles sit three rows above its own bottom edge, the surface
+	// sits landSurfaceRows above the stage's.
+	dustRowOffset = 3 - landSurfaceRows
 )
 
 // Ship is the Apollo craft as a scene component: the size-4 W-heading
 // frame with its baked tilde plume stripped and, unless Dark, a live
 // left-to-right booster fire trailing from the tail. It slides in from
 // the right wing, parks at center stage, and bobbles on a slow sine.
-// Start builds the hull and arms the fire for its stage; Stop drops
-// both so a stopped ship holds no allocation, and a later Start
-// rebuilds them.
+// A landing ship also kicks dust off the pad twice — mirrored clouds
+// on both sides of the booster, once at the slow-down and once at
+// touchdown, each counting down to nothing. Start builds the hull and
+// arms the fire for its stage; Stop drops everything so a stopped
+// ship holds no allocation, and a later Start rebuilds it.
 type Ship struct {
-	Body    sprite.Sprite
-	Flame   *fire.Flame
-	seed    int64
-	clock   float64
-	w, h    int
-	dark    bool
-	hold    float64
-	heading sprite.Heading
+	Body      sprite.Sprite
+	Flame     *fire.Flame
+	seed      int64
+	clock     float64
+	w, h      int
+	dark      bool
+	hold      float64
+	heading   sprite.Heading
 	dropSec   float64
 	landSec   float64
 	flameBase particle.Config
+	slowDust  *dust.Cloud
+	stopDust  *dust.Cloud
 }
 
 // NewShip binds the craft to its fire seed. Nothing is built until
@@ -188,7 +198,8 @@ func (s *Ship) applyLandThrottle() {
 	_ = s.Flame.SetConfig(cfg)
 }
 
-// Update moves the ship's clock and burns the fire. dt <= 0 holds.
+// Update moves the ship's clock, burns the fire, and runs the landing
+// dust kicks. dt <= 0 holds.
 func (s *Ship) Update(dt float64) {
 	if s == nil || dt <= 0 {
 		return
@@ -196,10 +207,40 @@ func (s *Ship) Update(dt float64) {
 	s.clock += dt
 	if s.landSec > 0 {
 		s.applyLandThrottle()
+		s.updateLandDust(dt)
 	}
 	if s.Flame != nil {
 		s.Flame.Update(dt)
 	}
+}
+
+// updateLandDust runs the two landing dust kicks: mirrored clouds
+// blown out of the pad on both sides of the booster — leftward and
+// rightward, climbing away from the bell — one the moment the booster
+// starts slowing the craft (LandThrottleLead before the pad), one at
+// touchdown. Each kick counts its particles down to zero over
+// dust.FadeSeconds. A dark or unstarted ship kicks nothing.
+func (s *Ship) updateLandDust(dt float64) {
+	if s.dark || s.Body.Width < 1 {
+		return
+	}
+	t := s.clock - s.hold
+	s.slowDust = s.kickDust(s.slowDust, s.seed+2, t-(s.landSec-LandThrottleLead))
+	s.stopDust = s.kickDust(s.stopDust, s.seed+3, t-s.landSec)
+	s.slowDust.Update(dt)
+	s.stopDust.Update(dt)
+}
+
+// kickDust opens a fading cloud when its moment arrives. A moment
+// whose countdown is already over — a restart long after — never
+// replays.
+func (s *Ship) kickDust(c *dust.Cloud, seed int64, since float64) *dust.Cloud {
+	if c != nil || since < 0 || since > dust.FadeSeconds {
+		return c
+	}
+	c = dust.NewCloud(seed).Fade(dust.FadeSeconds)
+	c.Start(s.w, s.h)
+	return c
 }
 
 // Clock is how many seconds of scene time the ship has played.
@@ -210,9 +251,11 @@ func (s *Ship) Clock() float64 {
 	return s.clock
 }
 
-// Render composes fire first, hull second, into a stage-sized sprite,
-// so the hull always wins the overlap at the tail and the plume
-// appears from behind the bell. Before Start and after Stop there is
+// Render composes dust first, fire second, hull last, into a
+// stage-sized sprite, so the hull always wins the overlap at the tail
+// and the plume appears from behind the bell. The dust clouds are
+// stage-sized and ride dustRowOffset up, so their shared floor point
+// sits on the pad surface. Before Start and after Stop there is
 // nothing built, so the stage is empty.
 func (s *Ship) Render() sprite.Sprite {
 	if s == nil || s.w < 1 || s.h < 1 || s.Body.Width < 1 {
@@ -220,6 +263,8 @@ func (s *Ship) Render() sprite.Sprite {
 	}
 	stage := sprite.New(s.w, s.h)
 	row, col := s.position()
+	sprite.Blit(stage, 0, dustRowOffset, s.slowDust.Render())
+	sprite.Blit(stage, 0, dustRowOffset, s.stopDust.Render())
 	if s.Flame != nil {
 		fr, fc := FlameRow, FlameCol
 		if s.heading == sprite.N {
@@ -305,14 +350,15 @@ func (s *Ship) Parked() *Ship {
 	return s
 }
 
-// Stop drops the hull and the fire for the collector; a fresh Start
-// rebuilds both.
+// Stop drops the hull, the fire, and the dust for the collector; a
+// fresh Start rebuilds what its moment still calls for.
 func (s *Ship) Stop() {
 	if s == nil {
 		return
 	}
 	s.Body = sprite.Sprite{}
 	s.Flame = nil
+	s.slowDust, s.stopDust = nil, nil
 }
 
 // FlightPath is the hull's top-left at t seconds into the scene, on a
