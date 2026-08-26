@@ -51,6 +51,18 @@ func hasFire(v string) bool {
 	return strings.ContainsAny(v, "⠁⠒⠶")
 }
 
+// hotBraille reports the booster's braille inks in a rendered view.
+// The landing dust kick wears only pad grays (232..255), so these
+// foregrounds are fire and nothing else.
+func hotBraille(v string) bool {
+	for _, ink := range []string{"38;5;88m", "38;5;124m", "38;5;160m"} {
+		if strings.Contains(v, ink) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestLunarCloseUpScreenplay(t *testing.T) {
 	t.Run("happy: the house opens on scene 1/5 — the pause, under stars alone", func(t *testing.T) {
 		m := newModel(0)
@@ -194,8 +206,8 @@ func TestLunarCloseUpScreenplay(t *testing.T) {
 		if !strings.ContainsRune(landed, '▟') {
 			t.Fatal("at touchdown the north hull must sit on the surface")
 		}
-		if hasFire(landed) {
-			t.Fatal("at touchdown the booster must cut off")
+		if hotBraille(landed) {
+			t.Fatal("at touchdown the booster must cut off — only gray pad dust may remain")
 		}
 	})
 	t.Run("happy: space on the last scene ends the show — nothing left", func(t *testing.T) {
