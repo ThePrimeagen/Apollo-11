@@ -858,6 +858,10 @@ func TestLandDust(t *testing.T) {
 		if lx, rx := s.slowDust.Left.Cfg.Origin.X, s.slowDust.Right.Cfg.Origin.X; lx >= bell || rx <= bell {
 			t.Fatalf("the nozzles must sit on both sides of the booster (col %.0f): left %.1f, right %.1f", bell, lx, rx)
 		}
+		warmShip(s, 0.9) // halfway down the countdown
+		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+			t.Fatalf("mid-countdown the blown fringe must still drift beyond the hull, left=%v right=%v", l, r)
+		}
 	})
 	t.Run("happy: two distinct kicks — the slow-down burst dies before touchdown, the touchdown burst dies on the pad", func(t *testing.T) {
 		s := NewShip(31).North().Land(LandSeconds)

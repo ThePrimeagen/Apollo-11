@@ -207,6 +207,22 @@ func TestCloudFade(t *testing.T) {
 		}
 		noDust(t, cl, "past the fade window")
 	})
+	t.Run("happy: the countdown lets the blown fringe drift — mid-fade dust still shows far from the nozzles", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(7).Fade(FadeSeconds)
+		cl.Start(80, 24)
+		for i := 0; i < 30; i++ { // 1.0s: halfway down the countdown
+			cl.Update(1.0 / 30)
+		}
+		// The nozzles sit at columns 36 and 44; the kick's far fringe
+		// must still be in the air well beyond them. Culling the
+		// oldest specks first would erase exactly that fringe and
+		// contract the kick into a churn at the floor.
+		farLeft, _, farRight := sides(cl.Render(), 28, 52)
+		if !farLeft || !farRight {
+			t.Fatalf("halfway down the countdown the blown fringe must still drift out both sides, left=%v right=%v", farLeft, farRight)
+		}
+	})
 	t.Run("happy: mid-fade the dust still blows out both sides and spares the gap", func(t *testing.T) {
 		t.Cleanup(ResetPuff)
 		cl := NewCloud(11).Fade(FadeSeconds)
