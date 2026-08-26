@@ -1,5 +1,5 @@
 // Package lander is the Apollo LM component: the hand-drawn sprite
-// atlas (every size and heading), the editable lm.json art that ships
+// atlas (every size and heading), the editable JSON art that ships
 // beside it, and the scene-facing craft built from both.
 package lander
 
@@ -173,19 +173,37 @@ func abs(n int) int {
 	return n
 }
 
-// DefaultAtlas builds the four-size, eight-heading atlas from the
-// hand-drawn N/NE/E art; the other five headings are mirrors. Every
-// call builds fresh, so callers can edit their copy freely.
+// HeadingsFor is the headings a size actually ships. Size 4 keeps
+// only N, S, and W; sizes 1–3 still have the full eight-way set.
+func HeadingsFor(sz sprite.Size) []sprite.Heading {
+	if sz == sprite.Size4 {
+		return []sprite.Heading{sprite.N, sprite.S, sprite.W}
+	}
+	return append([]sprite.Heading(nil), sprite.Headings...)
+}
+
+// DefaultAtlas loads the shipped JSON atlases from the assets folder.
+// If those files are missing (tests without a checkout layout), it
+// falls back to the hand-drawn baked frames. Every call returns a
+// fresh atlas so callers can edit their copy freely.
 func DefaultAtlas() *sprite.Atlas {
+	if a, err := LoadJSONDir(FindArtDir()); err == nil {
+		return a
+	}
+	return bakedAtlas()
+}
+
+func bakedAtlas() *sprite.Atlas {
 	a := &sprite.Atlas{
 		Palette: append([]sprite.PaletteEntry(nil), sprite.DefaultPalette...),
 	}
 	type drawn struct {
-		sz       sprite.Size
-		n, ne, e []string
-		nMask    []string
-		neMask   []string
-		eMask    []string
+		sz          sprite.Size
+		n, ne, e, w []string
+		nMask       []string
+		neMask      []string
+		eMask       []string
+		wMask       []string
 	}
 	w1, _ := sprite.Size1.Dim()
 	w2, _ := sprite.Size2.Dim()
@@ -401,19 +419,51 @@ func DefaultAtlas() *sprite.Atlas {
 				"...S..S..............S..S.",
 				"..........................",
 			),
+			// Size-4 west is drawn, not FlipH(E): nose left, gold
+			// shield, grey tail, baked plume on the right.
+			w: rows(w4,
+				"       ▗▄▟█████▌╱◥     -  ",
+				"      ▗▟███████▌    ▁     ",
+				"  ▗▄███████████▌    ▔     ",
+				"▄▌▐████████████▌▄▄▄▄▄     ",
+				"█▌▐█▛  ▐███████▌▐████~~~~~",
+				"█▌▐█▙  ▐███████▌▐████~~~~~",
+				"▀▌▐████████████▌▀▀▀▀▀     ",
+				"  ▝▀███████████▌    ▁     ",
+				"      ▝▜███████▌╲◢        ",
+				"       ▝▀▜█████▌ ╲    --  ",
+			),
+			wMask: rows(w4,
+				".......GGGGGGGGGSS.....S..",
+				"......SGGGGGGGGG....S.....",
+				"..SSSSSSGGGGGGGG....S.....",
+				"SSSSSWWSGGGGGGGGEEEEE.....",
+				"SSSSS..GGGGGGGGGEEEEEPPPPP",
+				"SSSSS..GGGGGGGGGEEEEEPPPPP",
+				"SSSSSWWSGGGGGGGGEEEEE.....",
+				"..SSSSSSGGGGGGGG....S.....",
+				"......SGGGGGGGGGSS........",
+				".......GGGGGGGGG.S....SS..",
+			),
 		},
 	}
 	for _, f := range frames {
 		w, h := f.sz.Dim()
 		n := spriteFrom(w, h, sprite.N, f.n, f.nMask)
+		a.SetFrame(f.sz, sprite.N, n)
+		a.SetFrame(f.sz, sprite.S, sprite.FlipV(n))
+		if len(f.w) > 0 {
+			a.SetFrame(f.sz, sprite.W, spriteFrom(w, h, sprite.W, f.w, f.wMask))
+		}
+		if f.sz == sprite.Size4 {
+			continue
+		}
 		ne := spriteFrom(w, h, sprite.NE, f.ne, f.neMask)
 		e := spriteFrom(w, h, sprite.E, f.e, f.eMask)
-		a.SetFrame(f.sz, sprite.N, n)
 		a.SetFrame(f.sz, sprite.NE, ne)
 		a.SetFrame(f.sz, sprite.E, e)
 		a.SetFrame(f.sz, sprite.NW, sprite.FlipH(ne))
 		a.SetFrame(f.sz, sprite.W, sprite.FlipH(e))
-		a.SetFrame(f.sz, sprite.S, sprite.FlipV(n))
 		a.SetFrame(f.sz, sprite.SE, sprite.FlipV(ne))
 		a.SetFrame(f.sz, sprite.SW, sprite.FlipH(sprite.FlipV(ne)))
 	}

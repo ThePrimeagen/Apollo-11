@@ -337,7 +337,7 @@ func headingThumb(m Model, h sprite.Heading, innerW, innerH int) string {
 			lines[innerH/2] = padPlain(" (none)", innerW)
 		}
 	} else {
-		raw := strings.Split(sprite.Render(sp), "\n")
+		raw := strings.Split(renderComposite(sp), "\n")
 		lines = make([]string, innerH)
 		for i := 0; i < innerH; i++ {
 			row := ""

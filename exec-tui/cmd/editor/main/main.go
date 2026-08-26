@@ -2,23 +2,24 @@ package main
 
 // lander-edit: a vim-ish terminal editor for the LM ASCII atlas.
 //
-//	h j k l     move (canvas / symbols / palette / frames)
-//	1-0         clutch last 10 colors
+//	ctrl-h / ctrl-l  cycle canvas layers: ascii outline ↔ foreground ↔ background
+//	h j k l / arrows  move the canvas cursor
+//	1-0         clutch last 10 colors (applies to the active layer)
 //	!@#$%^&*()  jump to ░▒▓█ ▀▄▌▐ ▖▗ on the symbol list
-//	p / P       paste the selected symbol in the current color
+//	p / P       paste glyph on outline; paint FG on fg; paint BG on bg
 //	i           one-shot insert: next character typed lands on the cell
 //	c           8-bit color dropdown (greys + cube; space picks, esc closes)
 //	space       toggle-select the cell under the cursor
 //	f / b       paint foreground / background only
-//	d           delete to transparent
-//	x           cut: delete and pick up that glyph + color as the brush
+//	d           delete: ASCII on outline; color only on fg/bg (glyph stays)
+//	x           cut: pick up + delete glyph on outline; color only on fg/bg
 //	ctrl-a / b  increment / decrement shade (░▒▓█)
 //	ctrl-w h/l  close popup / open symbols
 //	ctrl-w j/k  open palette / frames (popups over centered art)
 //	mouse       click a canvas cell or a symbol to jump there
 //	s / ctrl-s  save JSON (3-height toast, 5s)
-//	ctrl-p      size×heading gallery (1–4 × N NE E SE S SW W NW)
-//	ctrl-j      10×26 glyph grid (hjkl + enter, or 1a–0z)
+//	ctrl-p      size×heading gallery — full composite (outline+fg+bg)
+//	ctrl-e      26×10 glyph grid (hjkl + enter, or 1a–0z)
 //	ctrl-k      named color palette (jk move, enter pick, esc close)
 //	q           quit
 

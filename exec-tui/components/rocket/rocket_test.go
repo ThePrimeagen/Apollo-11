@@ -121,9 +121,9 @@ func TestView(t *testing.T) {
 				}
 			}
 		}
-		bell := []rune("▜█████▛")
+		bell := []rune("▜██████▛")
 		for i, want := range bell {
-			if got := v.At(7, 10+i).Ch; got != want {
+			if got := v.At(7, 9+i).Ch; got != want {
 				t.Fatalf("bell glyph %d is %q, want %q", i, got, want)
 			}
 		}

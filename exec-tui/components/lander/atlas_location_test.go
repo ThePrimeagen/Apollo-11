@@ -1,9 +1,8 @@
 package lander
 
 // The Apollo lander owns its art: the hand-drawn default atlas and the
-// editable lm.json both live here, in the component's own folder, so
-// the sprite editor and every scene read the same home. Tests written
-// before the move.
+// editable JSON both live here, so the sprite editor and every scene
+// read the same home. Tests written before the move.
 
 import (
 	"testing"
@@ -18,7 +17,7 @@ func TestDefaultAtlas(t *testing.T) {
 			t.Fatal("DefaultAtlas() returned nil")
 		}
 		for _, sz := range sprite.Sizes {
-			for _, h := range sprite.Headings {
+			for _, h := range HeadingsFor(sz) {
 				sp, ok := a.Frame(sz, h)
 				if !ok {
 					t.Fatalf("size %d heading %s missing from the default atlas", sz, h)

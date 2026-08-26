@@ -1,0 +1,184 @@
+<Context>
+You receive a selection in neovim that you need to replace with new code.
+The selection's contents may contain notes, incorporate the notes every time if there are some.
+consider the context of the selection and what you are suppose to be implementing
+<SELECTION_LOCATION>
+range(point(185,1),point(185,1))
+</SELECTION_LOCATION>
+<SELECTION_CONTENT>
+
+</SELECTION_CONTENT>
+<SURROUNDING_CONTEXT>
+	}
+	if c.MinSpeed < 0 || c.MaxSpeed < 0 || c.MinLife < 0 || c.MaxLife < 0 {
+		return ErrNegative
+	}
+	if c.MinSpeed > c.MaxSpeed {
+		return ErrSpeed
+	}
+	if c.MinLife > c.MaxLife {
+		return ErrLife
+	}
+	if c.Period < 0 {
+		return ErrPeriod
+	}
+	if c.Count < 0 {
+		return ErrCount
+	}
+	if c.Spread < 0 {
+		return ErrSpread
+	}
+	if c.Nozzle < 0 {
+		return ErrNozzle
+	}
+	return nil
+}
+
+// Particle is one live (or just-expired) speck.
+type Particle struct {
+	Pos  Vec2
+	Vel  Vec2
+	Life float64 // remaining seconds
+}
+
+// Cell is one terminal cell in unit space.
+type Cell struct {
+	Col, Row int
+}
+
+// CellOf maps a unit-space point onto the cell it sits in.
+func CellOf(x, y float64) Cell {
+	return Cell{Col: int(math.Floor(x)), Row: int(math.Floor(y / CellHeightUnits))}
+}
+
+// Engine owns the live particle list and the period clock.
+type Engine struct {
+	Cfg       Config
+	Particles []Particle
+
+	rng *rand.Rand
+	acc float64
+}
+
+// New builds an engine that has not yet emitted. The first Update with a
+// positive dt and Period > 0 fires immediately; later emits wait Period.
+func New(seed int64, cfg Config) *Engine {
+	cfg.Direction = cfg.Direction.Normalize()
+	return &Engine{
+		Cfg: cfg,
+		rng: rand.New(rand.NewSource(seed)),
+		acc: cfg.Period,
+	}
+}
+
+// Validate checks the current config.
+func (e *Engine) Validate() error { return e.Cfg.Validate() }
+
+// Update advances the clock by dt seconds: move, expire, emit.
+// dt <= 0 is a no-op.
+func (e *Engine) Update(dt float64) {
+	if dt <= 0 {
+		return
+	}
+	e.advance(dt)
+	e.emitDue(dt)
+}
+
+func (e *Engine) advance(dt float64) {
+	n := 0
+	for _, p := range e.Particles {
+		p.Pos = Vec2{X: p.Pos.X + p.Vel.X*dt, Y: p.Pos.Y + p.Vel.Y*dt}
+		p.Life -= dt
+		if p.Life > 0 && e.inside(p.Pos) {
+			e.Particles[n] = p
+			n++
+		}
+	}
+	e.Particles = e.Particles[:n]
+}
+
+func (e *Engine) emitDue(dt float64) {
+	if e.Cfg.Period <= 0 || e.Cfg.Count <= 0 {
+		return
+	}
+	e.acc += dt
+	for e.acc >= e.Cfg.Period {
+		e.emit()
+		e.acc -= e.Cfg.Period
+	}
+}
+
+func hello_world(){
+
+}
+
+func (e *Engine) emit() {
+	dir := e.Cfg.Direction.Normalize()
+	if dir == (Vec2{}) {
+		return
+	}
+	for i := 0; i < e.Cfg.Count; i++ {
+		angle := e.rng.NormFloat64() * e.Cfg.Spread
+		heading := dir.Rotate(angle)
+		speed := e.between(e.Cfg.MinSpeed, e.Cfg.MaxSpeed)
+		life := e.between(e.Cfg.MinLife, e.Cfg.MaxLife)
+		pos := e.Cfg.Origin
+		if e.Cfg.Nozzle > 0 {
+			perp := Vec2{X: -dir.Y, Y: dir.X}
+			off := (e.rng.Float64() - 0.5) * e.Cfg.Nozzle
+			pos = Vec2{X: pos.X + perp.X*off, Y: pos.Y + perp.Y*off}
+		}
+		p := Particle{
+			Pos:  pos,
+			Vel:  heading.Scale(speed),
+			Life: life,
+		}
+		if p.Life > 0 && e.inside(p.Pos) {
+			e.Particles = append(e.Particles, p)
+		}
+	}
+}
+
+func (e *Engine) between(min, max float64) float64 {
+	if max <= min {
+		return min
+	}
+	return min + e.rng.Float64()*(max-min)
+}
+
+func (e *Engine) inside(p Vec2) bool {
+	return p.X >= 0 && p.X <= e.Cfg.Width && p.Y >= 0 && p.Y <= e.Cfg.Height
+}
+
+// Occupancy counts live particles in each terminal cell.
+func (e *Engine) Occupancy() map[Cell]int {
+	occ := make(map[Cell]int)
+	for _, p := range e.Particles {
+		if p.Life <= 0 {
+			continue
+		}
+		occ[CellOf(p.Pos.X, p.Pos.Y)]++
+	}
+	return occ
+}
+</SURROUNDING_CONTEXT>
+
+</Context>
+<Prompt>
+hey fill in this function and print out hello world
+</Prompt>
+
+<Location><File>/home/theprimeagen/personal/Apollo-11/exec-tui/components/particle/particle.go</File><Function>range(point(185,1),point(185,1))</Function></Location>
+<FunctionText></FunctionText>
+<TEMP_FILE>./tmp/99-929</TEMP_FILE>
+<MustObey>
+NEVER alter any file other than TEMP_FILE.
+never provide the requested changes as conversational output. Return only the code.
+ONLY provide requested changes by writing the change to TEMP_FILE
+
+never attempt to read TEMP_FILE.
+It is purely for output.
+Previous contents, which may not exist, can be written over without worry
+After writing TEMP_FILE once you should be done.  Be done and end the session.
+
+</MustObey>

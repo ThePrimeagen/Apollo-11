@@ -62,8 +62,8 @@ func TestColorClutch(t *testing.T) {
 		}
 		want := m.RecentColors[2]
 		m = send(m, key('3'))
-		if m.Brush != want {
-			t.Fatalf("3 must load clutch slot 3, got %+v want %+v", m.Brush, want)
+		if m.Brush.FG != want.FG {
+			t.Fatalf("3 must load clutch slot 3 fg, got %+v want fg %d", m.Brush, want.FG)
 		}
 		m = send(m, key('P'))
 		if m.Current().At(0, 0).FG != want.FG {
@@ -90,9 +90,10 @@ func fillColorClutch(t *testing.T) Model {
 	m := newEd(t)
 	m.CursorR, m.CursorC = 0, 0
 	m.PalIdx = -1
+	m = send(m, keyCtrl('l')) // fg layer: p paints color into recents
 	for i := 0; i < 10; i++ {
 		m.Brush = Swatch{FG: 240 + i, BG: -1}
-		m = send(m, key('P'))
+		m = send(m, key('p'))
 	}
 	return m
 }

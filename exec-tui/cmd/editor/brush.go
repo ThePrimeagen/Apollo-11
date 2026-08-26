@@ -176,9 +176,23 @@ func (m *Model) pickRecentColor(i int) bool {
 	if i < 0 || i >= len(m.RecentColors) {
 		return false
 	}
-	m.Brush = m.RecentColors[i]
+	sw := m.RecentColors[i]
+	switch m.Layer {
+	case LayerFG:
+		m.Brush.FG = sw.FG
+		m.status = fmt.Sprintf("color fg %d", m.Brush.FG)
+	case LayerBG:
+		bg := sw.BG
+		if bg < 0 {
+			bg = sw.FG
+		}
+		m.Brush.BG = bg
+		m.status = fmt.Sprintf("color bg %d", m.Brush.BG)
+	default:
+		m.Brush = sw
+		m.status = fmt.Sprintf("color fg %d bg %d", m.Brush.FG, m.Brush.BG)
+	}
 	m.PalIdx = -1
-	m.status = fmt.Sprintf("color fg %d bg %d", m.Brush.FG, m.Brush.BG)
 	return true
 }
 
@@ -211,10 +225,7 @@ func (m *Model) closePicker(apply bool) {
 		if m.PickerCube {
 			fg = cubeColor(m.CubeRed, m.PickerIdx)
 		}
-		m.Brush = Swatch{FG: fg, BG: m.Brush.BG}
-		m.PalIdx = -1
-		m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
-		m.status = fmt.Sprintf("color fg %d", fg)
+		m.applyPickedColor(fg)
 	}
 	m.PickerOpen = false
 }

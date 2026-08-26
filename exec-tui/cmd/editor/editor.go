@@ -90,6 +90,8 @@ type Model struct {
 
 	ColorPaletteOpen bool
 	ColorPaletteIdx  int
+
+	Layer EditLayer
 }
 
 // New boots the editor on an atlas. path is where :w / Save writes.
@@ -119,7 +121,8 @@ func New(a *sprite.Atlas, path string) Model {
 		PaintCh:   '█',
 		SymIdx:    0,
 		PickerIdx: 23,
-		status:    "s save  i insert  p paste  [ ] heading  ^P 4×8  ^J glyphs  ^K colors  ^W hjkl popups  c 8-bit  q quit",
+		Layer:     LayerOutline,
+		status:    "layer outline  ^H/^L layers  hjkl move  p paste  ^E glyphs  ^K colors  ^P gallery  s save  q quit",
 	}
 }
 
@@ -200,7 +203,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// ctrl-s saves even when a popup would otherwise swallow keys.
-	// Plain s stays below so the glyph grid can still use column "s".
+	// Plain s stays below so the glyph grid can still use row "s".
 	if !m.Inserting && msg.String() == "ctrl+s" {
 		return m, m.SaveWithToast()
 	}
@@ -236,11 +239,17 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+p":
 		m.openShipPicker()
 		return m, nil
-	case "ctrl+j":
+	case "ctrl+e":
 		m.openGlyphGrid()
 		return m, nil
 	case "ctrl+k":
 		m.openColorPalette()
+		return m, nil
+	case "ctrl+h":
+		m.stepLayer(-1)
+		return m, nil
+	case "ctrl+l":
+		m.stepLayer(1)
 		return m, nil
 	case "esc":
 		if m.Win != WinCanvas {
@@ -261,6 +270,18 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.shade(-1)
 		}
 		return m, nil
+	case "left":
+		m.moveCursor(-1, 0)
+		return m, nil
+	case "right":
+		m.moveCursor(1, 0)
+		return m, nil
+	case "up":
+		m.moveCursor(0, -1)
+		return m, nil
+	case "down":
+		m.moveCursor(0, 1)
+		return m, nil
 	case "space":
 		m.space()
 		return m, nil
@@ -278,8 +299,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case 'c':
 		m.openPicker()
 	case 'p', 'P':
-		m.pasteSymbol()
-	case 'h', 'j', 'k', 'l':
+		m.pasteOnLayer()
+	case 'h', 'l', 'j', 'k':
 		m.move(r)
 	case '[':
 		m.stepHeading(-1)
@@ -411,9 +432,7 @@ func (m *Model) space() {
 	case WinPalette:
 		if m.PalIdx >= 0 && m.PalIdx < len(m.Atlas.Palette) {
 			p := m.Atlas.Palette[m.PalIdx]
-			m.Brush = Swatch{FG: p.FG, BG: p.BG}
-			m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
-			m.status = "color " + p.Name
+			m.applyNamedColor(p)
 		}
 	case WinFrames:
 	case WinSymbols:
@@ -428,24 +447,15 @@ func (m *Model) space() {
 func (m *Model) move(r rune) {
 	switch m.Win {
 	case WinCanvas:
-		sp := m.Current()
 		switch r {
-		case 'h':
-			if m.CursorC > 0 {
-				m.CursorC--
-			}
-		case 'l':
-			if m.CursorC+1 < sp.Width {
-				m.CursorC++
-			}
 		case 'k':
-			if m.CursorR > 0 {
-				m.CursorR--
-			}
+			m.moveCursor(0, -1)
 		case 'j':
-			if m.CursorR+1 < sp.Height {
-				m.CursorR++
-			}
+			m.moveCursor(0, 1)
+		case 'h':
+			m.moveCursor(-1, 0)
+		case 'l':
+			m.moveCursor(1, 0)
 		}
 	case WinPalette:
 		n := len(m.Atlas.Palette)
@@ -494,6 +504,27 @@ func (m *Model) move(r rune) {
 			m.clampCursor()
 			m.sel = map[cellKey]bool{}
 		}
+	}
+}
+
+func (m *Model) moveCursor(dx, dy int) {
+	if m.Win != WinCanvas {
+		return
+	}
+	sp := m.Current()
+	m.CursorC += dx
+	m.CursorR += dy
+	if m.CursorC < 0 {
+		m.CursorC = 0
+	}
+	if m.CursorR < 0 {
+		m.CursorR = 0
+	}
+	if sp.Width > 0 && m.CursorC >= sp.Width {
+		m.CursorC = sp.Width - 1
+	}
+	if sp.Height > 0 && m.CursorR >= sp.Height {
+		m.CursorR = sp.Height - 1
 	}
 }
 
@@ -579,25 +610,47 @@ func (m *Model) color() Swatch {
 	return m.Brush
 }
 
-// cutPickup is x: delete the cell under the cursor and make that glyph
-// plus color the active brush. An empty cell stays empty and leaves the
-// brush alone — no invented glyph.
+// cutPickup is x: on outline, delete the cell and make that glyph plus
+// color the brush. On fg/bg, strip that color only — the ASCII stays —
+// and pick the deleted channel up as the brush. An empty cell stays
+// empty and leaves the brush alone.
 func (m *Model) cutPickup() {
 	if m.Win != WinCanvas {
 		return
 	}
 	sp := cloneSprite(m.Current())
 	c := sp.At(m.CursorR, m.CursorC)
-	if !c.Transparent() {
-		m.PaintCh = c.Ch
-		m.syncSymIdx()
-		m.RecentGlyphs = rememberGlyph(m.RecentGlyphs, c.Ch, 10)
-		m.Brush = Swatch{FG: c.FG, BG: c.BG}
-		m.PalIdx = -1
-		m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
-		m.status = fmt.Sprintf("cut %q fg %d bg %d", string(c.Ch), c.FG, c.BG)
+	switch m.Layer {
+	case LayerFG:
+		if c.FG >= 0 {
+			m.Brush.FG = c.FG
+			m.PalIdx = -1
+			m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
+			m.status = fmt.Sprintf("cut fg %d", c.FG)
+		}
+		c.FG = -1
+		sp.Set(m.CursorR, m.CursorC, c)
+	case LayerBG:
+		if c.BG >= 0 {
+			m.Brush.BG = c.BG
+			m.PalIdx = -1
+			m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
+			m.status = fmt.Sprintf("cut bg %d", c.BG)
+		}
+		c.BG = -1
+		sp.Set(m.CursorR, m.CursorC, c)
+	default:
+		if !c.Transparent() {
+			m.PaintCh = c.Ch
+			m.syncSymIdx()
+			m.RecentGlyphs = rememberGlyph(m.RecentGlyphs, c.Ch, 10)
+			m.Brush = Swatch{FG: c.FG, BG: c.BG}
+			m.PalIdx = -1
+			m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
+			m.status = fmt.Sprintf("cut %q fg %d bg %d", string(c.Ch), c.FG, c.BG)
+		}
+		sp.Set(m.CursorR, m.CursorC, sprite.Cell{Ch: ' ', FG: -1, BG: -1})
 	}
-	sp.Set(m.CursorR, m.CursorC, sprite.Cell{Ch: ' ', FG: -1, BG: -1})
 	m.setCurrent(sp)
 }
 
@@ -608,7 +661,14 @@ func (m *Model) paint(mode rune) {
 		c := sp.At(k.R, k.C)
 		switch mode {
 		case 'd':
-			c = sprite.Cell{Ch: ' ', FG: -1, BG: -1}
+			switch m.Layer {
+			case LayerFG:
+				c.FG = -1
+			case LayerBG:
+				c.BG = -1
+			default:
+				c = sprite.Cell{Ch: ' ', FG: -1, BG: -1}
+			}
 		case 'f':
 			if c.Ch == ' ' {
 				c.Ch = m.PaintCh
@@ -860,6 +920,13 @@ func (m Model) centeredCanvas() string {
 			b.WriteByte('\n')
 		}
 	}
+	tabs := renderLayerTabs(m.Layer)
+	tp := padX + (boxW-displayLen(tabs))/2
+	if tp < 0 {
+		tp = 0
+	}
+	b.WriteByte('\n')
+	b.WriteString(clipTo(strings.Repeat(" ", tp)+tabs, tw))
 	return b.String()
 }
 
@@ -867,9 +934,9 @@ func (m Model) View() tea.View {
 	tw, th := m.termSize()
 	m.TermW, m.TermH = tw, th
 	sp := m.Current()
-	title := fmt.Sprintf("LM EDITOR  size %d  heading %s  %s", m.Size, m.Heading, m.Path)
+	title := fmt.Sprintf("LM EDITOR  size %d  heading %s  layer %s  %s", m.Size, m.Heading, m.Layer, m.Path)
 	if m.Path == "" {
-		title = fmt.Sprintf("LM EDITOR  size %d  heading %s", m.Size, m.Heading)
+		title = fmt.Sprintf("LM EDITOR  size %d  heading %s  layer %s", m.Size, m.Heading, m.Layer)
 	}
 
 	body := m.centeredCanvas()
@@ -933,7 +1000,8 @@ func renderCanvas(sp sprite.Sprite, m Model) string {
 				continue
 			}
 			cell := sp.At(r, c)
-			ch := cell.Ch
+			view := layerCell(m.Layer, cell)
+			ch := view.Ch
 			if ch == 0 || ch == ' ' {
 				if m.Selected(r, c) || (m.Win == WinCanvas && r == m.CursorR && c == m.CursorC) {
 					ch = '·'
@@ -952,8 +1020,8 @@ func renderCanvas(sp sprite.Sprite, m Model) string {
 				s = "\x1b[7m" + s + "\x1b[0m"
 			} else if m.Win == WinCanvas && r == m.CursorR && c == m.CursorC {
 				s = "\x1b[7m" + s + "\x1b[0m"
-			} else if !cell.Transparent() {
-				s = sprite.Render(oneCell(cell))
+			} else if !view.Transparent() {
+				s = sprite.Render(oneCell(view))
 			}
 			b.WriteString(s)
 			used += cols
@@ -966,7 +1034,7 @@ func renderCanvas(sp sprite.Sprite, m Model) string {
 		}
 		inner[r] = clipPad(b.String(), sp.Width)
 	}
-	label := fmt.Sprintf(" canvas %dx%d %s ", sp.Width, sp.Height, m.Heading)
+	label := fmt.Sprintf(" canvas %dx%d %s  %s ", sp.Width, sp.Height, m.Heading, m.Layer)
 	return box(label, inner, sp.Width)
 }
 
@@ -1148,7 +1216,7 @@ func renderRecents(m Model) string {
 
 func recentsOrigin(termW, termH, spriteW, spriteH int) (glyphY, colorY int) {
 	_, oy := canvasOrigin(termW, termH, spriteW, spriteH)
-	glyphY = oy + spriteH + 1
+	glyphY = oy + spriteH + 2
 	colorY = glyphY + 1
 	return glyphY, colorY
 }

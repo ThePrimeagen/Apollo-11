@@ -1,7 +1,8 @@
 package editor
 
-// Tests written FIRST. x is cut/pick-up: delete the cell under the cursor
-// and make that glyph + color the active brush. Empty cells must not invent
+// Tests written FIRST. x is cut/pick-up: on outline, delete the cell under
+// the cursor and make that glyph + color the active brush. On fg/bg, x
+// strips that color only and leaves the ASCII. Empty cells must not invent
 // a glyph. x must not paste, scroll, or move the cursor.
 
 import (

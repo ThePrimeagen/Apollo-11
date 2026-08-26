@@ -3,13 +3,14 @@ package lander
 // Tests written FIRST: the ship is the full zoomed-in (size-4, 26×10)
 // craft flying west — nose left, tail right — with the atlas's baked
 // tilde plume stripped and the live left-to-right booster fire trailing
-// off the tail. As a component: Start(w, h) builds the hull and arms
-// the fire for that stage, Update moves the clock and burns the fire,
-// Render composes fire-then-hull into a stage-sized sprite, and Stop
-// drops both so a stopped ship holds no allocation. FlightPath is the
-// whole choreography: fully off the right wing at t=0, an eased slide
-// that parks at center stage by FlyInSeconds, then a ±1-cell sine
-// bobble with a ten-second period.
+// off the tail. Dark() skips the booster so a scene can fly the hull
+// alone; Parked() opens already at center stage. As a component:
+// Start(w, h) builds the hull and arms the fire for that stage, Update
+// moves the clock and burns the fire, Render composes fire-then-hull
+// into a stage-sized sprite, and Stop drops both so a stopped ship
+// holds no allocation. FlightPath is the whole choreography: fully off
+// the right wing at t=0, an eased slide that parks at center stage by
+// FlyInSeconds, then a ±1-cell sine bobble with a ten-second period.
 
 import (
 	"math"
@@ -284,5 +285,88 @@ func TestShipOnStage(t *testing.T) {
 		ghost.Update(0.1)
 		ghost.Render()
 		ghost.Stop()
+	})
+}
+
+func TestDarkShip(t *testing.T) {
+	t.Run("happy: a dark start builds the hull and leaves the booster cold", func(t *testing.T) {
+		s := NewShip(8).Dark()
+		s.Start(screenW, screenH)
+		if s.Flame != nil {
+			t.Fatal("a dark ship must not arm the booster")
+		}
+		if s.Body.Width != BodyCols || s.Body.Height != BodyRows {
+			t.Fatalf("body %dx%d, want %dx%d", s.Body.Width, s.Body.Height, BodyCols, BodyRows)
+		}
+	})
+	t.Run("happy: a warmed dark ship parks with hull cells and no plume", func(t *testing.T) {
+		s := NewShip(9).Dark()
+		s.Start(screenW, screenH)
+		warmShip(s, 5.0)
+		stage := s.Render()
+		if opaqueCells(stage) == 0 {
+			t.Fatal("the hull must still land on stage without fire")
+		}
+		row, col := FlightPath(screenW, screenH, s.Clock())
+		for r := 0; r < s.Body.Height; r++ {
+			for c := 0; c < s.Body.Width; c++ {
+				b := s.Body.At(r, c)
+				if b.Transparent() {
+					continue
+				}
+				if got := stage.At(row+r, col+c); got != b {
+					t.Fatalf("hull cell (%d,%d) moved: %+v -> %+v", r, c, b, got)
+				}
+			}
+		}
+		for r := 0; r < stage.Height; r++ {
+			for c := col + BodyCols; c < stage.Width; c++ {
+				ch := stage.At(r, c).Ch
+				if ch == '⠁' || ch == '⠒' || ch == '⠶' || ch == '░' || ch == '▒' || ch == '▄' {
+					t.Fatalf("plume glyph %q right of the hull at (%d,%d)", string(ch), r, c)
+				}
+			}
+		}
+	})
+	t.Run("unhappy: Dark on a nil ship is still nil", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.Dark() != nil {
+			t.Fatal("Dark must return the nil receiver")
+		}
+	})
+}
+
+func TestParkedShip(t *testing.T) {
+	t.Run("happy: a parked ship opens at center stage with no fly-in", func(t *testing.T) {
+		s := NewShip(10).Dark().Parked()
+		s.Start(screenW, screenH)
+		if s.Clock() != FlyInSeconds {
+			t.Fatalf("clock %f, want FlyInSeconds so the bobble starts from the park", s.Clock())
+		}
+		stage := s.Render()
+		if opaqueCells(stage) == 0 {
+			t.Fatal("a parked ship must already be on stage at t=0 of the scene")
+		}
+		wantRow, wantCol := FlightPath(screenW, screenH, FlyInSeconds)
+		if wantCol != centerCol || wantRow != centerRow {
+			t.Fatalf("test premise: park is (%d,%d), got FlightPath (%d,%d)", centerRow, centerCol, wantRow, wantCol)
+		}
+		for r := 0; r < s.Body.Height; r++ {
+			for c := 0; c < s.Body.Width; c++ {
+				b := s.Body.At(r, c)
+				if b.Transparent() {
+					continue
+				}
+				if got := stage.At(wantRow+r, wantCol+c); got != b {
+					t.Fatalf("parked hull cell (%d,%d) missing: %+v -> %+v", r, c, b, got)
+				}
+			}
+		}
+	})
+	t.Run("unhappy: Parked on a nil ship is still nil", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.Parked() != nil {
+			t.Fatal("Parked must return the nil receiver")
+		}
 	})
 }

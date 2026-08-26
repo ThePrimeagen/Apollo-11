@@ -56,7 +56,7 @@ func TestUsingSymbolRecordsHistory(t *testing.T) {
 			t.Fatal("3c must address a glyph")
 		}
 		before := m.Current()
-		m = send(m, keyCtrl('j'))
+		m = send(m, keyCtrl('e'))
 		m = send(m, key('3'))
 		m = send(m, key('c'))
 		if len(m.RecentGlyphs) == 0 || m.RecentGlyphs[0] != want {
@@ -310,7 +310,7 @@ func TestViewShowsRecentHistory(t *testing.T) {
 		}
 		m = send(m, keyType(tea.KeyEsc))
 
-		m = send(m, keyCtrl('j'))
+		m = send(m, keyCtrl('e'))
 		gv := strip(m.View().Content)
 		if !strings.Contains(gv, "recent glyphs") {
 			t.Fatal("glyph grid overlay must show recent glyphs")

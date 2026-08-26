@@ -2,9 +2,10 @@ package editor
 
 // Tests written FIRST. The lander editor is a vim-ish TUI: HJKL walk the
 // canvas, space selects, p/P pastes the selected symbol, i inserts one
-// character, D deletes to transparent, Ctrl-A / Ctrl-B walk the shade ramp,
-// mouse click jumps the cursor, and Ctrl-W H / Ctrl-W L (plus J/K) open
-// control popups around a centered canvas (no permanent sidebar).
+// character, D deletes the glyph on outline (color-only on fg/bg),
+// Ctrl-A / Ctrl-B walk the shade ramp, mouse click jumps the cursor, and
+// Ctrl-W H / Ctrl-W L (plus J/K) open control popups around a centered
+// canvas (no permanent sidebar).
 
 import (
 	"encoding/json"
@@ -48,14 +49,6 @@ func TestCursorHJKL(t *testing.T) {
 	t.Run("happy: hjkl move the canvas cursor", func(t *testing.T) {
 		m := newEd(t)
 		m.CursorR, m.CursorC = 2, 2
-		m = send(m, key('l'))
-		if m.CursorC != 3 {
-			t.Fatalf("l must move right, col=%d", m.CursorC)
-		}
-		m = send(m, key('h'))
-		if m.CursorC != 2 {
-			t.Fatalf("h must move left, col=%d", m.CursorC)
-		}
 		m = send(m, key('j'))
 		if m.CursorR != 3 {
 			t.Fatalf("j must move down, row=%d", m.CursorR)
@@ -64,13 +57,27 @@ func TestCursorHJKL(t *testing.T) {
 		if m.CursorR != 2 {
 			t.Fatalf("k must move up, row=%d", m.CursorR)
 		}
+		m = send(m, key('l'))
+		if m.CursorC != 3 {
+			t.Fatalf("l must move right, col=%d", m.CursorC)
+		}
+		if m.Layer != LayerOutline {
+			t.Fatal("plain l must not switch layers")
+		}
+		m = send(m, key('h'))
+		if m.CursorC != 2 {
+			t.Fatalf("h must move left, col=%d", m.CursorC)
+		}
+		if m.Layer != LayerOutline {
+			t.Fatal("plain h must not switch layers")
+		}
 	})
 	t.Run("unhappy: hjkl clamp at the canvas edge", func(t *testing.T) {
 		m := newEd(t)
 		sp := m.Current()
 		m.CursorR, m.CursorC = 0, 0
-		m = send(m, key('h'))
 		m = send(m, key('k'))
+		m = send(m, key('h'))
 		if m.CursorR != 0 || m.CursorC != 0 {
 			t.Fatalf("must clamp at origin, got (%d,%d)", m.CursorR, m.CursorC)
 		}
@@ -117,11 +124,14 @@ func TestPaintAndDelete(t *testing.T) {
 		m = send(m, key('P'))
 		c := m.Current().At(0, 0)
 		if c.Transparent() {
-			t.Fatal("P must leave a visible cell")
+			t.Fatal("P on outline must leave a visible glyph")
 		}
+		m = send(m, keyCtrl('l')) // fg layer
+		m = send(m, key('p'))
+		c = m.Current().At(0, 0)
 		want := m.Atlas.Palette[1]
 		if c.FG != want.FG {
-			t.Fatalf("fg %d, want palette fg %d", c.FG, want.FG)
+			t.Fatalf("fg-layer p fg %d, want palette fg %d", c.FG, want.FG)
 		}
 	})
 	t.Run("happy: I paints every selected cell, not just the cursor", func(t *testing.T) {
@@ -254,6 +264,23 @@ func TestWindows(t *testing.T) {
 			t.Fatalf("Ctrl-W K from frames must land on palette, got %v", m.Win)
 		}
 	})
+	t.Run("unhappy: Ctrl-L alone does not move windows — that stays on the Ctrl-W prefix", func(t *testing.T) {
+		m := newEd(t)
+		m = send(m, keyCtrl('l'))
+		if m.Win != WinCanvas {
+			t.Fatalf("Ctrl-L must switch layers, not windows, got win %v", m.Win)
+		}
+		if m.Layer != LayerFG {
+			t.Fatalf("Ctrl-L must land on fg, got %v", m.Layer)
+		}
+		m = send(m, keyCtrl('h'))
+		if m.Win != WinCanvas {
+			t.Fatalf("Ctrl-H must stay on the canvas, got win %v", m.Win)
+		}
+		if m.Layer != LayerOutline {
+			t.Fatalf("Ctrl-H must walk back to outline, got %v", m.Layer)
+		}
+	})
 	t.Run("unhappy: a dangling Ctrl-W is cancelled by escape, not treated as h/j/k/l", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 80, 24
@@ -265,12 +292,12 @@ func TestWindows(t *testing.T) {
 		if sidebarChrome(m.View().Content) {
 			t.Fatal("Ctrl-W Esc must not open a control popup")
 		}
-		m = send(m, key('l'))
+		m = send(m, keyArrow(tea.KeyRight))
 		if m.Win != WinCanvas {
-			t.Fatal("after Esc, l must move the cursor, not the window")
+			t.Fatal("after Esc, right arrow must move the cursor, not the window")
 		}
 		if m.CursorC != 1 {
-			t.Fatalf("l should have moved the canvas cursor, col=%d", m.CursorC)
+			t.Fatalf("right arrow should have moved the canvas cursor, col=%d", m.CursorC)
 		}
 	})
 	t.Run("happy: Esc from a control popup returns to canvas-only", func(t *testing.T) {
@@ -650,25 +677,28 @@ func TestFrameSwitching(t *testing.T) {
 			t.Fatalf("size 4 canvas must be 26 wide, got %d", m.Current().Width)
 		}
 	})
-	t.Run("happy: frames h/l walk every heading", func(t *testing.T) {
+	t.Run("happy: frames h/l walk every heading the size ships", func(t *testing.T) {
 		m := newEd(t)
 		m.Win = WinFrames
+		m.Size = sprite.Size4
 		m.Heading = sprite.N
+		want := lander.HeadingsFor(sprite.Size4)
 		seen := map[sprite.Heading]bool{m.Heading: true}
-		for i := 0; i < len(sprite.Headings); i++ {
+		for i := 0; i < len(want); i++ {
 			m = send(m, key('l'))
 			seen[m.Heading] = true
 		}
 		if m.Heading != sprite.N {
-			t.Fatalf("eight steps of l must return to N, got %s", m.Heading)
+			t.Fatalf("%d steps of l must return to N, got %s", len(want), m.Heading)
 		}
-		if len(seen) != len(sprite.Headings) {
-			t.Fatalf("l must visit all %d headings, got %d", len(sprite.Headings), len(seen))
+		if len(seen) != len(want) {
+			t.Fatalf("l must visit all %d size-4 headings, got %d", len(want), len(seen))
 		}
 	})
 	t.Run("happy: [ and ] cycle headings on the canvas", func(t *testing.T) {
 		m := newEd(t)
 		m.Win = WinCanvas
+		m.Size = sprite.Size1
 		m.Heading = sprite.N
 		m = send(m, key(']'))
 		if m.Heading != sprite.NE {

@@ -39,10 +39,10 @@ type Entry struct {
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
 	return []Entry{
-		{ID: "screenplay", Section: "MAIN PROGRAM", Title: "SCREENPLAY", Desc: "the two-scene premiere: arrival, then THE END", Pkg: "./cmd/premiere"},
+		{ID: "screenplay", Section: "MAIN PROGRAM", Title: "SCREENPLAY", Desc: "the three-scene premiere: arrival, DSKY dock, then THE END", Pkg: "./cmd/premiere"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
-		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish editor for ASCII ships in assets/ (C-p sizes×headings, C-j glyphs)"},
+		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish editor for ASCII ships in assets/ (C-p sizes×headings, C-e glyphs)"},
 		{ID: "particle", Section: "CONFIG", Title: "PARTICLE CONFIG", Desc: "tune the nyan rainbow trail (bands, life, spawn)", Pkg: "./cmd/adjustparticle/main"},
 		{ID: "lander", Section: "DEMO", Title: "LANDER DEMO", Desc: "the continuous descent with alarms at their true moments", Pkg: "./cmd/lander"},
 		{ID: "stars", Section: "DEMO", Title: "STARS DEMO", Desc: "browse the starfield fly strategies", Pkg: "./cmd/stars"},

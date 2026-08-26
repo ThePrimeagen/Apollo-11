@@ -66,8 +66,8 @@ func main() {
 		fmt.Printf("\n-- frame %d  %dx%d --\n", i+1, sp.Width, sp.Height)
 		fmt.Println(sprite.Render(sp))
 	}
-	fmt.Println("\n=== size 4, eight headings ===")
-	for _, h := range sprite.Headings {
+	fmt.Println("\n=== size 4, N/S/W ===")
+	for _, h := range lander.HeadingsFor(sprite.Size4) {
 		sp, _ := a.Frame(sprite.Size4, h)
 		fmt.Printf("\n-- %s --\n", h)
 		fmt.Println(sprite.Render(sp))

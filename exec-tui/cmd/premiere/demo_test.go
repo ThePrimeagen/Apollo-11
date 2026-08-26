@@ -1,12 +1,15 @@
 package main
 
 // Demo harness tests, written first: the premiere plays a
-// two-scene bill on the shared screen. Scene one, "arrival": a drifting
-// starfield with the westbound craft sliding in from the right wing to
-// park and bobble at center stage. Space cuts to scene two, "the end":
-// the height-5 banner card. Space on the final scene holds; q and
-// ctrl+c close the house. The view is the rendered screen plus one
-// status line, always exactly window-height lines.
+// three-scene bill on the shared screen. Scene one, "arrival": a
+// starfield that translates with the westbound craft as it slides in
+// from the right wing — hull only, no booster fire — then parks and
+// bobbles at center stage. Space cuts to scene two, "dsky": the craft
+// parked, the right third of the sky wipes away one column at a time
+// (~500ms), and the DSKY docks in that space. Space cuts to scene
+// three, "the end": the height-5 banner card. Space on the final
+// scene holds; q and ctrl+c close the house. The view is the rendered
+// screen plus one status line, always exactly window-height lines.
 
 import (
 	"os"
@@ -17,6 +20,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 )
 
@@ -47,10 +51,10 @@ func hasStar(v string) bool {
 }
 
 func TestPremiere(t *testing.T) {
-	t.Run("happy: the house opens on scene 1/2, arrival, under stars", func(t *testing.T) {
+	t.Run("happy: the house opens on scene 1/3, arrival, under stars", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"1/2", "arrival", "space", "quit"} {
+		for _, want := range []string{"1/3", "arrival", "space", "quit"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
@@ -58,11 +62,11 @@ func TestPremiere(t *testing.T) {
 		if !hasStar(v) {
 			t.Fatal("the opening scene must show the starfield")
 		}
-		if strings.ContainsRune(v, '▓') {
+		if strings.ContainsRune(v, '▌') {
 			t.Fatal("the craft is still off the right wing at t=0")
 		}
 	})
-	t.Run("happy: frames run the clock and fly the craft in, fire and all", func(t *testing.T) {
+	t.Run("happy: frames fly the craft in with a cold engine — hull, no fire", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()      // the opening paint stages the cast, as bubbletea does
 		m = frames(m, 90) // three seconds
@@ -70,11 +74,26 @@ func TestPremiere(t *testing.T) {
 			t.Fatalf("elapsed %f after 90 frames, want ~3.0", m.elapsed)
 		}
 		v := m.View().Content
-		if !strings.ContainsRune(v, '▓') {
+		if !strings.ContainsRune(v, '▌') {
 			t.Fatal("three seconds in, the hull must be on screen")
 		}
-		if !strings.ContainsAny(v, "⠁⠒⠶▒") {
-			t.Fatal("the booster fire must be burning behind the craft")
+		if strings.ContainsAny(v, "⠁⠒⠶▒") {
+			t.Fatal("arrival must fly a dark engine — no booster fire yet")
+		}
+		if strings.Contains(v, "VERB") {
+			t.Fatal("the DSKY does not appear until the next scene")
+		}
+	})
+	t.Run("happy: the arrival sky slides with the craft — same cells, same ease", func(t *testing.T) {
+		for _, w := range []int{40, 72, 120} {
+			for _, tt := range []float64{0, 0.5, 1, 2, lander.FlyInSeconds, lander.FlyInSeconds + 3} {
+				_, c0 := lander.FlightPath(w, 28, 0)
+				_, c := lander.FlightPath(w, 28, tt)
+				got := stars.SlideOffset(w, lander.BodyCols, tt, lander.FlyInSeconds)
+				if c0-c != got {
+					t.Fatalf("w=%d t=%.1f ship traveled %d, sky slide %d", w, tt, c0-c, got)
+				}
+			}
 		}
 	})
 	t.Run("happy: each frame schedules the next", func(t *testing.T) {
@@ -84,11 +103,43 @@ func TestPremiere(t *testing.T) {
 			t.Fatal("a frame must schedule the next tick")
 		}
 	})
-	t.Run("happy: space cuts to scene 2/2 — THE END, centered", func(t *testing.T) {
+	t.Run("happy: space cuts to scene 2/3 — DSKY docks after the wipe", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 90)
+		m = press(m, space())
+		opening := m.View().Content
+		for _, want := range []string{"2/3", "dsky"} {
+			if !strings.Contains(opening, want) {
+				t.Fatalf("the dsky scene is missing %q", want)
+			}
+		}
+		if strings.Contains(opening, "VERB") {
+			t.Fatal("the opening frame of the dock must not yet show the DSKY")
+		}
+		m = frames(m, 15) // 500ms at 30 fps
+		v := m.View().Content
+		for _, want := range []string{"VERB", "NOUN", "PROG"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("after the wipe the DSKY is missing %q", want)
+			}
+		}
+		if !strings.ContainsRune(v, '▌') {
+			t.Fatal("the parked craft stays on stage beside the DSKY")
+		}
+		if strings.ContainsAny(v, "⠁⠒⠶▒") {
+			t.Fatal("the engine stays dark through the dsky scene")
+		}
+		if !hasStar(v) {
+			t.Fatal("the left sky must keep drifting beside the dock")
+		}
+	})
+	t.Run("happy: space cuts to scene 3/3 — THE END, centered", func(t *testing.T) {
 		m := frames(newModel(0), 30)
 		m = press(m, space())
+		m = press(m, space())
 		v := m.View().Content
-		for _, want := range []string{"2/2", "the end", "___"} {
+		for _, want := range []string{"3/3", "the end", "___"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the end card is missing %q", want)
 			}
@@ -96,12 +147,16 @@ func TestPremiere(t *testing.T) {
 		if !hasStar(v) {
 			t.Fatal("the end card still plays under the stars")
 		}
-		if strings.ContainsRune(v, '▓') {
+		if strings.ContainsRune(v, '▌') {
 			t.Fatal("the craft does not appear in the end card")
+		}
+		if strings.Contains(v, "VERB") {
+			t.Fatal("the DSKY does not appear in the end card")
 		}
 	})
 	t.Run("happy: the cut restarts the clock for the new scene's cast", func(t *testing.T) {
 		m := frames(newModel(0), 30)
+		m = press(m, space())
 		m = press(m, space())
 		before := m.View().Content
 		m = frames(m, 30)
@@ -112,9 +167,10 @@ func TestPremiere(t *testing.T) {
 	t.Run("unhappy: space on the final scene holds the card", func(t *testing.T) {
 		m := press(newModel(0), space())
 		m = press(m, space())
+		m = press(m, space())
 		m = press(m, runeKey(' '))
 		v := m.View().Content
-		if !strings.Contains(v, "2/2") || !strings.Contains(v, "the end") {
+		if !strings.Contains(v, "3/3") || !strings.Contains(v, "the end") {
 			t.Fatal("extra spaces must hold on the final scene")
 		}
 	})

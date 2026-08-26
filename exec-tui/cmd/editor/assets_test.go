@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
@@ -143,13 +144,18 @@ func TestShippedShipAssets(t *testing.T) {
 				t.Fatalf("load %s: %v", name, err)
 			}
 			w, h := sz.Dim()
-			for _, heading := range sprite.Headings {
+			for _, heading := range lander.HeadingsFor(sz) {
 				sp, ok := a.Frame(sz, heading)
 				if !ok {
 					t.Fatalf("%s missing heading %s", name, heading)
 				}
 				if sp.Width != w || sp.Height != h {
 					t.Fatalf("%s %s is %dx%d, want %dx%d", name, heading, sp.Width, sp.Height, w, h)
+				}
+			}
+			if sz == sprite.Size4 {
+				if _, ok := a.Frame(sz, sprite.E); ok {
+					t.Fatal("lm-4.json must not keep heading E")
 				}
 			}
 		}

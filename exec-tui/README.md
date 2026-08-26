@@ -21,9 +21,10 @@ components/   everything a scene puts together
     descent/  the legacy descent-view renderer (used by the sim UI)
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
+  dsky/       the DSKY panel as a scene component (right-edge dock wipe)
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen
 cmd/          every runnable: editors, demos, tuners
-  premiere/   the two-scene screenplay (arrival, THE END)
+  premiere/   the three-scene screenplay (arrival, DSKY dock, THE END)
   lander/     the continuous-descent demo
   stars/      the starfield strategy browser
   preview/    atlas / fire / rocket previews and tapes

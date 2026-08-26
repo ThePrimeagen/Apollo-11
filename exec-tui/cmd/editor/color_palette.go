@@ -25,10 +25,8 @@ func (m *Model) closeColorPalette(apply bool) {
 	if apply {
 		if m.ColorPaletteIdx >= 0 && m.ColorPaletteIdx < len(m.Atlas.Palette) {
 			p := m.Atlas.Palette[m.ColorPaletteIdx]
-			m.Brush = Swatch{FG: p.FG, BG: p.BG}
 			m.PalIdx = m.ColorPaletteIdx
-			m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
-			m.status = fmt.Sprintf("color %s fg %d bg %d", p.Name, p.FG, p.BG)
+			m.applyNamedColor(p)
 		}
 	} else {
 		m.status = "color palette cancelled"

@@ -21,25 +21,27 @@ const (
 	// full cell up and one down. (Half a cell would need half-shifted
 	// art the atlas doesn't have yet.)
 	BobAmplitudeCells = 1
-	// FlameRow/FlameCol hang the 12×6 booster box off the tail,
-	// relative to the hull's top-left, so the nozzle cell sits just
-	// right of the engine bell and the plume trails behind the craft.
-	FlameRow = 3
+	// FlameRow/FlameCol hang the 16×6 booster box off the tail,
+	// relative to the hull's top-left, so the plume is vertically
+	// flush with the size-4 west grey nozzle.
+	FlameRow = 4
 	FlameCol = 19
 )
 
 // Ship is the Apollo craft as a scene component: the size-4 W-heading
-// frame with its baked tilde plume stripped and a live left-to-right
-// booster fire trailing from the tail. It slides in from the right
-// wing, parks at center stage, and bobbles on a slow sine. Start
-// builds the hull and arms the fire for its stage; Stop drops both so
-// a stopped ship holds no allocation, and a later Start rebuilds them.
+// frame with its baked tilde plume stripped and, unless Dark, a live
+// left-to-right booster fire trailing from the tail. It slides in from
+// the right wing, parks at center stage, and bobbles on a slow sine.
+// Start builds the hull and arms the fire for its stage; Stop drops
+// both so a stopped ship holds no allocation, and a later Start
+// rebuilds them.
 type Ship struct {
 	Body  sprite.Sprite
 	Flame *fire.Flame
 	seed  int64
 	clock float64
 	w, h  int
+	dark  bool
 }
 
 // NewShip binds the craft to its fire seed. Nothing is built until
@@ -57,6 +59,10 @@ func (s *Ship) Start(w, h int) {
 	}
 	s.w, s.h = w, h
 	s.Body = stripPlume(DefaultAtlas().MustFrame(sprite.Size4, sprite.W))
+	if s.dark {
+		s.Flame = nil
+		return
+	}
 	s.Flame = &fire.Flame{Eng: particle.New(s.seed, shipFlameConfig())}
 }
 
@@ -83,7 +89,9 @@ func (s *Ship) Update(dt float64) {
 		return
 	}
 	s.clock += dt
-	s.Flame.Update(dt)
+	if s.Flame != nil {
+		s.Flame.Update(dt)
+	}
 }
 
 // Clock is how many seconds of scene time the ship has played.
@@ -99,14 +107,37 @@ func (s *Ship) Clock() float64 {
 // appears from behind the bell. Before Start and after Stop there is
 // nothing built, so the stage is empty.
 func (s *Ship) Render() sprite.Sprite {
-	if s == nil || s.Flame == nil || s.w < 1 || s.h < 1 {
+	if s == nil || s.w < 1 || s.h < 1 || s.Body.Width < 1 {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(s.w, s.h)
 	row, col := FlightPath(s.w, s.h, s.clock)
-	sprite.Blit(stage, col+FlameCol, row+FlameRow, s.Flame.Sprite())
+	if s.Flame != nil {
+		sprite.Blit(stage, col+FlameCol, row+FlameRow, s.Flame.Sprite())
+	}
 	sprite.Blit(stage, col, row, s.Body)
 	return stage
+}
+
+// Dark is a hull-only ship: Start still builds the body, but the
+// booster stays cold. Nil-safe.
+func (s *Ship) Dark() *Ship {
+	if s == nil {
+		return nil
+	}
+	s.dark = true
+	s.Flame = nil
+	return s
+}
+
+// Parked starts the clock at the fly-in park so the first frame is
+// already center-stage. Nil-safe.
+func (s *Ship) Parked() *Ship {
+	if s == nil {
+		return nil
+	}
+	s.clock = FlyInSeconds
+	return s
 }
 
 // Stop drops the hull and the fire for the collector; a fresh Start

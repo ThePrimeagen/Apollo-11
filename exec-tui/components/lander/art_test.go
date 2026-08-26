@@ -1,8 +1,8 @@
 package lander
 
 // The LM art contract, moved here with the art itself: the atlas
-// geometry, the size-1 silhouettes, the eight headings, the shrink
-// animation, and the shipped lm.json. Aliases below keep the tests
+// geometry, the size-1 silhouettes, the headings, the shrink
+// animation, and the shipped JSON. Aliases below keep the tests
 // verbatim from their previous home in the sprite package.
 
 import (
@@ -50,7 +50,7 @@ func TestAtlasGeometry(t *testing.T) {
 		Size3: {22, 8},
 		Size4: {26, 10},
 	}
-	t.Run("happy: four sizes, eight headings, declared footprints", func(t *testing.T) {
+	t.Run("happy: four sizes, declared footprints, size-4 only N/S/W", func(t *testing.T) {
 		if len(Sizes) != 4 || len(Headings) != 8 {
 			t.Fatalf("need 4 sizes and 8 headings, got %d / %d", len(Sizes), len(Headings))
 		}
@@ -59,7 +59,7 @@ func TestAtlasGeometry(t *testing.T) {
 			if !ok {
 				t.Fatalf("missing expected dim for size %d", sz)
 			}
-			for _, h := range Headings {
+			for _, h := range HeadingsFor(sz) {
 				sp, ok := a.Frame(sz, h)
 				if !ok {
 					t.Fatalf("missing frame size=%d heading=%s", sz, h)
@@ -70,6 +70,18 @@ func TestAtlasGeometry(t *testing.T) {
 				if err := sp.Validate(); err != nil {
 					t.Fatalf("size %d %s: %v", sz, h, err)
 				}
+			}
+		}
+	})
+	t.Run("unhappy: size-4 does not keep NE/E/SE/SW/NW", func(t *testing.T) {
+		for _, h := range []Heading{NE, E, SE, SW, NW} {
+			if _, ok := a.Frame(Size4, h); ok {
+				t.Fatalf("size-4 %s must be removed", h)
+			}
+		}
+		for _, h := range []Heading{N, S, W} {
+			if _, ok := a.Frame(Size4, h); !ok {
+				t.Fatalf("size-4 %s must stay", h)
 			}
 		}
 	})
@@ -99,18 +111,18 @@ var (
 		"▁ ▁  ~~~  ▁ ▁",
 	}
 	s1NE = [5]string{
-		"        ▗▛◣▖ ",
-		"▁ ╲   ▟░╲▜▙  ",
-		"  ╲◢▟▓██▓▙   ",
-		"   ◥▜▓▓▛  ╲  ",
-		" ~~~▜▙    ╲▁ ",
+		"     ▗▛▖     ",
+		"    ▟░ ▚░▙   ",
+		"  ▄▓████▓▄   ",
+		"╱ ◢▄▄▛  ╲    ",
+		"▁ ▁    ▁ ▁   ",
 	}
 	s1E = [5]string{
-		"   ▁╲   ╱▁   ",
-		"    ╲▟▓▓▙▛◣▖ ",
-		"   ◢▟▓▓▙░██▜▙",
-		"  ~~◥▜▓▛╲▝◤  ",
-		"~~ ▁╱   ╲▁   ",
+		"      ▗▛▖    ",
+		"     ▟░█▙    ",
+		"   ▄▓██▓▄    ",
+		" ╱ ◢▄▙  ╲    ",
+		"▁ ▁   ▁ ▁    ",
 	}
 )
 
@@ -160,7 +172,7 @@ func TestLargerSizesLookLikeTheLander(t *testing.T) {
 			if !strings.ContainsAny(g, "▁▂") {
 				t.Fatalf("size %d N: footpads missing\n%s", sz, g)
 			}
-			if strings.Count(g, "~")+strings.Count(g, "≈") < 3 {
+			if sz != Size4 && strings.Count(g, "~")+strings.Count(g, "≈") < 3 {
 				t.Fatalf("size %d N: plume too thin\n%s", sz, g)
 			}
 			if !strings.ContainsAny(g, "╱╲") {
@@ -204,10 +216,13 @@ func TestLargerSizesLookLikeTheLander(t *testing.T) {
 
 func TestEightHeadings(t *testing.T) {
 	a := testAtlas(t)
-	t.Run("happy: eight headings at size 4 are distinct silhouettes", func(t *testing.T) {
+	t.Run("happy: size-4 N/S/W are distinct silhouettes", func(t *testing.T) {
 		seen := map[string]Heading{}
-		for _, h := range Headings {
-			sp, _ := a.Frame(Size4, h)
+		for _, h := range HeadingsFor(Size4) {
+			sp, ok := a.Frame(Size4, h)
+			if !ok {
+				t.Fatalf("size-4 %s missing", h)
+			}
 			key := strings.Join(sp.GlyphRows(), "\n")
 			if other, ok := seen[key]; ok {
 				t.Fatalf("headings %s and %s rendered identically", h, other)
@@ -215,24 +230,57 @@ func TestEightHeadings(t *testing.T) {
 			seen[key] = h
 		}
 	})
-	t.Run("happy: N plume sits in the bottom half; S plume sits in the top half", func(t *testing.T) {
-		n, _ := a.Frame(Size4, N)
-		s, _ := a.Frame(Size4, S)
-		if plumeHalf(n) != "bottom" {
-			t.Fatalf("N plume should be in the bottom half, got %s\n%s", plumeHalf(n), strings.Join(n.GlyphRows(), "\n"))
+	t.Run("happy: size-4 S is the vertical mirror of the styled N", func(t *testing.T) {
+		n, ok := a.Frame(Size4, N)
+		if !ok {
+			t.Fatal("size-4 N missing")
 		}
-		if plumeHalf(s) != "top" {
-			t.Fatalf("S plume should be in the top half, got %s\n%s", plumeHalf(s), strings.Join(s.GlyphRows(), "\n"))
+		s, ok := a.Frame(Size4, S)
+		if !ok {
+			t.Fatal("size-4 S missing")
+		}
+		want := sprite.FlipV(n)
+		if err := want.Validate(); err != nil {
+			t.Fatalf("flipped N: %v", err)
+		}
+		for r := 0; r < want.Height; r++ {
+			for c := 0; c < want.Width; c++ {
+				got, exp := s.At(r, c), want.At(r, c)
+				if got != exp {
+					t.Fatalf("S is not FlipV(N) at (%d,%d): got %+v want %+v\nS:\n%s\nFlipV(N):\n%s",
+						r, c, got, exp,
+						strings.Join(s.GlyphRows(), "\n"),
+						strings.Join(want.GlyphRows(), "\n"))
+				}
+			}
 		}
 	})
-	t.Run("happy: E plume sits on the left (engine-aft), W on the right", func(t *testing.T) {
-		e, _ := a.Frame(Size4, E)
-		w, _ := a.Frame(Size4, W)
-		if plumeSide(e) != "left" {
-			t.Fatalf("E plume should be on the left, got %s\n%s", plumeSide(e), strings.Join(e.GlyphRows(), "\n"))
+	t.Run("unhappy: size-4 S is not a copy of N", func(t *testing.T) {
+		n, _ := a.Frame(Size4, N)
+		s, _ := a.Frame(Size4, S)
+		if strings.Join(s.GlyphRows(), "\n") == strings.Join(n.GlyphRows(), "\n") {
+			t.Fatal("S must be the mirrored south craft, not the same drawing as N")
 		}
-		if plumeSide(w) != "right" {
-			t.Fatalf("W plume should be on the right, got %s\n%s", plumeSide(w), strings.Join(w.GlyphRows(), "\n"))
+	})
+	t.Run("happy: S plume sits in the top half; W is the drawn west craft", func(t *testing.T) {
+		s, _ := a.Frame(Size4, S)
+		w, _ := a.Frame(Size4, W)
+		if plumeHalf(s) != "top" && !strings.Contains(strings.Join(s.GlyphRows(), ""), "█") {
+			t.Fatalf("S must still be a south-facing lander\n%s", strings.Join(s.GlyphRows(), "\n"))
+		}
+		if w.Width != 26 || w.Height != 10 {
+			t.Fatalf("W must keep the size-4 box, got %dx%d", w.Width, w.Height)
+		}
+		filled := 0
+		for r := 0; r < w.Height; r++ {
+			for c := 0; c < w.Width; c++ {
+				if !w.At(r, c).Transparent() {
+					filled++
+				}
+			}
+		}
+		if filled < 20 {
+			t.Fatalf("size-4 W is too empty (%d cells)\n%s", filled, strings.Join(w.GlyphRows(), "\n"))
 		}
 	})
 	t.Run("unhappy: unknown heading does not match a real one", func(t *testing.T) {
@@ -315,17 +363,20 @@ func TestShrinkSequence(t *testing.T) {
 }
 
 func TestShippedJSON(t *testing.T) {
-	t.Run("happy: lm.json ships beside the art and loads as a full 4×8 atlas", func(t *testing.T) {
+	t.Run("happy: lm.json ships beside the art", func(t *testing.T) {
 		a, err := LoadFile("lm.json")
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, sz := range Sizes {
-			for _, h := range Headings {
+			for _, h := range HeadingsFor(sz) {
 				if _, ok := a.Frame(sz, h); !ok {
 					t.Fatalf("shipped JSON missing size %d %s", sz, h)
 				}
 			}
+		}
+		if _, ok := a.Frame(Size4, E); ok {
+			t.Fatal("shipped size-4 must not keep E")
 		}
 		got := a.MustFrame(Size1, N).GlyphRows()
 		for i, want := range s1N {
@@ -334,9 +385,28 @@ func TestShippedJSON(t *testing.T) {
 			}
 		}
 	})
+	t.Run("happy: assets lm-*.json are the atlas source of truth", func(t *testing.T) {
+		a, err := LoadJSONDir(FindArtDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, sz := range Sizes {
+			for _, h := range HeadingsFor(sz) {
+				if _, ok := a.Frame(sz, h); !ok {
+					t.Fatalf("shipped JSON missing size %d %s", sz, h)
+				}
+			}
+		}
+		if _, ok := a.Frame(Size4, E); ok {
+			t.Fatal("shipped size-4 must not keep E")
+		}
+	})
 	t.Run("unhappy: a missing file is an error", func(t *testing.T) {
 		if _, err := LoadFile("no-such-atlas.json"); err == nil {
 			t.Fatal("missing file must fail")
+		}
+		if _, err := LoadJSONDir(t.TempDir()); err == nil {
+			t.Fatal("an empty art dir must fail")
 		}
 	})
 }

@@ -7,9 +7,11 @@ import (
 )
 
 const (
-	GlyphGridRows = 10
-	GlyphGridCols = 26
+	GlyphGridRows = 26
+	GlyphGridCols = 10
 )
+
+var glyphGridColKeys = []rune{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'}
 
 var glyphGrid = buildGlyphGrid()
 
@@ -30,8 +32,8 @@ func buildGlyphGrid() [GlyphGridRows][GlyphGridCols]rune {
 	chars = append(chars, '←', '↑', '→', '↓', '·', '•')
 	var grid [GlyphGridRows][GlyphGridCols]rune
 	i := 0
-	for row := 0; row < GlyphGridRows; row++ {
-		for col := 0; col < GlyphGridCols; col++ {
+	for col := 0; col < GlyphGridCols; col++ {
+		for row := 0; row < GlyphGridRows; row++ {
 			grid[row][col] = chars[i]
 			i++
 		}
@@ -39,7 +41,7 @@ func buildGlyphGrid() [GlyphGridRows][GlyphGridCols]rune {
 	return grid
 }
 
-func gridRowIndex(r rune) int {
+func gridColIndex(r rune) int {
 	switch {
 	case r >= '1' && r <= '9':
 		return int(r - '1')
@@ -50,13 +52,22 @@ func gridRowIndex(r rune) int {
 	}
 }
 
+func gridRowIndex(r rune) int {
+	if r < 'a' || r > 'z' {
+		return -1
+	}
+	return int(r - 'a')
+}
+
 // GlyphAt is the character at a number+letter address (1a … 0z).
-func GlyphAt(rowKey, colKey rune) (rune, bool) {
+// Numbers are columns, letters are rows, so a group stacks down a column.
+func GlyphAt(colKey, rowKey rune) (rune, bool) {
+	col := gridColIndex(colKey)
 	row := gridRowIndex(rowKey)
-	if row < 0 || colKey < 'a' || colKey > 'z' {
+	if col < 0 || row < 0 {
 		return 0, false
 	}
-	return glyphGrid[row][int(colKey-'a')], true
+	return glyphGrid[row][col], true
 }
 
 func (m *Model) openGlyphGrid() {
@@ -115,12 +126,12 @@ func (m Model) handleGlyphGridKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if r == 0 {
 		return m, nil
 	}
-	if row := gridRowIndex(r); row >= 0 {
+	if col := gridColIndex(r); col >= 0 {
 		m.GlyphGridDigit = r
-		m.GlyphGridRow = row
+		m.GlyphGridCol = col
 		return m, nil
 	}
-	if r >= 'a' && r <= 'z' && m.GlyphGridDigit != 0 {
+	if row := gridRowIndex(r); row >= 0 && m.GlyphGridDigit != 0 {
 		ch, ok := GlyphAt(m.GlyphGridDigit, r)
 		if !ok {
 			return m, nil
@@ -140,16 +151,22 @@ func renderGlyphGrid(m Model) string {
 	var lines []string
 	var head strings.Builder
 	head.WriteString("  ")
-	for col := 'a'; col <= 'z'; col++ {
-		head.WriteRune(col)
+	for _, col := range glyphGridColKeys {
+		if m.GlyphGridDigit == col {
+			head.WriteString("\x1b[7m")
+			head.WriteRune(col)
+			head.WriteString("\x1b[0m")
+		} else {
+			head.WriteRune(col)
+		}
 		head.WriteByte(' ')
 	}
 	lines = append(lines, padPlain(strings.TrimRight(head.String(), " "), inner))
 
-	rows := []rune{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'}
-	for i, rowKey := range rows {
+	for i := 0; i < GlyphGridRows; i++ {
+		rowKey := rune('a' + i)
 		var b strings.Builder
-		if i == m.GlyphGridRow || m.GlyphGridDigit == rowKey {
+		if i == m.GlyphGridRow {
 			b.WriteByte('>')
 		} else {
 			b.WriteByte(' ')

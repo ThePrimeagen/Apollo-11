@@ -1,9 +1,13 @@
-// premiere: the two-scene showcase for the screenplay component.
+// premiere: the three-scene showcase for the screenplay component.
 //
 // Scene 1, "arrival": the Apollo craft slides in from the right wing
-// over a drifting starfield, parks at center stage, and bobbles on a
-// slow one-cell sine. Scene 2, "the end": the height-5 banner card,
-// centered under the same sky.
+// over a starfield that translates with it — every star speeds up on
+// the same ease-out cubic the hull flies, so the whole scene rushes
+// left as the ship comes in, then the sky settles back into its own
+// drift once the craft parks. Hull only, cold engine. Scene 2, "dsky": the
+// parked craft stays, the right third of the sky wipes away one column
+// at a time (~500ms), and the DSKY docks in that space. Scene 3, "the
+// end": the height-5 banner card, centered under the same sky.
 //
 //	space     cut to the next scene
 //	q         quit
@@ -22,6 +26,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
@@ -37,15 +42,25 @@ const (
 	frameMs  = 1000.0 / 30
 )
 
-// premiere is the bill: arrival, then the end card. Each scene's cast
-// of components is assembled when its curtain rises, not before.
+// premiere is the bill: arrival, then the DSKY dock, then the end
+// card. Each scene's cast of components is assembled when its curtain
+// rises, not before.
 func premiere() *screenplay.Screenplay {
 	return screenplay.New(
 		screenplay.Entry{Name: "arrival", Scene: &screenplay.Ensemble{
 			Assemble: func() []screenplay.Component {
 				return []screenplay.Component{
-					stars.NewTunedStarfield(),
-					lander.NewShip(11),
+					stars.NewTunedStarfield().SlideIn(lander.FlyInSeconds, lander.BodyCols),
+					lander.NewShip(11).Dark(),
+				}
+			},
+		}},
+		screenplay.Entry{Name: "dsky", Scene: &screenplay.Ensemble{
+			Assemble: func() []screenplay.Component {
+				return []screenplay.Component{
+					stars.NewTunedStarfield().Dock(dsky.Width, dsky.WipeSeconds),
+					lander.NewShip(11).Dark().Parked(),
+					dsky.NewPanel(dsky.MonitorState()),
 				}
 			},
 		}},
