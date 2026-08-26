@@ -685,7 +685,13 @@ func TestLandEase(t *testing.T) {
 }
 
 func TestLandThrottle(t *testing.T) {
-	t.Run("happy: full until the last three seconds, then ¾, ½, ¼, off at the pad", func(t *testing.T) {
+	t.Run("happy: full until the last three stages, then ¾, ½, ¼, off at the pad", func(t *testing.T) {
+		if ThrottleStageSeconds >= 1.0 {
+			t.Fatalf("ThrottleStageSeconds is %v — the booster must step down faster than the old 1s stages", ThrottleStageSeconds)
+		}
+		if LandThrottleLead != 3*ThrottleStageSeconds {
+			t.Fatalf("LandThrottleLead is %v, want 3 stages of %v", LandThrottleLead, ThrottleStageSeconds)
+		}
 		if got := LandThrottle(0, LandSeconds); got != 1 {
 			t.Fatalf("opening throttle %v, want full strength", got)
 		}
@@ -776,6 +782,40 @@ func TestLandThrottle(t *testing.T) {
 			t.Fatalf("a falling ship must not throttle, count %d want %d", drop.Flame.Config().Count, dropWant)
 		}
 	})
+	t.Run("happy: ThrottleStage shortens the lead so the booster steps down faster", func(t *testing.T) {
+		s := NewShip(22).North().Land(LandSeconds).ThrottleStage(0.2)
+		s.Start(screenW, screenH)
+		base := s.Flame.Config().Count
+		if base < 1 {
+			t.Fatal("test premise: a landing ship must arm a live booster")
+		}
+		// Default lead is 1.2s; a 0.2s stage is a 0.6s lead. At 0.7s
+		// remaining the stock ship is already in ½, the short-stage
+		// ship is still full.
+		warmShip(s, LandSeconds-0.7)
+		if got := s.Flame.Config().Count; got != base {
+			t.Fatalf("0.7s from the pad a 0.2s-stage ship must still be full, count %d want %d", got, base)
+		}
+		stock := NewShip(23).North().Land(LandSeconds)
+		stock.Start(screenW, screenH)
+		warmShip(stock, LandSeconds-0.7)
+		if got := stock.Flame.Config().Count; got == base {
+			t.Fatal("0.7s from the pad the stock ship must already have stepped down")
+		}
+	})
+	t.Run("unhappy: ThrottleStage on nil stays nil, and a non-positive stage keeps the stock lead", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.ThrottleStage(0.2) != nil {
+			t.Fatal("ThrottleStage must return the nil receiver")
+		}
+		s := NewShip(24).North().Land(LandSeconds).ThrottleStage(0)
+		s.Start(screenW, screenH)
+		base := s.Flame.Config().Count
+		warmShip(s, LandSeconds-0.7)
+		if got := s.Flame.Config().Count; got == base {
+			t.Fatal("ThrottleStage(0) must keep the stock lead — 0.7s from the pad the booster has already stepped down")
+		}
+	})
 }
 
 // dustRune reports a dust-ladder glyph — braille or a shade block.
@@ -822,15 +862,17 @@ func noKick(t *testing.T, s *Ship, when string) {
 	}
 }
 
-// TestLandDust: a landing kicks dust off the pad twice — mirrored
-// clouds blowing out of the surface on both sides of the booster,
-// leftward and rightward, climbing away from the bell — once the
-// moment the booster starts slowing the craft (LandThrottleLead before
-// the pad) and once at touchdown. Each kick opens on its full cloud
-// and counts its particles down to zero over dust.FadeSeconds.
+// TestLandDust: a landing kicks one continuous pad cloud — mirrored
+// engines blowing out of the surface on both sides of the booster,
+// leftward and rightward, climbing away from the bell — the moment
+// the booster starts slowing the craft (LandThrottleLead before the
+// pad). The cloud keeps emitting through every throttle step and
+// through touchdown; only when the booster cuts off does it count
+// its particles down to zero over dust.FadeSeconds. There is no
+// second kick.
 func TestLandDust(t *testing.T) {
 	surface := screenH - landSurfaceRows // the ridge row the feet land on
-	t.Run("happy: the slow-down kick blows dust out both sides of the booster the moment the throttle steps", func(t *testing.T) {
+	t.Run("happy: the pad blows dust out both sides the moment the throttle steps", func(t *testing.T) {
 		s := NewShip(30).North().Land(LandSeconds)
 		s.Start(screenW, screenH)
 		warmShip(s, LandSeconds-LandThrottleLead-0.1)
@@ -838,7 +880,7 @@ func TestLandDust(t *testing.T) {
 		warmShip(s, 0.2)
 		l, r, minRow, maxRow := kickedDust(s.Render(), centerCol)
 		if !l || !r {
-			t.Fatalf("the slow-down kick must blow dust out both sides, left=%v right=%v", l, r)
+			t.Fatalf("the pad must blow dust out both sides, left=%v right=%v", l, r)
 		}
 		if maxRow < surface-2 || maxRow > surface+2 {
 			t.Fatalf("the kick must hug the pad surface (row %d), lowest dust on row %d", surface, maxRow)
@@ -846,36 +888,97 @@ func TestLandDust(t *testing.T) {
 		if minRow < screenH/3 {
 			t.Fatalf("dust climbed to row %d — a ground kick, not a sky plume", minRow)
 		}
-		if s.slowDust == nil || s.slowDust.Left == nil || s.slowDust.Right == nil {
-			t.Fatal("the slow-down kick must be a live two-engine cloud")
+		if s.padDust == nil || s.padDust.Left == nil || s.padDust.Right == nil {
+			t.Fatal("the pad kick must be a live two-engine cloud")
 		}
-		ld := s.slowDust.Left.Cfg.Direction
-		rd := s.slowDust.Right.Cfg.Direction
+		ld := s.padDust.Left.Cfg.Direction
+		rd := s.padDust.Right.Cfg.Direction
 		if ld.X >= 0 || ld.Y >= 0 || rd.X <= 0 || rd.Y >= 0 {
 			t.Fatalf("the engines must climb away mirrored — left %+v, right %+v", ld, rd)
 		}
 		bell := float64(centerCol) + float64(BodyCols)/2
-		if lx, rx := s.slowDust.Left.Cfg.Origin.X, s.slowDust.Right.Cfg.Origin.X; lx >= bell || rx <= bell {
+		if lx, rx := s.padDust.Left.Cfg.Origin.X, s.padDust.Right.Cfg.Origin.X; lx >= bell || rx <= bell {
 			t.Fatalf("the nozzles must sit on both sides of the booster (col %.0f): left %.1f, right %.1f", bell, lx, rx)
 		}
-		warmShip(s, 0.9) // halfway down the countdown
-		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
-			t.Fatalf("mid-countdown the blown fringe must still drift beyond the hull, left=%v right=%v", l, r)
-		}
 	})
-	t.Run("happy: two distinct kicks — the slow-down burst dies before touchdown, the touchdown burst dies on the pad", func(t *testing.T) {
+	t.Run("happy: the same cloud keeps blowing through every stage and past the pad until the fade runs out", func(t *testing.T) {
 		s := NewShip(31).North().Land(LandSeconds)
 		s.Start(screenW, screenH)
-		warmShip(s, LandSeconds-LandThrottleLead+dust.FadeSeconds+0.5)
-		noKick(t, s, "between the kicks the slow-down burst must have counted down to nothing")
-		warmShip(s, LandThrottleLead-dust.FadeSeconds-0.5+0.2)
-		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
-			t.Fatalf("touchdown must kick a second burst, left=%v right=%v", l, r)
+		warmShip(s, LandSeconds-LandThrottleLead+0.15)
+		opening := livePad(s)
+		if opening == 0 {
+			t.Fatal("test premise: the pad must already be dusty")
 		}
-		warmShip(s, dust.FadeSeconds+0.3)
-		noKick(t, s, "past the touchdown countdown")
-		if n := len(s.stopDust.Left.Particles) + len(s.stopDust.Right.Particles); n != 0 {
+		step := LandThrottleLead / 3
+		for _, extra := range []float64{step, step, step} { // ¾, ½, ¼, onto the pad
+			warmShip(s, extra)
+			if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+				t.Fatalf("at t=%.2f the pad must still blow both ways, left=%v right=%v", s.Clock(), l, r)
+			}
+			if n := livePad(s); n == 0 {
+				t.Fatalf("at t=%.2f the cloud went silent — it must run continuously through off", s.Clock())
+			}
+		}
+		if s.padDust == nil {
+			t.Fatal("touchdown keeps the same cloud; it does not arm a second burst")
+		}
+		mid := livePad(s)
+		warmShip(s, dust.FadeSeconds/2)
+		if got := livePad(s); got == 0 || got >= mid {
+			t.Fatalf("mid-fade %d specks, opening-on-pad %d — the countdown must be falling, not gone and not holding", got, mid)
+		}
+		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+			t.Fatalf("mid-fade the blown fringe must still drift beyond the hull, left=%v right=%v", l, r)
+		}
+		warmShip(s, dust.FadeSeconds/2+0.3)
+		noKick(t, s, "past the fade after booster-off")
+		if n := livePad(s); n != 0 {
 			t.Fatalf("%d specks still live after the countdown, want zero", n)
+		}
+	})
+	t.Run("happy: DustAt times the cloud from an offset for a run, independent of the booster", func(t *testing.T) {
+		s := NewShip(37).North().Land(LandSeconds).DustAt(1.0, 0.40)
+		s.Start(screenW, screenH)
+		warmShip(s, 0.95)
+		noKick(t, s, "before the dust offset")
+		warmShip(s, 0.15)
+		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+			t.Fatalf("at the offset the pad must blow both ways, left=%v right=%v", l, r)
+		}
+		warmShip(s, 0.20)
+		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+			t.Fatalf("mid-run the cloud must still blow, left=%v right=%v", l, r)
+		}
+		warmShip(s, 0.40)
+		noKick(t, s, "past the dust run")
+	})
+	t.Run("unhappy: DustAt on nil stays nil, and a non-positive run never kicks", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.DustAt(1, 1) != nil {
+			t.Fatal("DustAt must return the nil receiver")
+		}
+		s := NewShip(38).North().Land(LandSeconds).DustAt(0.2, 0)
+		s.Start(screenW, screenH)
+		warmShip(s, LandSeconds)
+		noKick(t, s, "DustAt run 0")
+		if s.padDust != nil {
+			t.Fatal("a zero run must never arm a cloud")
+		}
+	})
+	t.Run("happy: Dust shortens how long the particles last after the booster cuts", func(t *testing.T) {
+		s := NewShip(35).North().Land(LandSeconds).Dust(0.4)
+		s.Start(screenW, screenH)
+		warmShip(s, LandSeconds+0.05)
+		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+			t.Fatalf("on the pad the cloud must still be blowing, left=%v right=%v", l, r)
+		}
+		warmShip(s, 0.5)
+		noKick(t, s, "a 0.4s linger must be gone half a second after booster-off")
+		stock := NewShip(36).North().Land(LandSeconds)
+		stock.Start(screenW, screenH)
+		warmShip(stock, LandSeconds+0.5)
+		if l, r, _, _ := kickedDust(stock.Render(), centerCol); !l || !r {
+			t.Fatalf("the stock linger must still be blowing 0.5s after off, left=%v right=%v", l, r)
 		}
 	})
 	t.Run("unhappy: a fall and a dark landing never kick dust", func(t *testing.T) {
@@ -887,37 +990,49 @@ func TestLandDust(t *testing.T) {
 				noKick(t, drop, "a falling ship")
 			}
 		}
-		if drop.slowDust != nil || drop.stopDust != nil {
+		if drop.padDust != nil {
 			t.Fatal("a falling ship must never arm a dust kick")
 		}
 		dark := NewShip(33).Dark().North().Land(LandSeconds)
 		dark.Start(screenW, screenH)
 		warmShip(dark, LandSeconds+0.5)
 		noKick(t, dark, "a dark landing")
-		if dark.slowDust != nil || dark.stopDust != nil {
+		if dark.padDust != nil {
 			t.Fatal("a cold engine kicks no dust")
 		}
 	})
-	t.Run("unhappy: Stop drops the dust and a restart long after touchdown never replays a kick", func(t *testing.T) {
+	t.Run("unhappy: Stop drops the dust, Dust on nil stays nil, and a restart long after never replays", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.Dust(0.4) != nil {
+			t.Fatal("Dust must return the nil receiver")
+		}
 		s := NewShip(34).North().Land(LandSeconds)
 		s.Start(screenW, screenH)
-		warmShip(s, LandSeconds+0.5)
-		if s.stopDust == nil {
-			t.Fatal("test premise: the touchdown kick must be live")
+		warmShip(s, LandSeconds+0.2)
+		if s.padDust == nil {
+			t.Fatal("test premise: the pad cloud must be live")
 		}
 		s.Stop()
-		if s.slowDust != nil || s.stopDust != nil {
-			t.Fatal("Stop must drop both dust kicks for the collector")
+		if s.padDust != nil {
+			t.Fatal("Stop must drop the pad cloud for the collector")
 		}
-		warmShip(s, dust.FadeSeconds) // the clock runs on past both windows
-		if s.slowDust != nil || s.stopDust != nil {
+		warmShip(s, dust.FadeSeconds)
+		if s.padDust != nil {
 			t.Fatal("a stopped ship must not re-arm a kick")
 		}
 		s.Start(screenW, screenH)
 		warmShip(s, 0.5)
 		noKick(t, s, "a restart long after touchdown")
-		if s.slowDust != nil || s.stopDust != nil {
-			t.Fatal("a kick whose countdown is over must never replay")
+		if s.padDust != nil {
+			t.Fatal("a cloud whose fade is over must never replay")
 		}
 	})
+}
+
+// livePad is how many specks the pad cloud holds this instant.
+func livePad(s *Ship) int {
+	if s == nil || s.padDust == nil || s.padDust.Left == nil || s.padDust.Right == nil {
+		return 0
+	}
+	return len(s.padDust.Left.Particles) + len(s.padDust.Right.Particles)
 }

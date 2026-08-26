@@ -1,0 +1,343 @@
+package landing
+
+// Tests written FIRST: the landing scene is a portable one-scene bill.
+// Three live knobs retune it 50ms at a time: LandSeconds (top-to-bottom
+// fall), DustStart (offset from t=0), DustRun (how long the pad cloud
+// blows). Play is Start after Stop: a fresh craft from the current
+// knobs. StageSeconds stays a code constant.
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
+)
+
+const (
+	stageW = 72
+	stageH = 27
+)
+
+func paint(sc screenplay.Scene) *screenplay.Screen {
+	scr := screenplay.NewScreen(stageW, stageH)
+	sc.Render(scr)
+	return scr
+}
+
+func tick(sc screenplay.Scene, seconds float64) {
+	const dt = 1.0 / 30
+	for t := 0.0; t < seconds-dt/2; t += dt {
+		sc.Update(dt)
+	}
+}
+
+func isMoonBG(scr *screenplay.Screen, x, y int) bool {
+	c := scr.Cell(x, y)
+	if c == nil || c.Style.Bg == nil {
+		return false
+	}
+	ic, ok := c.Style.Bg.(ansi.IndexedColor)
+	if !ok {
+		return false
+	}
+	n := int(ic)
+	return n == 251 || n == 247 || n == 243 || n == 240 || n == 249
+}
+
+func moonBGRows(scr *screenplay.Screen, col int) int {
+	n := 0
+	for y := 0; y < stageH; y++ {
+		if isMoonBG(scr, col, y) {
+			n++
+		}
+	}
+	return n
+}
+
+func hotBraille(scr *screenplay.Screen) bool {
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c == nil || !strings.ContainsAny(c.Content, "⠁⠒⠶") {
+				continue
+			}
+			ic, ok := c.Style.Fg.(ansi.IndexedColor)
+			if !ok || int(ic) < dust.GrayMin {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func offHullDust(scr *screenplay.Screen) (left, right bool) {
+	hullCol := (stageW - lander.BodyCols) / 2
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			if x >= hullCol && x < hullCol+lander.BodyCols {
+				continue
+			}
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			for _, r := range c.Content {
+				if (r >= '⠀' && r <= '⣿') || r == '░' || r == '▒' {
+					if x < hullCol {
+						left = true
+					} else {
+						right = true
+					}
+				}
+			}
+		}
+	}
+	return left, right
+}
+
+func throttleLead() float64 { return 3 * StageSeconds }
+
+func TestLandingKnobs(t *testing.T) {
+	t.Run("happy: the three knobs are the landing's timing", func(t *testing.T) {
+		if LandSeconds <= 0 {
+			t.Fatal("LandSeconds is how fast the lander lands — it must be a duration")
+		}
+		if DustStart < 0 {
+			t.Fatal("DustStart is the offset from t=0 — it must not be negative")
+		}
+		if DustRun <= 0 {
+			t.Fatal("DustRun is how long the pad dust blows — it must be a duration")
+		}
+		if StepSeconds != 0.050 {
+			t.Fatalf("live knobs step %v, want 50ms", StepSeconds)
+		}
+	})
+	t.Run("unhappy: the knobs are not the walkthrough's old 3s lead or a two-kick fade", func(t *testing.T) {
+		if 3*StageSeconds >= 3 {
+			t.Fatal("the booster must step down faster than three one-second stages")
+		}
+		if LandSeconds == DustStart {
+			t.Fatal("land duration and dust start must be independent knobs")
+		}
+		if DustRun == LandSeconds {
+			t.Fatal("dust run and land duration must be independent knobs")
+		}
+	})
+}
+
+func TestLandingBill(t *testing.T) {
+	t.Run("happy: the bill is the one landing scene", func(t *testing.T) {
+		b := Bill()
+		if len(b) != 1 {
+			t.Fatalf("the landing bill holds %d scenes, want 1", len(b))
+		}
+		if b[0].Name != "landing" {
+			t.Fatalf("the scene is %q, want landing", b[0].Name)
+		}
+		if b[0].Scene == nil {
+			t.Fatal("the landing has no performer")
+		}
+	})
+	t.Run("unhappy: a second scene is not hiding on the bill", func(t *testing.T) {
+		p := screenplay.Compose(Bill())
+		p.Start()
+		defer p.Stop()
+		if p.Len() != 1 || p.CurrentName() != "landing" {
+			t.Fatalf("the show opens on %d %q, want one landing", p.Len(), p.CurrentName())
+		}
+		if p.Next() {
+			t.Fatal("after landing there is nothing left")
+		}
+	})
+}
+
+func TestLandingScene(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: a huge moon horizon the lander comes down onto", func(t *testing.T) {
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		opening := paint(sc)
+		if moonBGRows(opening, stageW/2) == 0 {
+			t.Fatal("the landing scene must show the moon as a background floor")
+		}
+		if strings.ContainsRune(opening.Render(), '▟') {
+			t.Fatal("at t=0 the lander must still be off the top")
+		}
+		if moonBGRows(opening, 0) != moon.HorizonEdgeRows {
+			t.Fatalf("left edge holds %d moon rows, want %d", moonBGRows(opening, 0), moon.HorizonEdgeRows)
+		}
+		if moonBGRows(opening, stageW/2) != moon.HorizonCenterRows {
+			t.Fatalf("center holds %d moon rows, want %d", moonBGRows(opening, stageW/2), moon.HorizonCenterRows)
+		}
+		tick(sc, LandSeconds-0.2)
+		if !strings.ContainsRune(paint(sc).Render(), '▟') {
+			t.Fatal("near the pad the north hull must be on stage")
+		}
+		tick(sc, throttleLead()/6+0.5)
+		landed := paint(sc)
+		if !strings.ContainsRune(landed.Render(), '▟') {
+			t.Fatal("at touchdown the north hull must sit on the surface")
+		}
+		if strings.ContainsRune(landed.Render(), '▌') {
+			t.Fatal("the landing craft must stay north-facing")
+		}
+		if hotBraille(landed) {
+			t.Fatal("at touchdown the booster must cut off — only gray pad dust may remain")
+		}
+	})
+	t.Run("happy: dust starts at DustStart and keeps blowing through DustRun", func(t *testing.T) {
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, DustStart+0.2)
+		if l, r := offHullDust(paint(sc)); !l || !r {
+			t.Fatalf("when the dust offset arrives the pad must kick dust both ways, left=%v right=%v", l, r)
+		}
+		tick(sc, DustRun-0.4)
+		if l, r := offHullDust(paint(sc)); !l || !r {
+			t.Fatalf("through the dust run the cloud must still blow both ways, left=%v right=%v", l, r)
+		}
+	})
+	t.Run("unhappy: no dust before DustStart, and none after DustRun", func(t *testing.T) {
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, DustStart-0.2)
+		if l, r := offHullDust(paint(sc)); l || r {
+			t.Fatal("no dust may kick before the start offset")
+		}
+		tick(sc, DustRun+0.6)
+		if l, r := offHullDust(paint(sc)); l || r {
+			t.Fatal("after the dust run the pad must be clear")
+		}
+	})
+	t.Run("happy: Start after Stop replays from the top with the current knobs", func(t *testing.T) {
+		sc := New(nil)
+		sc.Start()
+		_ = paint(sc)
+		tick(sc, LandSeconds-0.2)
+		if !strings.ContainsRune(paint(sc).Render(), '▟') {
+			t.Fatal("test premise: near the pad the hull must be on stage")
+		}
+		sc.Stop()
+		sc.Start()
+		opening := paint(sc)
+		if strings.ContainsRune(opening.Render(), '▟') {
+			t.Fatal("play must rewind the craft off the top")
+		}
+		sc.Stop()
+	})
+	t.Run("happy: Use is what New plays on the first Start, not only after replay", func(t *testing.T) {
+		t.Cleanup(Reset)
+		c := DefaultConfig()
+		c.LandSeconds = 0.2
+		if err := Use(c); err != nil {
+			t.Fatal(err)
+		}
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.25)
+		if !strings.ContainsRune(paint(sc).Render(), '▟') {
+			t.Fatal("the first play must already use the active land duration")
+		}
+	})
+	t.Run("happy: a land-duration nudge is what the next play uses", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.LandSeconds = 0.2
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.25)
+		if !strings.ContainsRune(paint(sc).Render(), '▟') {
+			t.Fatal("a 0.2s land must already be on the pad")
+		}
+	})
+	t.Run("unhappy: changing knobs mid-flight does not teleport the in-flight craft", func(t *testing.T) {
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, LandSeconds-0.2)
+		if !strings.ContainsRune(paint(sc).Render(), '▟') {
+			t.Fatal("test premise: near the pad the hull must be on stage")
+		}
+		sc.Cfg.LandSeconds = 0.2
+		tick(sc, 0.1)
+		if !strings.ContainsRune(paint(sc).Render(), '▟') {
+			t.Fatal("an in-flight craft must keep the land it launched with")
+		}
+	})
+	t.Run("happy: a seeded still sky freezes on the cut frame", func(t *testing.T) {
+		sky := stars.NewContinuity()
+		prior := stars.NewTunedStarfield().Seed(sky)
+		prior.Start(stageW, stageH)
+		for i := 0; i < 45; i++ {
+			prior.Update(1.0 / 30)
+		}
+		_ = prior.Render()
+		prior.Stop()
+
+		sc := New(sky)
+		sc.Start()
+		defer sc.Stop()
+		opening := starCells(paint(sc))
+		tick(sc, 1.0)
+		later := starCells(paint(sc))
+		for pos, ch := range later {
+			if opening[pos] != ch {
+				t.Fatalf("the still landing sky crawled: star at (%d,%d) %q -> %q", pos[0], pos[1], opening[pos], ch)
+			}
+		}
+		if len(later) == 0 {
+			t.Fatal("the landing sky must show stars above the horizon")
+		}
+	})
+	t.Run("unhappy: the horizon is not a round disc in the middle of the sky", func(t *testing.T) {
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		scr := paint(sc)
+		for y := 0; y < stageH/2; y++ {
+			for x := 0; x < stageW; x++ {
+				if isMoonBG(scr, x, y) {
+					t.Fatal("the landing moon must sit on the bottom, not as a disc in the sky")
+				}
+			}
+		}
+	})
+	t.Run("unhappy: a scene stopped before its first render never panics", func(t *testing.T) {
+		sc := New(nil)
+		sc.Start()
+		sc.Update(1)
+		sc.Stop()
+	})
+}
+
+func starCells(scr *screenplay.Screen) map[[2]int]string {
+	out := map[[2]int]string{}
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			for _, g := range stars.Glyphs {
+				if c.Content == string(g) {
+					out[[2]int{x, y}] = c.Content
+				}
+			}
+		}
+	}
+	return out
+}

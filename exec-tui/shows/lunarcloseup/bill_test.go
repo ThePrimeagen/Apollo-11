@@ -27,6 +27,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -191,6 +192,7 @@ func hasHull(v string) bool {
 }
 
 func TestLunarCloseUpBill(t *testing.T) {
+	t.Cleanup(landing.Reset)
 	t.Run("happy: the bill is five scenes in playing order", func(t *testing.T) {
 		b := Bill()
 		if len(b) != 5 {
@@ -493,36 +495,33 @@ func TestLunarCloseUpBill(t *testing.T) {
 			t.Fatal("at touchdown the booster must cut off — only gray pad dust may remain")
 		}
 	})
-	t.Run("happy: the landing kicks dust out both sides at the slow-down and again at touchdown", func(t *testing.T) {
+	t.Run("happy: the landing kicks dust at DustStart and keeps it blowing through DustRun", func(t *testing.T) {
 		sc := Bill()[4].Scene
 		sc.Start()
 		defer sc.Stop()
 		_ = paint(sc) // stage the cast
-		tick(sc, lander.LandSeconds-lander.LandThrottleLead+0.2)
+		tick(sc, landing.DustStart+0.2)
 		if l, r := offHullDust(paint(sc)); !l || !r {
-			t.Fatalf("when the booster steps down the pad must kick dust both ways, left=%v right=%v", l, r)
+			t.Fatalf("when the dust offset arrives the pad must kick dust both ways, left=%v right=%v", l, r)
 		}
-		tick(sc, lander.LandThrottleLead)
+		tick(sc, landing.DustRun-0.4)
 		if l, r := offHullDust(paint(sc)); !l || !r {
-			t.Fatalf("touchdown must kick a second burst both ways, left=%v right=%v", l, r)
+			t.Fatalf("through the dust run the cloud must still blow both ways, left=%v right=%v", l, r)
 		}
 	})
-	t.Run("unhappy: each kick counts down to nothing and the fall never kicks dust", func(t *testing.T) {
+	t.Run("unhappy: no dust before DustStart, none after DustRun, and the fall never kicks", func(t *testing.T) {
+		t.Cleanup(landing.Reset)
 		sc := Bill()[4].Scene
 		sc.Start()
 		defer sc.Stop()
 		_ = paint(sc)
-		tick(sc, lander.LandSeconds-lander.LandThrottleLead-0.2)
+		tick(sc, landing.DustStart-0.2)
 		if l, r := offHullDust(paint(sc)); l || r {
-			t.Fatal("no dust may kick before the craft starts slowing down")
+			t.Fatal("no dust may kick before the start offset")
 		}
-		tick(sc, dust.FadeSeconds+0.7)
+		tick(sc, landing.DustRun+0.6)
 		if l, r := offHullDust(paint(sc)); l || r {
-			t.Fatal("the slow-down kick must have counted down to nothing before touchdown")
-		}
-		tick(sc, 0.5+dust.FadeSeconds+0.4) // through touchdown, past its countdown
-		if l, r := offHullDust(paint(sc)); l || r {
-			t.Fatal("the touchdown kick must count down to nothing on the pad")
+			t.Fatal("after the dust run the pad must be clear")
 		}
 		fall := Bill()[3].Scene
 		fall.Start()
@@ -534,8 +533,37 @@ func TestLunarCloseUpBill(t *testing.T) {
 				continue
 			}
 			if l, r := offHullDust(paint(fall)); l || r {
-				t.Fatal("a falling craft kicks no dust — the pad does that, twice, on the landing")
+				t.Fatal("a falling craft kicks no dust — the pad does that once, from the first step-down through off")
 			}
+		}
+	})
+	t.Run("happy: the walkthrough landing plays the active scene knobs on the first curtain", func(t *testing.T) {
+		t.Cleanup(landing.Reset)
+		c := landing.DefaultConfig()
+		c.LandSeconds = 0.2
+		if err := landing.Use(c); err != nil {
+			t.Fatal(err)
+		}
+		sc := Bill()[4].Scene
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.25)
+		if !strings.ContainsRune(paint(sc).Render(), '▟') {
+			t.Fatal("02. Walkthrough must land at the saved land duration")
+		}
+	})
+	t.Run("unhappy: Reset restores stock timing on the next landing scene", func(t *testing.T) {
+		t.Cleanup(landing.Reset)
+		c := landing.DefaultConfig()
+		c.LandSeconds = 0.2
+		if err := landing.Use(c); err != nil {
+			t.Fatal(err)
+		}
+		landing.Reset()
+		sc := Bill()[4].Scene.(*landing.Show)
+		if sc.Cfg.LandSeconds != landing.LandSeconds {
+			t.Fatalf("after Reset the walkthrough landing is %v, want stock %v", sc.Cfg.LandSeconds, landing.LandSeconds)
 		}
 	})
 	t.Run("happy: the composed show walks the five scenes and then has nothing left", func(t *testing.T) {

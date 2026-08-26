@@ -1,9 +1,9 @@
 // Package menu is the exec-tui launcher: a scrollable list of every lab
 // and configurator in the repo, grouped by category — the screenplays,
-// the configurators, the demo labs, and the legacy TUIs. j/k (or arrows)
-// move over entries (headers are never selectable), enter runs the
-// highlighted program, q quits. Running exec-tui with no arguments opens
-// this menu instead of the sim — the sim is the LEGACY EXEC entry.
+// the portable scenes, the configurators, and the legacy TUIs. j/k (or
+// arrows) move over entries (headers are never selectable), enter runs
+// the highlighted program, q quits. Running exec-tui with no arguments
+// opens this menu instead of the sim — the sim is the LEGACY EXEC entry.
 package menu
 
 import (
@@ -34,8 +34,8 @@ type Entry struct {
 }
 
 // Catalog lists every runnable program by category: the screenplays
-// (MAIN, 01. Moon Orbit, then 02. Walkthrough), then the config
-// editors, then the demos, then the legacy TUIs.
+// (MAIN, 01. Moon Orbit, then 02. Walkthrough), then the portable
+// scenes, then the config editors, then the legacy TUIs.
 // Everything this module owns launches out of its own cmd/ folder;
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
@@ -43,17 +43,12 @@ func Catalog() []Entry {
 		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
 		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
+		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish ASCII editor over the assets/ folder (C-p files, C-e glyphs)"},
 		{ID: "particle", Section: "CONFIG", Title: "PARTICLE CONFIG", Desc: "tune the nyan rainbow trail (bands, life, spawn)", Pkg: "./cmd/adjustparticle/main"},
 		{ID: "dust-config", Section: "CONFIG", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},
-		{ID: "lander", Section: "DEMO", Title: "LANDER DEMO", Desc: "the continuous descent with alarms at their true moments", Pkg: "./cmd/lander"},
-		{ID: "stars", Section: "DEMO", Title: "STARS DEMO", Desc: "browse the starfield fly strategies", Pkg: "./cmd/stars"},
-		{ID: "nyan", Section: "DEMO", Title: "NYAN CAT", Desc: "pop-tart cat with a live rainbow particle trail", Pkg: "./cmd/nyan"},
-		{ID: "dustoff", Section: "DEMO", Title: "DUST OFF", Desc: "landing dust: two mirrored swirl plumes with braille wisps", Pkg: "./cmd/dustoff"},
-		{ID: "dsky", Section: "DEMO", Title: "DSKY DEMO", Desc: "a lone DSKY replaying the descent displays", Module: "dsky-lab", Pkg: "."},
-		{ID: "button", Section: "DEMO", Title: "BUTTON DEMO", Desc: "the cockpit toggle switch playground", Module: "button-lab", Pkg: "."},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
 	}
@@ -92,6 +87,25 @@ func ModuleRoot(startDir string) (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// Resolve joins a module-relative path onto this module's root, so
+// config JSON (dust, landing, stars) loads from the same files the
+// tuners write no matter where the process was started. Absolute
+// paths pass through.
+func Resolve(rel string) string {
+	if rel == "" || filepath.IsAbs(rel) {
+		return rel
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return rel
+	}
+	root, err := ModuleRoot(cwd)
+	if err != nil {
+		return rel
+	}
+	return filepath.Join(root, rel)
 }
 
 var (

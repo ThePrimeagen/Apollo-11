@@ -41,17 +41,23 @@ func NewCloud(seed int64) *Cloud {
 	return &Cloud{seed: seed}
 }
 
-// Fade makes the cloud a one-shot burst: from Start it counts its
-// particles down — linearly, from however many the warm kick holds to
-// zero over seconds — emission tapering with the same line and the
-// freshest specks dying first, so the blown fringe drifts out and
-// thins instead of being erased. seconds <= 0 keeps the endless kick.
-// Call before Start; a fresh Start rewinds the countdown. Nil-safe.
+// Fade makes the cloud a one-shot burst: from the cue it counts its
+// particles down — linearly, from however many the warm kick (or the
+// live cloud, if Fade is called after Start) holds to zero over
+// seconds — emission tapering with the same line and the freshest
+// specks dying first, so the blown fringe drifts out and thins
+// instead of being erased. seconds <= 0 keeps the endless kick.
+// Call before Start to fade from the curtain, or after Start to fade
+// from this instant; a fresh Start rewinds the countdown. Nil-safe.
 func (c *Cloud) Fade(seconds float64) *Cloud {
 	if c == nil {
 		return nil
 	}
 	c.fadeSec = seconds
+	c.fadeClock = 0
+	if c.Left != nil {
+		c.leftMax, c.rightMax = len(c.Left.Particles), len(c.Right.Particles)
+	}
 	return c
 }
 

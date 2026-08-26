@@ -11,13 +11,13 @@
 // middle, one row at the edges) and the north-facing lander coming
 // down onto it. The fall eases out — fast off the top, then a long
 // crawl that clinks onto the pad. The booster stays full until the
-// last three seconds, then steps ¾, ½, ¼, and cuts off on the pad.
-// The pad answers twice: the moment the booster starts slowing the
-// craft, and again at touchdown, mirrored dust kicks blow out of the
-// surface on both sides of the bell — leftward and rightward,
-// climbing away at a shallow angle — and each kick counts its
-// particles down from the full cloud to nothing over two seconds.
-// After that there is nothing left — the runner ends the show.
+// last three stages, then steps ¾, ½, ¼, and cuts off on the pad.
+// The pad answers once: the moment the booster starts slowing the
+// craft, a mirrored dust cloud blows out of the surface on both sides
+// of the bell — leftward and rightward, climbing away at a shallow
+// angle — and keeps running through booster-off, then counts its
+// particles down to nothing. After that there is nothing left — the
+// runner ends the show.
 //
 // One stars.Continuity seeds every scene's sky, so a cut never jumps
 // or skips a single star: each new starfield opens on the exact frame
@@ -30,8 +30,8 @@ package lunarcloseup
 
 import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -72,14 +72,6 @@ func Bill() screenplay.Bill {
 				}
 			},
 		}},
-		screenplay.Entry{Name: "landing", Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Component {
-				return []screenplay.Component{
-					stars.NewTunedStarfield().Seed(sky).Still(),
-					moon.NewHorizon(),
-					lander.NewShip(11).North().Land(lander.LandSeconds),
-				}
-			},
-		}},
+		screenplay.Entry{Name: "landing", Scene: landing.New(sky)},
 	}
 }

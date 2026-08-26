@@ -264,4 +264,42 @@ func TestCloudFade(t *testing.T) {
 			t.Fatal("Fade must return the nil receiver")
 		}
 	})
+	t.Run("happy: Fade after Start begins the countdown from that instant, not from the curtain", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(11)
+		cl.Start(80, 24)
+		for i := 0; i < 45; i++ { // 1.5s of endless kick
+			cl.Update(1.0 / 30)
+		}
+		held := liveDust(cl)
+		if held == 0 {
+			t.Fatal("test premise: the endless kick must still be dusty")
+		}
+		cl.Fade(FadeSeconds)
+		for i := 0; i < 15; i++ { // 0.5s into a fade that started just now
+			cl.Update(1.0 / 30)
+		}
+		got := liveDust(cl)
+		if got == 0 || got >= held {
+			t.Fatalf("0.5s after a late Fade %d specks, held %d — the countdown must start from the cue, not from Start", got, held)
+		}
+		for i := 0; i < 50; i++ {
+			cl.Update(1.0 / 30)
+		}
+		if liveDust(cl) != 0 {
+			t.Fatalf("past the late fade window %d specks still live, want zero", liveDust(cl))
+		}
+		noDust(t, cl, "past a late fade")
+	})
+	t.Run("unhappy: a cloud that has not been asked to Fade yet keeps kicking past FadeSeconds", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(11)
+		cl.Start(80, 24)
+		for i := 0; i < int(FadeSeconds*30)+15; i++ {
+			cl.Update(1.0 / 30)
+		}
+		if liveDust(cl) == 0 {
+			t.Fatal("without Fade the kick must still be running past FadeSeconds")
+		}
+	})
 }

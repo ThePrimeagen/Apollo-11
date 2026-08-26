@@ -19,6 +19,7 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 )
 
 func frames(m model, n int) model {
@@ -64,6 +65,7 @@ func hotBraille(v string) bool {
 }
 
 func TestLunarCloseUpScreenplay(t *testing.T) {
+	t.Cleanup(landing.Reset)
 	t.Run("happy: the house opens on scene 1/5 — the pause, under stars alone", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content

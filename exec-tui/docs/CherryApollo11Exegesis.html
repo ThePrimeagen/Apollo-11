@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exegesis of the 1201 and 1202 Alarms — George W. Cherry, 4 August 1969</title>
+<meta name="author" content="George W. Cherry, MIT Instrumentation Laboratory">
+<meta name="description" content="HTML reconstruction of MIT Instrumentation Laboratory memorandum AG# 370-69: Exegesis of the 1201 and 1202 Alarms Which Occurred During the Mission G Lunar Landing.">
+<style>
+  :root {
+    --ink: #1c1814;
+    --muted: #5c5348;
+    --rule: #c4b8a4;
+    --paper: #f7f1e4;
+    --paper-edge: #ebe3d2;
+    --accent: #8b1e2d;
+    --accent-soft: #f3e4e2;
+    --note: #9a3412;
+    --link: #6b1c28;
+    --mono: "IBM Plex Mono", "ui-monospace", "SFMono-Regular", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: "News Gothic MT", "Franklin Gothic Medium", "Avenir Next Condensed", "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #fffdf8 0%, var(--paper) 55%, #efe6d4 100%);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 1.55;
+  }
+
+  a { color: var(--link); }
+  a:hover { color: var(--accent); }
+
+  .banner {
+    background: var(--ink);
+    color: #f4ead8;
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    padding: 0.7rem 1.25rem;
+  }
+  .banner a { color: #f3c9c4; }
+  .banner strong { color: #fff; font-weight: 650; }
+
+  .page {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 2.25rem 1.35rem 5rem;
+  }
+
+  .letterhead {
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 1.15rem;
+    margin-bottom: 1.5rem;
+  }
+  .letterhead .org {
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-align: center;
+    margin: 0 0 0.15rem;
+  }
+  .letterhead h1 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: clamp(1.35rem, 3.4vw, 1.85rem);
+    letter-spacing: 0.04em;
+    text-align: center;
+    margin: 0.15rem 0 0.2rem;
+    line-height: 1.15;
+  }
+  .letterhead .lab {
+    text-align: center;
+    font-family: var(--sans);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-size: 0.82rem;
+    margin: 0;
+  }
+  .letterhead .city {
+    text-align: center;
+    font-size: 0.92rem;
+    color: var(--muted);
+    margin: 0.15rem 0 0;
+  }
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1.1rem;
+    font-size: 0.95rem;
+  }
+  .director { color: var(--muted); line-height: 1.35; }
+  .director .name { color: var(--ink); font-weight: 650; letter-spacing: 0.04em; }
+  .docno { text-align: right; }
+  .docno .ag { font-family: var(--mono); font-size: 0.95rem; }
+  .hand {
+    font-family: "Segoe Script", "Apple Chancery", "Snell Roundhand", cursive;
+    color: #1e3a8a;
+    font-size: 0.95rem;
+  }
+
+  nav.toc {
+    background: var(--paper-edge);
+    border: 1px solid var(--rule);
+    padding: 0.9rem 1.1rem;
+    margin: 1.4rem 0 1.8rem;
+    font-family: var(--sans);
+    font-size: 0.92rem;
+  }
+  nav.toc h2 {
+    margin: 0 0 0.45rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  nav.toc ol { margin: 0; padding-left: 1.2rem; }
+  nav.toc li { margin: 0.18rem 0; }
+
+  .addr {
+    margin: 1.25rem 0 0.4rem;
+    line-height: 1.4;
+  }
+  .field { margin: 0.85rem 0; }
+  .field .k {
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 0.15rem;
+  }
+  .attn { margin: 0.15rem 0 0 1.4rem; }
+
+  h2.sec {
+    font-family: var(--sans);
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--ink);
+    display: inline-block;
+    margin: 2rem 0 0.7rem;
+    padding-bottom: 0.05rem;
+  }
+  p { margin: 0.85rem 0; }
+  p.indent { text-indent: 1.6rem; }
+  .alarms {
+    font-family: var(--mono);
+    font-size: 0.92rem;
+    list-style: none;
+    padding: 0.2rem 0 0.2rem 2.2rem;
+    margin: 0.4rem 0 0.8rem;
+  }
+  .alarms li { margin: 0.12rem 0; }
+  .alarms .code { color: var(--accent); font-weight: 650; }
+
+  ol.steps { padding-left: 1.4rem; }
+  ol.steps li { margin: 0.45rem 0; }
+  ol.advantages { padding-left: 1.5rem; }
+  ol.advantages li { margin: 0.7rem 0; }
+
+  .eq {
+    font-family: var(--mono);
+    font-size: 0.92rem;
+    background: var(--paper-edge);
+    border-left: 3px solid var(--accent);
+    padding: 0.7rem 0.9rem;
+    margin: 0.9rem 0;
+    overflow-x: auto;
+  }
+
+  .sig {
+    margin: 1.8rem 0 0.4rem 42%;
+  }
+  .sig .closing { margin-bottom: 1.4rem; }
+  .sig .autograph {
+    font-family: "Segoe Script", "Apple Chancery", "Snell Roundhand", cursive;
+    font-size: 1.55rem;
+    color: #1e3a8a;
+    line-height: 1;
+    margin: 0 0 0.15rem;
+  }
+  .sig .title { color: var(--muted); font-size: 0.95rem; }
+
+  .cc {
+    margin-top: 2rem;
+    font-size: 0.88rem;
+    font-family: var(--mono);
+  }
+  .cc .k {
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.45rem;
+  }
+  .cc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.2rem 1rem;
+  }
+
+  figure.table-wrap {
+    margin: 1.6rem 0 2rem;
+    padding: 0;
+  }
+  figure.table-wrap figcaption {
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 0 0 0.65rem;
+  }
+  .scroll {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    background: #fffdf8;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.86rem;
+    line-height: 1.35;
+  }
+  th, td {
+    border: 1px solid var(--rule);
+    padding: 0.42rem 0.5rem;
+    vertical-align: top;
+  }
+  th {
+    background: #efe6d4;
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: left;
+  }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.8rem; }
+  td.job { font-family: var(--mono); font-size: 0.8rem; white-space: nowrap; }
+  td.prio { font-size: 0.82rem; }
+  .job-name { font-weight: 700; }
+  .job-type { display: block; color: var(--muted); font-size: 0.75rem; }
+  .alarm-row { background: var(--accent-soft); }
+  .blank { color: transparent; }
+
+  .annot {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.05rem 0.35rem;
+    border: 1px solid #b45309;
+    color: var(--note);
+    font-family: "Segoe Script", "Apple Chancery", cursive;
+    font-size: 0.85rem;
+    transform: rotate(-4deg);
+    background: #fff7ed;
+  }
+  .struck {
+    text-decoration: line-through;
+    text-decoration-color: #b91c1c;
+    text-decoration-thickness: 2px;
+  }
+  .note {
+    font-size: 0.88rem;
+    color: var(--muted);
+    margin: 0.55rem 0 0;
+  }
+  .lab-foot {
+    text-align: center;
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-top: 0.55rem;
+  }
+
+  footer.recon {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+
+  @media (max-width: 720px) {
+    body { font-size: 16.5px; }
+    .cc-grid { grid-template-columns: 1fr; }
+    .sig { margin-left: 0; }
+    .meta-row { flex-direction: column; }
+    .docno { text-align: left; }
+  }
+
+  @media print {
+    .banner, nav.toc { display: none; }
+    body { background: white; font-size: 11pt; }
+    .page { max-width: none; padding: 0; }
+    a { color: inherit; text-decoration: none; }
+    .scroll { overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<div class="banner">
+  HTML reconstruction of MIT Instrumentation Laboratory memorandum
+  <strong>AG# 370-69</strong>
+  (4 August 1969). Source scan:
+  <a href="https://www.ibiblio.org/apollo/Documents/CherryApollo11Exegesis.pdf">ibiblio.org/apollo</a>
+  ·
+  <a href="https://archive.org/details/CherryApollo11Exegesis">Internet Archive</a>
+</div>
+
+<article class="page">
+  <header class="letterhead">
+    <p class="org">Massachusetts Institute of Technology</p>
+    <h1>Department of Aeronautics and Astronautics</h1>
+    <p class="lab">Instrumentation Laboratory</p>
+    <p class="city">Cambridge, Mass. 02139</p>
+    <div class="meta-row">
+      <div class="director">
+        <div class="name">C. S. DRAPER</div>
+        DIRECTOR
+      </div>
+      <div class="docno">
+        <div class="hand" title="Handwritten on this copy">Eyles</div>
+        <div class="ag">AG# 370-69</div>
+        August 4, 1969
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#background">Background</a></li>
+      <li><a href="#executive">The Executive program and how 1201 and 1202 alarms can arise</a></li>
+      <li><a href="#long-range">Long-range safer and more flexible software</a></li>
+      <li><a href="#rr-robbery">How the RR can rob 15% of the LGC</a></li>
+      <li><a href="#preventing">Preventing future LGC memory-cycle robbery by the RR ECDUs</a></li>
+      <li><a href="#future">A program to keep similar events from occurring in the future</a></li>
+      <li><a href="#jobs">Table of jobs and priorities</a></li>
+      <li><a href="#events">Important events occurring during lunar landing</a></li>
+    </ol>
+  </nav>
+
+  <div class="addr">
+    National Aeronautics and Space Administration<br>
+    Manned Spacecraft Center<br>
+    Houston, Texas 77058
+  </div>
+
+  <div class="field">
+    <span class="k">Attention</span>
+    <div class="attn">
+      Mr. W. Kelly<br>
+      Project Office PP7<br>
+      Guidance and Navigation
+    </div>
+    <div class="attn" style="margin-top:0.55rem">
+      Mr. Christopher Kraft, Jr. FA
+    </div>
+  </div>
+
+  <div class="field">
+    <span class="k">Through</span>
+    NASA/RASPO at MIT/IL
+  </div>
+
+  <div class="field">
+    <span class="k">Subject</span>
+    Exegesis of the 1201 and 1202 Alarms Which Occurred During the Mission G Lunar Landing
+  </div>
+
+  <p>Gentlemen:</p>
+
+  <h2 class="sec" id="background">Background</h2>
+
+  <p class="indent">During the mission G lunar landing five LGC Executive overflow alarms occurred. They were with approximate times of occurrence,</p>
+
+  <ul class="alarms">
+    <li><span class="code">1202</span> at PDI + 316 seconds</li>
+    <li><span class="code">1202</span> at PDI + 356 seconds</li>
+    <li><span class="code">1201</span> at PDI + 552 seconds</li>
+    <li><span class="code">1202</span> at PDI + 578 seconds</li>
+    <li><span class="code">1202</span> at PDI + 594 seconds</li>
+  </ul>
+
+  <p>The first two alarms occurred in P63; the last three occurred in P64. A later section of this letter gives more detail on the other DSKY activity during landing.</p>
+
+  <p class="indent">These alarms arose because of a computer overload caused by a high frequency train of “counter increment requests” from the RR ECDUs. Each “counter increment request” requires one LGC central processor memory cycle. Consequently, the other computational tasks and jobs of the LGC are effectively slowed down. The slow-down was so bad at times that some repetitively scheduled jobs (like SERVICER, the navigation and guidance job which is done every two seconds) were still running when the time arrived for their succeeding cycle of computations to begin.</p>
+
+  <p class="indent">This phenomenon (requesting the EXECUTIVE program to start some particular job before the previous request of the same job has been completed) is a feature of the way the LGC guidance cycle is structured and the way sucessive repetitive jobs are scheduled. The execution of jobs may be slowed down by RR ECDU memory cycle robbery but the clock which schedules jobs like SERVICER and LRHJOB (the job which reads LR range) is scarcely affected. The clock (TIME3, the WAITLIST clock) we use to schedule these jobs ineluctably counts down to the time for the next repetition of a job to begin whether the previous repetition is complete or not. This is not the only way to structure our programs but it is the simplest and most natural way. There is, of course, danger in this structure, a danger well understood and, we thought, provided against. Some computations may never be finished if the basic cycle period is to short for the load on the central processor. Worse yet, the EXECUTIVE program may be deluged with requests for jobs — the new ones and the old still unfinished ones. The EXECUTIVE must supply a unshared set of erasables for each job’s execution from the moment it is started until the moment it is completed. The EXECUTIVE has only so many sets of these erasables at its disposal. After it has allocated all its sets the next requestor of a job asks for the impossible. The EXECUTIVE responds to the impossible request by turning on the PROG light (program alarm), storing the 1201 or 1202 alarm code, and transferring control to the BAILOUT routine which tries to bail the program out of trouble by stopping all jobs and tasks and restarting only the absolutely required (in the programmer’s limited fallible viewpoint) jobs and tasks. Thus, certain astronaut requested activity like extended verbs and monitor displays are preemptively terminated (he can call them back). This cleaning out of the temporarily dispensable can cure a temporary overload. A permanent overload is the very dangerous situation.</p>
+
+  <p class="indent">If there is a danger in this simple natural philosophy the danger can be reduced to an acceptable level. We try to do this by simulating all the <u>known</u> sources of computer load and then to be safe impose a safety margin. We simulate an <u>unknown</u> source or sources of memory cycle loss (we call it TLOSS) and insist that a certain TLOSS be tolerable (no 1201’s, no 1202’s). The margin has a price — it can be obtained by lengthening the navigation, guidance and display period and by trading off execution speed against storage in the coding technique. We insisted on a tolerable TLOSS of about 10% during landing. The coding and the guidance period were therefore massaged until 10% TLOSS was tolerable (with a monitor verb running). Unfortunately, the RR ECDU’s stole about 15% (most of the time).</p>
+
+  <p class="indent">The balance of this letter gives a simple explanation of the EXECUTIVE program and the job structure during landing, the interesting hardware interface between the RR shaft and trunnion angle resolvers and the LGC when the RR switch is in AUTO TRACK or SLEW, and also what we are doing in LUMINARY 1B about this interface. Finally, it is not this specific problem which we thoroughly understand and have several ways of avoiding that really concerns us now. As you asked me in your office last Thursday, how can we prevent a similar presently unknown thing from happening? The last part of this letter explains some precautions we are taking and some disciplines we are invoking.</p>
+
+  <h2 class="sec" id="executive">The Executive Program and How 1201 and 1202 Alarms Can Arise</h2>
+
+  <p class="indent">The job scheduling and job supervising program in the LGC is called the EXECUTIVE. When the landing programs must schedule a job they call the EXECUTIVE program and give it the address of the job to be run and the <u>priority</u> for running it. Examples of jobs which are scheduled repetitively during landing are SERVICER, LRHJOB, and LRVJOB (the job which reads the velocity measurement from the LR). An example of a one shot job scheduled at HI-GATE and therefore called HIGATJOB, is the LR antenna re-positioning program.</p>
+
+  <p class="indent">People sometimes talk about jobs running “simultaneously”. This cannot literally happen since there is only one central processor in the LGC and only one job’s computations can be done at a time. However, jobs <u>can</u> be simultaneously waiting to be run, and these jobs can be waiting in various stages of completion.</p>
+
+  <p class="indent">How does the EXECUTIVE decide which one of a group of waiting jobs actually gets control of the central processor? That is the purpose of the job priority rating which the caller of the EXECUTIVE program must specify along with the address of the job. If a priority 20 job is running and a priority 32 job request is made to the EXECUTIVE, the EXECUTIVE will temporarily suspend (put to sleep) the priority 20 job (at a convenient point of suspension of the suspended job) and initiate the priority 32 job. Evidently, there must be an inviolate unshared set of erasable registers for each suspended (sleeping) job where its intermediate results are stored until it can be re-awakened to finish its computations. Even the simplest job requires a certain minimum set of erasables — this is called a coreset (twelve erasable registers per coreset). More sophisticated programming jobs, which perform matrix and vector computations and therefore use the INTERPRETER, need an additional set of erasables called a VAC area (43 erasable memory cells per vac area). (VAC stands for vector accumulation).</p>
+
+  <p class="indent">Therefore, every job needs a coreset and some jobs need a VAC area. Furthermore, every job must be allocated its required set of unshared erasable registers from the time it begins its computations until the time its concludes its computations and does an ENDOFJOB — even if it is temporarily suspended and waiting to be awakened in order to finish its computations. Jobs which use coreset storage only are called NOVAC jobs; those which require a “vector accumulator area” also, are called VAC jobs. A table of the jobs which may run during landing, their priority, and their type (VAC or NOVAC) is given below.</p>
+
+  <p class="indent">Obviously, the EXECUTIVE program cannot respond to an arbitrarily large number of requests to schedule jobs. For that would require an arbitrarily large number of erasable registers. The LUMINARY 1B EXECUTIVE program has enough erasable memory to provide 8 coresets and 5 VAC areas. (COLOSSUS only has 7 coresets.) If the EXECUTIVE is requested to schedule more than eight jobs altogether or more than five VAC type jobs it cannot comply. There are several actions which the EXECUTIVE could take in this overload condition. One possible action would be for the EXECUTIVE to terminate abruptly the lowest priority waiting job and pre-empt its erasables for the newly requested job (or ignoring the request for a new job if its priority is lower than the priorities of the already waiting job). Of course, in this kind of scheme, a NOVAC job could not be preemptively “de-scheduled” to accomodate a VAC job. This philosophy is not really realistic. The EXECUTIVE program then might be making mission affecting decisions. It could conceivably ignore the execution of a low-priority but nonetheless crucial job. The EXECUTIVE, then, should not make a decision to abort or kill a job.</p>
+
+  <p class="indent">How, then, can an EXECUTIVE overload reasonably be handled? To understand how we handle EXECUTIVE overloads we have to understand how the computer handles software or hardware restarts. A restart causes, among other things, a cleaning out of the EXECUTIVE program’s queue (and also the WAITLIST program’s queue). The RESTART program then consults “phase tables” to see what jobs and tasks should be restarted. The phase tables are updated <u>by the mission programs</u> as the computations proceed. The phase tables do not necessarily start a given job over at its beginning; they are more likely to restart the cleaned-out program at some point conveniently prior to the point at which the restart interruption occurred. If we think of the programming job as being composed of blocks or chunks of functional coding, operations and computations, then we see that logical points for a restart to begin (that is, a logical place to insert a phase change) would be at the beginning of the logical block or chunk which the computer is currently executing. Note that the advantages of causing a software restart following an EXECUTIVE overload are twofold.</p>
+
+  <ol class="advantages">
+    <li>Old jobs which were not finished before their successors were requested are cleaned-out; i.e., the backlog, the logjam, is cleaned up. Because SERVICER does its navigation first in its cycle and then its guidance computations and then its DAP output computations, the state vector maintenance is not likely to degrade but the DAP outputs may be old if the SERVICERs begin to accumulate. The philosophy of cleaning out the old unfinished SERVICERs and restarting the current one is therefore a good idea.</li>
+    <li>When a restart is executed only the programs, jobs, and tasks which the programmers provided for in the “phase tables” are restarted. (This, of course, is a two-edged sword for the programmer may forget to provide for a crucial job or task.) Temporarily dispensable items like astronaut requested monitor verbs or extended verbs are not automatically restarted. Thus, there is likely to be an immediate reduction in the computer load. The astronaut may subsequently re-request his preemptively terminated monitor or extended verb.</li>
+  </ol>
+
+  <p class="indent">Reference to the Table of Jobs and Priorities below shows that there are only 8 jobs which can run during lunar landing and that only three of these are jobs which use a VAC area. Furthermore, some of these jobs, like HIGATJOB and LRHJOB (or LRVJOB) cannot run simultaneously. Therefore the 1201 alarm (not enough VAC areas available) and the 1202 alarms (not enough coresets available) must have occurred because of multiple scheduling of the same job. Obviously, then, if there was a 1201 EXECUTIVE overflow some job like SERVICER was scheduled two and possibly three or four times. In effect, the tail end of SERVICER was not being finished before a new SERVICER was scheduled.</p>
+
+  <p class="indent">The software restarts which accompanied the 1201 and 1202 alarms kept the program from becoming hopelessly snarled up. However, the unusually high frequency of unanticipated “counter increment requests” caused the program to require three software restarts within about 40 seconds in P64.</p>
+
+  <h2 class="sec" id="long-range">Long-Range Safer and More Flexible Software</h2>
+
+  <p class="indent">It has been proposed by several people at MIT/IL (Peter Adler and Don Eyles) to provide a variable DT SERVICER program which starts a new cycle of computations as soon as the old cycle is finished. Our present SERVICER has a fixed DT of two seconds and the AVERAGE G, FINDCDUW and PIPA and GYRO compensation routines take advantage of this value of fixed integral number of seconds chosen for DT. Therefore, this programming change is not trivial. Such a mechanization has tremendous advantages however. By running all non-SERVICER jobs (like extended verbs and monitor verbs) at a higher priority than SERVICER, we can get every job done that is requested in one SERVICER cycle by making the end of one SERVICER cycle schedule the next SERVICER cycle. The computer is continually busy this way but the programs never overburden the EXECUTIVE job scheduling capacity. In effect, you have the shortest DT possible for the number of tasks and jobs you are trying to do. This also allows new computations (PCRs) to be inserted with the simple consequence of increasing the average DT. The undesirable effects are that the DT varies and verification of stability due to sampling frequency of PIPA reading and output command frequency to the DAP is more difficult.</p>
+
+  <h2 class="sec" id="rr-robbery">How the RR Can Rob 15% of the LGC</h2>
+
+  <p class="indent">The 1201 and 1202 program alarms which occurred during the mission G landing were due to a computer overload caused by high frequency shaft and trunnion angle “counter” incrementing from the RR ECDU’s. The spurious erratic high frequency output from the RR ECDUs can occur whenever the rendezvous radar control switch is in SLEW or AUTO TRACK (rather than LGC) because then the ATCA provides a 15 volt 800 cps signal to the angle resolver primaries which has a random phase relationship to the 800 cps which the PSA provides for a reference to the RR ECDUs. The consequence is that the ECDUs may count at their maximum rate, 6400 cps, in their futile attempts to null the ECDU “error’s”. The loss of computation time for the two ECDUs counting at maximum rate is</p>
+
+  <p class="eq">12.8 × 10<sup>3</sup> × 11.72 × 10<sup>−6</sup> = 0.15 seconds/second</p>
+
+  <p>or 15% of the LGC time since each involuntary “counter” increment takes a memory cycle (one memory cycle = 11.72 microseconds).</p>
+
+  <p class="indent">The Apollo 11 crew checklist specified that the RR switch be in AUTO TRACK immediately before calling P63. We were unaware of the effect this would have on the computer execution time load.</p>
+
+  <h2 class="sec" id="preventing">Preventing Future LGC Memory Cycle Robbery by the RR ECDUs</h2>
+
+  <p class="indent">When the RR mode switch is in either the AUTO TRACK or SLEW positions the RR ECDUs obviously cannot digitize the signal transformed from the shaft and trunnion angle resolver primaries to the input to the ECDUs. The only time the LGC is interested in the ECDU signal is when the RR mode switch is in LGC. Therefore, a PCR has been written, approved, and implemented in LUMINARY 1B to monitor the discrete (the RR Power On/LGC Mode discrete) which the LGC receives when the RR switch is in the LGC position. When the LGC does not receive this discrete, it sets the RR ECDU zero command which stops the ECDUs’ attempt to digitize the analog voltage from the resolvers. This action effectively prevents “counter increment requests” from the ECDUs and prevents central processor execution of these meaningless interrupts.</p>
+
+  <p class="indent">It should be mentioned that if the RR DC circuit breaker is pulled the LGC does not receive the RR Power On/LGC Mode discrete, and therefore the LGC will zero the RR ECDUs. This action is correct since the LGC is not interested in the shaft and trunnion angle of the RR when its circuit breakers are pulled.</p>
+
+  <p class="indent">We may modify our all-digital simulator to send 6400 pps from each RR ECDU to the LGC if the RR switch is not in LGC and the LGC has not set the RR CDU ZERO bit. Of course, if the simulator had this feature for our software verification tests we would have detected the computer overload during our testing.</p>
+
+  <p class="indent">In addition to the above PCR, other actions have been taken. PCR 814, for example, provides for a modified V57 which incorporates a display of N68 and avoids the need for a monitor verb and job (MONDO).</p>
+
+  <p class="indent">The separate call of MAKEPLAY has been eliminated by incorporating this job into SERVICER.</p>
+
+  <h2 class="sec" id="future">A Program to Keep Similar Events From Occurring in the Future</h2>
+
+  <p class="indent">There were folks who knew about the RR resolver/ECDU/LGC interface mechanization. There were also a great many people who knew the effect which a 15% TLOSS would have on the landing program’s operation. These folks never got together on the subject. Therefore we need to improve communications.</p>
+
+  <p class="indent">There are various simulations throughout the country which might have detected this problem if they had simulated the RR resolver/ECDU/LGC interface with enough fidelity. Therefore, we might look at our various simulator configurations to see whether we are leaving anything significant out. We have just started a new Simulator Configuration Control Board at MIT/IL which will function like your own Apollo Software Configuration Control Board. This board will adjudicate the approval of SCRs (simulator change requests). We will encourage the writing of SCRs which can increase the fidelity of the simulator in significant ways. I hope to constitute this board with hardware personnel as well as software personnel so that important hardware/software interface features are not overlooked.</p>
+
+  <p>Our anomaly prevention plan includes the following steps:</p>
+
+  <ol class="steps">
+    <li>“What if” sessions between hardware and software personnel.</li>
+    <li>Orientation lectures by hardware personnel for the benefit of software personnel so that programmers and mission support personnel better understand the hardware.</li>
+    <li>A review of the adequacy of the simulator we use for mission verification. Perhaps we can get hardware personnel from GAEC, MSC and MIT/IL to review our current models.</li>
+    <li>Scrutiny of the crew checklist by the hardware personnel. (This could have prevented the alarms.)</li>
+    <li>An insistence that anyone who knows anything peculiar about the hardware, the hardware/software interface, or the software document his information in the appropriate place (AOH, GSOP, Program Note, etc.) and tell the appropriate personnel.</li>
+  </ol>
+
+  <div class="sig">
+    <p class="closing">Very truly yours,</p>
+    <p class="autograph">George W. Cherry</p>
+    <div>George W. Cherry</div>
+    <div class="title">Luminary Project Director</div>
+  </div>
+
+  <div class="cc">
+    <div class="k">Distribution</div>
+    <div class="cc-grid">
+      <div>R. Ragan</div><div>K. Glick</div><div>W. North, CF</div>
+      <div>D. Hoag</div><div>T. Fitzgibbon</div><div>D. Cheatham, EG 2</div>
+      <div>L. Larson</div><div>B. McCoy</div><div>W. Goeckler, PD 8</div>
+      <div>R. Battin</div><div>C. Schulenberg</div><div>E. Kranz, FC</div>
+      <div>N. Sears</div><div>R. Covelli</div><div>H. Tindall, FM</div>
+      <div>F. Martin</div><div>D. Eyles</div><div>S. Bales, FC</div>
+      <div>A. Laats</div><div>P. Adler</div><div>R. Gardiner, EG</div>
+      <div>G. Silver</div><div>K. Greene</div><div>F. Bennett, FM 2</div>
+      <div>P. Felleman</div><div>L. Dunseith, FS</div><div>J. Hanaway, EG 412</div>
+      <div>R. Larson</div><div>T. Gibson, FS 5</div><div>R. Chilton, EG</div>
+      <div>J. Nevins</div><div>T. Price, FS 5</div><div>W. Heffron (Bellcomm)</div>
+      <div>W. Marscher</div><div>N. Armstrong, CB</div><div>C. Tillman GAEC</div>
+      <div>M. Hamilton</div><div>A. Aldrin, CB</div><div>G. Cherry (20)</div>
+      <div>A. Kosmala</div><div></div><div></div>
+    </div>
+  </div>
+
+  <h2 class="sec" id="jobs">Table of Jobs and Priorities</h2>
+
+  <figure class="table-wrap">
+    <figcaption>Table of Jobs and Priorities</figcaption>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Name of Job and Type</th>
+            <th>Description of Job</th>
+            <th>Priority of Job</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="job"><span class="job-name">SERVICER</span><span class="job-type">VAC</span></td>
+            <td>Performs Navigation, Mass Updating, Guidance Computations, and Throttle and DAP Command Functions</td>
+            <td class="prio">20 but does a priority change (PRIOCHNG) to 24 while using subroutine to keep HIGATJOB from interferring (potential erasable conflict) <span class="annot" title="Red handwritten annotation on this copy (Don Eyles)">NOT TRUE</span></td>
+          </tr>
+          <tr>
+            <td class="job"><span class="job-name">MAKEPLAY</span><span class="job-type">VAC</span></td>
+            <td>Display job set up by SERVICER</td>
+            <td class="num">20</td>
+          </tr>
+          <tr>
+            <td class="job"><span class="job-name">1/GYRO</span><span class="job-type">NOVAC</span></td>
+            <td>IMU compensation job. Compensates gyros.</td>
+            <td class="num">21</td>
+          </tr>
+          <tr>
+            <td class="job"><span class="job-name">LRHJOB</span><span class="job-type">NOVAC</span></td>
+            <td>Reads the LR range</td>
+            <td class="prio" rowspan="2">32 but they only run for a millisecond or so and then sleep for about 80 milliseconds while the LR syne pulses are sent out. They are awakened when LR reading is completed and then run for another millisecond or so.</td>
+          </tr>
+          <tr>
+            <td class="job"><span class="job-name">LRVJOB</span><span class="job-type">NOVAC</span></td>
+            <td>Reads the LR velocities</td>
+          </tr>
+          <tr>
+            <td class="job"><span class="job-name">CHARIN</span><span class="job-type">NOVAC</span></td>
+            <td>Started at each DSKY keystroke entry for interpretation of keystroke.</td>
+            <td class="num">30</td>
+          </tr>
+          <tr>
+            <td class="job"><span class="job-name">HIGATJOB</span><span class="job-type">VAC</span></td>
+            <td>Commands the LR antenna to re-position to position #2 and sets up a waitlist task to check for appearance of the position #2 discrete. Sleeps during monitor. Is awakened after monitor finds position #2 discrete and computes position #2 beam vectors for LR Read Routine.</td>
+            <td class="prio struck" title="Struck through in red ink on this copy">Runs at 32 for a millisecond or two. Sleeps until position #2 discrete is received. Is awakened at priority 32 but changes to priority 23 before calling subroutine TRG*SMNB. Note that if SERVICER is using QUICTRIG, HIGATJOB cannot interfere because SERVICER is at a higher priority then. Notice that if HIGATJOB is using TRG*SMNB, SERVICER cannot make its priority change to 24 and hence cannot interfere.</td>
+          </tr>
+          <tr>
+            <td class="job"><span class="job-name">MONDO</span><span class="job-type">NOVAC</span></td>
+            <td>Monitor Verb Job. Runs during V16 N68.</td>
+            <td class="num">30</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note struck">* Note: Both TRG*SMNB and QUICTRIG use the CDUSPOT registers. Hence a potential erasable conflict exists if TRG*SMNB is called while QUICTRIG is executing or vice versa. <span class="annot">struck on this copy</span></p>
+  </figure>
+
+  <h2 class="sec" id="events">Important Events Occurring During Lunar Landing</h2>
+
+  <figure class="table-wrap">
+    <figcaption>Important Events Occurring During Lunar Landing</figcaption>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">TFI<br>Time From Ignition (seconds)</th>
+            <th class="num">H<br>(feet)</th>
+            <th class="num">HDOT<br>(ft/sec)</th>
+            <th class="num">CDUY<br>(degrees)</th>
+            <th class="num">&Delta;H<br>(feet)</th>
+            <th class="num">V<br>(ft/sec)</th>
+            <th>DSKY or Special Activity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">2</td><td class="num">49971</td><td class="num">− 2.2</td><td class="num">107.25</td><td></td><td class="num">5559.7</td><td></td>
+          </tr>
+          <tr>
+            <td class="num">232</td><td class="num">42426</td><td class="num">− 78.7</td><td class="num">80</td><td></td><td class="num">3366.4</td><td>Begin Yaw Windows Up</td>
+          </tr>
+          <tr>
+            <td class="num">262–286</td><td></td><td></td><td></td><td></td><td></td><td>LR Data Good</td>
+          </tr>
+          <tr>
+            <td class="num">286</td><td class="num">37672</td><td class="num">− 104.3</td><td class="num">79</td><td></td><td class="num">2745.4</td><td></td>
+          </tr>
+          <tr>
+            <td class="num">304</td><td class="num">35706</td><td class="num">− 113.6</td><td class="num">77</td><td class="num">− 2884</td><td class="num">2521.7</td><td>V.16N68</td>
+          </tr>
+          <tr class="alarm-row">
+            <td class="num">316</td><td></td><td></td><td class="num">77</td><td class="num">− 2570</td><td></td><td>Program Alarm</td>
+          </tr>
+          <tr class="alarm-row">
+            <td class="num">322</td><td></td><td></td><td class="num">76</td><td class="num">− 2354</td><td></td><td>V 05N09E (R1 = 1202)</td>
+          </tr>
+          <tr>
+            <td class="num">338</td><td class="num">31566</td><td class="num">− 128.8</td><td class="num">75</td><td class="num">− 2655</td><td class="num">2086.1</td><td>V57E</td>
+          </tr>
+          <tr>
+            <td class="num">344</td><td class="num">30772</td><td></td><td class="num">73</td><td class="num">− 1785</td><td></td><td>X Axis Over-ride Denied</td>
+          </tr>
+          <tr>
+            <td class="num">346</td><td></td><td></td><td class="num">73</td><td class="num">− 1772</td><td></td><td>V16N68E</td>
+          </tr>
+          <tr class="alarm-row">
+            <td class="num">358</td><td></td><td></td><td class="num">71</td><td class="num">− 1826</td><td></td><td>Program Alarm (1202)</td>
+          </tr>
+          <tr>
+            <td class="num">372</td><td class="num">24703</td><td class="num">− 113.3</td><td class="num">66</td><td class="num">− 26</td><td class="num">1640.2</td><td></td>
+          </tr>
+          <tr>
+            <td class="num">374</td><td></td><td></td><td class="num">66</td><td class="num">− 78</td><td></td><td>V16N68E</td>
+          </tr>
+          <tr>
+            <td class="num">380</td><td></td><td></td><td class="num">68</td><td class="num">− 98</td><td></td><td>Key Release</td>
+          </tr>
+          <tr>
+            <td class="num">384</td><td class="num">23393</td><td class="num">− 96.7</td><td class="num">67</td><td class="num">− 86</td><td class="num">1481.1</td><td>Throttle Down</td>
+          </tr>
+          <tr>
+            <td class="num">396</td><td class="num">22233</td><td class="num">− 102.1</td><td class="num">65</td><td class="num">− 75</td><td class="num">1367.0</td><td>ENTER</td>
+          </tr>
+          <tr>
+            <td class="num">450</td><td class="num">15273</td><td class="num">− 136.9</td><td class="num">57</td><td class="num">− 48</td><td class="num">961.0</td><td>ENTER</td>
+          </tr>
+          <tr>
+            <td class="num">506</td><td class="num">7380</td><td class="num">− 125.7</td><td class="num">55</td><td></td><td class="num">526.2</td><td>P64</td>
+          </tr>
+          <tr>
+            <td class="num">512</td><td class="num">6636</td><td class="num">− 121.4</td><td class="num">47</td><td></td><td class="num">LPD 66</td><td>LPD in degrees, LR in Pos #2</td>
+          </tr>
+          <tr>
+            <td class="num">528</td><td class="num">4772</td><td class="num">− 98.2</td><td class="num">43</td><td class="num">− 30</td><td class="num">59</td><td>ATT HOLD</td>
+          </tr>
+          <tr>
+            <td class="num">538</td><td class="num">4019</td><td class="num">− 87.8</td><td class="num">39</td><td class="num">− 29</td><td class="num">LPD 58</td><td>AUTO</td>
+          </tr>
+          <tr class="alarm-row">
+            <td class="num">554</td><td></td><td></td><td class="num">33</td><td class="num">+ 7</td><td></td><td>Program Alarm</td>
+          </tr>
+          <tr class="alarm-row">
+            <td class="num">556</td><td></td><td></td><td class="num">33</td><td></td><td></td><td>V05N09E (R1 = 1201)</td>
+          </tr>
+          <tr>
+            <td class="num">568</td><td class="num">1927</td><td class="num">− 51.8</td><td class="num">28</td><td class="num">+ 3</td><td class="num">47</td><td>PRO to FLV06N64</td>
+          </tr>
+          <tr class="alarm-row">
+            <td class="num">578</td><td></td><td></td><td class="num">26</td><td></td><td></td><td>Program Alarm</td>
+          </tr>
+          <tr class="alarm-row">
+            <td class="num">580</td><td class="num">1387</td><td class="num">− 39.1</td><td class="num">25</td><td class="num">− 12</td><td class="num">44</td><td>V05N09E (R1 = 1202)</td>
+          </tr>
+          <tr class="alarm-row">
+            <td class="num">594</td><td class="num">768</td><td class="num">− 26.7</td><td class="num">20</td><td class="num">+ 84</td><td class="num">35</td><td>Program Alarm (1202)</td>
+          </tr>
+          <tr>
+            <td class="num">606</td><td></td><td class="num">− 19.2</td><td class="num">13</td><td class="num">+ 7</td><td class="num">32</td><td>ATT HOLD</td>
+          </tr>
+          <tr>
+            <td class="num">618</td><td class="num">430</td><td class="num">− 11.8</td><td class="num">6</td><td class="num">+ 6</td><td class="num">19</td><td>P66</td>
+          </tr>
+          <tr>
+            <td class="num">666</td><td class="num">244</td><td class="num">− 2.9</td><td class="num">5.7</td><td class="num">− 2</td><td class="num">VH 19.4</td><td>LR Dropout</td>
+          </tr>
+          <tr>
+            <td class="num">680</td><td class="num">201</td><td class="num">− 4.6</td><td class="num">5.6</td><td></td><td class="num">11.1</td><td>LR Reacquire</td>
+          </tr>
+          <tr>
+            <td class="num">714</td><td class="num">74</td><td class="num">− 0.9</td><td class="num">6.0</td><td class="num">+ 2</td><td class="num">6.2</td><td>LR Dropout</td>
+          </tr>
+          <tr>
+            <td class="num">722</td><td class="num">60</td><td class="num">− 2.4</td><td class="num">6.0</td><td></td><td class="num">3.8</td><td>LR Reacquire</td>
+          </tr>
+          <tr>
+            <td class="num">744</td><td class="num">20</td><td class="num">− 0.7</td><td class="num">3.9</td><td class="num">+ 3</td><td class="num">3.9</td><td>LR Velocity Reasonableness Fail</td>
+          </tr>
+          <tr>
+            <td class="num">756</td><td class="num">17</td><td class="num">− 2.0</td><td class="num">4.5</td><td class="num">− 4</td><td class="num">4.9</td><td>LR Dropout</td>
+          </tr>
+          <tr>
+            <td class="num">760</td><td class="num">10</td><td class="num">− 0.2</td><td class="num">4.4</td><td></td><td class="num">2.7</td><td>Touchdown</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lab-foot">M.I.T. Instrumentation Laboratory · Cambridge, Massachusetts · 8/69</p>
+  </figure>
+
+  <footer class="recon">
+    <p>Reconstructed as static HTML from the 14-page scanned memorandum (Internet Archive / Virtual AGC). This copy has “Eyles” handwritten on page 1 and red-ink annotations on the job table (“NOT TRUE” beside SERVICER’s PRIOCHNG note; a strike-through on the HIGATJOB / CDUSPOT conflict discussion).</p>
+    <p>Scan noise and OCR errors were corrected against the page images. Original spelling and punctuation in the letter body are kept, including “sucessive,” “to short,” “a unshared,” “accomodate,” “interferring,” and “syne.” Alarm times in the letter are labeled approximate; the event table is a few seconds more specific (356→358, 552→554).</p>
+    <p>Original: George W. Cherry, Luminary Project Director, MIT Instrumentation Laboratory, AG# 370-69, 4 August 1969.</p>
+  </footer>
+</article>
+</body>
+</html>

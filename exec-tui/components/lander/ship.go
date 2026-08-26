@@ -46,10 +46,17 @@ const (
 	// 1 is linear, 3 is the fly-in's cubic. 5 is a heavy settle —
 	// fast off the top, then a long crawl that clinks onto the pad.
 	LandEasePower = 5.0
-	// LandThrottleLead is the last three seconds of a landing: the
+	// ThrottleStageSeconds is how long each landing booster step
+	// (¾, ½, ¼) lasts. Three stages, then off on the pad.
+	ThrottleStageSeconds = 0.4
+	// LandThrottleLead is the last three stages of a landing: the
 	// booster stays full until then, then steps ¾, ½, ¼, and cuts
 	// off on the pad.
-	LandThrottleLead = 3.0
+	LandThrottleLead = 3 * ThrottleStageSeconds
+	// dustDieSeconds is how fast the pad cloud counts down once a
+	// DustAt run ends. Short so "how long it runs" is the emit
+	// window, not a two-second linger after.
+	dustDieSeconds = 0.15
 	// landSurfaceRows is the moon horizon's center thickness — the
 	// hull parks with its feet on that ridge.
 	landSurfaceRows = 5
@@ -64,25 +71,30 @@ const (
 // frame with its baked tilde plume stripped and, unless Dark, a live
 // left-to-right booster fire trailing from the tail. It slides in from
 // the right wing, parks at center stage, and bobbles on a slow sine.
-// A landing ship also kicks dust off the pad twice — mirrored clouds
-// on both sides of the booster, once at the slow-down and once at
-// touchdown, each counting down to nothing. Start builds the hull and
-// arms the fire for its stage; Stop drops everything so a stopped
-// ship holds no allocation, and a later Start rebuilds it.
+// A landing ship also kicks dust off the pad — one continuous cloud
+// on both sides of the booster from the first throttle step-down
+// through booster-off, then counting down to nothing. Start builds
+// the hull and arms the fire for its stage; Stop drops everything so
+// a stopped ship holds no allocation, and a later Start rebuilds it.
 type Ship struct {
-	Body      sprite.Sprite
-	Flame     *fire.Flame
-	seed      int64
-	clock     float64
-	w, h      int
-	dark      bool
-	hold      float64
-	heading   sprite.Heading
-	dropSec   float64
-	landSec   float64
-	flameBase particle.Config
-	slowDust  *dust.Cloud
-	stopDust  *dust.Cloud
+	Body       sprite.Sprite
+	Flame      *fire.Flame
+	seed       int64
+	clock      float64
+	w, h       int
+	dark       bool
+	hold       float64
+	heading    sprite.Heading
+	dropSec    float64
+	landSec    float64
+	stageSec   float64
+	dustSec    float64
+	dustStart  float64
+	dustRun    float64
+	dustTimed  bool
+	flameBase  particle.Config
+	padDust    *dust.Cloud
+	dustFading bool
 }
 
 // NewShip binds the craft to its fire seed. Nothing is built until
@@ -180,7 +192,7 @@ func (s *Ship) applyLandThrottle() {
 	if s == nil || s.Flame == nil {
 		return
 	}
-	th := LandThrottle(s.clock-s.hold, s.landSec)
+	th := landThrottle(s.clock-s.hold, s.landSec, s.stageOrDefault())
 	cfg := s.flameBase
 	if th <= 0 {
 		cfg.Count = 0
@@ -214,33 +226,67 @@ func (s *Ship) Update(dt float64) {
 	}
 }
 
-// updateLandDust runs the two landing dust kicks: mirrored clouds
-// blown out of the pad on both sides of the booster — leftward and
-// rightward, climbing away from the bell — one the moment the booster
-// starts slowing the craft (LandThrottleLead before the pad), one at
-// touchdown. Each kick counts its particles down to zero over
-// dust.FadeSeconds. A dark or unstarted ship kicks nothing.
+// updateLandDust runs the landing dust: one mirrored cloud blown out
+// of the pad on both sides of the booster — leftward and rightward,
+// climbing away from the bell. DustAt times the cloud from an offset
+// for a run, independent of the booster. Otherwise the cloud starts
+// when the booster first steps down and fades after booster-off over
+// Dust seconds (dust.FadeSeconds when unset). A dark or unstarted
+// ship kicks nothing.
 func (s *Ship) updateLandDust(dt float64) {
 	if s.dark || s.Body.Width < 1 {
 		return
 	}
+	if s.dustTimed {
+		s.updateTimedDust(dt)
+		return
+	}
 	t := s.clock - s.hold
-	s.slowDust = s.kickDust(s.slowDust, s.seed+2, t-(s.landSec-LandThrottleLead))
-	s.stopDust = s.kickDust(s.stopDust, s.seed+3, t-s.landSec)
-	s.slowDust.Update(dt)
-	s.stopDust.Update(dt)
+	lead := 3 * s.stageOrDefault()
+	fade := s.dustOrDefault()
+	if s.padDust == nil {
+		if t < s.landSec-lead {
+			return
+		}
+		if t > s.landSec+fade {
+			return
+		}
+		s.padDust = dust.NewCloud(s.seed + 2)
+		s.padDust.Start(s.w, s.h)
+		s.dustFading = false
+	}
+	if t >= s.landSec && !s.dustFading {
+		s.padDust.Fade(fade)
+		s.dustFading = true
+	}
+	s.padDust.Update(dt)
 }
 
-// kickDust opens a fading cloud when its moment arrives. A moment
-// whose countdown is already over — a restart long after — never
-// replays.
-func (s *Ship) kickDust(c *dust.Cloud, seed int64, since float64) *dust.Cloud {
-	if c != nil || since < 0 || since > dust.FadeSeconds {
-		return c
+// updateTimedDust is the DustAt path: emit on [start, start+run),
+// then a short fade. A non-positive run never arms a cloud.
+func (s *Ship) updateTimedDust(dt float64) {
+	if s.dustRun <= 0 {
+		return
 	}
-	c = dust.NewCloud(seed).Fade(dust.FadeSeconds)
-	c.Start(s.w, s.h)
-	return c
+	t := s.clock - s.hold
+	start := s.dustStart
+	if start < 0 {
+		start = 0
+	}
+	end := start + s.dustRun
+	if s.padDust == nil {
+		if t < start || t >= end {
+			return
+		}
+		s.padDust = dust.NewCloud(s.seed + 2)
+		s.padDust.Start(s.w, s.h)
+		s.dustFading = false
+	}
+	if t >= end && !s.dustFading {
+		s.padDust.Fade(dustDieSeconds)
+		s.dustFading = true
+	}
+	s.padDust.Update(dt)
 }
 
 // Clock is how many seconds of scene time the ship has played.
@@ -263,8 +309,7 @@ func (s *Ship) Render() sprite.Sprite {
 	}
 	stage := sprite.New(s.w, s.h)
 	row, col := s.position()
-	sprite.Blit(stage, 0, dustRowOffset, s.slowDust.Render())
-	sprite.Blit(stage, 0, dustRowOffset, s.stopDust.Render())
+	sprite.Blit(stage, 0, dustRowOffset, s.padDust.Render())
 	if s.Flame != nil {
 		fr, fc := FlameRow, FlameCol
 		if s.heading == sprite.N {
@@ -327,6 +372,55 @@ func (s *Ship) Land(seconds float64) *Ship {
 	return s
 }
 
+// ThrottleStage sets how long each landing booster step (¾, ½, ¼)
+// lasts. seconds <= 0 keeps the stock ThrottleStageSeconds. Call
+// before Start. Nil-safe.
+func (s *Ship) ThrottleStage(seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.stageSec = seconds
+	return s
+}
+
+// Dust sets how long the pad cloud lingers after the booster cuts
+// off. seconds <= 0 keeps dust.FadeSeconds. Call before Start.
+// Nil-safe. DustAt, if also set, wins.
+func (s *Ship) Dust(seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.dustSec = seconds
+	return s
+}
+
+// DustAt times the pad cloud from start seconds (from t=0) for a run
+// of that many seconds, independent of the booster. A non-positive
+// run never kicks. Call before Start. Nil-safe.
+func (s *Ship) DustAt(start, run float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.dustStart = start
+	s.dustRun = run
+	s.dustTimed = true
+	return s
+}
+
+func (s *Ship) stageOrDefault() float64 {
+	if s != nil && s.stageSec > 0 {
+		return s.stageSec
+	}
+	return ThrottleStageSeconds
+}
+
+func (s *Ship) dustOrDefault() float64 {
+	if s != nil && s.dustSec > 0 {
+		return s.dustSec
+	}
+	return dust.FadeSeconds
+}
+
 // position is this frame's hull top-left: a landing path, a drop, or
 // the westbound fly-in, depending on how the ship was asked to fly.
 func (s *Ship) position() (row, col int) {
@@ -358,7 +452,8 @@ func (s *Ship) Stop() {
 	}
 	s.Body = sprite.Sprite{}
 	s.Flame = nil
-	s.slowDust, s.stopDust = nil, nil
+	s.padDust = nil
+	s.dustFading = false
 }
 
 // FlightPath is the hull's top-left at t seconds into the scene, on a
@@ -410,8 +505,14 @@ func LandPadRow(stageH int) int {
 
 // LandThrottle is the booster strength at t seconds of a seconds-long
 // landing: full until LandThrottleLead remains, then three equal
-// intervals of ¾, ½, ¼, then off on the pad.
+// intervals of ¾, ½, ¼, then off on the pad. A ship that called
+// ThrottleStage uses that stage length instead; this helper always
+// speaks the stock stages.
 func LandThrottle(t, seconds float64) float64 {
+	return landThrottle(t, seconds, ThrottleStageSeconds)
+}
+
+func landThrottle(t, seconds, stageSec float64) float64 {
 	if seconds <= 0 {
 		return 0
 	}
@@ -421,15 +522,18 @@ func LandThrottle(t, seconds float64) float64 {
 	if t >= seconds {
 		return 0
 	}
+	if stageSec <= 0 {
+		stageSec = ThrottleStageSeconds
+	}
+	lead := 3 * stageSec
 	remaining := seconds - t
-	if remaining > LandThrottleLead {
+	if remaining > lead {
 		return 1
 	}
-	step := LandThrottleLead / 3
 	switch {
-	case remaining > 2*step:
+	case remaining > 2*stageSec:
 		return 0.75
-	case remaining > step:
+	case remaining > stageSec:
 		return 0.5
 	default:
 		return 0.25

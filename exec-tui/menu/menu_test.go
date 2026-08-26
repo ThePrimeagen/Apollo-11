@@ -53,7 +53,7 @@ func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
 		m := sized(New(Catalog(), ""), 100, 40)
 		v := stripAnsi(m.View().Content)
-		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "FLAME", "STARS", "LEGACY"} {
+		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "FLAME", "STARS", "LEGACY"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("menu missing %q:\n%s", want, v)
 			}
@@ -113,8 +113,8 @@ func TestMenuSections(t *testing.T) {
 		v := stripAnsi(sized(New(Catalog(), ""), 100, 40).View().Content)
 		order := []struct{ header, first string }{
 			{"Screenplays", "MAIN"},
+			{"Scenes", "Landing"},
 			{"CONFIG", "FLAME CONFIG"},
-			{"DEMO", "LANDER DEMO"},
 			{"LEGACY TUIS", "LEGACY EXEC"},
 		}
 		prev := -1
@@ -160,8 +160,8 @@ func TestMenuSections(t *testing.T) {
 		if walk != orbit+1 {
 			t.Fatalf("02. Walkthrough must sit directly below 01. Moon Orbit, orbit=%d walk=%d:\n%s", orbit, walk, v)
 		}
-		if demo := headerLine(v, "DEMO"); demo >= 0 && walk > demo {
-			t.Fatalf("02. Walkthrough rendered under DEMO, not Screenplays:\n%s", v)
+		if scenes := headerLine(v, "Scenes"); scenes >= 0 && walk > scenes {
+			t.Fatalf("02. Walkthrough rendered under Scenes, not Screenplays:\n%s", v)
 		}
 	})
 	t.Run("happy: headers are never selectable — j walks entry to entry", func(t *testing.T) {
@@ -174,6 +174,11 @@ func TestMenuSections(t *testing.T) {
 		if got := Catalog()[m.sel].ID; got != "closeup" {
 			t.Fatalf("j from moon must land on closeup, got %q", got)
 		}
+		m = key(m, 'j')
+		if got := Catalog()[m.sel].ID; got != "landing" {
+			t.Fatalf("j from closeup must land on the landing scene, got %q", got)
+		}
+		m = key(m, 'k')
 		m = key(m, 'k')
 		m = key(m, 'k')
 		m = key(m, 'k')
@@ -398,12 +403,12 @@ func TestLocateModule(t *testing.T) {
 }
 
 func TestCatalog(t *testing.T) {
-	t.Run("happy: the catalog runs screenplays, config, demo, legacy", func(t *testing.T) {
+	t.Run("happy: the catalog runs screenplays, scenes, config, legacy", func(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
+			"landing",
 			"flame", "stars-config", "editor", "particle", "dust-config",
-			"lander", "stars", "nyan", "dustoff", "dsky", "button",
 			"legacy", "timeline",
 		}
 		if len(c) != len(want) {
@@ -420,17 +425,12 @@ func TestCatalog(t *testing.T) {
 			"screenplay":   "Screenplays",
 			"moon":         "Screenplays",
 			"closeup":      "Screenplays",
+			"landing":      "Scenes",
 			"flame":        "CONFIG",
 			"stars-config": "CONFIG",
 			"editor":       "CONFIG",
 			"particle":     "CONFIG",
 			"dust-config":  "CONFIG",
-			"lander":       "DEMO",
-			"stars":        "DEMO",
-			"nyan":         "DEMO",
-			"dustoff":      "DEMO",
-			"dsky":         "DEMO",
-			"button":       "DEMO",
 			"legacy":       "LEGACY TUIS",
 			"timeline":     "LEGACY TUIS",
 		}
@@ -462,6 +462,15 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("third entry must be 02. Walkthrough (closeup → ./cmd/lunarcloseup) under Screenplays, got %+v", c[2])
 		}
 	})
+	t.Run("happy: Scenes lists the portable landing", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 4 {
+			t.Fatal("catalog must hold the landing scene after the screenplays")
+		}
+		if c[3].ID != "landing" || c[3].Title != "Landing" || c[3].Section != "Scenes" || c[3].Pkg != "./cmd/landing" {
+			t.Fatalf("fourth entry must be Landing under Scenes → ./cmd/landing, got %+v", c[3])
+		}
+	})
 	t.Run("unhappy: old MAIN PROGRAM / SCREENPLAY / MOON SCREENPLAY / LUNAR LANDER CLOSE-UP labels are gone", func(t *testing.T) {
 		for _, e := range Catalog() {
 			if e.Section == "MAIN PROGRAM" {
@@ -484,6 +493,13 @@ func TestCatalog(t *testing.T) {
 			}
 			if e.ID == "closeup" && e.Section == "DEMO" {
 				t.Fatalf("closeup must live under Screenplays, not DEMO, found %+v", e)
+			}
+			if e.Section == "DEMO" {
+				t.Fatalf("the DEMO section is gone — scenes replaced the demos, found %+v", e)
+			}
+			switch e.ID {
+			case "lander", "stars", "nyan", "dustoff", "dsky", "button":
+				t.Fatalf("demo %q must not be listed, found %+v", e.ID, e)
 			}
 		}
 	})
@@ -570,6 +586,20 @@ func TestModuleRoot(t *testing.T) {
 	t.Run("unhappy: no go.mod above means a clear error", func(t *testing.T) {
 		if _, err := ModuleRoot(t.TempDir()); err == nil {
 			t.Fatal("a dir outside any module must error")
+		}
+	})
+	t.Run("happy: Resolve joins a relative path onto this module", func(t *testing.T) {
+		got := Resolve("scenes/landing/config.json")
+		if !filepath.IsAbs(got) || filepath.Base(got) != "config.json" {
+			t.Fatalf("Resolve %q, want an absolute landing config path", got)
+		}
+		if Resolve("/tmp/x.json") != "/tmp/x.json" {
+			t.Fatal("an absolute path must pass through")
+		}
+	})
+	t.Run("unhappy: Resolve of empty is empty", func(t *testing.T) {
+		if Resolve("") != "" {
+			t.Fatal("empty must stay empty")
 		}
 	})
 }
