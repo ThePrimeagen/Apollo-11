@@ -82,14 +82,18 @@ added together. `shows/moonshow` is the first packaged bill: scene
 one, the bare moon alone under a parked sky; scene two, a spaceship
 streaks in fast off the left wing, brakes onto its orbit, and circles
 the moon until the next cut (`go run ./cmd/moon` plays it; space past
-the last scene ends the show). `shows/lunarcloseup` is **2. Walkthrough**:
-four scenes — the premiere's arrival as the opener (drifting stars, then the
-zoomed-in lander slides in from the right), then the parked craft
-lights its booster while the stars slow by 60% over five seconds,
-then a north-facing fall from the top of the stage to the bottom,
-then a huge moon horizon (five rows high in the middle, one row at
-the edges) that the lander comes down onto
+the last scene ends the show). `shows/lunarcloseup` is **02. Walkthrough**:
+five scenes — the pause (the drifting sky alone, held for as long as
+the audience likes), then the zoomed-in lander slides in from the
+right the moment space is pressed, then the parked craft lights its
+booster while the stars slow by 60% over five seconds, then a
+north-facing fall from the top of the stage to the bottom, then a
+huge moon horizon (five rows high in the middle, one row at the
+edges) that the lander comes down onto
 (`go run ./cmd/lunarcloseup`; space past the last scene ends the show).
+One `stars.Continuity` seeds every scene's sky — each new starfield
+opens on the exact frame the last one left on screen, so no cut ever
+jumps or skips a star.
 
 The `Screen` is the shared render target: one Lip Gloss v2 canvas — a
 `uv.Cell` of content plus style per terminal cell — plus `Resize` /
@@ -103,7 +107,7 @@ stops the old scene before starting the new.
 | Package | What it owns |
 | --- | --- |
 | `screenplay` | `Screen` (the lip gloss cell canvas + xterm blit bridge), `Scene` and `Component` (the four-verb interfaces), `Ensemble` (the common scene shape), `Screenplay` (the lifecycle cursor) |
-| `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe and a Slow brake |
+| `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe, a Slow brake, and a Continuity `Seed` that carries the sky across scene cuts |
 | `components/particle` | `Engine` — live config get/set (count, life, max distance) |
 | `components/lander` | `Ship` — atlas hull + optional booster plume; west fly-in, north drop, north landing (plume throttles ¾, ½, ¼, off) |
 | `components/dsky` | `Panel` — the DSKY docking on the right third, column-by-column |

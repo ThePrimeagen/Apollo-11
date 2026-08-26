@@ -1,14 +1,15 @@
 package main
 
-// Demo harness tests, written first: cmd/lunarcloseup runs the lunar
-// lander close-up screenplay — the composable four-scene bill from
-// shows/lunarcloseup. The house opens on "Lunar Lander Close-Up"
-// (arrival copy, cold engine). Space cuts to "fire" (booster on,
-// stars slow 60% over 5s), then "fall" (north-facing drop), then
-// "landing" (huge moon horizon, lander comes down onto it). Space on
-// the last scene ends the show. q and ctrl+c quit anywhere. The view
-// is the rendered screen plus one status line, always exactly
-// window-height lines.
+// Demo harness tests, written first: cmd/lunarcloseup runs 02.
+// Walkthrough — the composable five-scene bill from
+// shows/lunarcloseup. The house opens on "pause" (the drifting sky
+// alone, for as long as the audience likes). Space cuts to "Lunar
+// Lander Close-Up" (the craft flies in immediately, cold engine),
+// then "fire" (booster on, stars slow 60% over 5s), then "fall"
+// (north-facing drop), then "landing" (huge moon horizon, lander
+// comes down onto it). Space on the last scene ends the show. q and
+// ctrl+c quit anywhere. The view is the rendered screen plus one
+// status line, always exactly window-height lines.
 
 import (
 	"strings"
@@ -51,10 +52,10 @@ func hasFire(v string) bool {
 }
 
 func TestLunarCloseUpScreenplay(t *testing.T) {
-	t.Run("happy: the house opens on scene 1/4 — Lunar Lander Close-Up, under stars", func(t *testing.T) {
+	t.Run("happy: the house opens on scene 1/5 — the pause, under stars alone", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"1/4", "Lunar Lander Close-Up", "space", "quit"} {
+		for _, want := range []string{"1/5", "pause", "space", "quit"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
@@ -63,32 +64,67 @@ func TestLunarCloseUpScreenplay(t *testing.T) {
 			t.Fatal("the opening scene must show the starfield")
 		}
 		if strings.ContainsRune(v, '▌') {
-			t.Fatal("the craft is still off the right wing at t=0")
+			t.Fatal("the pause holds no craft")
 		}
 	})
-	t.Run("happy: frames fly the craft in with a cold engine — hull, no fire", func(t *testing.T) {
+	t.Run("happy: the pause holds however long the audience sits", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 240)
+		v := m.View().Content
+		if strings.ContainsRune(v, '▌') || strings.ContainsRune(v, '▟') {
+			t.Fatal("eight seconds in, the pause must still be a blank stage — only space moves the show")
+		}
+		if !hasStar(v) {
+			t.Fatal("the pause must keep its stars")
+		}
+	})
+	t.Run("happy: space cuts to scene 2/5 and the craft flies in at once, cold engine", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, 60)
-		if strings.ContainsRune(m.View().Content, '▌') {
-			t.Fatal("the hold is still running — the craft must stay offstage")
-		}
-		m = frames(m, 120)
+		m = press(m, space())
 		v := m.View().Content
+		for _, want := range []string{"2/5", "Lunar Lander Close-Up"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("the fly-in scene is missing %q", want)
+			}
+		}
+		m = frames(m, 15)
+		v = m.View().Content
 		if !strings.ContainsRune(v, '▌') {
-			t.Fatal("after the hold the hull must be on screen")
+			t.Fatal("half a second after the cut the hull must already be sliding in — no baked-in hold")
 		}
 		if hasFire(v) {
 			t.Fatal("the close-up must fly a dark engine — no booster fire yet")
 		}
 	})
-	t.Run("happy: space cuts to scene 2/4 — fire, booster on", func(t *testing.T) {
+	t.Run("happy: the cut to the fly-in never jumps a star", func(t *testing.T) {
+		// The sky is every line above the status line; the status line
+		// changes with the scene name, the sky must not.
+		skyOf := func(v string) string {
+			lines := strings.Split(v, "\n")
+			return strings.Join(lines[:len(lines)-1], "\n")
+		}
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 60)
+		before := skyOf(m.View().Content)
+		m = press(m, space())
+		after := skyOf(m.View().Content)
+		if before != after {
+			t.Fatal("the fly-in must open on the pause's exact star frame — no jump, no skip")
+		}
+	})
+	t.Run("happy: space cuts to scene 3/5 — fire, booster on", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, 30)
 		m = press(m, space())
+		m = frames(m, int(lander.FlyInSeconds*30))
+		m = press(m, space())
 		v := m.View().Content
-		for _, want := range []string{"2/4", "fire"} {
+		for _, want := range []string{"3/5", "fire"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the fire scene is missing %q", want)
 			}
@@ -102,13 +138,14 @@ func TestLunarCloseUpScreenplay(t *testing.T) {
 			t.Fatal("the fire scene must light the booster")
 		}
 	})
-	t.Run("happy: space cuts to scene 3/4 — north-facing fall", func(t *testing.T) {
+	t.Run("happy: space cuts to scene 4/5 — north-facing fall", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = press(m, space())
 		m = press(m, space())
+		m = press(m, space())
 		opening := m.View().Content
-		for _, want := range []string{"3/4", "fall"} {
+		for _, want := range []string{"4/5", "fall"} {
 			if !strings.Contains(opening, want) {
 				t.Fatalf("the fall scene is missing %q", want)
 			}
@@ -125,14 +162,15 @@ func TestLunarCloseUpScreenplay(t *testing.T) {
 			t.Fatal("the falling craft must keep the booster lit")
 		}
 	})
-	t.Run("happy: space cuts to scene 4/4 — landing on the moon horizon", func(t *testing.T) {
+	t.Run("happy: space cuts to scene 5/5 — landing on the moon horizon", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = press(m, space())
 		m = press(m, space())
 		m = press(m, space())
+		m = press(m, space())
 		v := m.View().Content
-		for _, want := range []string{"4/4", "landing"} {
+		for _, want := range []string{"5/5", "landing"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the landing scene is missing %q", want)
 			}
@@ -166,6 +204,7 @@ func TestLunarCloseUpScreenplay(t *testing.T) {
 		m = press(m, space())
 		m = press(m, space())
 		m = press(m, space())
+		m = press(m, space())
 		mm, cmd := m.Update(space())
 		if cmd == nil {
 			t.Fatal("space after the last scene must end the show")
@@ -179,9 +218,10 @@ func TestLunarCloseUpScreenplay(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = press(m, runeKey(' '))
-		if !strings.Contains(m.View().Content, "2/4") {
-			t.Fatal("a rune spacebar must cut to the fire scene")
+		if !strings.Contains(m.View().Content, "2/5") {
+			t.Fatal("a rune spacebar must cut to the fly-in scene")
 		}
+		m = press(m, runeKey(' '))
 		m = press(m, runeKey(' '))
 		m = press(m, runeKey(' '))
 		_, cmd := m.Update(runeKey(' '))
@@ -243,24 +283,25 @@ func TestLunarCloseUpScreenplay(t *testing.T) {
 			}
 		}
 	})
-	t.Run("unhappy: the close-up never plays the premiere's other cards", func(t *testing.T) {
+	t.Run("unhappy: the walkthrough never plays the premiere's other cards", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
 		if strings.Contains(v, "arrival") {
-			t.Fatal("the close-up must not open as the premiere's arrival card")
+			t.Fatal("the walkthrough must not open as the premiere's arrival card")
 		}
 		if strings.Contains(v, "VERB") {
-			t.Fatal("the DSKY does not appear in the close-up")
+			t.Fatal("the DSKY does not appear in the walkthrough")
 		}
+		m = press(m, space())
 		m = press(m, space())
 		m = press(m, space())
 		m = press(m, space())
 		v = m.View().Content
 		if strings.Contains(v, "the end") || strings.Contains(v, "THE END") {
-			t.Fatal("the end card does not appear in the close-up")
+			t.Fatal("the end card does not appear in the walkthrough")
 		}
 		if strings.Contains(v, "dsky") {
-			t.Fatal("the DSKY scene does not appear in the close-up")
+			t.Fatal("the DSKY scene does not appear in the walkthrough")
 		}
 	})
 }

@@ -513,6 +513,172 @@ func TestTunedStarfieldComponent(t *testing.T) {
 	})
 }
 
+func TestStarfieldSeed(t *testing.T) {
+	t.Run("happy: a seeded successor opens on the exact frame its predecessor left", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c)
+		a.Start(stageW, stageH)
+		a.Update(2.0)
+		last := spriteSnapshot(a.Render())
+		a.Stop()
+		b := NewStarfield(Drift).Seed(c)
+		b.Start(stageW, stageH)
+		if !snapshotsEqual(last, spriteSnapshot(b.Render())) {
+			t.Fatal("the successor's first frame must be the predecessor's last — no jump at the cut")
+		}
+		b.Update(2.0)
+		solo := NewStarfield(Drift)
+		solo.Start(stageW, stageH)
+		solo.Update(4.0)
+		if !snapshotsEqual(spriteSnapshot(solo.Render()), spriteSnapshot(b.Render())) {
+			t.Fatal("after the cut the successor must keep flying from the seeded clock")
+		}
+	})
+	t.Run("unhappy: Seed on a nil sky is nil, and a nil continuity is quietly ignored", func(t *testing.T) {
+		var ghost *Starfield
+		if ghost.Seed(NewContinuity()) != nil {
+			t.Fatal("Seed must return the nil receiver")
+		}
+		f := NewStarfield(Drift).Seed(nil)
+		f.Start(stageW, stageH)
+		f.Update(1.0)
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(1.0)
+		if !snapshotsEqual(spriteSnapshot(plain.Render()), spriteSnapshot(f.Render())) {
+			t.Fatal("a nil continuity must leave the sky flying unseeded")
+		}
+	})
+	t.Run("happy: a finished slide's translation crosses the cut with the seed", func(t *testing.T) {
+		const body = 26
+		const sec = 4.0
+		c := NewContinuity()
+		a := NewStarfield(Still).Seed(c).SlideIn(sec, body)
+		a.Start(stageW, stageH)
+		a.Update(sec)
+		last := spriteSnapshot(a.Render())
+		a.Stop()
+		b := NewStarfield(Still).Seed(c)
+		b.Start(stageW, stageH)
+		if !snapshotsEqual(last, spriteSnapshot(b.Render())) {
+			t.Fatal("the seed must hand the slide's translation to the successor")
+		}
+	})
+	t.Run("unhappy: without the seed the slide's translation is lost at the cut", func(t *testing.T) {
+		const body = 26
+		const sec = 4.0
+		c := NewContinuity()
+		a := NewStarfield(Still).Seed(c).SlideIn(sec, body)
+		a.Start(stageW, stageH)
+		a.Update(sec)
+		last := spriteSnapshot(a.Render())
+		a.Stop()
+		unseeded := NewStarfield(Still)
+		unseeded.Start(stageW, stageH)
+		if snapshotsEqual(last, spriteSnapshot(unseeded.Render())) {
+			t.Fatal("test premise: an unseeded successor must snap back to the unshifted sky")
+		}
+	})
+	t.Run("happy: a braked sky hands the successor its slowed fly clock", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c).Slow(0.6, 5)
+		a.Start(stageW, stageH)
+		a.Update(5.0)
+		last := spriteSnapshot(a.Render())
+		a.Stop()
+		b := NewStarfield(Drift).Seed(c)
+		b.Start(stageW, stageH)
+		if !snapshotsEqual(last, spriteSnapshot(b.Render())) {
+			t.Fatal("the successor must open on the braked sky's last frame")
+		}
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(3.5)
+		if !snapshotsEqual(spriteSnapshot(plain.Render()), spriteSnapshot(b.Render())) {
+			t.Fatal("a 60% brake over 5s must seed exactly 3.5s of fly")
+		}
+	})
+	t.Run("unhappy: the brake itself never crosses the cut — the successor flies full speed", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c).Slow(0.6, 5)
+		a.Start(stageW, stageH)
+		a.Update(5.0)
+		a.Stop()
+		b := NewStarfield(Drift).Seed(c)
+		b.Start(stageW, stageH)
+		b.Update(1.0)
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(4.5)
+		if !snapshotsEqual(spriteSnapshot(plain.Render()), spriteSnapshot(b.Render())) {
+			t.Fatal("one second after the cut the successor must have burned one full second of fly")
+		}
+	})
+	t.Run("happy: a seeded Still sky freezes on the seeded frame, not the home scatter", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c)
+		a.Start(stageW, stageH)
+		a.Update(2.0)
+		last := spriteSnapshot(a.Render())
+		a.Stop()
+		b := NewStarfield(Drift).Seed(c).Still()
+		b.Start(stageW, stageH)
+		if !snapshotsEqual(last, spriteSnapshot(b.Render())) {
+			t.Fatal("a seeded still sky must open on the predecessor's last frame")
+		}
+		b.Update(3.0)
+		if !snapshotsEqual(last, spriteSnapshot(b.Render())) {
+			t.Fatal("a seeded still sky must hold that frame forever")
+		}
+	})
+	t.Run("unhappy: an unseeded Still sky still parks at the home scatter", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c)
+		a.Start(stageW, stageH)
+		a.Update(2.0)
+		last := spriteSnapshot(a.Render())
+		a.Stop()
+		home := NewStarfield(Drift).Still()
+		home.Start(stageW, stageH)
+		if snapshotsEqual(last, spriteSnapshot(home.Render())) {
+			t.Fatal("test premise: two seconds of drift must have moved the sky off its homes")
+		}
+		fresh := NewStarfield(Drift)
+		fresh.Start(stageW, stageH)
+		if !snapshotsEqual(spriteSnapshot(fresh.Render()), spriteSnapshot(home.Render())) {
+			t.Fatal("an unseeded still sky must keep parking at the home scatter")
+		}
+	})
+	t.Run("happy: a restage never rewinds or double-counts a seeded sky", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c)
+		a.Start(stageW, stageH)
+		a.Update(2.0)
+		ref := spriteSnapshot(a.Render())
+		a.Stop()
+		a.Start(stageW, stageH)
+		if !snapshotsEqual(ref, spriteSnapshot(a.Render())) {
+			t.Fatal("a stop-and-restart must neither rewind the sky nor adopt its own seed twice")
+		}
+	})
+	t.Run("unhappy: a seeded sky that never played hands the seed on untouched", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c)
+		a.Start(stageW, stageH)
+		a.Update(2.0)
+		last := spriteSnapshot(a.Render())
+		a.Stop()
+		skipped := NewStarfield(Drift).Seed(c)
+		skipped.Start(stageW, stageH)
+		skipped.Stop()
+		b := NewStarfield(Drift).Seed(c)
+		b.Start(stageW, stageH)
+		if !snapshotsEqual(last, spriteSnapshot(b.Render())) {
+			t.Fatal("a scene that was cut before its first tick must not disturb the continuity")
+		}
+	})
+}
+
 func TestBrakeClock(t *testing.T) {
 	t.Run("happy: a 60% slowdown over 5s burns 3.5s of fly by the window, then crawls at 40%", func(t *testing.T) {
 		if got := BrakeClock(0, 0.6, 5); got != 0 {

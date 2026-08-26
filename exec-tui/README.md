@@ -27,10 +27,10 @@ components/   everything a scene puts together
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + Compose
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
-  lunarcloseup/  2. Walkthrough: arrival, fire, north-facing fall, landing on a huge moon horizon
+  lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing on a huge moon horizon
 cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
-  lunarcloseup/  runs 2. Walkthrough (space past the last scene ends it)
+  lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser

@@ -24,10 +24,12 @@ const (
 	// full cell up and one down. (Half a cell would need half-shifted
 	// art the atlas doesn't have yet.)
 	BobAmplitudeCells = 1
-	// FlameRow/FlameCol hang the 16×6 booster box off the tail,
-	// relative to the hull's top-left, so the plume is vertically
-	// flush with the size-4 west grey nozzle.
-	FlameRow = 4
+	// FlameRow/FlameCol hang the 16×8 booster box off the tail,
+	// relative to the hull's top-left, centered on the size-4 west
+	// grey nozzle: the box covers the bell's four lip rows (3..6), so
+	// the beam rides the two nozzle rows and the flare spills one row
+	// above and one row below — never just off the bottom.
+	FlameRow = 3
 	FlameCol = 19
 	// NorthFlameRow/NorthFlameCol hang the south-firing plume under
 	// the size-4 north engine bell, matching the rocket card.
@@ -107,14 +109,16 @@ func (s *Ship) Start(w, h int) {
 }
 
 // shipFlameConfig slims the stock left-to-right booster to a cruise
-// plume: a 16×6-unit box (three rows) so the beam hugs the engine bell,
-// a lighter emission, a tighter jet, and speeds that let the tail taper
-// out inside the box instead of dying on a wall.
+// plume: a 16×8-unit box (four rows) whose origin sits on the boundary
+// between the two nozzle rows, so the beam straddles them and flares
+// evenly one row up and one row down; a lighter emission, a tighter
+// jet, and speeds that let the tail taper out inside the box instead
+// of dying on a wall.
 func shipFlameConfig() particle.Config {
 	cfg := fire.BoosterConfig()
 	cfg.Width = 16 - 0.01
-	cfg.Height = 6 - 0.01
-	cfg.Origin = particle.Vec2{X: 1.0, Y: 3.0}
+	cfg.Height = 8 - 0.01
+	cfg.Origin = particle.Vec2{X: 1.0, Y: 4.0}
 	cfg.Direction = particle.Vec2{X: 1, Y: 0}
 	cfg.Count = 2
 	cfg.MinSpeed, cfg.MaxSpeed = 11, 22

@@ -1,15 +1,21 @@
 package lunarcloseup
 
-// Tests written FIRST: the lunar lander close-up is a composable
-// four-scene bill. Scene one, "Lunar Lander Close-Up": a copy of the
-// premiere's arrival — drifting stars, then the zoomed-in craft slides
-// in from the right, hull only, cold engine. Scene two, "fire": the
-// parked craft lights the booster and the stars slow by 60% over five
-// seconds. Scene three, "fall": the north-facing lander, fire down,
-// drops from the top of the stage to the bottom. Scene four,
+// Tests written FIRST: 02. Walkthrough is a composable five-scene
+// bill. Scene one, "pause": the drifting sky alone — a blank stage
+// the audience can sit on for as long as it likes; only the cut moves
+// the show along. Scene two, "Lunar Lander Close-Up": the zoomed-in
+// Apollo craft slides in from the right the moment the curtain rises
+// — no baked-in wait — hull only, cold engine. Scene three, "fire":
+// the parked craft lights the booster and the stars slow by 60% over
+// five seconds. Scene four, "fall": the north-facing lander, fire
+// down, drops from the top of the stage to the bottom. Scene five,
 // "landing": a huge moon horizon (five rows high in the middle, one
 // row at the edges) and the north-facing lander coming down onto it.
 // After the last scene there is nothing left.
+//
+// One stars.Continuity seeds every scene's sky, so a cut never jumps
+// or skips a single star: each new starfield opens on the exact frame
+// the last one left on screen.
 
 import (
 	"strings"
@@ -27,6 +33,8 @@ const (
 	stageW = 72
 	stageH = 27
 )
+
+var sceneNames = []string{"pause", "Lunar Lander Close-Up", "fire", "fall", "landing"}
 
 func render(sc screenplay.Scene) string {
 	return paint(sc).Render()
@@ -68,6 +76,55 @@ func tick(sc screenplay.Scene, seconds float64) {
 	}
 }
 
+// openShow composes one bill into a screenplay and stages the opening
+// scene on a test-sized screen.
+func openShow() (*screenplay.Screenplay, *screenplay.Screen) {
+	p := screenplay.Compose(Bill())
+	p.Start()
+	scr := screenplay.NewScreen(stageW, stageH)
+	p.Render(scr)
+	return p, scr
+}
+
+// run plays the show frame by frame, the way the runner does.
+func run(p *screenplay.Screenplay, seconds float64) {
+	const dt = 1.0 / 30
+	for t := 0.0; t < seconds-dt/2; t += dt {
+		p.Update(dt)
+	}
+}
+
+// cut stops the old scene and stages the new one, like one space press.
+func cut(p *screenplay.Screenplay, scr *screenplay.Screen) {
+	p.Next()
+	p.Render(scr)
+}
+
+// frame is the rendered screen this instant.
+func frame(p *screenplay.Screenplay, scr *screenplay.Screen) string {
+	p.Render(scr)
+	return scr.Render()
+}
+
+// starCells maps every star-glyph cell of the screen to its rune.
+func starCells(scr *screenplay.Screen) map[[2]int]string {
+	out := map[[2]int]string{}
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			for _, g := range stars.Glyphs {
+				if c.Content == string(g) {
+					out[[2]int{x, y}] = c.Content
+				}
+			}
+		}
+	}
+	return out
+}
+
 func hasStar(v string) bool {
 	for _, g := range stars.Glyphs {
 		if strings.ContainsRune(v, g) {
@@ -81,13 +138,17 @@ func hasFire(v string) bool {
 	return strings.ContainsAny(v, "⠁⠒⠶")
 }
 
+func hasHull(v string) bool {
+	return strings.ContainsRune(v, '▌') || strings.ContainsRune(v, '▟')
+}
+
 func TestLunarCloseUpBill(t *testing.T) {
-	t.Run("happy: the bill is four scenes in playing order", func(t *testing.T) {
+	t.Run("happy: the bill is five scenes in playing order", func(t *testing.T) {
 		b := Bill()
-		if len(b) != 4 {
-			t.Fatalf("the close-up screenplay holds %d scenes, want 4", len(b))
+		if len(b) != 5 {
+			t.Fatalf("the walkthrough holds %d scenes, want 5", len(b))
 		}
-		for i, want := range []string{"Lunar Lander Close-Up", "fire", "fall", "landing"} {
+		for i, want := range sceneNames {
 			if b[i].Name != want {
 				t.Fatalf("scene %d is %q, want %q", i+1, b[i].Name, want)
 			}
@@ -96,37 +157,188 @@ func TestLunarCloseUpBill(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: scene one opens under stars with the craft off the right wing", func(t *testing.T) {
+	t.Run("happy: the pause is a blank stage under drifting stars", func(t *testing.T) {
 		sc := Bill()[0].Scene
 		sc.Start()
 		defer sc.Stop()
-		v := render(sc)
-		if !hasStar(v) {
-			t.Fatal("the close-up plays under the stars")
+		before := paint(sc)
+		if !hasStar(before.Render()) {
+			t.Fatal("the pause plays under the stars")
 		}
-		if strings.ContainsRune(v, '▌') {
-			t.Fatal("the craft is still off the right wing at t=0")
+		tick(sc, 2.0)
+		after := paint(sc)
+		if before.Render() == after.Render() {
+			t.Fatal("the pause sky must keep drifting — a blank stage, not a freeze frame")
 		}
 	})
-	t.Run("happy: after the hold the hull flies in with a cold engine", func(t *testing.T) {
+	t.Run("unhappy: the pause never admits the craft or the fire, however long it sits", func(t *testing.T) {
 		sc := Bill()[0].Scene
 		sc.Start()
 		defer sc.Stop()
-		sc.Update(lander.FlyInHoldSeconds)
-		if strings.ContainsRune(render(sc), '▌') {
-			t.Fatal("the hold is still running — the craft must stay offstage")
-		}
-		sc.Update(lander.FlyInSeconds)
+		_ = render(sc)
+		tick(sc, 10.0)
 		v := render(sc)
-		if !strings.ContainsRune(v, '▌') {
-			t.Fatal("after the hold the hull must be on screen")
+		if hasHull(v) {
+			t.Fatal("the pause holds no craft — the lander waits for the cut")
 		}
 		if hasFire(v) {
-			t.Fatal("the close-up must fly a dark engine — no booster fire yet")
+			t.Fatal("the pause holds no fire")
 		}
 	})
-	t.Run("happy: scene two parks the west craft with the booster lit", func(t *testing.T) {
+	t.Run("happy: scene two flies the hull in the moment the curtain rises", func(t *testing.T) {
 		sc := Bill()[1].Scene
+		sc.Start()
+		defer sc.Stop()
+		if strings.ContainsRune(render(sc), '▌') {
+			t.Fatal("at t=0 the craft is still off the right wing")
+		}
+		tick(sc, 0.5)
+		v := render(sc)
+		if !strings.ContainsRune(v, '▌') {
+			t.Fatal("half a second in the hull must already be sliding on stage — the pause scene owns the wait now")
+		}
+		if hasFire(v) {
+			t.Fatal("the fly-in must run a dark engine — no booster fire yet")
+		}
+	})
+	t.Run("unhappy: scene two's engine stays cold through the park", func(t *testing.T) {
+		sc := Bill()[1].Scene
+		sc.Start()
+		defer sc.Stop()
+		_ = render(sc)
+		tick(sc, lander.FlyInSeconds+1)
+		v := render(sc)
+		if !strings.ContainsRune(v, '▌') {
+			t.Fatal("after the fly-in the hull must be parked on stage")
+		}
+		if hasFire(v) {
+			t.Fatal("the close-up must park with a cold engine")
+		}
+	})
+	t.Run("happy: the pause→fly-in cut renders the identical star frame", func(t *testing.T) {
+		p, scr := openShow()
+		defer p.Stop()
+		run(p, 2.0)
+		before := frame(p, scr)
+		if !p.Next() {
+			t.Fatal("the pause must cut to the fly-in")
+		}
+		after := frame(p, scr)
+		if before != after {
+			t.Fatal("the fly-in's first frame must be the pause's last frame — no star may jump at the cut")
+		}
+	})
+	t.Run("unhappy: after that cut the sky keeps flying — continuity is not a freeze", func(t *testing.T) {
+		p, scr := openShow()
+		defer p.Stop()
+		run(p, 2.0)
+		p.Next()
+		after := frame(p, scr)
+		run(p, 1.0)
+		if frame(p, scr) == after {
+			t.Fatal("one second into the fly-in the sky must have moved on")
+		}
+	})
+	t.Run("happy: the fly-in→fire cut at the park is pixel-identical", func(t *testing.T) {
+		p, scr := openShow()
+		defer p.Stop()
+		cut(p, scr) // the fly-in, staged at t=0
+		run(p, lander.FlyInSeconds)
+		before := frame(p, scr)
+		if !strings.ContainsRune(before, '▌') {
+			t.Fatal("test premise: the hull must be parked before the cut")
+		}
+		if !p.Next() {
+			t.Fatal("the fly-in must cut to the fire")
+		}
+		after := frame(p, scr)
+		if before != after {
+			t.Fatal("the fire scene must open on the very frame the fly-in parked — hull and every star in place")
+		}
+	})
+	t.Run("unhappy: the fire scene then lights the booster instead of rewinding the sky", func(t *testing.T) {
+		p, scr := openShow()
+		defer p.Stop()
+		cut(p, scr)
+		run(p, lander.FlyInSeconds)
+		p.Next()
+		opening := frame(p, scr)
+		run(p, 2.0)
+		burning := frame(p, scr)
+		if burning == opening {
+			t.Fatal("the fire scene's sky must keep crawling — slowed, never frozen")
+		}
+		if !hasFire(burning) {
+			t.Fatal("two seconds in the booster must be lit")
+		}
+	})
+	t.Run("happy: the fire→fall cut keeps every visible star", func(t *testing.T) {
+		p, scr := openShow()
+		defer p.Stop()
+		cut(p, scr)
+		run(p, lander.FlyInSeconds)
+		cut(p, scr) // fire
+		run(p, 1.5)
+		p.Render(scr)
+		before := starCells(scr)
+		if len(before) == 0 {
+			t.Fatal("test premise: the fire scene must show stars")
+		}
+		cut(p, scr) // fall
+		after := starCells(scr)
+		for pos, ch := range before {
+			if after[pos] != ch {
+				t.Fatalf("star at (%d,%d) jumped on the fall cut: %q -> %q", pos[0], pos[1], ch, after[pos])
+			}
+		}
+	})
+	t.Run("happy: the fall→landing cut keeps every star the horizon leaves visible", func(t *testing.T) {
+		p, scr := openShow()
+		defer p.Stop()
+		cut(p, scr)
+		run(p, lander.FlyInSeconds)
+		cut(p, scr) // fire
+		run(p, 1.0)
+		cut(p, scr) // fall
+		run(p, lander.DropSeconds+0.5)
+		p.Render(scr)
+		before := starCells(scr)
+		if len(before) == 0 {
+			t.Fatal("test premise: the emptied fall stage must show stars")
+		}
+		cut(p, scr) // landing
+		after := starCells(scr)
+		if len(after) == 0 {
+			t.Fatal("test premise: the landing sky must show stars above the horizon")
+		}
+		for pos, ch := range after {
+			if before[pos] != ch {
+				t.Fatalf("star at (%d,%d) jumped on the landing cut: %q -> %q", pos[0], pos[1], before[pos], ch)
+			}
+		}
+	})
+	t.Run("unhappy: the landing sky is frozen on the cut frame, not rewound home", func(t *testing.T) {
+		p, scr := openShow()
+		defer p.Stop()
+		cut(p, scr)
+		run(p, lander.FlyInSeconds)
+		cut(p, scr)
+		run(p, 1.0)
+		cut(p, scr)
+		run(p, lander.DropSeconds+0.5)
+		cut(p, scr) // landing
+		opening := starCells(scr)
+		run(p, 3.0)
+		p.Render(scr)
+		later := starCells(scr)
+		for pos, ch := range later {
+			if opening[pos] != ch {
+				t.Fatalf("the still landing sky crawled: star at (%d,%d) %q -> %q", pos[0], pos[1], opening[pos], ch)
+			}
+		}
+	})
+	t.Run("happy: scene three parks the west craft with the booster lit", func(t *testing.T) {
+		sc := Bill()[2].Scene
 		sc.Start()
 		defer sc.Stop()
 		_ = render(sc) // stage the cast
@@ -142,7 +354,7 @@ func TestLunarCloseUpBill(t *testing.T) {
 			t.Fatal("the fire scene still plays under the stars")
 		}
 	})
-	t.Run("happy: scene two's sky slows 60% over five seconds", func(t *testing.T) {
+	t.Run("happy: scene three's sky slows 60% over five seconds", func(t *testing.T) {
 		if stars.BrakeClock(5, 0.6, 5) != 3.5 {
 			t.Fatalf("the fire scene's brake must cut 60 percent of speed over 5s (fly clock %g, want 3.5)", stars.BrakeClock(5, 0.6, 5))
 		}
@@ -150,8 +362,8 @@ func TestLunarCloseUpBill(t *testing.T) {
 			t.Fatal("past the window the fire scene's sky must crawl at 40% speed")
 		}
 	})
-	t.Run("happy: scene three drops a north-facing lander with fire, top to bottom", func(t *testing.T) {
-		sc := Bill()[2].Scene
+	t.Run("happy: scene four drops a north-facing lander with fire, top to bottom", func(t *testing.T) {
+		sc := Bill()[3].Scene
 		sc.Start()
 		defer sc.Stop()
 		_ = render(sc)
@@ -177,8 +389,8 @@ func TestLunarCloseUpBill(t *testing.T) {
 			t.Fatal("at the end of the drop the craft must have left the bottom")
 		}
 	})
-	t.Run("happy: scene four is a huge moon horizon the lander comes down onto", func(t *testing.T) {
-		sc := Bill()[3].Scene
+	t.Run("happy: scene five is a huge moon horizon the lander comes down onto", func(t *testing.T) {
+		sc := Bill()[4].Scene
 		sc.Start()
 		defer sc.Stop()
 		opening := paint(sc)
@@ -233,13 +445,13 @@ func TestLunarCloseUpBill(t *testing.T) {
 			t.Fatal("at touchdown the booster must cut off")
 		}
 	})
-	t.Run("happy: the composed show walks the four scenes and then has nothing left", func(t *testing.T) {
+	t.Run("happy: the composed show walks the five scenes and then has nothing left", func(t *testing.T) {
 		p := screenplay.Compose(Bill())
 		p.Start()
-		if p.Len() != 4 || p.CurrentName() != "Lunar Lander Close-Up" {
-			t.Fatalf("the show opens on %d %q, want four starting on Lunar Lander Close-Up", p.Len(), p.CurrentName())
+		if p.Len() != 5 || p.CurrentName() != "pause" {
+			t.Fatalf("the show opens on %d %q, want five starting on pause", p.Len(), p.CurrentName())
 		}
-		for i, want := range []string{"fire", "fall", "landing"} {
+		for i, want := range sceneNames[1:] {
 			if !p.Next() || p.CurrentName() != want {
 				t.Fatalf("cut %d must land on %q, got %q", i+1, want, p.CurrentName())
 			}
@@ -256,27 +468,27 @@ func TestLunarCloseUpBill(t *testing.T) {
 			e.Scene.Stop()
 		}
 	})
-	t.Run("unhappy: the close-up is not the four-scene premiere", func(t *testing.T) {
+	t.Run("unhappy: the walkthrough is not the four-scene premiere", func(t *testing.T) {
 		for _, e := range Bill() {
 			switch e.Name {
 			case "arrival", "dsky", "descent orbit", "the end":
-				t.Fatalf("the close-up bill must not carry premiere scene %q", e.Name)
+				t.Fatalf("the walkthrough bill must not carry premiere scene %q", e.Name)
 			}
 		}
-		sc := Bill()[0].Scene
+		sc := Bill()[1].Scene
 		sc.Start()
 		defer sc.Stop()
-		sc.Update(lander.FlyInHoldSeconds + lander.FlyInSeconds)
+		sc.Update(lander.FlyInSeconds)
 		v := render(sc)
 		if strings.Contains(v, "VERB") {
-			t.Fatal("the DSKY does not appear in the close-up")
+			t.Fatal("the DSKY does not appear in the walkthrough")
 		}
 		if strings.Contains(v, "THE END") || strings.Contains(v, "___") {
-			t.Fatal("the end card does not appear in the close-up")
+			t.Fatal("the end card does not appear in the walkthrough")
 		}
 	})
 	t.Run("unhappy: the horizon is not a round disc in the middle of the sky", func(t *testing.T) {
-		sc := Bill()[3].Scene
+		sc := Bill()[4].Scene
 		sc.Start()
 		defer sc.Stop()
 		scr := paint(sc)

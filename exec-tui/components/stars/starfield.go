@@ -32,6 +32,38 @@ type Starfield struct {
 	slideHold float64
 	slowBy    float64
 	slowSec   float64
+	seed      *Continuity
+	base      Continuity
+	adopted   bool
+}
+
+// Continuity is one show's sky odometer: how many seconds of fly and
+// how many columns of translation the audience has watched so far.
+// Seed every scene's starfield with the same Continuity and each new
+// sky opens on the exact frame the last one left on screen — no jump,
+// no skip at the cut. The catalog scatter is already deterministic per
+// stage, so the clock and the shift are the only state a cut loses.
+type Continuity struct {
+	clock float64
+	shift int
+}
+
+// NewContinuity is a fresh odometer at zero: the first seeded sky
+// opens at its own beginning.
+func NewContinuity() *Continuity {
+	return &Continuity{}
+}
+
+// Seed hands the sky the show's continuity: on its first Start it
+// adopts the clock and translation recorded there, and every tick it
+// records its own totals back, ready for the next scene's sky. A nil
+// continuity leaves the sky unseeded. Call before Start. Nil-safe.
+func (f *Starfield) Seed(c *Continuity) *Starfield {
+	if f == nil {
+		return nil
+	}
+	f.seed = c
+	return f
 }
 
 // NewStarfield opens a sky flying in the given style.
@@ -46,8 +78,9 @@ func NewTunedStarfield() *Starfield {
 }
 
 // Still parks the sky: whatever the strategy or the tuned config say,
-// every star holds the home it scattered to — the second star scene,
-// the one that never moves. Call before Start. Nil-safe.
+// the fly clock freezes — an unseeded sky holds the home it scattered
+// to, a seeded one holds the exact frame the seed carried in. Call
+// before Start. Nil-safe.
 func (f *Starfield) Still() *Starfield {
 	if f == nil {
 		return nil
@@ -190,12 +223,17 @@ func wipeCols(total int, t, seconds float64) int {
 
 // Start scatters the catalog for a w×h stage. A tuned sky reads the
 // active config here — the settings it opens with are the settings it
-// flies until the next Start.
+// flies until the next Start. A seeded sky adopts the continuity on
+// its first Start only, so a resize restage never double-counts it.
 func (f *Starfield) Start(w, h int) {
 	if f == nil {
 		return
 	}
 	f.w, f.h = w, h
+	if f.seed != nil && !f.adopted {
+		f.base = *f.seed
+		f.adopted = true
+	}
 	f.fly = f.Strategy
 	f.density = [4]int{}
 	if f.Tuned {
@@ -203,18 +241,37 @@ func (f *Starfield) Start(w, h int) {
 		f.fly = sky.FlyStrategy()
 		f.density = sky.DensityLayers()
 	}
-	if f.still {
-		f.fly = Still
-	}
 	f.cat = NewCatalog(w, h, f.density)
 }
 
-// Update accumulates time. dt <= 0 holds the sky.
+// Update accumulates time and records the sky's running totals into
+// the continuity, so the next scene's sky can pick up exactly here.
+// dt <= 0 holds the sky.
 func (f *Starfield) Update(dt float64) {
 	if f == nil || dt <= 0 {
 		return
 	}
 	f.clock += dt
+	if f.seed != nil && f.adopted {
+		f.seed.clock, f.seed.shift = f.totals()
+	}
+}
+
+// totals is the sky the audience sees this instant: the adopted base
+// plus everything this sky has done itself — the (brake-eased) fly
+// clock and the slide translation. A Still sky burns no fly of its
+// own: it holds the frame the base describes.
+func (f *Starfield) totals() (fly float64, shift int) {
+	fly = f.base.clock
+	if !f.still {
+		local := f.clock
+		if f.slowSec > 0 {
+			local = BrakeClock(f.clock, f.slowBy, f.slowSec)
+		}
+		fly += local
+	}
+	shift = f.base.shift + SlideOffset(f.w, f.slideBody, f.clock-f.slideHold, f.slideSec)
+	return fly, shift
 }
 
 // Render paints the cached catalog into a stage-sized sprite. Before
@@ -228,12 +285,8 @@ func (f *Starfield) Render() sprite.Sprite {
 	if f.dockMin > 0 || f.dockSec > 0 {
 		cutoff = f.w - wipeCols(DockCols(f.w, f.dockMin), f.clock, f.dockSec)
 	}
-	shift := SlideOffset(f.w, f.slideBody, f.clock-f.slideHold, f.slideSec)
-	tickClock := f.clock
-	if f.slowSec > 0 {
-		tickClock = BrakeClock(f.clock, f.slowBy, f.slowSec)
-	}
-	f.cat.Paint(int(tickClock*StarFPS), f.fly, func(row, col int, ch rune, fg int) {
+	fly, shift := f.totals()
+	f.cat.Paint(int(fly*StarFPS), f.fly, func(row, col int, ch rune, fg int) {
 		col = wrap(col-shift, f.w)
 		if col >= cutoff {
 			return
