@@ -376,7 +376,7 @@ func TestCatalog(t *testing.T) {
 		want := []string{
 			"screenplay",
 			"flame", "stars-config", "editor", "particle",
-			"lander", "stars", "nyan", "dsky", "button",
+			"lander", "moon", "stars", "nyan", "dsky", "button",
 			"legacy", "timeline",
 		}
 		if len(c) != len(want) {
@@ -396,6 +396,7 @@ func TestCatalog(t *testing.T) {
 			"editor":       "CONFIG",
 			"particle":     "CONFIG",
 			"lander":       "DEMO",
+			"moon":         "DEMO",
 			"stars":        "DEMO",
 			"nyan":         "DEMO",
 			"dsky":         "DEMO",
