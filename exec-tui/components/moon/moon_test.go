@@ -261,6 +261,139 @@ func TestMoonOnStage(t *testing.T) {
 	})
 }
 
+func TestBareMoon(t *testing.T) {
+	t.Run("happy: bare is the moon alone — no path, no craft, just the disc", func(t *testing.T) {
+		cx, cy, moonR, _ := Geometry(stageW, stageH)
+		m := New().Bare()
+		m.Start(stageW, stageH)
+		m.Update(2.5)
+		sp := m.Render()
+		if sp.Width != stageW || sp.Height != stageH {
+			t.Fatalf("stage %dx%d, want %dx%d", sp.Width, sp.Height, stageW, stageH)
+		}
+		for r := 0; r < stageH; r++ {
+			for c := 0; c < stageW; c++ {
+				cell := sp.At(r, c)
+				if cell.Ch == RingGlyph {
+					t.Fatalf("bare moon painted a ring dot at (%d,%d)", r, c)
+				}
+				if cell.Ch == MarkerGlyph {
+					t.Fatalf("bare moon painted the craft at (%d,%d)", r, c)
+				}
+				if pxDist(cx, cy, r, c) <= float64(moonR)-2 && cell.Transparent() {
+					t.Fatalf("hole in the bare moon at (%d,%d)", r, c)
+				}
+			}
+		}
+	})
+	t.Run("unhappy: bare on a nil moon skips the cue", func(t *testing.T) {
+		var ghost *Moon
+		if ghost.Bare() != nil {
+			t.Fatal("a nil moon must stay nil")
+		}
+	})
+}
+
+func TestArrivalPath(t *testing.T) {
+	cx, cy, _, ringR := Geometry(stageW, stageH)
+	topRow, topCol := cy-int(float64(ringR)/2+0.5), cx
+	t.Run("happy: the ship opens off the left wing, at orbit height", func(t *testing.T) {
+		row, col := ArrivalAt(stageW, stageH, 0)
+		if col >= 0 {
+			t.Fatalf("t=0 col %d — the ship must still be off stage", col)
+		}
+		if row != topRow {
+			t.Fatalf("t=0 row %d, want the top of the ring (%d)", row, topRow)
+		}
+	})
+	t.Run("happy: the streak runs east along orbit height and merges at the top", func(t *testing.T) {
+		rowA, colA := ArrivalAt(stageW, stageH, ArriveSeconds*0.3)
+		rowB, colB := ArrivalAt(stageW, stageH, ArriveSeconds*0.7)
+		if rowA != topRow || rowB != topRow {
+			t.Fatalf("streak rows %d/%d, want level flight at %d", rowA, rowB, topRow)
+		}
+		if colB <= colA {
+			t.Fatalf("cols %d → %d — the streak must fly east", colA, colB)
+		}
+		if colB >= topCol {
+			t.Fatalf("col %d before the merge, must still be west of the top (%d)", colB, topCol)
+		}
+		row, col := ArrivalAt(stageW, stageH, ArriveSeconds)
+		if row != topRow || col != topCol {
+			t.Fatalf("merge at (%d,%d), want the top of the ring (%d,%d)", row, col, topRow, topCol)
+		}
+	})
+	t.Run("happy: after the merge it rides the ring clockwise, forever", func(t *testing.T) {
+		_, colEast := ArrivalAt(stageW, stageH, ArriveSeconds+1)
+		if colEast <= topCol {
+			t.Fatalf("one beat past the merge the ship sits at col %d — clockwise means east of the top", colEast)
+		}
+		for tt := ArriveSeconds; tt < ArriveSeconds+OrbitSeconds; tt += 0.5 {
+			row, col := ArrivalAt(stageW, stageH, tt)
+			if d := pxDist(cx, cy, row, col); math.Abs(d-float64(ringR)) > 1.6 {
+				t.Fatalf("t=%.1f the ship left the ring: %.2fpx from center, ring at %dpx", tt, d, ringR)
+			}
+		}
+		r0, c0 := ArrivalAt(stageW, stageH, ArriveSeconds+0.8)
+		r1, c1 := ArrivalAt(stageW, stageH, ArriveSeconds+0.8+OrbitSeconds)
+		if r0 != r1 || c0 != c1 {
+			t.Fatalf("the orbit drifted between laps: (%d,%d) → (%d,%d)", r0, c0, r1, c1)
+		}
+	})
+	t.Run("unhappy: time before the curtain clamps to the start", func(t *testing.T) {
+		r0, c0 := ArrivalAt(stageW, stageH, 0)
+		r1, c1 := ArrivalAt(stageW, stageH, -5)
+		if r0 != r1 || c0 != c1 {
+			t.Fatalf("negative time moved the ship: (%d,%d) vs (%d,%d)", r0, c0, r1, c1)
+		}
+	})
+	t.Run("unhappy: no geometry means no arrival — the off-stage sentinel", func(t *testing.T) {
+		if r, c := ArrivalAt(8, 3, 2); r != -1 || c != -1 {
+			t.Fatalf("ArrivalAt on a tiny stage = (%d,%d), want (-1,-1)", r, c)
+		}
+	})
+}
+
+func TestArrivingMoon(t *testing.T) {
+	t.Run("happy: the curtain opens on ring and moon alone; updates fly the ship in and onto the orbit", func(t *testing.T) {
+		m := New().Arrive()
+		m.Start(stageW, stageH)
+		sp := m.Render()
+		ringDots := 0
+		for r := 0; r < stageH; r++ {
+			for c := 0; c < stageW; c++ {
+				switch sp.At(r, c).Ch {
+				case RingGlyph:
+					ringDots++
+				case MarkerGlyph:
+					t.Fatalf("the ship must still be off stage at t=0, found it at (%d,%d)", r, c)
+				}
+			}
+		}
+		if ringDots < 12 {
+			t.Fatalf("only %d ring dots — the orbit must be drawn before the ship arrives", ringDots)
+		}
+		m.Update(ArriveSeconds / 2)
+		r0, c0 := ArrivalAt(stageW, stageH, ArriveSeconds/2)
+		if got := m.Render().At(r0, c0); got.Ch != MarkerGlyph || got.FG != MarkerInk {
+			t.Fatalf("mid-streak cell (%d,%d) holds %q fg %d, want the gold ship", r0, c0, got.Ch, got.FG)
+		}
+		m.Update(ArriveSeconds/2 + 2)
+		r1, c1 := ArrivalAt(stageW, stageH, ArriveSeconds+2)
+		if got := m.Render().At(r1, c1); got.Ch != MarkerGlyph {
+			t.Fatalf("on orbit the ship must sit at (%d,%d), cell holds %q", r1, c1, got.Ch)
+		}
+	})
+	t.Run("unhappy: arrive on a nil moon skips the cue", func(t *testing.T) {
+		var ghost *Moon
+		if ghost.Arrive() != nil {
+			t.Fatal("a nil moon must stay nil")
+		}
+		ghost.Arrive().Start(4, 2)
+		ghost.Render()
+	})
+}
+
 func TestMoonLifecycle(t *testing.T) {
 	t.Run("happy: stop empties the stage; a restart refits — and never rewinds", func(t *testing.T) {
 		m := New()

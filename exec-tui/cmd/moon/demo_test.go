@@ -1,12 +1,14 @@
 package main
 
-// Demo harness tests, written first: the moon demo plays the descent
-// orbit as its own one-scene bill — the pixelated moon under the wide
-// dotted descent path, the lone gold marker riding it eastward, the
-// tuned starfield behind — so the scene can be run (and taped)
-// without the rest of the premiere. q and ctrl+c quit; space has no
-// next scene to cut to, so the show holds. The view is the rendered
-// screen plus one status line, always exactly window-height lines.
+// Demo harness tests, written first: cmd/moon runs the moon screenplay
+// — the composable two-scene bill from shows/moonshow. The house opens
+// on "the moon": the bare disc alone under a parked sky, nothing
+// moving. Space cuts to "orbit": a spaceship streaks in fast off the
+// left wing, settles onto the wide descent ring, and orbits
+// indefinitely. Space on the last scene ends the show — there is
+// nothing left, so the program quits. q and ctrl+c quit anywhere. The
+// view is the rendered screen plus one status line, always exactly
+// window-height lines.
 
 import (
 	"regexp"
@@ -32,6 +34,8 @@ func press(m model, msg tea.Msg) model {
 	return mm.(model)
 }
 
+func space() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "} }
+
 func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
 
 func hasStar(v string) bool {
@@ -45,7 +49,7 @@ func hasStar(v string) bool {
 
 var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-// markerCell locates the gold marker in a rendered view, ANSI stripped
+// markerCell locates the gold ship in a rendered view, ANSI stripped
 // so escape bytes never shift the column count.
 func markerCell(v string) (row, col int, ok bool) {
 	for r, line := range strings.Split(ansiPat.ReplaceAllString(v, ""), "\n") {
@@ -73,11 +77,11 @@ func skyColumns(v string, n int) string {
 	return b.String()
 }
 
-func TestMoonDemo(t *testing.T) {
-	t.Run("happy: the house opens on the descent orbit under stars", func(t *testing.T) {
+func TestMoonScreenplay(t *testing.T) {
+	t.Run("happy: the house opens on scene 1/2 — just the moon", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"descent orbit", "quit"} {
+		for _, want := range []string{"1/2", "the moon", "space", "quit"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
@@ -85,40 +89,94 @@ func TestMoonDemo(t *testing.T) {
 		if !strings.ContainsRune(v, '▓') {
 			t.Fatal("the moon must fill the middle of the stage")
 		}
-		if !strings.ContainsRune(v, moon.RingGlyph) {
-			t.Fatal("the dotted descent path must circle the moon")
+		if strings.ContainsRune(v, moon.RingGlyph) {
+			t.Fatal("no descent path yet — the opening scene is just the moon")
 		}
-		if !strings.ContainsRune(v, moon.MarkerGlyph) {
-			t.Fatal("the gold marker must ride the descent path")
+		if strings.ContainsRune(v, moon.MarkerGlyph) {
+			t.Fatal("no ship yet — the opening scene is just the moon")
 		}
 		if !hasStar(v) {
-			t.Fatal("the orbit plays under the stars")
+			t.Fatal("the moon plays under the stars")
 		}
 	})
-	t.Run("happy: frames fly the marker along the ring", func(t *testing.T) {
+	t.Run("happy: scene one holds perfectly still — nothing moves at all", func(t *testing.T) {
 		m := newModel(0)
-		r0, c0, ok := markerCell(m.View().Content)
-		if !ok {
-			t.Fatal("no marker on the opening frame")
+		before := m.View().Content
+		m = frames(m, 90)
+		if m.View().Content != before {
+			t.Fatal("the bare moon under a parked sky must not move a cell")
 		}
-		m = frames(m, 90) // three seconds: a quarter lap
-		r1, c1, ok := markerCell(m.View().Content)
+	})
+	t.Run("happy: space cuts to scene 2/2 — the ship streaks in and orbits indefinitely", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 30)
+		m = press(m, space())
+		opening := m.View().Content
+		for _, want := range []string{"2/2", "orbit"} {
+			if !strings.Contains(opening, want) {
+				t.Fatalf("the orbit scene is missing %q", want)
+			}
+		}
+		if !strings.ContainsRune(opening, moon.RingGlyph) {
+			t.Fatal("the descent ring must rise with the orbit scene")
+		}
+		if strings.ContainsRune(opening, moon.MarkerGlyph) {
+			t.Fatal("the ship opens off the left wing — not on stage yet")
+		}
+		m = frames(m, 30) // one second: mid-streak
+		streak := m.View().Content
+		r0, c0, ok := markerCell(streak)
 		if !ok {
-			t.Fatal("the marker left the stage")
+			t.Fatal("one second in, the fast ship must be streaking across")
+		}
+		m = frames(m, 60) // two more: settled into the orbit
+		orbit1 := m.View().Content
+		r1, c1, ok := markerCell(orbit1)
+		if !ok {
+			t.Fatal("the ship must settle into the orbit")
 		}
 		if r0 == r1 && c0 == c1 {
-			t.Fatal("frames must fly the marker along the ring")
+			t.Fatal("frames must carry the ship from the streak onto the ring")
+		}
+		m = frames(m, 45) // and on it goes — the orbit never parks
+		r2, c2, ok := markerCell(m.View().Content)
+		if !ok {
+			t.Fatal("the ship must keep orbiting until the next cut")
+		}
+		if r1 == r2 && c1 == c2 {
+			t.Fatal("the orbit loops indefinitely — the ship must keep moving")
+		}
+		if skyColumns(orbit1, 12) != skyColumns(m.View().Content, 12) {
+			t.Fatal("the stars behind the orbit hold still")
 		}
 	})
-	t.Run("happy: the sky holds still — no stars move behind the moon", func(t *testing.T) {
+	t.Run("happy: space on the last scene ends the show — nothing left", func(t *testing.T) {
 		m := newModel(0)
-		before := skyColumns(m.View().Content, 12)
-		if !hasStar(before) {
-			t.Fatal("test premise: the strip west of the ring must hold stars")
+		_ = m.View()
+		m = press(m, space())
+		mm, cmd := m.Update(space())
+		if cmd == nil {
+			t.Fatal("space after the last scene must end the show")
 		}
-		m = frames(m, 90)
-		if got := skyColumns(m.View().Content, 12); got != before {
-			t.Fatal("the moon show's stars must hold perfectly still")
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Fatal("the end of the bill must issue tea.Quit")
+		}
+		_ = mm
+	})
+	t.Run("happy: the plain-rune spacebar cuts too", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = press(m, runeKey(' '))
+		if !strings.Contains(m.View().Content, "2/2") {
+			t.Fatal("a rune spacebar must cut to the next scene")
+		}
+		_, cmd := m.Update(runeKey(' '))
+		if cmd == nil {
+			t.Fatal("a rune spacebar must also end the show on the last scene")
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Fatal("the end of the bill must issue tea.Quit")
 		}
 	})
 	t.Run("happy: each frame schedules the next", func(t *testing.T) {
@@ -158,19 +216,7 @@ func TestMoonDemo(t *testing.T) {
 			t.Fatalf("view has %d lines for a 32-line window", got)
 		}
 	})
-	t.Run("unhappy: space has no next scene — the show holds", func(t *testing.T) {
-		m := newModel(0)
-		before := m.View().Content
-		m = press(m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
-		m = press(m, runeKey(' '))
-		if got := m.View().Content; got != before {
-			t.Fatal("space must hold the one-scene bill exactly where it is")
-		}
-		if !strings.Contains(m.View().Content, "descent orbit") {
-			t.Fatal("the orbit must still be on the marquee")
-		}
-	})
-	t.Run("unhappy: q and ctrl+c close the house", func(t *testing.T) {
+	t.Run("unhappy: q and ctrl+c close the house from any scene", func(t *testing.T) {
 		for _, msg := range []tea.Msg{
 			runeKey('q'),
 			tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl},
