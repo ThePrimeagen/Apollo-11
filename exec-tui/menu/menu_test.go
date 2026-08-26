@@ -402,8 +402,8 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
-			"flame", "stars-config", "editor", "particle",
-			"lander", "stars", "nyan", "dsky", "button",
+			"flame", "stars-config", "editor", "particle", "dust-config",
+			"lander", "stars", "nyan", "dustoff", "dsky", "button",
 			"legacy", "timeline",
 		}
 		if len(c) != len(want) {
@@ -424,9 +424,11 @@ func TestCatalog(t *testing.T) {
 			"stars-config": "CONFIG",
 			"editor":       "CONFIG",
 			"particle":     "CONFIG",
+			"dust-config":  "CONFIG",
 			"lander":       "DEMO",
 			"stars":        "DEMO",
 			"nyan":         "DEMO",
+			"dustoff":      "DEMO",
 			"dsky":         "DEMO",
 			"button":       "DEMO",
 			"legacy":       "LEGACY TUIS",
