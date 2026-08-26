@@ -1,15 +1,17 @@
 package moon
 
-// Tests written FIRST: the descent-orbit card — a pixelated moon
-// centered on stage with a wide dotted ring circling it (the descent
-// path) and a lone gold marker riding that ring eastward over the top
-// — sideways, no fire behind it. The disc stays a little small so the
-// orbit flies wide of the surface. Geometry speaks half-cell "pixels"
+// Tests written FIRST: the moon and the orbit are two separate,
+// composable performers. Moon is the pixelated disc alone — a static
+// card any scene can reuse. Orbit is the wide dotted descent path and
+// the lone gold craft riding it clockwise — eastward over the top —
+// painted over transparency so it lays cleanly on top of a Moon (or
+// anything else). An arriving orbit streaks the craft in fast off the
+// left wing before the first lap. Geometry speaks half-cell "pixels"
 // — a terminal cell is one pixel wide and two tall — so both circles
-// read round on a real terminal. As a component: Start pins the
-// stage, Update runs the orbit clock, Render hands back the
-// stage-sized card, Stop empties the stage; the clock carries across
-// restarts so a resize never rewinds the orbit.
+// read round on a real terminal. Both components: Start pins the
+// stage, Render hands back a stage-sized sprite, Stop empties the
+// stage; the orbit's clock carries across restarts so a resize never
+// rewinds the lap.
 
 import (
 	"math"
@@ -24,8 +26,15 @@ const (
 	stageH = 27
 )
 
-// The compile-time pin: a Moon plays as a screenplay component.
-var _ screenplay.Component = (*Moon)(nil)
+// The compile-time pins: the moon and the orbit both play as
+// screenplay components.
+var (
+	_ screenplay.Component = (*Moon)(nil)
+	_ screenplay.Component = (*Orbit)(nil)
+)
+
+// surfaceGlyphs is every glyph the disc may wear.
+var surfaceGlyphs = map[rune]bool{'▓': true, '▒': true, '░': true}
 
 // pxDist is a cell's distance from center in half-cell pixels: one
 // pixel per column, two per row.
@@ -125,175 +134,6 @@ func TestMarkerPath(t *testing.T) {
 	})
 }
 
-func TestMoonOnStage(t *testing.T) {
-	t.Run("happy: the disc is a filled, centered circle under a dotted ring", func(t *testing.T) {
-		cx, cy, moonR, ringR := Geometry(stageW, stageH)
-		m := New()
-		m.Start(stageW, stageH)
-		sp := m.Render()
-		if sp.Width != stageW || sp.Height != stageH {
-			t.Fatalf("stage %dx%d, want %dx%d", sp.Width, sp.Height, stageW, stageH)
-		}
-		for r := 0; r < stageH; r++ {
-			for c := 0; c < stageW; c++ {
-				if pxDist(cx, cy, r, c) <= float64(moonR)-2 && sp.At(r, c).Transparent() {
-					t.Fatalf("hole in the moon at (%d,%d)", r, c)
-				}
-			}
-		}
-		dots := 0
-		for r := 0; r < stageH; r++ {
-			for c := 0; c < stageW; c++ {
-				if sp.At(r, c).Ch != RingGlyph {
-					continue
-				}
-				dots++
-				d := pxDist(cx, cy, r, c)
-				if math.Abs(d-float64(ringR)) > 1.6 {
-					t.Fatalf("ring dot (%d,%d) sits %.2fpx out, ring at %dpx", r, c, d, ringR)
-				}
-				if d < float64(moonR)+2 {
-					t.Fatalf("ring dot (%d,%d) touches the surface", r, c)
-				}
-			}
-		}
-		if dots < 12 {
-			t.Fatalf("only %d ring dots — the descent path must read as a circle", dots)
-		}
-		for _, corner := range [][2]int{{0, 0}, {0, stageW - 1}, {stageH - 1, 0}, {stageH - 1, stageW - 1}} {
-			if !sp.At(corner[0], corner[1]).Transparent() {
-				t.Fatalf("corner (%d,%d) is painted — the stars must show through", corner[0], corner[1])
-			}
-		}
-	})
-	t.Run("happy: the disc reads round — about twice as wide as tall", func(t *testing.T) {
-		cx, cy, moonR, _ := Geometry(stageW, stageH)
-		m := New()
-		m.Start(stageW, stageH)
-		sp := m.Render()
-		wSpan, hSpan := 0, 0
-		for c := 0; c < stageW; c++ {
-			if !sp.At(cy, c).Transparent() && pxDist(cx, cy, cy, c) <= float64(moonR) {
-				wSpan++
-			}
-		}
-		for r := 0; r < stageH; r++ {
-			if !sp.At(r, cx).Transparent() && pxDist(cx, cy, r, cx) <= float64(moonR) {
-				hSpan++
-			}
-		}
-		if wSpan < moonR {
-			t.Fatalf("the center row holds %d moon cells — the disc must be filled", wSpan)
-		}
-		if wSpan < 2*hSpan-3 || wSpan > 2*hSpan+3 {
-			t.Fatalf("disc spans %d cols × %d rows — want ~2:1 so it reads round", wSpan, hSpan)
-		}
-	})
-	t.Run("happy: the gold marker opens on the ring and update flies it on", func(t *testing.T) {
-		m := New()
-		m.Start(stageW, stageH)
-		sp := m.Render()
-		r0, c0 := MarkerAt(stageW, stageH, 0)
-		if got := sp.At(r0, c0); got.Ch != MarkerGlyph || got.FG != MarkerInk {
-			t.Fatalf("cell (%d,%d) holds %q fg %d, want the gold marker", r0, c0, got.Ch, got.FG)
-		}
-		m.Update(3)
-		sp = m.Render()
-		r1, c1 := MarkerAt(stageW, stageH, 3)
-		if r1 == r0 && c1 == c0 {
-			t.Fatal("test premise: three seconds must move the marker cell")
-		}
-		if got := sp.At(r1, c1); got.Ch != MarkerGlyph {
-			t.Fatalf("after 3s the marker must sit at (%d,%d), cell holds %q", r1, c1, got.Ch)
-		}
-		if got := sp.At(r0, c0); got.Ch == MarkerGlyph {
-			t.Fatal("the marker must leave its old cell behind")
-		}
-	})
-	t.Run("happy: the marker flies alone — no fire trail, nothing stray", func(t *testing.T) {
-		known := map[rune]bool{'▓': true, '▒': true, '░': true, RingGlyph: true, MarkerGlyph: true}
-		m := New()
-		m.Start(stageW, stageH)
-		for _, dt := range []float64{0, 1.7, 4.2} {
-			m.Update(dt)
-			sp := m.Render()
-			markers := 0
-			for r := 0; r < stageH; r++ {
-				for c := 0; c < stageW; c++ {
-					cell := sp.At(r, c)
-					if cell.Transparent() {
-						continue
-					}
-					if !known[cell.Ch] {
-						t.Fatalf("stray glyph %q at (%d,%d) — the craft flies with no trail", cell.Ch, r, c)
-					}
-					if cell.Ch == MarkerGlyph {
-						markers++
-					}
-				}
-			}
-			if markers != 1 {
-				t.Fatalf("%d marker cells — the craft is one lone gold diamond", markers)
-			}
-		}
-	})
-	t.Run("happy: renders between updates are identical — the card is deterministic", func(t *testing.T) {
-		m := New()
-		m.Start(stageW, stageH)
-		m.Update(1.3)
-		a := m.Render().GlyphRows()
-		b := m.Render().GlyphRows()
-		for i := range a {
-			if a[i] != b[i] {
-				t.Fatalf("row %d changed without an update:\n%q\n%q", i, a[i], b[i])
-			}
-		}
-	})
-	t.Run("unhappy: dt <= 0 holds the orbit still", func(t *testing.T) {
-		m := New()
-		m.Start(stageW, stageH)
-		r0, c0 := MarkerAt(stageW, stageH, 0)
-		m.Update(0)
-		m.Update(-4)
-		if got := m.Render().At(r0, c0); got.Ch != MarkerGlyph {
-			t.Fatal("zero and negative dt must not move the marker")
-		}
-	})
-}
-
-func TestBareMoon(t *testing.T) {
-	t.Run("happy: bare is the moon alone — no path, no craft, just the disc", func(t *testing.T) {
-		cx, cy, moonR, _ := Geometry(stageW, stageH)
-		m := New().Bare()
-		m.Start(stageW, stageH)
-		m.Update(2.5)
-		sp := m.Render()
-		if sp.Width != stageW || sp.Height != stageH {
-			t.Fatalf("stage %dx%d, want %dx%d", sp.Width, sp.Height, stageW, stageH)
-		}
-		for r := 0; r < stageH; r++ {
-			for c := 0; c < stageW; c++ {
-				cell := sp.At(r, c)
-				if cell.Ch == RingGlyph {
-					t.Fatalf("bare moon painted a ring dot at (%d,%d)", r, c)
-				}
-				if cell.Ch == MarkerGlyph {
-					t.Fatalf("bare moon painted the craft at (%d,%d)", r, c)
-				}
-				if pxDist(cx, cy, r, c) <= float64(moonR)-2 && cell.Transparent() {
-					t.Fatalf("hole in the bare moon at (%d,%d)", r, c)
-				}
-			}
-		}
-	})
-	t.Run("unhappy: bare on a nil moon skips the cue", func(t *testing.T) {
-		var ghost *Moon
-		if ghost.Bare() != nil {
-			t.Fatal("a nil moon must stay nil")
-		}
-	})
-}
-
 func TestArrivalPath(t *testing.T) {
 	cx, cy, _, ringR := Geometry(stageW, stageH)
 	topRow, topCol := cy-int(float64(ringR)/2+0.5), cx
@@ -354,66 +194,83 @@ func TestArrivalPath(t *testing.T) {
 	})
 }
 
-func TestArrivingMoon(t *testing.T) {
-	t.Run("happy: the curtain opens on ring and moon alone; updates fly the ship in and onto the orbit", func(t *testing.T) {
-		m := New().Arrive()
+func TestMoonComponent(t *testing.T) {
+	t.Run("happy: the moon is the disc alone — filled, centered, nothing else", func(t *testing.T) {
+		cx, cy, moonR, _ := Geometry(stageW, stageH)
+		m := New()
 		m.Start(stageW, stageH)
 		sp := m.Render()
-		ringDots := 0
+		if sp.Width != stageW || sp.Height != stageH {
+			t.Fatalf("stage %dx%d, want %dx%d", sp.Width, sp.Height, stageW, stageH)
+		}
 		for r := 0; r < stageH; r++ {
 			for c := 0; c < stageW; c++ {
-				switch sp.At(r, c).Ch {
-				case RingGlyph:
-					ringDots++
-				case MarkerGlyph:
-					t.Fatalf("the ship must still be off stage at t=0, found it at (%d,%d)", r, c)
+				cell := sp.At(r, c)
+				if pxDist(cx, cy, r, c) <= float64(moonR)-2 && cell.Transparent() {
+					t.Fatalf("hole in the moon at (%d,%d)", r, c)
+				}
+				if cell.Transparent() {
+					continue
+				}
+				if !surfaceGlyphs[cell.Ch] {
+					t.Fatalf("the moon alone wears surface glyphs only, found %q at (%d,%d)", cell.Ch, r, c)
 				}
 			}
 		}
-		if ringDots < 12 {
-			t.Fatalf("only %d ring dots — the orbit must be drawn before the ship arrives", ringDots)
-		}
-		m.Update(ArriveSeconds / 2)
-		r0, c0 := ArrivalAt(stageW, stageH, ArriveSeconds/2)
-		if got := m.Render().At(r0, c0); got.Ch != MarkerGlyph || got.FG != MarkerInk {
-			t.Fatalf("mid-streak cell (%d,%d) holds %q fg %d, want the gold ship", r0, c0, got.Ch, got.FG)
-		}
-		m.Update(ArriveSeconds/2 + 2)
-		r1, c1 := ArrivalAt(stageW, stageH, ArriveSeconds+2)
-		if got := m.Render().At(r1, c1); got.Ch != MarkerGlyph {
-			t.Fatalf("on orbit the ship must sit at (%d,%d), cell holds %q", r1, c1, got.Ch)
+		for _, corner := range [][2]int{{0, 0}, {0, stageW - 1}, {stageH - 1, 0}, {stageH - 1, stageW - 1}} {
+			if !sp.At(corner[0], corner[1]).Transparent() {
+				t.Fatalf("corner (%d,%d) is painted — the sky must show through", corner[0], corner[1])
+			}
 		}
 	})
-	t.Run("unhappy: arrive on a nil moon skips the cue", func(t *testing.T) {
-		var ghost *Moon
-		if ghost.Arrive() != nil {
-			t.Fatal("a nil moon must stay nil")
+	t.Run("happy: the disc reads round — about twice as wide as tall", func(t *testing.T) {
+		cx, cy, moonR, _ := Geometry(stageW, stageH)
+		m := New()
+		m.Start(stageW, stageH)
+		sp := m.Render()
+		wSpan, hSpan := 0, 0
+		for c := 0; c < stageW; c++ {
+			if !sp.At(cy, c).Transparent() && pxDist(cx, cy, cy, c) <= float64(moonR) {
+				wSpan++
+			}
 		}
-		ghost.Arrive().Start(4, 2)
-		ghost.Render()
+		for r := 0; r < stageH; r++ {
+			if !sp.At(r, cx).Transparent() && pxDist(cx, cy, r, cx) <= float64(moonR) {
+				hSpan++
+			}
+		}
+		if wSpan < moonR {
+			t.Fatalf("the center row holds %d moon cells — the disc must be filled", wSpan)
+		}
+		if wSpan < 2*hSpan-3 || wSpan > 2*hSpan+3 {
+			t.Fatalf("disc spans %d cols × %d rows — want ~2:1 so it reads round", wSpan, hSpan)
+		}
 	})
-}
-
-func TestMoonLifecycle(t *testing.T) {
-	t.Run("happy: stop empties the stage; a restart refits — and never rewinds", func(t *testing.T) {
+	t.Run("happy: the moon holds still — updates change nothing", func(t *testing.T) {
+		m := New()
+		m.Start(stageW, stageH)
+		a := m.Render().GlyphRows()
+		m.Update(3.7)
+		b := m.Render().GlyphRows()
+		for i := range a {
+			if a[i] != b[i] {
+				t.Fatalf("row %d moved on a static card:\n%q\n%q", i, a[i], b[i])
+			}
+		}
+	})
+	t.Run("happy: stop empties the stage; a restart refits", func(t *testing.T) {
 		m := New()
 		m.Start(stageW, stageH)
 		if opaqueCells(m.Render()) == 0 {
 			t.Fatal("test premise: a started moon must show")
 		}
-		m.Update(2)
 		m.Stop()
 		if sp := m.Render(); sp.Width != 0 || sp.Height != 0 {
 			t.Fatalf("a stopped moon rendered %dx%d", sp.Width, sp.Height)
 		}
 		m.Start(64, 24)
-		sp := m.Render()
-		if sp.Width != 64 || sp.Height != 24 {
-			t.Fatalf("a restaged moon rendered %dx%d, want 64x24", sp.Width, sp.Height)
-		}
-		r, c := MarkerAt(64, 24, 2)
-		if got := sp.At(r, c); got.Ch != MarkerGlyph {
-			t.Fatalf("the clock must carry across restarts: no marker at (%d,%d), cell holds %q", r, c, got.Ch)
+		if sp := m.Render(); sp.Width != 64 || sp.Height != 24 || opaqueCells(sp) == 0 {
+			t.Fatalf("a restaged moon rendered %dx%d with %d cells", sp.Width, sp.Height, opaqueCells(sp))
 		}
 	})
 	t.Run("unhappy: rendering before the first start is an empty stage", func(t *testing.T) {
@@ -439,5 +296,172 @@ func TestMoonLifecycle(t *testing.T) {
 		ghost.Update(1)
 		ghost.Render()
 		ghost.Stop()
+	})
+}
+
+func TestOrbitComponent(t *testing.T) {
+	t.Run("happy: the orbit is the path and the craft — over transparency, ready to lay on any moon", func(t *testing.T) {
+		cx, cy, moonR, ringR := Geometry(stageW, stageH)
+		o := NewOrbit()
+		o.Start(stageW, stageH)
+		sp := o.Render()
+		if sp.Width != stageW || sp.Height != stageH {
+			t.Fatalf("stage %dx%d, want %dx%d", sp.Width, sp.Height, stageW, stageH)
+		}
+		dots, markers := 0, 0
+		for r := 0; r < stageH; r++ {
+			for c := 0; c < stageW; c++ {
+				cell := sp.At(r, c)
+				if cell.Transparent() {
+					continue
+				}
+				switch cell.Ch {
+				case RingGlyph:
+					dots++
+					d := pxDist(cx, cy, r, c)
+					if math.Abs(d-float64(ringR)) > 1.6 {
+						t.Fatalf("ring dot (%d,%d) sits %.2fpx out, ring at %dpx", r, c, d, ringR)
+					}
+					if d < float64(moonR)+2 {
+						t.Fatalf("ring dot (%d,%d) touches the surface", r, c)
+					}
+				case MarkerGlyph:
+					markers++
+				default:
+					t.Fatalf("the orbit paints only path and craft, found %q at (%d,%d)", cell.Ch, r, c)
+				}
+			}
+		}
+		if dots < 12 {
+			t.Fatalf("only %d ring dots — the descent path must read as a circle", dots)
+		}
+		if markers != 1 {
+			t.Fatalf("%d craft cells — the orbit carries one lone gold diamond", markers)
+		}
+	})
+	t.Run("happy: the craft opens on the ring and update flies it on", func(t *testing.T) {
+		o := NewOrbit()
+		o.Start(stageW, stageH)
+		sp := o.Render()
+		r0, c0 := MarkerAt(stageW, stageH, 0)
+		if got := sp.At(r0, c0); got.Ch != MarkerGlyph || got.FG != MarkerInk {
+			t.Fatalf("cell (%d,%d) holds %q fg %d, want the gold craft", r0, c0, got.Ch, got.FG)
+		}
+		o.Update(3)
+		sp = o.Render()
+		r1, c1 := MarkerAt(stageW, stageH, 3)
+		if r1 == r0 && c1 == c0 {
+			t.Fatal("test premise: three seconds must move the craft cell")
+		}
+		if got := sp.At(r1, c1); got.Ch != MarkerGlyph {
+			t.Fatalf("after 3s the craft must sit at (%d,%d), cell holds %q", r1, c1, got.Ch)
+		}
+		if got := sp.At(r0, c0); got.Ch == MarkerGlyph {
+			t.Fatal("the craft must leave its old cell behind")
+		}
+	})
+	t.Run("happy: renders between updates are identical — the orbit is deterministic", func(t *testing.T) {
+		o := NewOrbit()
+		o.Start(stageW, stageH)
+		o.Update(1.3)
+		a := o.Render().GlyphRows()
+		b := o.Render().GlyphRows()
+		for i := range a {
+			if a[i] != b[i] {
+				t.Fatalf("row %d changed without an update:\n%q\n%q", i, a[i], b[i])
+			}
+		}
+	})
+	t.Run("happy: stop empties the stage; a restart refits — and never rewinds", func(t *testing.T) {
+		o := NewOrbit()
+		o.Start(stageW, stageH)
+		o.Update(2)
+		o.Stop()
+		if sp := o.Render(); sp.Width != 0 || sp.Height != 0 {
+			t.Fatalf("a stopped orbit rendered %dx%d", sp.Width, sp.Height)
+		}
+		o.Start(64, 24)
+		sp := o.Render()
+		if sp.Width != 64 || sp.Height != 24 {
+			t.Fatalf("a restaged orbit rendered %dx%d, want 64x24", sp.Width, sp.Height)
+		}
+		r, c := MarkerAt(64, 24, 2)
+		if got := sp.At(r, c); got.Ch != MarkerGlyph {
+			t.Fatalf("the clock must carry across restarts: no craft at (%d,%d), cell holds %q", r, c, got.Ch)
+		}
+	})
+	t.Run("unhappy: dt <= 0 holds the orbit still", func(t *testing.T) {
+		o := NewOrbit()
+		o.Start(stageW, stageH)
+		r0, c0 := MarkerAt(stageW, stageH, 0)
+		o.Update(0)
+		o.Update(-4)
+		if got := o.Render().At(r0, c0); got.Ch != MarkerGlyph {
+			t.Fatal("zero and negative dt must not move the craft")
+		}
+	})
+	t.Run("unhappy: rendering before the first start is an empty stage", func(t *testing.T) {
+		if sp := NewOrbit().Render(); sp.Width != 0 || sp.Height != 0 {
+			t.Fatalf("an unstarted orbit rendered %dx%d", sp.Width, sp.Height)
+		}
+	})
+	t.Run("unhappy: a stage too small sits the show out without panicking", func(t *testing.T) {
+		o := NewOrbit()
+		o.Start(8, 3)
+		o.Update(1)
+		sp := o.Render()
+		if sp.Width != 8 || sp.Height != 3 {
+			t.Fatalf("a tiny stage rendered %dx%d, want 8x3", sp.Width, sp.Height)
+		}
+		if n := opaqueCells(sp); n != 0 {
+			t.Fatalf("an orbit that cannot fit lit %d cells", n)
+		}
+	})
+	t.Run("unhappy: a nil orbit skips every cue", func(t *testing.T) {
+		var ghost *Orbit
+		ghost.Start(4, 2)
+		ghost.Update(1)
+		ghost.Render()
+		ghost.Stop()
+	})
+}
+
+func TestArrivingOrbit(t *testing.T) {
+	t.Run("happy: the curtain opens on the ring alone; updates fly the craft in and onto the orbit", func(t *testing.T) {
+		o := NewOrbit().Arrive()
+		o.Start(stageW, stageH)
+		sp := o.Render()
+		ringDots := 0
+		for r := 0; r < stageH; r++ {
+			for c := 0; c < stageW; c++ {
+				switch sp.At(r, c).Ch {
+				case RingGlyph:
+					ringDots++
+				case MarkerGlyph:
+					t.Fatalf("the craft must still be off stage at t=0, found it at (%d,%d)", r, c)
+				}
+			}
+		}
+		if ringDots < 12 {
+			t.Fatalf("only %d ring dots — the orbit must be drawn before the craft arrives", ringDots)
+		}
+		o.Update(ArriveSeconds / 2)
+		r0, c0 := ArrivalAt(stageW, stageH, ArriveSeconds/2)
+		if got := o.Render().At(r0, c0); got.Ch != MarkerGlyph || got.FG != MarkerInk {
+			t.Fatalf("mid-streak cell (%d,%d) holds %q fg %d, want the gold craft", r0, c0, got.Ch, got.FG)
+		}
+		o.Update(ArriveSeconds/2 + 2)
+		r1, c1 := ArrivalAt(stageW, stageH, ArriveSeconds+2)
+		if got := o.Render().At(r1, c1); got.Ch != MarkerGlyph {
+			t.Fatalf("on orbit the craft must sit at (%d,%d), cell holds %q", r1, c1, got.Ch)
+		}
+	})
+	t.Run("unhappy: arrive on a nil orbit skips the cue", func(t *testing.T) {
+		var ghost *Orbit
+		if ghost.Arrive() != nil {
+			t.Fatal("a nil orbit must stay nil")
+		}
+		ghost.Arrive().Start(4, 2)
+		ghost.Render()
 	})
 }
