@@ -6,6 +6,7 @@ package lander
 // verbatim from their previous home in the sprite package.
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -363,8 +364,8 @@ func TestShrinkSequence(t *testing.T) {
 }
 
 func TestShippedJSON(t *testing.T) {
-	t.Run("happy: lm.json ships beside the art", func(t *testing.T) {
-		a, err := LoadFile("lm.json")
+	t.Run("happy: lm.json ships in the assets folder with the other lunar art", func(t *testing.T) {
+		a, err := LoadFile(filepath.Join(FindArtDir(), "lm.json"))
 		if err != nil {
 			t.Fatal(err)
 		}

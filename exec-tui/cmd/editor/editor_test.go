@@ -9,7 +9,6 @@ package editor
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,14 +16,27 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
+// blankTestAtlas is a neutral atlas: the default palette and a blank
+// frame for every size and heading. The editor no longer knows any
+// project's art, so its tests must not lean on one either.
+func blankTestAtlas() *sprite.Atlas {
+	a := &sprite.Atlas{Palette: append([]sprite.PaletteEntry(nil), sprite.DefaultPalette...)}
+	for _, sz := range sprite.Sizes {
+		w, h := sz.Dim()
+		for _, hd := range sprite.Headings {
+			a.SetFrame(sz, hd, sprite.New(w, h))
+		}
+	}
+	return a
+}
+
 func newEd(t *testing.T) Model {
 	t.Helper()
-	m := New(lander.DefaultAtlas(), "")
+	m := New(blankTestAtlas(), "")
 	return m
 }
 
@@ -355,27 +367,11 @@ func TestMouseSelect(t *testing.T) {
 	})
 }
 
-func writeSizeShip(t *testing.T, dir string, sz sprite.Size, ch rune) string {
-	t.Helper()
-	w, h := sz.Dim()
-	a := &sprite.Atlas{Palette: append([]sprite.PaletteEntry(nil), sprite.DefaultPalette...)}
-	for _, heading := range sprite.Headings {
-		sp := sprite.New(w, h)
-		sp.Set(0, 0, sprite.Cell{Ch: ch, FG: 252, BG: -1})
-		a.SetFrame(sz, heading, sp)
-	}
-	path := filepath.Join(dir, fmt.Sprintf("lm-%d.json", int(sz)))
-	if err := a.WriteFile(path); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
 func TestSaveJSON(t *testing.T) {
 	t.Run("happy: save writes a JSON atlas that reloads with the edit", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "lm.json")
-		m := New(lander.DefaultAtlas(), path)
+		path := filepath.Join(dir, "craft.json")
+		m := New(blankTestAtlas(), path)
 		m.CursorR, m.CursorC = 0, 0
 		m.PalIdx = 1
 		m = send(m, key('P'))
@@ -410,8 +406,8 @@ func TestSaveJSON(t *testing.T) {
 func TestSavePersistsCurrentCanvas(t *testing.T) {
 	t.Run("happy: unique painted cell survives Save and LoadFile", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "lm-4.json")
-		m := New(lander.DefaultAtlas(), path)
+		path := filepath.Join(dir, "craft.json")
+		m := New(blankTestAtlas(), path)
 		m.Size = sprite.Size4
 		m.Heading = sprite.N
 		sp := cloneSprite(m.Current())
@@ -433,52 +429,9 @@ func TestSavePersistsCurrentCanvas(t *testing.T) {
 			t.Fatalf("disk cell %+v, want %+v", got, want)
 		}
 	})
-	t.Run("happy: size-4 paint is still on disk after Ctrl-P to size 3 and Save", func(t *testing.T) {
-		dir := t.TempDir()
-		path4 := writeSizeShip(t, dir, sprite.Size4, 'A')
-		path3 := writeSizeShip(t, dir, sprite.Size3, 'B')
-		m, err := Open(path4)
-		if err != nil {
-			t.Fatalf("Open: %v", err)
-		}
-		m.AssetsDir = dir
-		sp := cloneSprite(m.Current())
-		want := sprite.Cell{Ch: 'Ω', FG: 123, BG: 45}
-		sp.Set(1, 2, want)
-		m.setCurrent(sp)
-
-		m = send(m, keyCtrl('p'))
-		m.ShipPickerSize = sprite.Size3
-		m.ShipPickerHead = sprite.N
-		m = send(m, keyType(tea.KeyEnter))
-		if m.Size != sprite.Size3 {
-			t.Fatalf("enter must switch to size 3, got %d", m.Size)
-		}
-		if m.Path != path3 {
-			t.Fatalf("title-bar path %q, want size-3 file %q", m.Path, path3)
-		}
-		if err := m.Save(); err != nil {
-			t.Fatalf("save: %v", err)
-		}
-		cur, err := sprite.LoadFile(m.Path)
-		if err != nil {
-			t.Fatalf("LoadFile current path: %v", err)
-		}
-		if _, ok := cur.Frame(sprite.Size3, sprite.N); !ok {
-			t.Fatal("size-3 file must still have its heading after save")
-		}
-		loaded4, err := sprite.LoadFile(path4)
-		if err != nil {
-			t.Fatalf("LoadFile size 4: %v", err)
-		}
-		got := loaded4.MustFrame(sprite.Size4, sprite.N).At(1, 2)
-		if got.Ch != want.Ch || got.FG != want.FG || got.BG != want.BG {
-			t.Fatalf("size-4 lander was not flushed: disk %+v, want %+v", got, want)
-		}
-	})
 	t.Run("unhappy: Save does not write an empty atlas over the title-bar file", func(t *testing.T) {
 		dir := t.TempDir()
-		path := writeSizeShip(t, dir, sprite.Size4, 'Q')
+		path := writeMiniShip(t, dir, "quiet", 'Q')
 		m, err := Open(path)
 		if err != nil {
 			t.Fatalf("Open: %v", err)
@@ -504,8 +457,8 @@ func TestSavePersistsCurrentCanvas(t *testing.T) {
 func TestSaveKeyToast(t *testing.T) {
 	t.Run("happy: s writes the atlas and a 3-height toast that clears", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "lm.json")
-		m := New(lander.DefaultAtlas(), path)
+		path := filepath.Join(dir, "craft.json")
+		m := New(blankTestAtlas(), path)
 		m.TermW, m.TermH = 80, 24
 
 		got, cmd := m.Update(key('s'))
@@ -569,8 +522,8 @@ func TestSaveKeyToast(t *testing.T) {
 		}
 
 		dir := t.TempDir()
-		path := filepath.Join(dir, "lm.json")
-		m = New(lander.DefaultAtlas(), path)
+		path := filepath.Join(dir, "craft.json")
+		m = New(blankTestAtlas(), path)
 		m.Inserting = true
 		m = send(m, key('s'))
 		if _, err := os.Stat(path); err == nil {
@@ -677,12 +630,12 @@ func TestFrameSwitching(t *testing.T) {
 			t.Fatalf("size 4 canvas must be 26 wide, got %d", m.Current().Width)
 		}
 	})
-	t.Run("happy: frames h/l walk every heading the size ships", func(t *testing.T) {
+	t.Run("happy: frames h/l walk every heading the atlas ships", func(t *testing.T) {
 		m := newEd(t)
 		m.Win = WinFrames
 		m.Size = sprite.Size4
 		m.Heading = sprite.N
-		want := lander.HeadingsFor(sprite.Size4)
+		want := sprite.Headings
 		seen := map[sprite.Heading]bool{m.Heading: true}
 		for i := 0; i < len(want); i++ {
 			m = send(m, key('l'))

@@ -314,26 +314,37 @@ func TestCtrlEStillGlyphSelector(t *testing.T) {
 }
 
 func TestCtrlPComposite(t *testing.T) {
-	t.Run("happy: ctrl-p thumbnails render outline+fg+bg together", func(t *testing.T) {
-		m := stampGold(t, newEd(t))
+	t.Run("happy: the ctrl-p preview renders outline+fg+bg together", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMiniShip(t, dir, "gilded", 'G')
+		m, err := Open(dir)
+		if err != nil {
+			t.Fatalf("Open(dir): %v", err)
+		}
+		m = stampGold(t, m)
 		m.TermW, m.TermH = 160, 50
-		m.Layer = LayerOutline // gallery must ignore the editor layer
 		m = send(m, keyCtrl('p'))
-		if !m.ShipPickerOpen {
-			t.Fatal("ctrl-p must open the gallery")
+		if !m.FilePickerOpen {
+			t.Fatal("ctrl-p must open the file picker")
 		}
 		v := m.View().Content
 		if !strings.Contains(v, "\x1b[38;5;178m") {
-			t.Fatal("gallery composite must include the gold foreground")
+			t.Fatal("picker preview must include the gold foreground")
 		}
 		if !strings.Contains(v, "\x1b[48;5;94m") {
-			t.Fatal("gallery composite must include the gold background, not a single layer")
+			t.Fatal("picker preview must include the gold background, not a single layer")
 		}
 	})
-	t.Run("unhappy: the gallery still composites when the editor is on outline", func(t *testing.T) {
-		m := stampGold(t, newEd(t))
+	t.Run("unhappy: the preview still composites when the editor is on outline", func(t *testing.T) {
+		dir := t.TempDir()
+		writeMiniShip(t, dir, "gilded", 'G')
+		m, err := Open(dir)
+		if err != nil {
+			t.Fatalf("Open(dir): %v", err)
+		}
+		m = stampGold(t, m)
 		m.TermW, m.TermH = 160, 50
-		m.Layer = LayerOutline
+		m.Layer = LayerOutline // the preview must ignore the editor layer
 		m = send(m, keyCtrl('p'))
 		if !strings.Contains(m.View().Content, "\x1b[48;5;94m") {
 			t.Fatal("ctrl-p must keep the real ship fill even on the outline layer")
