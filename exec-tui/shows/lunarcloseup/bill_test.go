@@ -139,6 +139,25 @@ func hasFire(v string) bool {
 	return strings.ContainsAny(v, "⠁⠒⠶")
 }
 
+// hotBraille reports a braille fire cell wearing the booster's hot
+// inks — the landing dust wears only the gray ramp, so this is the
+// plume and nothing else.
+func hotBraille(scr *screenplay.Screen) bool {
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c == nil || !strings.ContainsAny(c.Content, "⠁⠒⠶") {
+				continue
+			}
+			ic, ok := c.Style.Fg.(ansi.IndexedColor)
+			if !ok || int(ic) < dust.GrayMin {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // offHullDust scans the screen beyond the hull columns — where no
 // fire or hull rune can reach (the north plume lives in a 12-column
 // box under the bell) — for dust-ladder glyphs: braille or shades.
@@ -470,8 +489,8 @@ func TestLunarCloseUpBill(t *testing.T) {
 		if strings.ContainsRune(landed.Render(), '▌') {
 			t.Fatal("the landing craft must stay north-facing")
 		}
-		if hasFire(landed.Render()) {
-			t.Fatal("at touchdown the booster must cut off")
+		if hotBraille(landed) {
+			t.Fatal("at touchdown the booster must cut off — only gray pad dust may remain")
 		}
 	})
 	t.Run("happy: the landing kicks dust out both sides at the slow-down and again at touchdown", func(t *testing.T) {

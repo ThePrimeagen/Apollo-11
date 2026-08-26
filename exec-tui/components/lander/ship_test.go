@@ -738,8 +738,14 @@ func TestLandThrottle(t *testing.T) {
 		stage := s.Render()
 		for r := 0; r < stage.Height; r++ {
 			for c := 0; c < stage.Width; c++ {
-				switch stage.At(r, c).Ch {
+				cell := stage.At(r, c)
+				switch cell.Ch {
 				case '⠁', '⠒', '⠶':
+					if cell.FG >= dust.GrayMin {
+						// The touchdown kick's braille wears pad
+						// grays; only hot inks are the booster.
+						continue
+					}
 					t.Fatalf("fire still painting at (%d,%d) after touchdown", r, c)
 				}
 			}
