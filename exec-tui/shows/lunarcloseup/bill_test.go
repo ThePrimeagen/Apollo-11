@@ -23,6 +23,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
@@ -136,6 +137,34 @@ func hasStar(v string) bool {
 
 func hasFire(v string) bool {
 	return strings.ContainsAny(v, "⠁⠒⠶")
+}
+
+// offHullDust scans the screen beyond the hull columns — where no
+// fire or hull rune can reach (the north plume lives in a 12-column
+// box under the bell) — for dust-ladder glyphs: braille or shades.
+func offHullDust(scr *screenplay.Screen) (left, right bool) {
+	hullCol := (stageW - lander.BodyCols) / 2
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			if x >= hullCol && x < hullCol+lander.BodyCols {
+				continue
+			}
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			for _, r := range c.Content {
+				if (r >= '⠀' && r <= '⣿') || r == '░' || r == '▒' {
+					if x < hullCol {
+						left = true
+					} else {
+						right = true
+					}
+				}
+			}
+		}
+	}
+	return left, right
 }
 
 func hasHull(v string) bool {
@@ -443,6 +472,51 @@ func TestLunarCloseUpBill(t *testing.T) {
 		}
 		if hasFire(landed.Render()) {
 			t.Fatal("at touchdown the booster must cut off")
+		}
+	})
+	t.Run("happy: the landing kicks dust out both sides at the slow-down and again at touchdown", func(t *testing.T) {
+		sc := Bill()[4].Scene
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc) // stage the cast
+		tick(sc, lander.LandSeconds-lander.LandThrottleLead+0.2)
+		if l, r := offHullDust(paint(sc)); !l || !r {
+			t.Fatalf("when the booster steps down the pad must kick dust both ways, left=%v right=%v", l, r)
+		}
+		tick(sc, lander.LandThrottleLead)
+		if l, r := offHullDust(paint(sc)); !l || !r {
+			t.Fatalf("touchdown must kick a second burst both ways, left=%v right=%v", l, r)
+		}
+	})
+	t.Run("unhappy: each kick counts down to nothing and the fall never kicks dust", func(t *testing.T) {
+		sc := Bill()[4].Scene
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, lander.LandSeconds-lander.LandThrottleLead-0.2)
+		if l, r := offHullDust(paint(sc)); l || r {
+			t.Fatal("no dust may kick before the craft starts slowing down")
+		}
+		tick(sc, dust.FadeSeconds+0.7)
+		if l, r := offHullDust(paint(sc)); l || r {
+			t.Fatal("the slow-down kick must have counted down to nothing before touchdown")
+		}
+		tick(sc, 0.5+dust.FadeSeconds+0.4) // through touchdown, past its countdown
+		if l, r := offHullDust(paint(sc)); l || r {
+			t.Fatal("the touchdown kick must count down to nothing on the pad")
+		}
+		fall := Bill()[3].Scene
+		fall.Start()
+		defer fall.Stop()
+		_ = paint(fall)
+		for i := 0; i < int(lander.DropSeconds*30); i++ {
+			fall.Update(1.0 / 30)
+			if i%15 != 0 {
+				continue
+			}
+			if l, r := offHullDust(paint(fall)); l || r {
+				t.Fatal("a falling craft kicks no dust — the pad does that, twice, on the landing")
+			}
 		}
 	})
 	t.Run("happy: the composed show walks the five scenes and then has nothing left", func(t *testing.T) {
