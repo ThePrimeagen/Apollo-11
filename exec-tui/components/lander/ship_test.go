@@ -633,7 +633,8 @@ func TestLandThrottle(t *testing.T) {
 		stage := s.Render()
 		for r := 0; r < stage.Height; r++ {
 			for c := 0; c < stage.Width; c++ {
-				if flameGlyph(stage.At(r, c).Ch) {
+				switch stage.At(r, c).Ch {
+				case '⠁', '⠒', '⠶':
 					t.Fatalf("fire still painting at (%d,%d) after touchdown", r, c)
 				}
 			}

@@ -81,6 +81,25 @@ func (f *Flame) Update(dt float64) {
 	f.Eng.Update(dt)
 }
 
+// Config is a copy of the live particle world. Mutate it and pass it
+// to SetConfig to change count, life, distance, or anything else
+// without rebuilding the flame.
+func (f *Flame) Config() particle.Config {
+	if f == nil || f.Eng == nil {
+		return particle.Config{}
+	}
+	return f.Eng.Config()
+}
+
+// SetConfig replaces the live particle world. Invalid configs are
+// rejected and the flame is left as it was.
+func (f *Flame) SetConfig(cfg particle.Config) error {
+	if f == nil || f.Eng == nil {
+		return particle.ErrNil
+	}
+	return f.Eng.SetConfig(cfg)
+}
+
 func (f *Flame) box() (cols, rows int) {
 	if f == nil || f.Eng == nil {
 		return Cols, Rows

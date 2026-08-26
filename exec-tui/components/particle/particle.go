@@ -31,6 +31,8 @@ var (
 	ErrSpread    = errors.New("particle: spread must be non-negative")
 	ErrNozzle    = errors.New("particle: nozzle must be non-negative")
 	ErrNegative  = errors.New("particle: speed and life must be non-negative")
+	ErrDistance  = errors.New("particle: max distance must be non-negative")
+	ErrNil       = errors.New("particle: nil engine")
 )
 
 // Vec2 is a point or a direction in unit space.
@@ -70,6 +72,7 @@ type Config struct {
 	MinSpeed, MaxSpeed float64 // units/sec along the jittered heading
 	Spread             float64 // stddev of a normal, in radians, around Direction
 	Nozzle             float64 // spawn thickness in units, perpendicular to Direction
+	MaxDistance        float64 // 0 means unlimited; else die when farther from Origin
 }
 
 // Validate reports the first thing wrong with c.
@@ -103,6 +106,9 @@ func (c Config) Validate() error {
 	}
 	if c.Nozzle < 0 {
 		return ErrNozzle
+	}
+	if c.MaxDistance < 0 {
+		return ErrDistance
 	}
 	return nil
 }
@@ -147,6 +153,31 @@ func New(seed int64, cfg Config) *Engine {
 // Validate checks the current config.
 func (e *Engine) Validate() error { return e.Cfg.Validate() }
 
+// Config is a copy of the running world. Mutate the copy and pass it
+// to SetConfig; assigning fields on the copy does not change the engine.
+func (e *Engine) Config() Config {
+	if e == nil {
+		return Config{}
+	}
+	return e.Cfg
+}
+
+// SetConfig replaces the running world with cfg. Invalid configs are
+// rejected and the engine is left as it was. Live particles keep
+// flying under the new rules on the next Update — a tighter
+// MaxDistance will kill anyone already past it.
+func (e *Engine) SetConfig(cfg Config) error {
+	if e == nil {
+		return ErrNil
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	cfg.Direction = cfg.Direction.Normalize()
+	e.Cfg = cfg
+	return nil
+}
+
 // Update advances the clock by dt seconds: move, expire, emit.
 // dt <= 0 is a no-op.
 func (e *Engine) Update(dt float64) {
@@ -162,7 +193,7 @@ func (e *Engine) advance(dt float64) {
 	for _, p := range e.Particles {
 		p.Pos = Vec2{X: p.Pos.X + p.Vel.X*dt, Y: p.Pos.Y + p.Vel.Y*dt}
 		p.Life -= dt
-		if p.Life > 0 && e.inside(p.Pos) {
+		if p.Life > 0 && e.inRange(p.Pos) {
 			e.Particles[n] = p
 			n++
 		}
@@ -202,7 +233,7 @@ func (e *Engine) emit() {
 			Vel:  heading.Scale(speed),
 			Life: life,
 		}
-		if p.Life > 0 && e.inside(p.Pos) {
+		if p.Life > 0 && e.inRange(p.Pos) {
 			e.Particles = append(e.Particles, p)
 		}
 	}
@@ -217,6 +248,17 @@ func (e *Engine) between(min, max float64) float64 {
 
 func (e *Engine) inside(p Vec2) bool {
 	return p.X >= 0 && p.X <= e.Cfg.Width && p.Y >= 0 && p.Y <= e.Cfg.Height
+}
+
+func (e *Engine) inRange(p Vec2) bool {
+	if !e.inside(p) {
+		return false
+	}
+	if e.Cfg.MaxDistance <= 0 {
+		return true
+	}
+	d := math.Hypot(p.X-e.Cfg.Origin.X, p.Y-e.Cfg.Origin.Y)
+	return d <= e.Cfg.MaxDistance
 }
 
 // Occupancy counts live particles in each terminal cell.

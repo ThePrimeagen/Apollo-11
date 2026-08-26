@@ -83,9 +83,13 @@ type Cell struct {
 	FG, BG int
 }
 
-// Transparent reports a blank glyph. Leftover colors do not make a space
-// visible — I paints a block when it needs the color to show.
+// Transparent reports a cell that does not paint. A blank glyph with
+// no background is empty sky. A background color is a floor — it
+// paints even without a glyph, so fire can sit on top of it.
 func (c Cell) Transparent() bool {
+	if c.BG >= 0 {
+		return false
+	}
 	return c.Ch == 0 || c.Ch == ' '
 }
 

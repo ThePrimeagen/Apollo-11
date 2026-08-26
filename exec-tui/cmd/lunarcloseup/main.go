@@ -5,9 +5,10 @@
 // "fire": the parked craft lights the booster and the stars slow by
 // 60% over five seconds. Space cuts to "fall": the north-facing
 // lander, fire down, drops from the top of the stage to the bottom.
-// Space cuts to "landing": a huge moon horizon (five rows high in
-// the middle, one row at the edges) and the lander coming down onto
-// it. Space on the last scene ends the show.
+// Space cuts to "landing": a huge moon horizon as a colored floor
+// (five rows high in the middle, one row at the edges) and the lander
+// coming down onto it — booster full, then ¾, ½, ¼, then off on the
+// pad. Space on the last scene ends the show.
 //
 //	space     next scene (past the last one, the show ends)
 //	q         quit

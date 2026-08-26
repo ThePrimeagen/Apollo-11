@@ -5,9 +5,11 @@
 // "fire": the parked craft lights the booster and the stars slow by
 // 60% over five seconds. Scene three, "fall": the north-facing
 // lander, fire down, drops from the top of the stage to the bottom.
-// Scene four, "landing": a huge moon horizon (five rows high in the
-// middle, one row at the edges) and the north-facing lander coming
-// down onto it. After that there is nothing left — the runner ends
+// Scene four, "landing": a huge moon horizon painted as a colored
+// floor (five rows high in the middle, one row at the edges) and the
+// north-facing lander coming down onto it. The booster stays full
+// until the last three seconds, then steps ¾, ½, ¼, and cuts off
+// on the pad. After that there is nothing left — the runner ends
 // the show.
 //
 // The bill is the composable unit: append it to other shows' bills

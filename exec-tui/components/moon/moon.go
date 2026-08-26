@@ -337,6 +337,14 @@ func surfaceCell(x, y float64, row, col int) sprite.Cell {
 	return sprite.Cell{Ch: '▓', FG: surfaceInk, BG: -1}
 }
 
+// horizonCell is the same terrain as the disc, painted as a background
+// floor so a plume can sit on top of it instead of fighting opaque
+// glyphs for the cell.
+func horizonCell(x, y float64, row, col int) sprite.Cell {
+	c := surfaceCell(x, y, row, col)
+	return sprite.Cell{Ch: ' ', FG: -1, BG: c.FG}
+}
+
 func inPatch(x, y float64, p patch) bool {
 	dx, dy := x-p.x, y-p.y
 	return dx*dx+dy*dy <= p.r*p.r
@@ -383,9 +391,10 @@ func HorizonTop(w, h, col int) int {
 }
 
 // Horizon is the surface of a huge moon as a scene component: a
-// shallow curve along the bottom of the stage, painted in the same
-// terrain as the disc. Start paints and caches the still life; Update
-// is a no-op; Render returns the cached slab; Stop drops it.
+// shallow curve along the bottom of the stage, painted as a colored
+// floor in the same terrain inks as the disc so fire can sit on it.
+// Start paints and caches the still life; Update is a no-op; Render
+// returns the cached slab; Stop drops it.
 type Horizon struct {
 	base   sprite.Sprite
 	w, h   int
@@ -451,7 +460,7 @@ func paintHorizon(w, h int) sprite.Sprite {
 			frac := float64(r-top) / float64(span)
 			// Sample the southern near side so maria and Tycho read.
 			y := -0.55 - 0.35*frac
-			stage.Set(r, c, surfaceCell(x, y, r, c))
+			stage.Set(r, c, horizonCell(x, y, r, c))
 		}
 	}
 	return stage

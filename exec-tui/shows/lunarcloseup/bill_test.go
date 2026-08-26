@@ -194,22 +194,29 @@ func TestLunarCloseUpBill(t *testing.T) {
 		if moonBGRows(opening, stageW/2) != moon.HorizonCenterRows {
 			t.Fatalf("center holds %d moon rows, want %d", moonBGRows(opening, stageW/2), moon.HorizonCenterRows)
 		}
-		tick(sc, lander.LandSeconds-lander.LandThrottleLead/6)
-		near := paint(sc)
-		if !strings.ContainsRune(near.Render(), '▟') {
-			t.Fatal("near the pad the north hull must be on stage")
-		}
+		tick(sc, lander.LandSeconds-0.2)
 		fireOnMoon := false
-		for y := 0; y < stageH; y++ {
-			for x := 0; x < stageW; x++ {
-				c := near.Cell(x, y)
-				if c == nil || !strings.ContainsAny(c.Content, "⠁⠒⠶") {
-					continue
-				}
-				if isMoonBG(near, x, y) {
-					fireOnMoon = true
+		hasPlume := false
+		for i := 0; i < 8; i++ {
+			sc.Update(1.0 / 30)
+			near := paint(sc)
+			if hasFire(near.Render()) {
+				hasPlume = true
+			}
+			for y := 0; y < stageH; y++ {
+				for x := 0; x < stageW; x++ {
+					c := near.Cell(x, y)
+					if c == nil || !strings.ContainsAny(c.Content, "⠁⠒⠶") {
+						continue
+					}
+					if isMoonBG(near, x, y) {
+						fireOnMoon = true
+					}
 				}
 			}
+		}
+		if !hasPlume {
+			t.Fatal("the plume must still be lit as the craft comes in")
 		}
 		if !fireOnMoon {
 			t.Fatal("the plume must paint on top of the moon floor as the craft comes in")

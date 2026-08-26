@@ -39,6 +39,10 @@ const (
 	// LandSeconds is how long the north-facing drop from off the top
 	// onto the moon horizon pad takes.
 	LandSeconds = 5.0
+	// LandThrottleLead is the last three seconds of a landing: the
+	// booster stays full until then, then steps ¾, ½, ¼, and cuts
+	// off on the pad.
+	LandThrottleLead = 3.0
 	// landSurfaceRows is the moon horizon's center thickness — the
 	// hull parks with its feet on that ridge.
 	landSurfaceRows = 5
@@ -60,8 +64,9 @@ type Ship struct {
 	dark    bool
 	hold    float64
 	heading sprite.Heading
-	dropSec float64
-	landSec float64
+	dropSec   float64
+	landSec   float64
+	flameBase particle.Config
 }
 
 // NewShip binds the craft to its fire seed. Nothing is built until
@@ -89,9 +94,12 @@ func (s *Ship) Start(w, h int) {
 	}
 	if heading == sprite.N {
 		s.Flame = fire.Toward(s.seed, particle.Vec2{X: 0, Y: 1})
-		return
+	} else {
+		s.Flame = &fire.Flame{Eng: particle.New(s.seed, shipFlameConfig())}
 	}
-	s.Flame = &fire.Flame{Eng: particle.New(s.seed, shipFlameConfig())}
+	if s.landSec > 0 {
+		s.armLandPlume()
+	}
 }
 
 // shipFlameConfig slims the stock left-to-right booster to a cruise
@@ -111,12 +119,76 @@ func shipFlameConfig() particle.Config {
 	return cfg
 }
 
+// armLandPlume snapshots the full-strength booster so later
+// throttles can scale count, life, and distance from a stable base.
+func (s *Ship) armLandPlume() {
+	if s == nil || s.Flame == nil {
+		return
+	}
+	cfg := s.Flame.Config()
+	if cfg.MaxDistance <= 0 {
+		cfg.MaxDistance = plumeReach(cfg)
+	}
+	_ = s.Flame.SetConfig(cfg)
+	s.flameBase = s.Flame.Config()
+}
+
+// plumeReach is how far a particle can travel from the origin to the
+// far wall of the box along the exhaust axis — the full-strength
+// max distance of a landing plume.
+func plumeReach(cfg particle.Config) float64 {
+	dir := cfg.Direction.Normalize()
+	if dir == (particle.Vec2{}) {
+		return 0
+	}
+	t := math.Inf(1)
+	if dir.X > 1e-12 {
+		t = math.Min(t, (cfg.Width-cfg.Origin.X)/dir.X)
+	} else if dir.X < -1e-12 {
+		t = math.Min(t, -cfg.Origin.X/dir.X)
+	}
+	if dir.Y > 1e-12 {
+		t = math.Min(t, (cfg.Height-cfg.Origin.Y)/dir.Y)
+	} else if dir.Y < -1e-12 {
+		t = math.Min(t, -cfg.Origin.Y/dir.Y)
+	}
+	if math.IsInf(t, 1) || t < 0 {
+		return 0
+	}
+	return t
+}
+
+func (s *Ship) applyLandThrottle() {
+	if s == nil || s.Flame == nil {
+		return
+	}
+	th := LandThrottle(s.clock-s.hold, s.landSec)
+	cfg := s.flameBase
+	if th <= 0 {
+		cfg.Count = 0
+		cfg.Period = 0
+		_ = s.Flame.SetConfig(cfg)
+		if s.Flame.Eng != nil {
+			s.Flame.Eng.Particles = nil
+		}
+		return
+	}
+	cfg.Count = int(math.Round(float64(s.flameBase.Count) * th))
+	cfg.MinLife = s.flameBase.MinLife * th
+	cfg.MaxLife = s.flameBase.MaxLife * th
+	cfg.MaxDistance = s.flameBase.MaxDistance * th
+	_ = s.Flame.SetConfig(cfg)
+}
+
 // Update moves the ship's clock and burns the fire. dt <= 0 holds.
 func (s *Ship) Update(dt float64) {
 	if s == nil || dt <= 0 {
 		return
 	}
 	s.clock += dt
+	if s.landSec > 0 {
+		s.applyLandThrottle()
+	}
 	if s.Flame != nil {
 		s.Flame.Update(dt)
 	}
@@ -278,7 +350,36 @@ func DropPath(stageW, stageH int, t, seconds float64) (row, col int) {
 // moon horizon's center ridge minus the hull height, so the feet sit
 // on the surface.
 func LandPadRow(stageH int) int {
-	return stageH - landSurfaceRows - BodyRows
+	// +1 puts the feet on the ridge instead of one cell above it.
+	return stageH - landSurfaceRows - BodyRows + 1
+}
+
+// LandThrottle is the booster strength at t seconds of a seconds-long
+// landing: full until LandThrottleLead remains, then three equal
+// intervals of ¾, ½, ¼, then off on the pad.
+func LandThrottle(t, seconds float64) float64 {
+	if seconds <= 0 {
+		return 0
+	}
+	if t < 0 {
+		t = 0
+	}
+	if t >= seconds {
+		return 0
+	}
+	remaining := seconds - t
+	if remaining > LandThrottleLead {
+		return 1
+	}
+	step := LandThrottleLead / 3
+	switch {
+	case remaining > 2*step:
+		return 0.75
+	case remaining > step:
+		return 0.5
+	default:
+		return 0.25
+	}
 }
 
 // LandPath is the hull's top-left at t seconds of a seconds-long
