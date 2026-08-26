@@ -28,8 +28,9 @@ const (
 	// MarkerInk is the marker's xterm-256 color: the mission gold,
 	// the same ink the title cards wear.
 	MarkerInk = 178
-	// RingInk is the dotted path's gray.
-	RingInk = 244
+	// RingInk is the dotted path's gray — bright enough to survive a
+	// small font and a compressed tape.
+	RingInk = 247
 )
 
 // The surface's xterm-256 grays: the sunlit body, the darkened limb,
@@ -82,15 +83,16 @@ var pits = []patch{
 }
 
 // Geometry is the card's layout for a w×h stage: the shared center
-// cell and the disc and ring radii in pixels. The ring keeps a
-// one-cell margin from every stage edge; a stage too small for a
-// minMoonR moon reports all zeros — no geometry, no show.
+// cell and the disc and ring radii in pixels. The ring keeps two
+// cells of margin from every stage edge — the show breathes instead
+// of grazing the frame — and a stage too small for a minMoonR moon
+// reports all zeros: no geometry, no show.
 func Geometry(w, h int) (cx, cy, moonR, ringR int) {
 	if w < 1 || h < 1 {
 		return 0, 0, 0, 0
 	}
 	cx, cy = w/2, h/2
-	ringR = min(min(cx, w-1-cx)-1, 2*(min(cy, h-1-cy)-1))
+	ringR = min(min(cx, w-1-cx)-2, 2*(min(cy, h-1-cy)-2))
 	moonR = ringR - ringGap
 	if moonR < minMoonR {
 		return 0, 0, 0, 0
@@ -214,7 +216,7 @@ func paintBase(w, h int) sprite.Sprite {
 			stage.Set(r, c, surfaceCell(px/float64(moonR), -py/float64(moonR), r, c))
 		}
 	}
-	steps := max(16, ringR*5/4)
+	steps := max(20, ringR*2)
 	for i := 0; i < steps; i++ {
 		theta := 2 * math.Pi * float64(i) / float64(steps)
 		row, col := ringCell(cx, cy, ringR, theta)
