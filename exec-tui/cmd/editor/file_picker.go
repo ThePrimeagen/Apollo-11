@@ -8,6 +8,7 @@ package editor
 // left stays warm in the editor, so unsaved edits survive the switch.
 
 import (
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -129,7 +130,16 @@ func renderFilePicker(m Model) string {
 	files := m.filteredFiles()
 	cursor := m.filePickerCursor()
 
-	nameW := 24
+	helpMove := "type to filter  ^J/^K move"
+	helpPick := "enter open  esc close"
+	title := " files  " + filepath.Base(m.assetsDir()) + " "
+
+	nameW := len(helpMove)
+	for _, s := range []string{helpPick, title} {
+		if n := len([]rune(s)); n > nameW {
+			nameW = n
+		}
+	}
 	for _, f := range m.Files {
 		if n := len([]rune(f.Name)) + 4; n > nameW {
 			nameW = n
@@ -155,9 +165,9 @@ func renderFilePicker(m Model) string {
 	}
 	rows = append(rows,
 		padPlain("", nameW),
-		padPlain("type to filter  ^J/^K move", nameW),
-		padPlain("enter open  esc close", nameW))
-	list := box(" files  "+m.assetsDir()+" ", rows, nameW)
+		padPlain(helpMove, nameW),
+		padPlain(helpPick, nameW))
+	list := box(title, rows, nameW)
 
 	if len(files) == 0 {
 		return list
