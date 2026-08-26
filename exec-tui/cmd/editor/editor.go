@@ -72,6 +72,7 @@ type Model struct {
 	PickerOpen   bool
 	PickerIdx    int
 	PickerCube   bool
+	PickerSystem bool
 	CubeRed      int
 
 	AssetsDir string

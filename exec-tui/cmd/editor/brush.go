@@ -64,6 +64,9 @@ var Greys = func() []int {
 	return out
 }()
 
+// SystemColors is xterm 0-15: the base ANSI colors and their brights.
+var SystemColors []int
+
 // CubeReds is the 6 red-axis slices of the 6×6×6 color cube (indexes 16-231).
 const cubeSide = 6
 
