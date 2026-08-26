@@ -82,7 +82,14 @@ added together. `shows/moonshow` is the first packaged bill: scene
 one, the bare moon alone under a parked sky; scene two, a spaceship
 streaks in fast off the left wing, brakes onto its orbit, and circles
 the moon until the next cut (`go run ./cmd/moon` plays it; space past
-the last scene ends the show).
+the last scene ends the show). `shows/lunarcloseup` is **2. Walkthrough**:
+four scenes — the premiere's arrival as the opener (drifting stars, then the
+zoomed-in lander slides in from the right), then the parked craft
+lights its booster while the stars slow by 60% over five seconds,
+then a north-facing fall from the top of the stage to the bottom,
+then a huge moon horizon (five rows high in the middle, one row at
+the edges) that the lander comes down onto
+(`go run ./cmd/lunarcloseup`; space past the last scene ends the show).
 
 The `Screen` is the shared render target: one Lip Gloss v2 canvas — a
 `uv.Cell` of content plus style per terminal cell — plus `Resize` /
@@ -96,10 +103,11 @@ stops the old scene before starting the new.
 | Package | What it owns |
 | --- | --- |
 | `screenplay` | `Screen` (the lip gloss cell canvas + xterm blit bridge), `Scene` and `Component` (the four-verb interfaces), `Ensemble` (the common scene shape), `Screenplay` (the lifecycle cursor) |
-| `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe |
-| `components/lander` | `Ship` — atlas hull + optional booster plume + `FlightPath` choreography |
+| `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe and a Slow brake |
+| `components/particle` | `Engine` — live config get/set (count, life, max distance) |
+| `components/lander` | `Ship` — atlas hull + optional booster plume; west fly-in, north drop, north landing (plume throttles ¾, ½, ¼, off) |
 | `components/dsky` | `Panel` — the DSKY docking on the right third, column-by-column |
-| `components/moon` | `Moon` — the pixelated disc alone, one reusable performer; `Orbit` — the lone gold craft circling it, cast over any moon |
+| `components/moon` | `Moon` — the pixelated disc alone; `Orbit` — the lone gold craft circling it; `Horizon` — a huge moon's surface as a colored floor along the bottom |
 | `components/title` | `Title` — banner cards set in terminal-fonts |
 
 The `screenplay` package knows nothing about landers, stars, or fonts —

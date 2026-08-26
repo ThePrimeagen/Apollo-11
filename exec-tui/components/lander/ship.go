@@ -29,6 +29,27 @@ const (
 	// flush with the size-4 west grey nozzle.
 	FlameRow = 4
 	FlameCol = 19
+	// NorthFlameRow/NorthFlameCol hang the south-firing plume under
+	// the size-4 north engine bell, matching the rocket card.
+	NorthFlameRow = 8
+	NorthFlameCol = 7
+	// DropSeconds is how long the north-facing fall from off the top
+	// of the stage to off the bottom takes.
+	DropSeconds = 6.0
+	// LandSeconds is how long the north-facing drop from off the top
+	// onto the moon horizon pad takes.
+	LandSeconds = 5.0
+	// LandEasePower is the ease-out exponent on the landing path:
+	// 1 is linear, 3 is the fly-in's cubic. 5 is a heavy settle —
+	// fast off the top, then a long crawl that clinks onto the pad.
+	LandEasePower = 5.0
+	// LandThrottleLead is the last three seconds of a landing: the
+	// booster stays full until then, then steps ¾, ½, ¼, and cuts
+	// off on the pad.
+	LandThrottleLead = 3.0
+	// landSurfaceRows is the moon horizon's center thickness — the
+	// hull parks with its feet on that ridge.
+	landSurfaceRows = 5
 )
 
 // Ship is the Apollo craft as a scene component: the size-4 W-heading
@@ -39,13 +60,17 @@ const (
 // both so a stopped ship holds no allocation, and a later Start
 // rebuilds them.
 type Ship struct {
-	Body  sprite.Sprite
-	Flame *fire.Flame
-	seed  int64
-	clock float64
-	w, h  int
-	dark  bool
-	hold  float64
+	Body    sprite.Sprite
+	Flame   *fire.Flame
+	seed    int64
+	clock   float64
+	w, h    int
+	dark    bool
+	hold    float64
+	heading sprite.Heading
+	dropSec   float64
+	landSec   float64
+	flameBase particle.Config
 }
 
 // NewShip binds the craft to its fire seed. Nothing is built until
@@ -62,12 +87,23 @@ func (s *Ship) Start(w, h int) {
 		return
 	}
 	s.w, s.h = w, h
-	s.Body = stripPlume(DefaultAtlas().MustFrame(sprite.Size4, sprite.W))
+	heading := s.heading
+	if heading == "" {
+		heading = sprite.W
+	}
+	s.Body = stripPlume(DefaultAtlas().MustFrame(sprite.Size4, heading))
 	if s.dark {
 		s.Flame = nil
 		return
 	}
-	s.Flame = &fire.Flame{Eng: particle.New(s.seed, shipFlameConfig())}
+	if heading == sprite.N {
+		s.Flame = fire.Toward(s.seed, particle.Vec2{X: 0, Y: 1})
+	} else {
+		s.Flame = &fire.Flame{Eng: particle.New(s.seed, shipFlameConfig())}
+	}
+	if s.landSec > 0 {
+		s.armLandPlume()
+	}
 }
 
 // shipFlameConfig slims the stock left-to-right booster to a cruise
@@ -87,12 +123,76 @@ func shipFlameConfig() particle.Config {
 	return cfg
 }
 
+// armLandPlume snapshots the full-strength booster so later
+// throttles can scale count, life, and distance from a stable base.
+func (s *Ship) armLandPlume() {
+	if s == nil || s.Flame == nil {
+		return
+	}
+	cfg := s.Flame.Config()
+	if cfg.MaxDistance <= 0 {
+		cfg.MaxDistance = plumeReach(cfg)
+	}
+	_ = s.Flame.SetConfig(cfg)
+	s.flameBase = s.Flame.Config()
+}
+
+// plumeReach is how far a particle can travel from the origin to the
+// far wall of the box along the exhaust axis — the full-strength
+// max distance of a landing plume.
+func plumeReach(cfg particle.Config) float64 {
+	dir := cfg.Direction.Normalize()
+	if dir == (particle.Vec2{}) {
+		return 0
+	}
+	t := math.Inf(1)
+	if dir.X > 1e-12 {
+		t = math.Min(t, (cfg.Width-cfg.Origin.X)/dir.X)
+	} else if dir.X < -1e-12 {
+		t = math.Min(t, -cfg.Origin.X/dir.X)
+	}
+	if dir.Y > 1e-12 {
+		t = math.Min(t, (cfg.Height-cfg.Origin.Y)/dir.Y)
+	} else if dir.Y < -1e-12 {
+		t = math.Min(t, -cfg.Origin.Y/dir.Y)
+	}
+	if math.IsInf(t, 1) || t < 0 {
+		return 0
+	}
+	return t
+}
+
+func (s *Ship) applyLandThrottle() {
+	if s == nil || s.Flame == nil {
+		return
+	}
+	th := LandThrottle(s.clock-s.hold, s.landSec)
+	cfg := s.flameBase
+	if th <= 0 {
+		cfg.Count = 0
+		cfg.Period = 0
+		_ = s.Flame.SetConfig(cfg)
+		if s.Flame.Eng != nil {
+			s.Flame.Eng.Particles = nil
+		}
+		return
+	}
+	cfg.Count = int(math.Round(float64(s.flameBase.Count) * th))
+	cfg.MinLife = s.flameBase.MinLife * th
+	cfg.MaxLife = s.flameBase.MaxLife * th
+	cfg.MaxDistance = s.flameBase.MaxDistance * th
+	_ = s.Flame.SetConfig(cfg)
+}
+
 // Update moves the ship's clock and burns the fire. dt <= 0 holds.
 func (s *Ship) Update(dt float64) {
 	if s == nil || dt <= 0 {
 		return
 	}
 	s.clock += dt
+	if s.landSec > 0 {
+		s.applyLandThrottle()
+	}
 	if s.Flame != nil {
 		s.Flame.Update(dt)
 	}
@@ -115,9 +215,13 @@ func (s *Ship) Render() sprite.Sprite {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(s.w, s.h)
-	row, col := FlightPath(s.w, s.h, s.clock-s.hold)
+	row, col := s.position()
 	if s.Flame != nil {
-		sprite.Blit(stage, col+FlameCol, row+FlameRow, s.Flame.Sprite())
+		fr, fc := FlameRow, FlameCol
+		if s.heading == sprite.N {
+			fr, fc = NorthFlameRow, NorthFlameCol
+		}
+		sprite.Blit(stage, col+fc, row+fr, s.Flame.Sprite())
 	}
 	sprite.Blit(stage, col, row, s.Body)
 	return stage
@@ -142,6 +246,49 @@ func (s *Ship) Hold(seconds float64) *Ship {
 	}
 	s.hold = seconds
 	return s
+}
+
+// North flies the size-4 north-facing frame with a down-firing
+// booster. Call before Start. Nil-safe.
+func (s *Ship) North() *Ship {
+	if s == nil {
+		return nil
+	}
+	s.heading = sprite.N
+	return s
+}
+
+// Drop falls from fully off the top of the stage to fully off the
+// bottom over seconds. Call before Start. Nil-safe.
+func (s *Ship) Drop(seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.dropSec = seconds
+	return s
+}
+
+// Land falls from fully off the top onto the moon-horizon pad over
+// seconds, then stays put. Call before Start. Nil-safe.
+func (s *Ship) Land(seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.landSec = seconds
+	return s
+}
+
+// position is this frame's hull top-left: a landing path, a drop, or
+// the westbound fly-in, depending on how the ship was asked to fly.
+func (s *Ship) position() (row, col int) {
+	t := s.clock - s.hold
+	if s.landSec > 0 {
+		return LandPath(s.w, s.h, t, s.landSec)
+	}
+	if s.dropSec > 0 {
+		return DropPath(s.w, s.h, t, s.dropSec)
+	}
+	return FlightPath(s.w, s.h, t)
 }
 
 // Parked starts the clock at the fly-in park so the first frame is
@@ -184,6 +331,78 @@ func FlightPath(stageW, stageH int, t float64) (row, col int) {
 	phase := 2 * math.Pi * (t - FlyInSeconds) / BobPeriodSeconds
 	bob := int(math.Round(BobAmplitudeCells * math.Sin(phase)))
 	return row - bob, park
+}
+
+// DropPath is the hull's top-left at t seconds of a seconds-long fall
+// on a stageW×stageH stage: fully off the top at t=0, fully off the
+// bottom at t=seconds, centered horizontally. Time before the curtain
+// clamps to the start.
+func DropPath(stageW, stageH int, t, seconds float64) (row, col int) {
+	if t < 0 {
+		t = 0
+	}
+	col = (stageW - BodyCols) / 2
+	start, end := -BodyRows, stageH
+	if seconds <= 0 || t >= seconds {
+		return end, col
+	}
+	p := t / seconds
+	return start + int(math.Round(p*float64(end-start))), col
+}
+
+// LandPadRow is where the hull's top-left parks on a landing: the
+// moon horizon's center ridge minus the hull height, so the feet sit
+// on the surface.
+func LandPadRow(stageH int) int {
+	// +1 puts the feet on the ridge instead of one cell above it.
+	return stageH - landSurfaceRows - BodyRows + 1
+}
+
+// LandThrottle is the booster strength at t seconds of a seconds-long
+// landing: full until LandThrottleLead remains, then three equal
+// intervals of ¾, ½, ¼, then off on the pad.
+func LandThrottle(t, seconds float64) float64 {
+	if seconds <= 0 {
+		return 0
+	}
+	if t < 0 {
+		t = 0
+	}
+	if t >= seconds {
+		return 0
+	}
+	remaining := seconds - t
+	if remaining > LandThrottleLead {
+		return 1
+	}
+	step := LandThrottleLead / 3
+	switch {
+	case remaining > 2*step:
+		return 0.75
+	case remaining > step:
+		return 0.5
+	default:
+		return 0.25
+	}
+}
+
+// LandPath is the hull's top-left at t seconds of a seconds-long
+// landing: fully off the top at t=0, parked on the horizon pad by
+// t=seconds, then held there. The fall eases out (1-(1-p)^LandEasePower)
+// so it comes in fast and clinks on. Time before the curtain clamps
+// to the start.
+func LandPath(stageW, stageH int, t, seconds float64) (row, col int) {
+	if t < 0 {
+		t = 0
+	}
+	col = (stageW - BodyCols) / 2
+	start, end := -BodyRows, LandPadRow(stageH)
+	if seconds <= 0 || t >= seconds {
+		return end, col
+	}
+	p := t / seconds
+	eased := 1 - math.Pow(1-p, LandEasePower)
+	return start + int(math.Round(eased*float64(end-start))), col
 }
 
 // stripPlume drops the art's baked '~'/'≈' exhaust; the live particle

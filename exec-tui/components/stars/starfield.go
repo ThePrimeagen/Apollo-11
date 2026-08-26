@@ -30,6 +30,8 @@ type Starfield struct {
 	slideSec  float64
 	slideBody int
 	slideHold float64
+	slowBy    float64
+	slowSec   float64
 }
 
 // NewStarfield opens a sky flying in the given style.
@@ -88,6 +90,43 @@ func (f *Starfield) Hold(seconds float64) *Starfield {
 	}
 	f.slideHold = seconds
 	return f
+}
+
+// Slow eases the sky's fly speed down by `by` over `seconds`.
+// by=0.6 over 5s means the stars finish 60% slower (40% of their
+// opening speed) and hold that crawl. A still sky stays still.
+// Call before Start. Nil-safe.
+func (f *Starfield) Slow(by, seconds float64) *Starfield {
+	if f == nil {
+		return nil
+	}
+	f.slowBy = by
+	f.slowSec = seconds
+	return f
+}
+
+// BrakeClock is how many seconds of fly the sky has actually burned
+// after t seconds of a brake that cuts speed by `by` over `seconds`.
+// Speed goes from 1 to (1-by) linearly; after the window it holds
+// the reduced speed. by=0.6 over 5s → 3.5s of fly at the window,
+// then 40% speed from there.
+func BrakeClock(t, by, seconds float64) float64 {
+	if t < 0 {
+		t = 0
+	}
+	if by < 0 {
+		by = 0
+	}
+	if by > 1 {
+		by = 1
+	}
+	if seconds <= 0 {
+		return t
+	}
+	if t <= seconds {
+		return t - by*t*t/(2*seconds)
+	}
+	return seconds*(1-by/2) + (1-by)*(t-seconds)
 }
 
 // SlideOffset is how many columns left the sky has translated at time
@@ -190,7 +229,11 @@ func (f *Starfield) Render() sprite.Sprite {
 		cutoff = f.w - wipeCols(DockCols(f.w, f.dockMin), f.clock, f.dockSec)
 	}
 	shift := SlideOffset(f.w, f.slideBody, f.clock-f.slideHold, f.slideSec)
-	f.cat.Paint(int(f.clock*StarFPS), f.fly, func(row, col int, ch rune, fg int) {
+	tickClock := f.clock
+	if f.slowSec > 0 {
+		tickClock = BrakeClock(f.clock, f.slowBy, f.slowSec)
+	}
+	f.cat.Paint(int(tickClock*StarFPS), f.fly, func(row, col int, ch rune, fg int) {
 		col = wrap(col-shift, f.w)
 		if col >= cutoff {
 			return

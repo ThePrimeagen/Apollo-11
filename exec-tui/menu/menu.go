@@ -33,21 +33,25 @@ type Entry struct {
 	Section string
 }
 
-// Catalog lists every runnable program by category: the screenplays,
-// then the config editors, then the demos, then the legacy TUIs.
+// Catalog lists every runnable program by category: the screenplays
+// (MAIN, 01. Moon Orbit, then 2. Walkthrough), then the config
+// editors, then the demos, then the legacy TUIs.
 // Everything this module owns launches out of its own cmd/ folder;
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
 	return []Entry{
 		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
 		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
+		{ID: "closeup", Section: "Screenplays", Title: "2. Walkthrough", Desc: "four scenes: arrival, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish ASCII editor over the assets/ folder (C-p files, C-e glyphs)"},
 		{ID: "particle", Section: "CONFIG", Title: "PARTICLE CONFIG", Desc: "tune the nyan rainbow trail (bands, life, spawn)", Pkg: "./cmd/adjustparticle/main"},
+		{ID: "dust-config", Section: "CONFIG", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},
 		{ID: "lander", Section: "DEMO", Title: "LANDER DEMO", Desc: "the continuous descent with alarms at their true moments", Pkg: "./cmd/lander"},
 		{ID: "stars", Section: "DEMO", Title: "STARS DEMO", Desc: "browse the starfield fly strategies", Pkg: "./cmd/stars"},
 		{ID: "nyan", Section: "DEMO", Title: "NYAN CAT", Desc: "pop-tart cat with a live rainbow particle trail", Pkg: "./cmd/nyan"},
+		{ID: "dustoff", Section: "DEMO", Title: "DUST OFF", Desc: "landing dust: two mirrored swirl plumes with braille wisps", Pkg: "./cmd/dustoff"},
 		{ID: "dsky", Section: "DEMO", Title: "DSKY DEMO", Desc: "a lone DSKY replaying the descent displays", Module: "dsky-lab", Pkg: "."},
 		{ID: "button", Section: "DEMO", Title: "BUTTON DEMO", Desc: "the cockpit toggle switch playground", Module: "button-lab", Pkg: "."},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},

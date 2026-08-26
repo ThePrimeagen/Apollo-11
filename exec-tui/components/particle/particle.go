@@ -5,6 +5,12 @@
 // new ones spawn at the origin on each period. Occupancy counts how many
 // live particles sit in each terminal cell so a caller can color by density.
 // The package does not draw.
+//
+// The engine flies under one of two modes, carried on the Config. The
+// default, ModeStraight, keeps every particle on its velocity. ModeSwirl —
+// switched on with Config.SideSwirl — is the cartoon wind: every particle
+// curves toward the loop side as it flies, and every second one sweeps one
+// full loop before flying on.
 package particle
 
 import (
@@ -31,6 +37,20 @@ var (
 	ErrSpread    = errors.New("particle: spread must be non-negative")
 	ErrNozzle    = errors.New("particle: nozzle must be non-negative")
 	ErrNegative  = errors.New("particle: speed and life must be non-negative")
+	ErrDistance  = errors.New("particle: max distance must be non-negative")
+	ErrMode      = errors.New("particle: unknown mode")
+	ErrNil       = errors.New("particle: nil engine")
+)
+
+// Mode picks the update rule live particles fly under.
+type Mode int
+
+const (
+	// ModeStraight is the default: particles fly straight along their velocity.
+	ModeStraight Mode = iota
+	// ModeSwirl is the cartoon wind: every particle curves toward the
+	// loop side, and every second one sweeps a full loop before flying on.
+	ModeSwirl
 )
 
 // Vec2 is a point or a direction in unit space.
@@ -70,6 +90,19 @@ type Config struct {
 	MinSpeed, MaxSpeed float64 // units/sec along the jittered heading
 	Spread             float64 // stddev of a normal, in radians, around Direction
 	Nozzle             float64 // spawn thickness in units, perpendicular to Direction
+	MaxDistance        float64 // 0 means unlimited; else die when farther from Origin
+	Mode               Mode    // update rule; the zero value is ModeStraight
+	SwirlUp            bool    // swirl mode: curls aim at the top of the screen
+}
+
+// SideSwirl is the swirl switch: the same world, but particles curl to
+// the side as they fly — half sweep one full cartoon-wind loop, half
+// just curve out. up aims the curl at the top of the screen; false
+// mirrors it downward.
+func (c Config) SideSwirl(up bool) Config {
+	c.Mode = ModeSwirl
+	c.SwirlUp = up
+	return c
 }
 
 // Validate reports the first thing wrong with c.
@@ -104,7 +137,22 @@ func (c Config) Validate() error {
 	if c.Nozzle < 0 {
 		return ErrNozzle
 	}
+	if c.MaxDistance < 0 {
+		return ErrDistance
+	}
+	if c.Mode != ModeStraight && c.Mode != ModeSwirl {
+		return ErrMode
+	}
 	return nil
+}
+
+// Curl is one particle's swirl plan: after Delay seconds of straight
+// flight the heading turns Rate radians per second until Turn radians
+// have been swept. The zero value never turns.
+type Curl struct {
+	Delay float64 // straight flight before the curl, seconds
+	Rate  float64 // signed turn speed, radians per second
+	Turn  float64 // total radians to sweep; 2π is one full loop
 }
 
 // Particle is one live (or just-expired) speck.
@@ -112,6 +160,8 @@ type Particle struct {
 	Pos  Vec2
 	Vel  Vec2
 	Life float64 // remaining seconds
+	Age  float64 // seconds since spawn
+	Curl Curl    // swirl plan; the zero value flies straight
 }
 
 // Cell is one terminal cell in unit space.
@@ -147,6 +197,31 @@ func New(seed int64, cfg Config) *Engine {
 // Validate checks the current config.
 func (e *Engine) Validate() error { return e.Cfg.Validate() }
 
+// Config is a copy of the running world. Mutate the copy and pass it
+// to SetConfig; assigning fields on the copy does not change the engine.
+func (e *Engine) Config() Config {
+	if e == nil {
+		return Config{}
+	}
+	return e.Cfg
+}
+
+// SetConfig replaces the running world with cfg. Invalid configs are
+// rejected and the engine is left as it was. Live particles keep
+// flying under the new rules on the next Update — a tighter
+// MaxDistance will kill anyone already past it.
+func (e *Engine) SetConfig(cfg Config) error {
+	if e == nil {
+		return ErrNil
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	cfg.Direction = cfg.Direction.Normalize()
+	e.Cfg = cfg
+	return nil
+}
+
 // Update advances the clock by dt seconds: move, expire, emit.
 // dt <= 0 is a no-op.
 func (e *Engine) Update(dt float64) {
@@ -157,12 +232,48 @@ func (e *Engine) Update(dt float64) {
 	e.emitDue(dt)
 }
 
+// advance moves the live particles under the config's mode.
 func (e *Engine) advance(dt float64) {
+	if e.Cfg.Mode == ModeSwirl {
+		e.advanceSwirl(dt)
+		return
+	}
+	e.advanceStraight(dt)
+}
+
+// advanceStraight is the standard rule: every particle keeps its velocity.
+func (e *Engine) advanceStraight(dt float64) {
 	n := 0
 	for _, p := range e.Particles {
 		p.Pos = Vec2{X: p.Pos.X + p.Vel.X*dt, Y: p.Pos.Y + p.Vel.Y*dt}
 		p.Life -= dt
-		if p.Life > 0 && e.inside(p.Pos) {
+		p.Age += dt
+		if p.Life > 0 && e.inRange(p.Pos) {
+			e.Particles[n] = p
+			n++
+		}
+	}
+	e.Particles = e.Particles[:n]
+}
+
+// advanceSwirl is the wind rule: inside its curl window a particle's
+// heading turns at its dealt rate — only the overlap of [Age, Age+dt]
+// with the window turns, so a loop sweeps exactly Turn radians at any
+// frame rate — and then it moves, expires, and leaves like any other.
+func (e *Engine) advanceSwirl(dt float64) {
+	n := 0
+	for _, p := range e.Particles {
+		if p.Curl.Rate != 0 && p.Curl.Turn > 0 {
+			from := math.Max(p.Age, p.Curl.Delay)
+			to := math.Min(p.Age+dt, p.Curl.Delay+p.Curl.Turn/math.Abs(p.Curl.Rate))
+			if to > from {
+				p.Vel = p.Vel.Rotate(p.Curl.Rate * (to - from))
+			}
+		}
+		p.Pos = Vec2{X: p.Pos.X + p.Vel.X*dt, Y: p.Pos.Y + p.Vel.Y*dt}
+		p.Life -= dt
+		p.Age += dt
+		if p.Life > 0 && e.inRange(p.Pos) {
 			e.Particles[n] = p
 			n++
 		}
@@ -202,10 +313,59 @@ func (e *Engine) emit() {
 			Vel:  heading.Scale(speed),
 			Life: life,
 		}
-		if p.Life > 0 && e.inside(p.Pos) {
+		if e.Cfg.Mode == ModeSwirl {
+			p.Curl = e.rollCurl(i, life)
+		}
+		if p.Life > 0 && e.inRange(p.Pos) {
 			e.Particles = append(e.Particles, p)
 		}
 	}
+}
+
+// The swirl deal, in fractions of a particle's life: loopers fly
+// straight for a beat, sweep one full loop, and still have air left;
+// arcs curve gently the whole way out.
+const (
+	loopTurn     = 2 * math.Pi
+	loopDelayMin = 0.15
+	loopDelayMax = 0.35
+	loopSpan     = 0.35
+	arcTurnMin   = math.Pi / 8
+	arcTurnMax   = math.Pi / 3
+	arcSpan      = 0.9
+)
+
+// rollCurl deals particle i its swirl plan: even deals sweep one full
+// loop mid-flight, odd deals curve gently out — half and half.
+func (e *Engine) rollCurl(i int, life float64) Curl {
+	if life <= 0 {
+		return Curl{}
+	}
+	sign := loopSign(e.Cfg.Direction, e.Cfg.SwirlUp)
+	if i%2 == 0 {
+		return Curl{
+			Delay: e.between(loopDelayMin*life, loopDelayMax*life),
+			Rate:  sign * loopTurn / (loopSpan * life),
+			Turn:  loopTurn,
+		}
+	}
+	turn := e.between(arcTurnMin, arcTurnMax)
+	return Curl{Rate: sign * turn / (arcSpan * life), Turn: turn}
+}
+
+// loopSign is the turn sense that curls a flight toward the top of the
+// screen (Y grows downward): leftward flights turn positive, rightward
+// ones negative, and a vertical flight — with no up side of its own —
+// deterministically takes the positive turn. Down loops mirror.
+func loopSign(dir Vec2, up bool) float64 {
+	s := 1.0
+	if dir.X > 0 {
+		s = -1
+	}
+	if !up {
+		s = -s
+	}
+	return s
 }
 
 func (e *Engine) between(min, max float64) float64 {
@@ -217,6 +377,17 @@ func (e *Engine) between(min, max float64) float64 {
 
 func (e *Engine) inside(p Vec2) bool {
 	return p.X >= 0 && p.X <= e.Cfg.Width && p.Y >= 0 && p.Y <= e.Cfg.Height
+}
+
+func (e *Engine) inRange(p Vec2) bool {
+	if !e.inside(p) {
+		return false
+	}
+	if e.Cfg.MaxDistance <= 0 {
+		return true
+	}
+	d := math.Hypot(p.X-e.Cfg.Origin.X, p.Y-e.Cfg.Origin.Y)
+	return d <= e.Cfg.MaxDistance
 }
 
 // Occupancy counts live particles in each terminal cell.
