@@ -61,11 +61,11 @@ type PuffConfig struct {
 func DefaultPuff() PuffConfig {
 	return PuffConfig{
 		Count:     26,
-		Period:    1.4,
-		MinLife:   1.1,
-		MaxLife:   2.1,
-		MinSpeed:  5,
-		MaxSpeed:  9,
+		Period:    1.6,
+		MinLife:   1.6,
+		MaxLife:   2.8,
+		MinSpeed:  8,
+		MaxSpeed:  14,
 		Spread:    0.10,
 		Nozzle:    3,
 		AngleDeg:  15,
