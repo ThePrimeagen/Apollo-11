@@ -124,3 +124,144 @@ func TestCloud(t *testing.T) {
 		ghost.Stop()
 	})
 }
+
+// liveDust is how many specks both engines hold this instant.
+func liveDust(cl *Cloud) int {
+	return len(cl.Left.Particles) + len(cl.Right.Particles)
+}
+
+// noDust asserts a stage with not one dust glyph on it.
+func noDust(t *testing.T, cl *Cloud, when string) {
+	t.Helper()
+	sp := cl.Render()
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			if dustGlyph(sp.At(r, c)) {
+				t.Fatalf("%s: dust still painted at (%d,%d)", when, r, c)
+			}
+		}
+	}
+}
+
+// TestCloudFade: Fade makes the cloud a one-shot burst. It opens on
+// the full warm kick, then counts its particles down — linearly, from
+// however many the kick holds at its max to zero over the fade
+// window — and then the stage is clear for good. FadeSeconds is that
+// window: two seconds.
+func TestCloudFade(t *testing.T) {
+	t.Run("happy: a fading cloud opens on the same full kick as a classic one", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		if FadeSeconds != 2.0 {
+			t.Fatalf("FadeSeconds is %v, want the two-second countdown", FadeSeconds)
+		}
+		classic := NewCloud(11)
+		classic.Start(80, 24)
+		fading := NewCloud(11).Fade(FadeSeconds)
+		fading.Start(80, 24)
+		got, want := liveDust(fading), liveDust(classic)
+		if want == 0 {
+			t.Fatal("test premise: a warmed cloud opens dusty")
+		}
+		if got != want {
+			t.Fatalf("a fading cloud opens with %d specks, the classic kick holds %d — the countdown starts from the max, not below it", got, want)
+		}
+	})
+	t.Run("happy: the kick counts its particles down to zero over the fade window", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(7).Fade(FadeSeconds)
+		cl.Start(80, 24)
+		leftMax, rightMax := len(cl.Left.Particles), len(cl.Right.Particles)
+		if leftMax == 0 || rightMax == 0 {
+			t.Fatal("test premise: both engines open with dust")
+		}
+		const dt = 1.0 / 30
+		clock := 0.0
+		checkpoints := map[int]int{} // frame -> live count at 0.5s marks
+		for i := 1; i <= 61; i++ {
+			cl.Update(dt)
+			clock += dt
+			frac := 1 - clock/FadeSeconds
+			if frac < 0 {
+				frac = 0
+			}
+			bound := int(math.Round(float64(leftMax)*frac)) +
+				int(math.Round(float64(rightMax)*frac)) + 2
+			if got := liveDust(cl); got > bound {
+				t.Fatalf("%.2fs into the fade %d specks live, the countdown allows %d", clock, got, bound)
+			}
+			if i == 15 || i == 30 || i == 45 {
+				checkpoints[i] = liveDust(cl)
+			}
+		}
+		if checkpoints[15] >= leftMax+rightMax {
+			t.Fatalf("half a second in, %d specks live — the countdown must already be under the opening %d", checkpoints[15], leftMax+rightMax)
+		}
+		if checkpoints[30] >= checkpoints[15] || checkpoints[45] >= checkpoints[30] {
+			t.Fatalf("the countdown must fall through its checkpoints: %d, %d, %d", checkpoints[15], checkpoints[30], checkpoints[45])
+		}
+		if checkpoints[45] == 0 {
+			t.Fatal("1.5s in the kick must still hold a few specks — a countdown, not a cliff")
+		}
+		if got := liveDust(cl); got != 0 {
+			t.Fatalf("past the fade window %d specks still live, want zero", got)
+		}
+		noDust(t, cl, "past the fade window")
+	})
+	t.Run("happy: the countdown lets the blown fringe drift — mid-fade dust still shows far from the nozzles", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(7).Fade(FadeSeconds)
+		cl.Start(80, 24)
+		for i := 0; i < 30; i++ { // 1.0s: halfway down the countdown
+			cl.Update(1.0 / 30)
+		}
+		// The nozzles sit at columns 36 and 44; the kick's far fringe
+		// must still be in the air well beyond them. Culling the
+		// oldest specks first would erase exactly that fringe and
+		// contract the kick into a churn at the floor.
+		farLeft, _, farRight := sides(cl.Render(), 28, 52)
+		if !farLeft || !farRight {
+			t.Fatalf("halfway down the countdown the blown fringe must still drift out both sides, left=%v right=%v", farLeft, farRight)
+		}
+	})
+	t.Run("happy: mid-fade the dust still blows out both sides and spares the gap", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(11).Fade(FadeSeconds)
+		cl.Start(80, 24)
+		for i := 0; i < 9; i++ { // 0.3s: a third of the way down
+			cl.Update(1.0 / 30)
+		}
+		l, c, r := sides(cl.Render(), 38, 41)
+		if !l || !r {
+			t.Fatalf("mid-fade dust must still blow both sides, left=%v right=%v", l, r)
+		}
+		if c {
+			t.Fatal("mid-fade the still gap must stay still")
+		}
+	})
+	t.Run("unhappy: a classic cloud never counts down", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(11)
+		cl.Start(80, 24)
+		for i := 0; i < 90; i++ { // 3s, well past any fade window
+			cl.Update(1.0 / 30)
+		}
+		if liveDust(cl) == 0 {
+			t.Fatal("a cloud without Fade must keep kicking forever")
+		}
+	})
+	t.Run("unhappy: Fade(<=0) keeps the endless kick and Fade on nil stays nil", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(11).Fade(0)
+		cl.Start(80, 24)
+		for i := 0; i < 90; i++ {
+			cl.Update(1.0 / 30)
+		}
+		if liveDust(cl) == 0 {
+			t.Fatal("Fade(0) must mean no countdown, not an instant one")
+		}
+		var ghost *Cloud
+		if ghost.Fade(FadeSeconds) != nil {
+			t.Fatal("Fade must return the nil receiver")
+		}
+	})
+}
