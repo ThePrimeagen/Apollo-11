@@ -39,6 +39,10 @@ const (
 	// LandSeconds is how long the north-facing drop from off the top
 	// onto the moon horizon pad takes.
 	LandSeconds = 5.0
+	// LandEasePower is the ease-out exponent on the landing path:
+	// 1 is linear, 3 is the fly-in's cubic. 5 is a heavy settle —
+	// fast off the top, then a long crawl that clinks onto the pad.
+	LandEasePower = 5.0
 	// LandThrottleLead is the last three seconds of a landing: the
 	// booster stays full until then, then steps ¾, ½, ¼, and cuts
 	// off on the pad.
@@ -384,8 +388,9 @@ func LandThrottle(t, seconds float64) float64 {
 
 // LandPath is the hull's top-left at t seconds of a seconds-long
 // landing: fully off the top at t=0, parked on the horizon pad by
-// t=seconds, then held there. Time before the curtain clamps to the
-// start.
+// t=seconds, then held there. The fall eases out (1-(1-p)^LandEasePower)
+// so it comes in fast and clinks on. Time before the curtain clamps
+// to the start.
 func LandPath(stageW, stageH int, t, seconds float64) (row, col int) {
 	if t < 0 {
 		t = 0
@@ -396,7 +401,8 @@ func LandPath(stageW, stageH int, t, seconds float64) (row, col int) {
 		return end, col
 	}
 	p := t / seconds
-	return start + int(math.Round(p*float64(end-start))), col
+	eased := 1 - math.Pow(1-p, LandEasePower)
+	return start + int(math.Round(eased*float64(end-start))), col
 }
 
 // stripPlume drops the art's baked '~'/'≈' exhaust; the live particle

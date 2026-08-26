@@ -7,10 +7,11 @@
 // lander, fire down, drops from the top of the stage to the bottom.
 // Scene four, "landing": a huge moon horizon painted as a colored
 // floor (five rows high in the middle, one row at the edges) and the
-// north-facing lander coming down onto it. The booster stays full
-// until the last three seconds, then steps ¾, ½, ¼, and cuts off
-// on the pad. After that there is nothing left — the runner ends
-// the show.
+// north-facing lander coming down onto it. The fall eases out — fast
+// off the top, then a long crawl that clinks onto the pad. The
+// booster stays full until the last three seconds, then steps ¾, ½,
+// ¼, and cuts off on the pad. After that there is nothing left —
+// the runner ends the show.
 //
 // The bill is the composable unit: append it to other shows' bills
 // and hand the lot to screenplay.Compose for the one big screenplay.
