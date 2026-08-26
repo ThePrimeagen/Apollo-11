@@ -1,10 +1,12 @@
-// moon: the descent-orbit scene as its own show. A pixelated moon
-// centered on stage, a wide dotted ring circling it — the descent
-// path — and a lone gold marker riding the ring eastward over the top
-// of a perfectly still tuned sky: where the lander was, and why it
-// flies sideways. The same scene plays third on the premiere bill;
-// this runs it solo, handy for tapes.
+// moon: the moon screenplay — the composable two-scene bill from
+// shows/moonshow. The house opens on "the moon": the bare pixelated
+// disc alone under a perfectly still tuned sky. Space cuts to
+// "orbit": a spaceship streaks in fast off the left wing, settles
+// onto the wide descent ring, and orbits indefinitely. Space on the
+// last scene ends the show — nothing left. The premiere plays its own
+// moon card; this is the standalone screenplay, handy for tapes.
 //
+//	space     next scene (past the last one, the show ends)
 //	q         quit
 //
 //	go run ./cmd/moon
@@ -21,8 +23,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/shows/moonshow"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
@@ -35,22 +37,6 @@ const (
 	minH     = 4
 	frameMs  = 1000.0 / 30
 )
-
-// bill is the whole show: one scene, the descent orbit under a parked
-// sky — only the marker moves.
-func bill() *screenplay.Screenplay {
-	return screenplay.New(screenplay.Entry{
-		Name: "descent orbit",
-		Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Component {
-				return []screenplay.Component{
-					stars.NewTunedStarfield().Still(),
-					moon.New(),
-				}
-			},
-		},
-	})
-}
 
 // applySky loads a tuned sky config and makes it the active sky. A
 // missing file quietly keeps the stock sky; a broken file is an error
@@ -84,7 +70,7 @@ type model struct {
 }
 
 func newModel(seconds float64) model {
-	play := bill()
+	play := screenplay.Compose(moonshow.Bill())
 	play.Start()
 	return model{
 		w:       defaultW,
@@ -106,6 +92,16 @@ func tick() tea.Cmd {
 
 func (m model) Init() tea.Cmd { return tick() }
 
+// cut advances the bill; past the last scene there is nothing left,
+// so the show ends.
+func (m model) cut() (tea.Model, tea.Cmd) {
+	if m.play.Next() {
+		return m, nil
+	}
+	m.play.Stop()
+	return m, tea.Quit
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -123,13 +119,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tick()
 	case tea.KeyPressMsg:
-		if msg.String() == "ctrl+c" {
+		switch {
+		case msg.String() == "ctrl+c":
 			m.play.Stop()
 			return m, tea.Quit
-		}
-		if rs := []rune(msg.Text); len(rs) == 1 && rs[0] == 'q' {
-			m.play.Stop()
-			return m, tea.Quit
+		case msg.Code == tea.KeySpace:
+			return m.cut()
+		default:
+			if rs := []rune(msg.Text); len(rs) == 1 {
+				switch rs[0] {
+				case 'q':
+					m.play.Stop()
+					return m, tea.Quit
+				case ' ':
+					return m.cut()
+				}
+			}
 		}
 	}
 	return m, nil
@@ -142,7 +147,8 @@ func (m model) View() tea.View {
 	for len(sky) < h {
 		sky = append(sky, "")
 	}
-	status := " descent orbit   q quit"
+	status := fmt.Sprintf(" scene %d/%d — %s   space next scene · q quit",
+		m.play.SceneIndex()+1, m.play.Len(), m.play.CurrentName())
 	dim := "\x1b[38;5;240m"
 	reset := "\x1b[0m"
 	body := strings.Join(sky, "\n") + "\n" + dim + pad(status, w) + reset

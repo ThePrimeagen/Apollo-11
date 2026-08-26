@@ -25,14 +25,13 @@ func TestCompose(t *testing.T) {
 		if p.Len() != 3 {
 			t.Fatalf("composed bill holds %d scenes, want 3", p.Len())
 		}
+		p.Start()
 		for i, want := range []string{"the moon", "orbit", "the end"} {
+			if i > 0 && !p.Next() {
+				t.Fatalf("the cut into %q must move", want)
+			}
 			if p.SceneIndex() != i || p.CurrentName() != want {
 				t.Fatalf("scene %d is %q, want %q", p.SceneIndex(), p.CurrentName(), want)
-			}
-			if i == 0 {
-				p.Start()
-			} else if !p.Next() {
-				t.Fatalf("the cut into %q must move", want)
 			}
 		}
 		if !equalLog(*journal, "start:a", "stop:a", "start:b", "stop:b", "start:c") {

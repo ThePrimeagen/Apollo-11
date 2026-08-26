@@ -75,6 +75,15 @@ render order is cast order — later sprites land on top, transparent
 cells sparing whatever is beneath. There is no z-index: every scene
 decides ordering by how it lines up its cast.
 
+Shows compose. A `Bill` is one screenplay's worth of scenes — the
+composable unit — and `Compose(bills...)` flattens bills, in order,
+into one big screenplay, so the final product is every show's bill
+added together. `shows/moonshow` is the first packaged bill: scene
+one, the bare moon alone under a parked sky; scene two, a spaceship
+streaks in fast off the left wing and orbits the descent ring until
+the next cut (`go run ./cmd/moon` plays it; space past the last scene
+ends the show).
+
 The `Screen` is the shared render target: one Lip Gloss v2 canvas — a
 `uv.Cell` of content plus style per terminal cell — plus `Resize` /
 `Resized` bookkeeping. `Screen.PutCell` and `Screen.Blit` speak the

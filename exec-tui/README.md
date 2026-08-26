@@ -23,11 +23,13 @@ components/   everything a scene puts together
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)
-screenplay/   Screenplay → Scene → Component; the lip gloss Screen
+screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + Compose
+shows/        composable bills, one package per show
+  moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
 cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lander/     the continuous-descent demo
-  moon/       the descent-orbit scene solo (moon + dotted path + gold marker)
+  moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser
   preview/    atlas / fire / rocket previews and tapes
   editor/     the vim-ish LM sprite editor (edits components/lander/lm.json)
