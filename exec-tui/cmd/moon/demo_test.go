@@ -4,11 +4,11 @@ package main
 // — the composable two-scene bill from shows/moonshow. The house opens
 // on "the moon": the bare disc alone under a parked sky, nothing
 // moving. Space cuts to "orbit": a spaceship streaks in fast off the
-// left wing, settles onto the wide descent ring, and orbits
-// indefinitely. Space on the last scene ends the show — there is
-// nothing left, so the program quits. q and ctrl+c quit anywhere. The
-// view is the rendered screen plus one status line, always exactly
-// window-height lines.
+// left wing, brakes smoothly onto its orbit — no line drawn around
+// the moon — and circles indefinitely. Space on the last scene ends
+// the show — there is nothing left, so the program quits. q and
+// ctrl+c quit anywhere. The view is the rendered screen plus one
+// status line, always exactly window-height lines.
 
 import (
 	"regexp"
@@ -89,9 +89,6 @@ func TestMoonScreenplay(t *testing.T) {
 		if !strings.ContainsRune(v, '▓') {
 			t.Fatal("the moon must fill the middle of the stage")
 		}
-		if strings.ContainsRune(v, moon.RingGlyph) {
-			t.Fatal("no descent path yet — the opening scene is just the moon")
-		}
 		if strings.ContainsRune(v, moon.MarkerGlyph) {
 			t.Fatal("no ship yet — the opening scene is just the moon")
 		}
@@ -117,9 +114,6 @@ func TestMoonScreenplay(t *testing.T) {
 			if !strings.Contains(opening, want) {
 				t.Fatalf("the orbit scene is missing %q", want)
 			}
-		}
-		if !strings.ContainsRune(opening, moon.RingGlyph) {
-			t.Fatal("the descent ring must rise with the orbit scene")
 		}
 		if strings.ContainsRune(opening, moon.MarkerGlyph) {
 			t.Fatal("the ship opens off the left wing — not on stage yet")

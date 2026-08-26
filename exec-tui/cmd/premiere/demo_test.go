@@ -7,10 +7,10 @@ package main
 // booster fire — then parks and bobbles at center stage. Space cuts to scene two, "dsky": the craft
 // parked, the right third of the sky wipes away one column at a time
 // (~500ms), and the DSKY docks in that space. Space cuts to scene
-// three, "descent orbit": the pixelated moon under the wide dotted
-// descent path and the lone gold marker riding that ring eastward —
-// where the craft was, and why it flies sideways. Space cuts to scene
-// four, "the end": the height-5 banner card. Space on the final
+// three, "descent orbit": the pixelated moon with the lone gold craft
+// circling it eastward over the top — no line, the craft alone traces
+// the path — where the craft was, and why it flies sideways. Space
+// cuts to scene four, "the end": the height-5 banner card. Space on the final
 // scene holds; q and ctrl+c close the house. The view is the rendered
 // screen plus one status line, always exactly window-height lines.
 
@@ -180,8 +180,8 @@ func TestPremiere(t *testing.T) {
 		if strings.ContainsAny(v, "⠁⠒⠶▒") {
 			t.Fatal("the engine stays dark through the dsky scene")
 		}
-		if strings.ContainsRune(v, moon.RingGlyph) {
-			t.Fatal("the moon does not rise until the next scene")
+		if strings.ContainsRune(v, moon.MarkerGlyph) {
+			t.Fatal("the moon's craft does not appear until the next scene")
 		}
 		if !hasStar(v) {
 			t.Fatal("the left sky must keep drifting beside the dock")
@@ -202,11 +202,8 @@ func TestPremiere(t *testing.T) {
 		if !strings.ContainsRune(v, '▓') {
 			t.Fatal("the moon must fill the middle of the stage")
 		}
-		if !strings.ContainsRune(v, moon.RingGlyph) {
-			t.Fatal("the dotted descent path must circle the moon")
-		}
 		if !strings.ContainsRune(v, moon.MarkerGlyph) {
-			t.Fatal("the gold marker must ride the descent path")
+			t.Fatal("the gold craft must circle the moon")
 		}
 		if strings.Contains(v, "VERB") {
 			t.Fatal("the DSKY sits this scene out")
@@ -265,7 +262,7 @@ func TestPremiere(t *testing.T) {
 		if strings.Contains(v, "VERB") {
 			t.Fatal("the DSKY does not appear in the end card")
 		}
-		if strings.ContainsRune(v, moon.RingGlyph) || strings.ContainsRune(v, moon.MarkerGlyph) {
+		if strings.ContainsRune(v, moon.MarkerGlyph) {
 			t.Fatal("the moon sets before the end card")
 		}
 	})

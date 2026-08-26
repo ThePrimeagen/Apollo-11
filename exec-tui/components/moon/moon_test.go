@@ -2,16 +2,18 @@ package moon
 
 // Tests written FIRST: the moon and the orbit are two separate,
 // composable performers. Moon is the pixelated disc alone — a static
-// card any scene can reuse. Orbit is the wide dotted descent path and
-// the lone gold craft riding it clockwise — eastward over the top —
-// painted over transparency so it lays cleanly on top of a Moon (or
-// anything else). An arriving orbit streaks the craft in fast off the
-// left wing before the first lap. Geometry speaks half-cell "pixels"
-// — a terminal cell is one pixel wide and two tall — so both circles
-// read round on a real terminal. Both components: Start pins the
-// stage, Render hands back a stage-sized sprite, Stop empties the
-// stage; the orbit's clock carries across restarts so a resize never
-// rewinds the lap.
+// card any scene can reuse. Orbit is the lone gold craft circling the
+// moon clockwise — eastward over the top — with no line drawn around
+// the moon: the craft alone traces the path, painted over
+// transparency so it lays cleanly on top of a Moon (or anything
+// else). An arriving orbit streaks the craft in fast off the left
+// wing and brakes smoothly into orbital speed — never to a stall —
+// before the first lap. Geometry speaks half-cell "pixels" — a
+// terminal cell is one pixel wide and two tall — so the circles read
+// round on a real terminal. Both components: Start pins the stage,
+// Render hands back a stage-sized sprite, Stop empties the stage; the
+// orbit's clock carries across restarts so a resize never rewinds the
+// lap.
 
 import (
 	"math"
@@ -180,6 +182,24 @@ func TestArrivalPath(t *testing.T) {
 			t.Fatalf("the orbit drifted between laps: (%d,%d) → (%d,%d)", r0, c0, r1, c1)
 		}
 	})
+	t.Run("happy: no stall at the merge — the streak brakes into orbital speed, never to a halt", func(t *testing.T) {
+		colAt := func(tt float64) int {
+			_, c := ArrivalAt(stageW, stageH, tt)
+			return c
+		}
+		enter := colAt(0.5) - colAt(0)
+		brake := colAt(ArriveSeconds) - colAt(ArriveSeconds-0.5)
+		orbit := colAt(ArriveSeconds+0.5) - colAt(ArriveSeconds)
+		if orbit < 2 {
+			t.Fatalf("test premise: the orbit must carry the craft east off the top, moved %d", orbit)
+		}
+		if brake*2 < orbit {
+			t.Fatalf("the last half second covers %d cols against the orbit's %d — the old awkward pause", brake, orbit)
+		}
+		if enter < brake {
+			t.Fatalf("the entry opens at %d cols per half second, the brake at %d — the streak must open fast", enter, brake)
+		}
+	})
 	t.Run("unhappy: time before the curtain clamps to the start", func(t *testing.T) {
 		r0, c0 := ArrivalAt(stageW, stageH, 0)
 		r1, c1 := ArrivalAt(stageW, stageH, -5)
@@ -300,43 +320,19 @@ func TestMoonComponent(t *testing.T) {
 }
 
 func TestOrbitComponent(t *testing.T) {
-	t.Run("happy: the orbit is the path and the craft — over transparency, ready to lay on any moon", func(t *testing.T) {
-		cx, cy, moonR, ringR := Geometry(stageW, stageH)
+	t.Run("happy: the orbit is the craft alone — one gold cell, no line around the moon", func(t *testing.T) {
 		o := NewOrbit()
 		o.Start(stageW, stageH)
 		sp := o.Render()
 		if sp.Width != stageW || sp.Height != stageH {
 			t.Fatalf("stage %dx%d, want %dx%d", sp.Width, sp.Height, stageW, stageH)
 		}
-		dots, markers := 0, 0
-		for r := 0; r < stageH; r++ {
-			for c := 0; c < stageW; c++ {
-				cell := sp.At(r, c)
-				if cell.Transparent() {
-					continue
-				}
-				switch cell.Ch {
-				case RingGlyph:
-					dots++
-					d := pxDist(cx, cy, r, c)
-					if math.Abs(d-float64(ringR)) > 1.6 {
-						t.Fatalf("ring dot (%d,%d) sits %.2fpx out, ring at %dpx", r, c, d, ringR)
-					}
-					if d < float64(moonR)+2 {
-						t.Fatalf("ring dot (%d,%d) touches the surface", r, c)
-					}
-				case MarkerGlyph:
-					markers++
-				default:
-					t.Fatalf("the orbit paints only path and craft, found %q at (%d,%d)", cell.Ch, r, c)
-				}
-			}
+		if n := opaqueCells(sp); n != 1 {
+			t.Fatalf("the orbit lit %d cells — the craft alone draws the path in your eye", n)
 		}
-		if dots < 12 {
-			t.Fatalf("only %d ring dots — the descent path must read as a circle", dots)
-		}
-		if markers != 1 {
-			t.Fatalf("%d craft cells — the orbit carries one lone gold diamond", markers)
+		r0, c0 := MarkerAt(stageW, stageH, 0)
+		if got := sp.At(r0, c0); got.Ch != MarkerGlyph || got.FG != MarkerInk {
+			t.Fatalf("the one cell must be the gold craft at (%d,%d), got %q fg %d", r0, c0, got.Ch, got.FG)
 		}
 	})
 	t.Run("happy: the craft opens on the ring and update flies it on", func(t *testing.T) {
@@ -427,23 +423,11 @@ func TestOrbitComponent(t *testing.T) {
 }
 
 func TestArrivingOrbit(t *testing.T) {
-	t.Run("happy: the curtain opens on the ring alone; updates fly the craft in and onto the orbit", func(t *testing.T) {
+	t.Run("happy: the curtain opens empty; updates fly the craft in and onto the orbit", func(t *testing.T) {
 		o := NewOrbit().Arrive()
 		o.Start(stageW, stageH)
-		sp := o.Render()
-		ringDots := 0
-		for r := 0; r < stageH; r++ {
-			for c := 0; c < stageW; c++ {
-				switch sp.At(r, c).Ch {
-				case RingGlyph:
-					ringDots++
-				case MarkerGlyph:
-					t.Fatalf("the craft must still be off stage at t=0, found it at (%d,%d)", r, c)
-				}
-			}
-		}
-		if ringDots < 12 {
-			t.Fatalf("only %d ring dots — the orbit must be drawn before the craft arrives", ringDots)
+		if n := opaqueCells(o.Render()); n != 0 {
+			t.Fatalf("an arriving orbit lit %d cells at t=0 — no line, and the craft is still off stage", n)
 		}
 		o.Update(ArriveSeconds / 2)
 		r0, c0 := ArrivalAt(stageW, stageH, ArriveSeconds/2)
