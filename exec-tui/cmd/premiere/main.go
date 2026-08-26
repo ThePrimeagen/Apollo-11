@@ -38,7 +38,7 @@ import (
 
 const (
 	defaultW = 72
-	defaultH = 28
+	defaultH = 36
 	minW     = 10
 	minH     = 4
 	frameMs  = 1000.0 / 30

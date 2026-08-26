@@ -11,10 +11,16 @@ package main
 //   a — executive overflow: PROG lamp lights, RESTART flashes, the
 //       unprotected monitor is dropped and the display reverts to V06 N63
 //   r — RSET clears the caution lamps
+//   0-9 — press the matching keypad key, the way typing mode does in the
+//       Executive sim; digits being keyed turn dull orange
 
 import (
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
 )
 
 func TestDemoBoot(t *testing.T) {
@@ -175,6 +181,85 @@ func TestDemoAlarm(t *testing.T) {
 		d.advance(500)
 		if d.state().Lights.Prog {
 			t.Fatal("no alarm without a running computer")
+		}
+	})
+}
+
+func TestDemoKeypad(t *testing.T) {
+	t.Run("happy: pressing 1 depresses the 1 key like the program", func(t *testing.T) {
+		d := newDemo()
+		d.press('1')
+		s := d.state()
+		if s.Pressed != '1' {
+			t.Fatalf("pressing 1 must hold the 1 key, got %q", s.Pressed)
+		}
+		out := dsky.Render(s, true)
+		if !strings.Contains(out, "48;5;172") {
+			t.Fatal("the 1 key must light dull orange while held")
+		}
+	})
+	t.Run("happy: pressing 2 depresses the 2 key like the program", func(t *testing.T) {
+		d := newDemo()
+		d.press('2')
+		if d.state().Pressed != '2' {
+			t.Fatalf("pressing 2 must hold the 2 key, got %q", d.state().Pressed)
+		}
+		d.press('1')
+		if d.state().Pressed != '1' {
+			t.Fatal("a new press must move the highlight to that key")
+		}
+	})
+	t.Run("happy: V then 1 types an orange digit onto VERB", func(t *testing.T) {
+		d := newDemo()
+		d.press('v')
+		d.press('1')
+		s := d.state()
+		if s.Verb != "1" {
+			t.Fatalf("V then 1 must type a 1, got verb %q", s.Verb)
+		}
+		if !s.Typing.Verb {
+			t.Fatal("the verb must be marked as being typed")
+		}
+		out := dsky.Render(s, true)
+		if !strings.Contains(out, "38;5;172") {
+			t.Fatal("the typed digit must render dull orange")
+		}
+	})
+	t.Run("happy: the demo view shows the keypad ready to press", func(t *testing.T) {
+		m := model{d: newDemo()}
+		v := m.View().Content
+		for _, want := range []string{"ENTR", "CLR", "1", "2", "VERB", "NOUN"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("demo view missing keypad %q", want)
+			}
+		}
+	})
+	t.Run("happy: the house keyboard 1/2 reach the keypad through Update", func(t *testing.T) {
+		m := model{d: newDemo()}
+		mm, _ := m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+		m = mm.(model)
+		if m.d.state().Pressed != '1' {
+			t.Fatal("the demo scene must press 1 when the 1 key is hit")
+		}
+		mm, _ = m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+		m = mm.(model)
+		if m.d.state().Pressed != '2' {
+			t.Fatal("the demo scene must press 2 when the 2 key is hit")
+		}
+	})
+	t.Run("unhappy: a digit with no verb/noun entry lights the key but writes nothing", func(t *testing.T) {
+		d := newDemo()
+		d.press('1')
+		s := d.state()
+		if s.Verb != "" || s.Noun != "" || s.Prog != "" {
+			t.Fatalf("a lone digit must not write the display, got %+v", s)
+		}
+		if s.Pressed != '1' {
+			t.Fatal("the key must still depress so you can see the press")
+		}
+		d.advance(500)
+		if d.state().Pressed != 0 {
+			t.Fatal("the key must release after the hold")
 		}
 	})
 }
