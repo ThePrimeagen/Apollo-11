@@ -449,3 +449,83 @@ func TestArrivingOrbit(t *testing.T) {
 		ghost.Render()
 	})
 }
+
+// The compile-time pin: a Horizon plays as a screenplay component.
+var _ screenplay.Component = (*Horizon)(nil)
+
+func TestHorizon(t *testing.T) {
+	t.Run("happy: the surface is 5 rows at center and 1 row at the edges", func(t *testing.T) {
+		if HorizonTop(stageW, stageH, 0) != stageH-HorizonEdgeRows {
+			t.Fatalf("left edge top %d, want %d", HorizonTop(stageW, stageH, 0), stageH-HorizonEdgeRows)
+		}
+		if HorizonTop(stageW, stageH, stageW-1) != stageH-HorizonEdgeRows {
+			t.Fatalf("right edge top %d, want %d", HorizonTop(stageW, stageH, stageW-1), stageH-HorizonEdgeRows)
+		}
+		if HorizonTop(stageW, stageH, stageW/2) != stageH-HorizonCenterRows {
+			t.Fatalf("center top %d, want %d", HorizonTop(stageW, stageH, stageW/2), stageH-HorizonCenterRows)
+		}
+		h := NewHorizon()
+		h.Start(stageW, stageH)
+		defer h.Stop()
+		sp := h.Render()
+		edge := 0
+		for r := 0; r < stageH; r++ {
+			if !sp.At(r, 0).Transparent() {
+				edge++
+			}
+		}
+		if edge != HorizonEdgeRows {
+			t.Fatalf("left edge holds %d moon rows, want %d", edge, HorizonEdgeRows)
+		}
+		center := 0
+		for r := 0; r < stageH; r++ {
+			if !sp.At(r, stageW/2).Transparent() {
+				center++
+			}
+		}
+		if center != HorizonCenterRows {
+			t.Fatalf("center holds %d moon rows, want %d", center, HorizonCenterRows)
+		}
+	})
+	t.Run("happy: the horizon wears moon terrain and sits on the bottom, not as a disc", func(t *testing.T) {
+		h := NewHorizon()
+		h.Start(stageW, stageH)
+		defer h.Stop()
+		sp := h.Render()
+		found := map[rune]bool{}
+		for r := 0; r < stageH; r++ {
+			for c := 0; c < stageW; c++ {
+				ch := sp.At(r, c).Ch
+				if sp.At(r, c).Transparent() {
+					continue
+				}
+				found[ch] = true
+				if r < stageH/2 {
+					t.Fatalf("horizon painted row %d — the surface must stay on the bottom half", r)
+				}
+				if !surfaceGlyphs[ch] {
+					t.Fatalf("horizon cell (%d,%d) wears %q — want moon terrain", r, c, string(ch))
+				}
+			}
+		}
+		if !found['▓'] {
+			t.Fatal("the horizon must show the sunlit moon body")
+		}
+		h.Update(3)
+		if opaqueCells(h.Render()) != opaqueCells(sp) {
+			t.Fatal("the horizon holds still — nothing on the surface moves")
+		}
+	})
+	t.Run("unhappy: a tiny stage and a nil horizon never panic", func(t *testing.T) {
+		h := NewHorizon()
+		h.Start(2, 1)
+		h.Update(1)
+		h.Render()
+		h.Stop()
+		var ghost *Horizon
+		ghost.Start(4, 2)
+		ghost.Update(1)
+		ghost.Render()
+		ghost.Stop()
+	})
+}
