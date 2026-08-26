@@ -3,7 +3,7 @@ package editor
 // Tests written FIRST. The paint kit: 1-0 clutch the last ten colors,
 // !@#$%^&*() clutch the ten paint glyphs (shades, halves, quadrants),
 // c opens an 8-bit picker with a greyscale ramp that has enough whites
-// to shade, P pastes the selected symbol, and i inserts one typed character.
+// to shade, p/P pastes the selected symbol, and i inserts one typed character.
 
 import (
 	"strings"
@@ -54,14 +54,14 @@ func TestGlyphKeysPaintPartialBlocks(t *testing.T) {
 }
 
 func TestColorClutch(t *testing.T) {
-	t.Run("happy: 1-0 select the past-ten colors and i uses that fg", func(t *testing.T) {
-		m := newEd(t)
-		if len(m.RecentColors) < 10 {
-			t.Fatalf("clutch must boot with 10 colors, got %d", len(m.RecentColors))
-		}
+	t.Run("happy: 1-0 select the past-ten colors and P uses that fg", func(t *testing.T) {
+		m := fillColorClutch(t)
 		m.CursorR, m.CursorC = 0, 0
-		m = send(m, key('3'))
+		if len(m.RecentColors) != 10 {
+			t.Fatalf("clutch must hold 10 used colors, got %d", len(m.RecentColors))
+		}
 		want := m.RecentColors[2]
+		m = send(m, key('3'))
 		if m.Brush != want {
 			t.Fatalf("3 must load clutch slot 3, got %+v want %+v", m.Brush, want)
 		}
@@ -71,17 +71,30 @@ func TestColorClutch(t *testing.T) {
 		}
 	})
 	t.Run("happy: 0 is the tenth slot, not a zero color", func(t *testing.T) {
-		m := newEd(t)
+		m := fillColorClutch(t)
+		want := m.RecentColors[9]
 		m = send(m, key('0'))
-		if m.Brush != m.RecentColors[9] {
-			t.Fatalf("0 must load slot 10, got %+v", m.Brush)
+		if m.Brush != want {
+			t.Fatalf("0 must load slot 10, got %+v want %+v", m.Brush, want)
 		}
 	})
 	t.Run("unhappy: clutch on a short list does not panic", func(t *testing.T) {
 		m := newEd(t)
-		m.RecentColors = m.RecentColors[:1]
+		m.RecentColors = []Swatch{{FG: 252, BG: -1}}
 		_ = send(m, key('9'))
 	})
+}
+
+func fillColorClutch(t *testing.T) Model {
+	t.Helper()
+	m := newEd(t)
+	m.CursorR, m.CursorC = 0, 0
+	m.PalIdx = -1
+	for i := 0; i < 10; i++ {
+		m.Brush = Swatch{FG: 240 + i, BG: -1}
+		m = send(m, key('P'))
+	}
+	return m
 }
 
 func TestRecentMemory(t *testing.T) {
@@ -114,10 +127,14 @@ func TestRecentMemory(t *testing.T) {
 		}
 	})
 	t.Run("unhappy: remembering a color that is already first does not grow past 10", func(t *testing.T) {
-		m := newEd(t)
-		m = send(m, key('1'))
-		m = send(m, key('1'))
-		if len(m.RecentColors) > 10 {
+		m := fillColorClutch(t)
+		if len(m.RecentColors) != 10 {
+			t.Fatalf("precondition: clutch of 10, got %d", len(m.RecentColors))
+		}
+		m.Brush = m.RecentColors[0]
+		m.PalIdx = -1
+		m = send(m, key('P'))
+		if len(m.RecentColors) != 10 {
 			t.Fatalf("clutch must stay at 10, got %d", len(m.RecentColors))
 		}
 	})
@@ -168,9 +185,14 @@ func TestEightBitPicker(t *testing.T) {
 }
 
 func TestViewShowsPaintKit(t *testing.T) {
-	t.Run("happy: the view lists clutch digits and paint symbols", func(t *testing.T) {
+	t.Run("happy: the palette popup lists clutch digits and paint symbols", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 100, 30
+		m = send(m, keyCtrl('w'))
+		m = send(m, key('j'))
+		if m.Win != WinPalette {
+			t.Fatalf("Ctrl-W J from canvas must open the palette popup, got %v", m.Win)
+		}
 		v := m.View().Content
 		for _, want := range []string{"1", "0", "!", "@", "#", "░", "█"} {
 			if !strings.Contains(v, want) {
@@ -185,25 +207,47 @@ func TestViewShowsPaintKit(t *testing.T) {
 	})
 }
 
-func TestPaintDropdownExtras(t *testing.T) {
-	t.Run("happy: p cycles the symbol list onto extra quadrants (▘ ▝ ▛ ▜ ▙ ▟ ▞ ▚)", func(t *testing.T) {
+func TestPPastesNotScroll(t *testing.T) {
+	t.Run("happy: p pastes the selected symbol onto the cursor", func(t *testing.T) {
 		m := newEd(t)
-		seen := map[rune]bool{}
-		for i := 0; i < len(SymbolList)+2; i++ {
-			m = send(m, key('p'))
-			seen[m.PaintCh] = true
-		}
-		for _, ch := range ExtraGlyphs {
-			if !seen[ch] {
-				t.Fatalf("p never landed on extra glyph %q", string(ch))
-			}
+		m.CursorR, m.CursorC = 0, 0
+		m.SymIdx = 1 // ▀ up half
+		m.PaintCh = SymbolList[1].Ch
+		m = send(m, key('p'))
+		got := m.Current().At(0, 0).Ch
+		if got != SymbolList[1].Ch {
+			t.Fatalf("p must paste list[%d]=%q, got %q", 1, string(SymbolList[1].Ch), string(got))
 		}
 	})
-	t.Run("unhappy: p never selects a space or zero rune", func(t *testing.T) {
+	t.Run("happy: P still pastes the selected symbol", func(t *testing.T) {
 		m := newEd(t)
+		m.CursorR, m.CursorC = 0, 0
+		m.SymIdx = 2 // ▄ lo half
+		m.PaintCh = SymbolList[2].Ch
+		m = send(m, key('P'))
+		got := m.Current().At(0, 0).Ch
+		if got != SymbolList[2].Ch {
+			t.Fatalf("P must still paste list[%d]=%q, got %q", 2, string(SymbolList[2].Ch), string(got))
+		}
+	})
+	t.Run("unhappy: p does not scroll or cycle the symbol list", func(t *testing.T) {
+		m := newEd(t)
+		m.CursorR, m.CursorC = 0, 0
+		beforeIdx := m.SymIdx
+		beforeCh := m.PaintCh
+		if beforeIdx != 0 || beforeCh != SymbolList[0].Ch {
+			t.Fatalf("precondition: boot on list[0]=%q, got idx=%d ch=%q", string(SymbolList[0].Ch), beforeIdx, string(beforeCh))
+		}
 		m = send(m, key('p'))
-		if m.PaintCh == 0 || m.PaintCh == ' ' {
-			t.Fatal("p must pick a real block element")
+		if m.SymIdx != beforeIdx {
+			t.Fatalf("p must not be consumed as scroll/cycle, SymIdx %d -> %d", beforeIdx, m.SymIdx)
+		}
+		if m.PaintCh != beforeCh {
+			t.Fatalf("p must not cycle PaintCh, got %q want %q", string(m.PaintCh), string(beforeCh))
+		}
+		next := SymbolList[1].Ch
+		if m.Current().At(0, 0).Ch == next {
+			t.Fatalf("p must not scroll onto the next symbol %q", string(next))
 		}
 	})
 }
@@ -310,9 +354,14 @@ func TestPasteFromSymbolList(t *testing.T) {
 			t.Fatalf("P must paste list[%d]=%q", 1, string(SymbolList[1].Ch))
 		}
 	})
-	t.Run("happy: the view shows a symbols list with halves and quarters", func(t *testing.T) {
+	t.Run("happy: the symbols popup shows halves and quarters", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 100, 36
+		m = send(m, keyCtrl('w'))
+		m = send(m, key('l'))
+		if m.Win != WinSymbols {
+			t.Fatalf("Ctrl-W L must open the symbols popup, got %v", m.Win)
+		}
 		v := m.View().Content
 		for _, want := range []string{"symbols", "▀", "▖", "half", "quarter"} {
 			if !strings.Contains(strings.ToLower(v), strings.ToLower(want)) && !strings.Contains(v, want) {

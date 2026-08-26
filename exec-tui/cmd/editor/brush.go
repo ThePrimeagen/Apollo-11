@@ -1,7 +1,7 @@
 package editor
 
 // Paint kit: ten clutch colors on 1-0, a named symbol list of full / half /
-// quarter blocks, P pastes the selected symbol, and i enters one-shot insert
+// quarter blocks, p/P pastes the selected symbol, and i enters one-shot insert
 // so you can type any character.
 
 import "fmt"
@@ -121,28 +121,6 @@ func rememberGlyph(list []rune, v rune, capN int) []rune {
 	return out
 }
 
-func seedColors() []Swatch {
-	// named LM materials, then extra whites/greys so the clutch is useful
-	// before anyone opens the 8-bit picker.
-	return []Swatch{
-		{FG: 252, BG: -1}, // silver
-		{FG: 178, BG: 94}, // gold
-		{FG: 24, BG: 232}, // window
-		{FG: 245, BG: -1}, // engine
-		{FG: 208, BG: 52}, // plume
-		{FG: 255, BG: -1}, // white
-		{FG: 254, BG: -1},
-		{FG: 253, BG: -1},
-		{FG: 251, BG: -1},
-		{FG: 250, BG: -1},
-	}
-}
-
-func seedGlyphs() []rune {
-	out := append([]rune(nil), DefaultGlyphs...)
-	return out
-}
-
 func cubeColor(red, idx int) int {
 	// idx is 0-35 in a 6x6 green×blue slice; red is 0-5.
 	if red < 0 {
@@ -162,23 +140,6 @@ func cubeColor(red, idx int) int {
 	return 16 + red*36 + green*cubeSide + blue
 }
 
-func (m *Model) cyclePaint() {
-	n := len(SymbolList)
-	if n == 0 {
-		return
-	}
-	idx := m.SymIdx
-	for i, s := range SymbolList {
-		if s.Ch == m.PaintCh {
-			idx = i
-			break
-		}
-	}
-	m.SymIdx = (idx + 1) % n
-	m.PaintCh = SymbolList[m.SymIdx].Ch
-	m.status = fmt.Sprintf("paint %s %s", string(m.PaintCh), SymbolList[m.SymIdx].Name)
-}
-
 func (m *Model) syncSymIdx() {
 	for i, s := range SymbolList {
 		if s.Ch == m.PaintCh {
@@ -196,7 +157,28 @@ func (m *Model) applyGlyphKey(r rune) bool {
 	ch := DefaultGlyphs[i]
 	m.PaintCh = ch
 	m.syncSymIdx()
+	m.RecentGlyphs = rememberGlyph(m.RecentGlyphs, ch, 10)
 	m.status = fmt.Sprintf("paint %s", string(ch))
+	return true
+}
+
+func (m *Model) pickRecentGlyph(i int) bool {
+	if i < 0 || i >= len(m.RecentGlyphs) {
+		return false
+	}
+	m.PaintCh = m.RecentGlyphs[i]
+	m.syncSymIdx()
+	m.status = fmt.Sprintf("paint %s", string(m.PaintCh))
+	return true
+}
+
+func (m *Model) pickRecentColor(i int) bool {
+	if i < 0 || i >= len(m.RecentColors) {
+		return false
+	}
+	m.Brush = m.RecentColors[i]
+	m.PalIdx = -1
+	m.status = fmt.Sprintf("color fg %d bg %d", m.Brush.FG, m.Brush.BG)
 	return true
 }
 
@@ -208,13 +190,13 @@ func (m *Model) applyColorKey(r rune) bool {
 	if i >= len(m.RecentColors) {
 		return true // consumed, nothing to load
 	}
-	m.Brush = m.RecentColors[i]
-	m.PalIdx = -1
-	m.status = fmt.Sprintf("color fg %d bg %d", m.Brush.FG, m.Brush.BG)
-	return true
+	return m.pickRecentColor(i)
 }
 
 func (m *Model) openPicker() {
+	if m.ColorPaletteOpen || m.ShipPickerOpen || m.GlyphGridOpen || m.Inserting {
+		return
+	}
 	m.PickerOpen = true
 	m.PickerIdx = 23 // start on white 255
 	m.status = "8-bit picker  hjkl  space pick  esc close  [ ] cube slice"

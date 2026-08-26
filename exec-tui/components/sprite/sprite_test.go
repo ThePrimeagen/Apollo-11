@@ -181,6 +181,46 @@ func TestRenderANSI(t *testing.T) {
 	})
 }
 
+func TestCustomColorsSurviveWriteFile(t *testing.T) {
+	t.Run("happy: an off-palette cell keeps glyph and colors on disk", func(t *testing.T) {
+		a := &Atlas{Palette: append([]PaletteEntry(nil), DefaultPalette...)}
+		sp := New(13, 5)
+		want := Cell{Ch: 'Ω', FG: 123, BG: 45}
+		sp.Set(1, 2, want)
+		a.SetFrame(Size1, N, sp)
+		path := t.TempDir() + "/lm.json"
+		if err := a.WriteFile(path); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := LoadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := loaded.MustFrame(Size1, N).At(1, 2)
+		if got != want {
+			t.Fatalf("disk cell %+v, want %+v", got, want)
+		}
+	})
+	t.Run("unhappy: a space does not invent a color on reload", func(t *testing.T) {
+		a := &Atlas{Palette: append([]PaletteEntry(nil), DefaultPalette...)}
+		sp := New(13, 5)
+		sp.Set(0, 0, Cell{Ch: ' ', FG: 123, BG: 45})
+		a.SetFrame(Size1, N, sp)
+		path := t.TempDir() + "/lm.json"
+		if err := a.WriteFile(path); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := LoadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := loaded.MustFrame(Size1, N).At(0, 0)
+		if !got.Transparent() || got.FG != -1 || got.BG != -1 {
+			t.Fatalf("blank cell must stay blank, got %+v", got)
+		}
+	})
+}
+
 func TestPaletteJSONIsEditable(t *testing.T) {
 	t.Run("happy: JSON keeps the lander as rows of characters a human can edit", func(t *testing.T) {
 		raw, err := testAtlas(t).Marshal()

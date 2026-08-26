@@ -3,12 +3,14 @@ package editor
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
+	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
 // Window is one vim-style split.
@@ -59,6 +61,8 @@ type Model struct {
 	sel        map[cellKey]bool
 	err        string
 	status     string
+	toast      string
+	toastID    int
 
 	Brush        Swatch
 	PaintCh      rune
@@ -70,6 +74,22 @@ type Model struct {
 	PickerIdx    int
 	PickerCube   bool
 	CubeRed      int
+
+	AssetsDir string
+
+	ShipPickerOpen bool
+	ShipPickerSize sprite.Size
+	ShipPickerHead sprite.Heading
+	sizeCache      map[sprite.Size]*sprite.Atlas
+	sizePaths      map[sprite.Size]string
+
+	GlyphGridOpen  bool
+	GlyphGridDigit rune
+	GlyphGridRow   int
+	GlyphGridCol   int
+
+	ColorPaletteOpen bool
+	ColorPaletteIdx  int
 }
 
 // New boots the editor on an atlas. path is where :w / Save writes.
@@ -84,30 +104,38 @@ func New(a *sprite.Atlas, path string) Model {
 		pal = 0
 	}
 	return Model{
-		Atlas:        a,
-		Size:         sprite.Size4,
-		Heading:      sprite.N,
-		Path:         path,
-		Win:          WinCanvas,
-		PalIdx:       pal,
-		TermW:        80,
-		TermH:        24,
-		CanvasX:      1,
-		CanvasY:      2,
-		sel:          map[cellKey]bool{},
-		Brush:        Swatch{FG: 252, BG: -1},
-		PaintCh:      '█',
-		SymIdx:       0,
-		RecentColors: seedColors(),
-		RecentGlyphs: seedGlyphs(),
-		PickerIdx:    23,
-		status:       "i insert one  P paste  p cycle  1-0 colors  !@# glyphs  c 8-bit  d delete  ^W hjkl  q quit",
+		Atlas:     a,
+		Size:      sprite.Size4,
+		Heading:   sprite.N,
+		Path:      path,
+		Win:       WinCanvas,
+		PalIdx:    pal,
+		TermW:     80,
+		TermH:     24,
+		CanvasX:   1,
+		CanvasY:   2,
+		sel:       map[cellKey]bool{},
+		Brush:     Swatch{FG: 252, BG: -1},
+		PaintCh:   '█',
+		SymIdx:    0,
+		PickerIdx: 23,
+		status:    "s save  i insert  p paste  [ ] heading  ^P 4×8  ^J glyphs  ^K colors  ^W hjkl popups  c 8-bit  q quit",
 	}
 }
 
-// Current is the sprite under edit.
+// Current is the sprite under edit. A missing frame is an empty
+// footprint, never a panic — a bad atlas must not kill the TUI.
 func (m Model) Current() sprite.Sprite {
-	return m.Atlas.MustFrame(m.Size, m.Heading)
+	if m.Atlas != nil {
+		if sp, ok := m.Atlas.Frame(m.Size, m.Heading); ok {
+			return sp
+		}
+	}
+	w, h := m.Size.Dim()
+	if w < 1 || h < 1 {
+		w, h = 1, 1
+	}
+	return sprite.New(w, h)
 }
 
 func (m *Model) setCurrent(sp sprite.Sprite) {
@@ -128,6 +156,10 @@ func (m *Model) SetErr(s string) { m.err = s }
 
 func (m Model) Init() tea.Cmd { return nil }
 
+const saveToastTTL = 5 * time.Second
+
+type saveToastClearMsg struct{ id int }
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -135,6 +167,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.MouseClickMsg:
 		m.handleMouse(msg)
+		return m, nil
+	case saveToastClearMsg:
+		if msg.id == m.toastID {
+			m.toast = ""
+		}
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -162,8 +199,26 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// ctrl-s saves even when a popup would otherwise swallow keys.
+	// Plain s stays below so the glyph grid can still use column "s".
+	if !m.Inserting && msg.String() == "ctrl+s" {
+		return m, m.SaveWithToast()
+	}
+
 	if m.PickerOpen {
 		return m.handlePickerKey(msg)
+	}
+
+	if m.ShipPickerOpen {
+		return m.handleShipPickerKey(msg)
+	}
+
+	if m.GlyphGridOpen {
+		return m.handleGlyphGridKey(msg)
+	}
+
+	if m.ColorPaletteOpen {
+		return m.handleColorPaletteKey(msg)
 	}
 
 	if m.Inserting {
@@ -173,10 +228,26 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
+	case "ctrl+s":
+		return m, m.SaveWithToast()
 	case "ctrl+w":
 		m.pendingWin = true
 		return m, nil
+	case "ctrl+p":
+		m.openShipPicker()
+		return m, nil
+	case "ctrl+j":
+		m.openGlyphGrid()
+		return m, nil
+	case "ctrl+k":
+		m.openColorPalette()
+		return m, nil
 	case "esc":
+		if m.Win != WinCanvas {
+			m.Win = WinCanvas
+			m.status = "canvas"
+			return m, nil
+		}
 		m.sel = map[cellKey]bool{}
 		m.Inserting = false
 		return m, nil
@@ -200,23 +271,29 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch r {
+	case 's':
+		return m, m.SaveWithToast()
 	case 'q':
 		return m, tea.Quit
 	case 'c':
 		m.openPicker()
-	case 'p':
-		m.cyclePaint()
-	case 'P':
+	case 'p', 'P':
 		m.pasteSymbol()
 	case 'h', 'j', 'k', 'l':
 		m.move(r)
+	case '[':
+		m.stepHeading(-1)
+	case ']':
+		m.stepHeading(1)
 	case 'i', 'I':
 		m.Inserting = true
 		m.status = "-- INSERT one char (esc cancel) --"
-	case 'd', 'D', 'x':
+	case 'd', 'D':
 		if m.Win == WinCanvas {
 			m.paint('d')
 		}
+	case 'x':
+		m.cutPickup()
 	case 'f':
 		if m.Win == WinCanvas {
 			m.paint('f')
@@ -258,6 +335,8 @@ func (m *Model) winDown() {
 
 func (m *Model) winUp() {
 	switch m.Win {
+	case WinCanvas:
+		m.Win = WinFrames
 	case WinFrames:
 		m.Win = WinPalette
 	case WinPalette:
@@ -340,6 +419,7 @@ func (m *Model) space() {
 	case WinSymbols:
 		if m.SymIdx >= 0 && m.SymIdx < len(SymbolList) {
 			m.PaintCh = SymbolList[m.SymIdx].Ch
+			m.RecentGlyphs = rememberGlyph(m.RecentGlyphs, m.PaintCh, 10)
 			m.status = fmt.Sprintf("symbol %s", SymbolList[m.SymIdx].Name)
 		}
 	}
@@ -398,13 +478,9 @@ func (m *Model) move(r rune) {
 	case WinFrames:
 		switch r {
 		case 'h':
-			m.Heading = prevHeading(m.Heading)
-			m.clampCursor()
-			m.sel = map[cellKey]bool{}
+			m.stepHeading(-1)
 		case 'l':
-			m.Heading = nextHeading(m.Heading)
-			m.clampCursor()
-			m.sel = map[cellKey]bool{}
+			m.stepHeading(1)
 		case 'k':
 			if m.Size > sprite.Size1 {
 				m.Size--
@@ -455,6 +531,35 @@ func prevHeading(h sprite.Heading) sprite.Heading {
 	return sprite.N
 }
 
+func (m *Model) stepHeading(delta int) {
+	n := len(sprite.Headings)
+	if n == 0 || m.Atlas == nil {
+		return
+	}
+	start := 0
+	for i, h := range sprite.Headings {
+		if h == m.Heading {
+			start = i
+			break
+		}
+	}
+	for i := 1; i <= n; i++ {
+		idx := start + delta*i
+		idx %= n
+		if idx < 0 {
+			idx += n
+		}
+		h := sprite.Headings[idx]
+		if _, ok := m.Atlas.Frame(m.Size, h); ok {
+			m.Heading = h
+			m.clampCursor()
+			m.sel = map[cellKey]bool{}
+			m.status = "heading " + string(h)
+			return
+		}
+	}
+}
+
 func (m *Model) targets() []cellKey {
 	if len(m.sel) > 0 {
 		out := make([]cellKey, 0, len(m.sel))
@@ -472,6 +577,28 @@ func (m *Model) color() Swatch {
 		return Swatch{FG: p.FG, BG: p.BG}
 	}
 	return m.Brush
+}
+
+// cutPickup is x: delete the cell under the cursor and make that glyph
+// plus color the active brush. An empty cell stays empty and leaves the
+// brush alone — no invented glyph.
+func (m *Model) cutPickup() {
+	if m.Win != WinCanvas {
+		return
+	}
+	sp := cloneSprite(m.Current())
+	c := sp.At(m.CursorR, m.CursorC)
+	if !c.Transparent() {
+		m.PaintCh = c.Ch
+		m.syncSymIdx()
+		m.RecentGlyphs = rememberGlyph(m.RecentGlyphs, c.Ch, 10)
+		m.Brush = Swatch{FG: c.FG, BG: c.BG}
+		m.PalIdx = -1
+		m.RecentColors = rememberSwatch(m.RecentColors, m.Brush, 10)
+		m.status = fmt.Sprintf("cut %q fg %d bg %d", string(c.Ch), c.FG, c.BG)
+	}
+	sp.Set(m.CursorR, m.CursorC, sprite.Cell{Ch: ' ', FG: -1, BG: -1})
+	m.setCurrent(sp)
 }
 
 func (m *Model) paint(mode rune) {
@@ -572,8 +699,9 @@ func (m *Model) handleMouse(msg tea.MouseClickMsg) {
 	}
 	x, y := msg.X, msg.Y
 	sp := m.Current()
-	// canvas
-	cx, cy := m.CanvasX, m.CanvasY
+	tw, th := m.termSize()
+	cx, cy := canvasOrigin(tw, th, sp.Width, sp.Height)
+	m.CanvasX, m.CanvasY = cx, cy
 	if x >= cx && x < cx+sp.Width && y >= cy && y < cy+sp.Height {
 		m.Win = WinCanvas
 		m.CursorC = x - cx
@@ -581,59 +709,170 @@ func (m *Model) handleMouse(msg tea.MouseClickMsg) {
 		m.clampCursor()
 		return
 	}
-	// symbols list sits in the right sidebar, starting at the same row as
-	// the canvas box (title is line 0, box top is line 1, inner is line 2).
-	sideX := sp.Width + 2 + 1
-	if x >= sideX {
-		rows := symbolRows()
-		// header line inside the symbols box is "full · half · quarter"
-		innerY := y - 2
-		if innerY >= 1 && innerY < 1+len(rows) {
-			row := rows[innerY-1]
-			m.Win = WinSymbols
-			if row.idx >= 0 {
-				m.SymIdx = row.idx
-				m.PaintCh = SymbolList[row.idx].Ch
-			}
-			return
-		}
-		if innerY == 0 || (y >= 1 && y < 2+1+len(rows)) {
-			m.Win = WinSymbols
-			return
-		}
+	if m.handleRecentsClick(x, y) {
+		return
 	}
-	// clicks off the canvas must not invent an out-of-range cursor
 	m.clampCursor()
 }
 
-// Save writes the atlas JSON to Path.
+// Save writes the current canvas to the title-bar path, then flushes
+// every other size still sitting in sizeCache. Ctrl-P swaps atlases;
+// saving only the one on screen used to leave the lander in RAM.
 func (m Model) Save() error {
 	if m.Path == "" {
 		return fmt.Errorf("no path to save")
 	}
-	return m.Atlas.WriteFile(m.Path)
+	if m.Atlas == nil {
+		return fmt.Errorf("no atlas to save")
+	}
+	m.Atlas.SetFrame(m.Size, m.Heading, cloneSprite(m.Current()))
+	if err := m.Atlas.WriteFile(m.Path); err != nil {
+		return err
+	}
+	return m.flushSizeCache()
+}
+
+func (m Model) flushSizeCache() error {
+	for sz, a := range m.sizeCache {
+		if a == nil || a == m.Atlas || sz == m.Size {
+			continue
+		}
+		path := ""
+		if m.sizePaths != nil {
+			path = m.sizePaths[sz]
+		}
+		if path == "" {
+			path = m.sizeAssetPath(sz)
+		}
+		if path == "" || path == m.Path {
+			continue
+		}
+		if err := a.WriteFile(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SaveWithToast writes the atlas and flashes a 3-height confirmation
+// above the art for saveToastTTL. A stale tick from an earlier save
+// cannot dismiss a newer toast.
+func (m *Model) SaveWithToast() tea.Cmd {
+	m.toastID++
+	id := m.toastID
+	m.status = ""
+	m.err = ""
+	if err := m.Save(); err != nil {
+		m.toast = "ERR"
+	} else {
+		m.toast = "SAVED"
+	}
+	return tea.Tick(saveToastTTL, func(time.Time) tea.Msg {
+		return saveToastClearMsg{id: id}
+	})
+}
+
+func (m Model) saveToastLines() []string {
+	if m.toast == "" {
+		return nil
+	}
+	lines, err := termfont.Lines(3, m.toast)
+	if err != nil {
+		return []string{m.toast}
+	}
+	return lines
+}
+
+func (m Model) termSize() (w, h int) {
+	w, h = m.TermW, m.TermH
+	if w < 1 {
+		w = 80
+	}
+	if h < 1 {
+		h = 24
+	}
+	return w, h
+}
+
+// canvasOrigin is the inner top-left of the sprite box after a 1-line
+// title and before a 2-line footer, with the box centered in the rest.
+func canvasOrigin(termW, termH, spriteW, spriteH int) (x, y int) {
+	boxW, boxH := spriteW+2, spriteH+2
+	padX := (termW - boxW) / 2
+	if padX < 0 {
+		padX = 0
+	}
+	avail := termH - 3
+	if avail < 1 {
+		avail = 1
+	}
+	padY := (avail - boxH) / 2
+	if padY < 0 {
+		padY = 0
+	}
+	return padX + 1, 1 + padY + 1
+}
+
+func (m Model) centeredCanvas() string {
+	sp := m.Current()
+	tw, th := m.termSize()
+	ox, oy := canvasOrigin(tw, th, sp.Width, sp.Height)
+	padX, padY := ox-1, oy-2
+	if padX < 0 {
+		padX = 0
+	}
+	if padY < 0 {
+		padY = 0
+	}
+	raw := renderCanvas(sp, m)
+	lines := strings.Split(raw, "\n")
+	boxW := 0
+	if len(lines) > 0 {
+		boxW = displayLen(lines[0])
+		if padX+boxW > tw {
+			padX = tw - boxW
+			if padX < 0 {
+				padX = 0
+			}
+		}
+	}
+	toast := m.saveToastLines()
+	blanks := padY
+	if n := len(toast); n > 0 && blanks >= n {
+		blanks -= n
+	}
+	var b strings.Builder
+	for i := 0; i < blanks; i++ {
+		b.WriteByte('\n')
+	}
+	for _, line := range toast {
+		tp := padX + (boxW-displayLen(line))/2
+		if tp < 0 {
+			tp = 0
+		}
+		b.WriteString(clipTo(strings.Repeat(" ", tp)+line, tw))
+		b.WriteByte('\n')
+	}
+	for i, line := range lines {
+		out := strings.Repeat(" ", padX) + line
+		b.WriteString(clipTo(out, tw))
+		if i+1 < len(lines) {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 func (m Model) View() tea.View {
-	if m.TermW < 1 {
-		m.TermW = 80
-	}
-	if m.TermH < 1 {
-		m.TermH = 24
-	}
+	tw, th := m.termSize()
+	m.TermW, m.TermH = tw, th
 	sp := m.Current()
 	title := fmt.Sprintf("LM EDITOR  size %d  heading %s  %s", m.Size, m.Heading, m.Path)
 	if m.Path == "" {
 		title = fmt.Sprintf("LM EDITOR  size %d  heading %s", m.Size, m.Heading)
 	}
 
-	canvas := renderCanvas(sp, m)
-	symbols := renderSymbols(m)
-	palette := renderPalette(m)
-	frames := renderFrames(m)
-	sidebar := joinVert(joinVert(symbols, palette), frames)
-
-	body := joinHoriz(canvas, sidebar)
+	body := m.centeredCanvas()
 	status := m.status
 	if m.Inserting && status == "" {
 		status = "-- INSERT one char (esc cancel) --"
@@ -645,17 +884,54 @@ func (m Model) View() tea.View {
 	meta := fmt.Sprintf("cell (%d,%d) %q fg %d bg %d  [%s]",
 		m.CursorR, m.CursorC, string(cur.Ch), cur.FG, cur.BG, m.Win)
 
-	v := tea.NewView(title + "\n" + body + "\n" + meta + "\n" + status)
+	content := clipTo(title, tw) + "\n" + body + "\n" +
+		clipLines(renderRecents(m), tw) + "\n" +
+		clipTo(meta, tw) + "\n" +
+		clipTo(status, tw)
+	switch m.Win {
+	case WinSymbols:
+		content = renderSymbols(m) + "\n" + content
+	case WinPalette:
+		content = renderPalette(m) + "\n" + content
+	case WinFrames:
+		content = renderFrames(m) + "\n" + content
+	}
+	if m.PickerOpen {
+		content = renderEightBitOverlay(m) + "\n" + content
+	}
+	if m.ShipPickerOpen {
+		content = renderShipPicker(m) + "\n" + content
+	}
+	if m.GlyphGridOpen {
+		content = renderGlyphGrid(m) + "\n" + content
+	}
+	if m.ColorPaletteOpen {
+		content = renderColorPalette(m) + "\n" + content
+	}
+	v := tea.NewView(content)
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
+}
+
+func renderEightBitOverlay(m Model) string {
+	const w = 36
+	lines := []string{padPlain(fmt.Sprintf("8-bit ▾  %s", pickerLabel(m)), w)}
+	lines = append(lines, renderPickerGrid(m, w)...)
+	return box(" 8-bit ", lines, w)
 }
 
 func renderCanvas(sp sprite.Sprite, m Model) string {
 	inner := make([]string, sp.Height)
 	for r := 0; r < sp.Height; r++ {
 		var b strings.Builder
+		skip := 0
+		used := 0
 		for c := 0; c < sp.Width; c++ {
+			if skip > 0 {
+				skip--
+				continue
+			}
 			cell := sp.At(r, c)
 			ch := cell.Ch
 			if ch == 0 || ch == ' ' {
@@ -664,6 +940,12 @@ func renderCanvas(sp sprite.Sprite, m Model) string {
 				} else {
 					ch = ' '
 				}
+			}
+			cols := runeCols(ch)
+			if used+cols > sp.Width {
+				b.WriteString(strings.Repeat(" ", sp.Width-used))
+				used = sp.Width
+				break
 			}
 			s := string(ch)
 			if m.Selected(r, c) {
@@ -674,8 +956,15 @@ func renderCanvas(sp sprite.Sprite, m Model) string {
 				s = sprite.Render(oneCell(cell))
 			}
 			b.WriteString(s)
+			used += cols
+			if cols > 1 {
+				skip = cols - 1
+			}
 		}
-		inner[r] = b.String()
+		if used < sp.Width {
+			b.WriteString(strings.Repeat(" ", sp.Width-used))
+		}
+		inner[r] = clipPad(b.String(), sp.Width)
 	}
 	label := fmt.Sprintf(" canvas %dx%d %s ", sp.Width, sp.Height, m.Heading)
 	return box(label, inner, sp.Width)
@@ -812,16 +1101,81 @@ func renderGlyphs(m Model) string {
 		}
 	}
 	if len(m.RecentGlyphs) > 0 {
-		b.WriteString("  past ")
+		b.WriteString("  recent glyphs ")
 		n := len(m.RecentGlyphs)
-		if n > 6 {
-			n = 6
+		if n > 10 {
+			n = 10
 		}
 		for i := 0; i < n; i++ {
 			b.WriteRune(m.RecentGlyphs[i])
 		}
 	}
 	return b.String()
+}
+
+const (
+	recentGlyphsLabel = "recent glyphs  "
+	recentColorsLabel = "recent colors  "
+)
+
+func renderRecentGlyphs(m Model) string {
+	var b strings.Builder
+	b.WriteString(recentGlyphsLabel)
+	n := len(m.RecentGlyphs)
+	if n > 10 {
+		n = 10
+	}
+	for i := 0; i < n; i++ {
+		ch := m.RecentGlyphs[i]
+		if m.PaintCh == ch {
+			b.WriteString("\x1b[7m")
+			b.WriteRune(ch)
+			b.WriteString("\x1b[0m")
+		} else {
+			b.WriteRune(ch)
+		}
+	}
+	return b.String()
+}
+
+func renderRecentColors(m Model) string {
+	return recentColorsLabel + renderClutch(m)
+}
+
+func renderRecents(m Model) string {
+	return renderRecentGlyphs(m) + "\n" + renderRecentColors(m)
+}
+
+func recentsOrigin(termW, termH, spriteW, spriteH int) (glyphY, colorY int) {
+	_, oy := canvasOrigin(termW, termH, spriteW, spriteH)
+	glyphY = oy + spriteH + 1
+	colorY = glyphY + 1
+	return glyphY, colorY
+}
+
+func (m *Model) handleRecentsClick(x, y int) bool {
+	if m.PickerOpen || m.ShipPickerOpen || m.GlyphGridOpen || m.ColorPaletteOpen {
+		return false
+	}
+	if m.Win != WinCanvas {
+		return false
+	}
+	sp := m.Current()
+	tw, th := m.termSize()
+	glyphY, colorY := recentsOrigin(tw, th, sp.Width, sp.Height)
+	label := len([]rune(recentGlyphsLabel))
+	if y == glyphY && x >= label {
+		return m.pickRecentGlyph(x - label)
+	}
+	if y == colorY && x >= label {
+		// clutch cells are "1█ " (digit, swatch, space)
+		rel := x - label
+		if rel < 0 {
+			return false
+		}
+		return m.pickRecentColor(rel / 3)
+	}
+	return false
 }
 
 func pickerLabel(m Model) string {
@@ -918,7 +1272,7 @@ func box(title string, inner []string, innerW int) string {
 	b.WriteByte('\n')
 	for _, line := range inner {
 		b.WriteString("│")
-		b.WriteString(line)
+		b.WriteString(clipPad(line, innerW))
 		b.WriteString("│\n")
 	}
 	b.WriteString(bot)
@@ -926,27 +1280,22 @@ func box(title string, inner []string, innerW int) string {
 }
 
 func padTitle(title string, innerW int) string {
-	t := []rune(title)
-	if len(t) > innerW {
-		t = t[:innerW]
+	t := clipTo(title, innerW)
+	dash := innerW - displayLen(t)
+	if dash < 0 {
+		dash = 0
 	}
-	dash := innerW - len(t)
 	left := dash / 2
 	right := dash - left
-	return strings.Repeat("─", left) + string(t) + strings.Repeat("─", right)
+	return strings.Repeat("─", left) + t + strings.Repeat("─", right)
 }
 
 func padPlain(s string, w int) string {
-	n := visibleLen(s)
-	if n >= w {
-		return s
-	}
-	return s + strings.Repeat(" ", w-n)
+	return clipPad(s, w)
 }
 
 func visibleLen(s string) int {
-	plain := strip(s)
-	return len([]rune(plain))
+	return displayLen(s)
 }
 
 func strip(s string) string {

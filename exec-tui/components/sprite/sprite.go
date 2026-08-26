@@ -252,12 +252,69 @@ type frameDoc struct {
 	BG     []string `json:"bg"`
 }
 
+// paletteIDChars are single-rune ids the fg/bg masks can store. Named
+// materials occupy .SGWEP; extras are allocated from the rest.
+const paletteIDChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz"
+
+// rememberColors adds palette entries for painted fg/bg values that
+// are not already named. Without this, Marshal silently writes "." and
+// a reload drops the color.
+func (a *Atlas) rememberColors() {
+	if a == nil {
+		return
+	}
+	used := map[string]bool{}
+	for _, p := range a.Palette {
+		used[p.ID] = true
+	}
+	nextID := func() string {
+		for _, r := range paletteIDChars {
+			id := string(r)
+			if !used[id] {
+				used[id] = true
+				return id
+			}
+		}
+		return ""
+	}
+	add := func(fg, bg int) {
+		needFG := fg >= 0 && a.idForFG(fg) == "."
+		needBG := bg >= 0 && a.idForBG(bg) == "."
+		if !needFG && !needBG {
+			return
+		}
+		id := nextID()
+		if id == "" {
+			return
+		}
+		name := fmt.Sprintf("c%d", fg)
+		if bg >= 0 {
+			name = fmt.Sprintf("c%d_%d", fg, bg)
+		}
+		a.Palette = append(a.Palette, PaletteEntry{ID: id, Name: name, FG: fg, BG: bg})
+	}
+	for _, byH := range a.frames {
+		for _, sp := range byH {
+			for r := 0; r < sp.Height; r++ {
+				for c := 0; c < sp.Width; c++ {
+					cell := sp.At(r, c)
+					if cell.Transparent() {
+						continue
+					}
+					add(cell.FG, cell.BG)
+				}
+			}
+		}
+	}
+}
+
 // Marshal emits indented JSON a human can edit: palette, then per-size
 // per-heading rows of glyphs plus fg/bg material masks.
 func (a *Atlas) Marshal() ([]byte, error) {
 	if a == nil {
 		return nil, fmt.Errorf("nil atlas")
 	}
+	a.rememberColors()
 	doc := fileFormat{
 		Palette: a.Palette,
 		Frames:  map[string]map[string]frameDoc{},

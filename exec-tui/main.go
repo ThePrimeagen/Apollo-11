@@ -6,14 +6,18 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 	"github.com/theprimeagen/apollo-11/exec-tui/ui"
@@ -69,6 +73,8 @@ func launch(e menu.Entry) error {
 		return err
 	case "flame":
 		return runFlame()
+	case "editor":
+		return runEditor()
 	}
 	return fmt.Errorf("unknown in-process program %q", e.ID)
 }
@@ -82,6 +88,30 @@ func runFlame() error {
 		return err
 	}
 	m, err := adjustflame.Open(filepath.Join(root, filepath.FromSlash(adjustflame.DefaultConfigPath)))
+	if err != nil {
+		return err
+	}
+	_, err = tea.NewProgram(m, colorOpts()...).Run()
+	return err
+}
+
+// runEditor opens the LM sprite editor on the shipped size-4 atlas.
+// In-process so a bad file returns the load error on the menu instead
+// of a bare `go run` exit status.
+func runEditor() error {
+	root, err := ownModuleRoot()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(root, filepath.FromSlash(editor.DefaultAtlasPath))
+	if _, err := os.Stat(path); err != nil {
+		if cand := filepath.Join(editor.FindAssetsDir(), "lm-4.json"); cand != path {
+			if _, err := os.Stat(cand); err == nil {
+				path = cand
+			}
+		}
+	}
+	m, err := editor.Open(path)
 	if err != nil {
 		return err
 	}
@@ -109,8 +139,35 @@ func runLocal(e menu.Entry) error {
 	}
 	cmd := exec.Command("go", "run", e.Pkg)
 	cmd.Dir = root
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
+	var captured bytes.Buffer
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = io.MultiWriter(os.Stderr, &captured)
+	err = cmd.Run()
+	if err == nil {
+		return nil
+	}
+	if detail := lastNonEmptyLines(captured.String(), 6); detail != "" {
+		return fmt.Errorf("%w: %s", err, detail)
+	}
+	return err
+}
+
+func lastNonEmptyLines(s string, n int) string {
+	var lines []string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, " · ")
 }
 
 // runExternal hands the terminal to a sibling lab via `go run`, from the

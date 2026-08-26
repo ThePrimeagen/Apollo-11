@@ -1,13 +1,14 @@
 package editor
 
 // Tests written FIRST. The lander editor is a vim-ish TUI: HJKL walk the
-// canvas, space selects, P pastes the selected symbol, i inserts one
+// canvas, space selects, p/P pastes the selected symbol, i inserts one
 // character, D deletes to transparent, Ctrl-A / Ctrl-B walk the shade ramp,
-// mouse click jumps the cursor, and Ctrl-W H / Ctrl-W L (plus J/K) move
-// between canvas, symbols, palette, and frames.
+// mouse click jumps the cursor, and Ctrl-W H / Ctrl-W L (plus J/K) open
+// control popups around a centered canvas (no permanent sidebar).
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
+	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
 func newEd(t *testing.T) Model {
@@ -254,8 +256,15 @@ func TestWindows(t *testing.T) {
 	})
 	t.Run("unhappy: a dangling Ctrl-W is cancelled by escape, not treated as h/j/k/l", func(t *testing.T) {
 		m := newEd(t)
+		m.TermW, m.TermH = 80, 24
 		m = send(m, keyCtrl('w'))
 		m = send(m, keyType(tea.KeyEsc))
+		if m.Win != WinCanvas {
+			t.Fatal("Ctrl-W Esc must stay on the canvas")
+		}
+		if sidebarChrome(m.View().Content) {
+			t.Fatal("Ctrl-W Esc must not open a control popup")
+		}
 		m = send(m, key('l'))
 		if m.Win != WinCanvas {
 			t.Fatal("after Esc, l must move the cursor, not the window")
@@ -264,19 +273,39 @@ func TestWindows(t *testing.T) {
 			t.Fatalf("l should have moved the canvas cursor, col=%d", m.CursorC)
 		}
 	})
+	t.Run("happy: Esc from a control popup returns to canvas-only", func(t *testing.T) {
+		m := newEd(t)
+		m.TermW, m.TermH = 80, 24
+		m = send(m, keyCtrl('w'))
+		m = send(m, key('l'))
+		if m.Win != WinSymbols {
+			t.Fatal("need the symbols popup open")
+		}
+		m = send(m, keyType(tea.KeyEsc))
+		if m.Win != WinCanvas {
+			t.Fatalf("Esc must return focus to the canvas, got %v", m.Win)
+		}
+		if sidebarChrome(m.View().Content) {
+			t.Fatal("Esc must dismiss the sidebar chrome, not leave it hanging")
+		}
+	})
 }
 
 func TestMouseSelect(t *testing.T) {
-	t.Run("happy: a left click on the canvas moves the cursor", func(t *testing.T) {
+	t.Run("happy: a left click on the centered canvas moves the cursor", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 80, 24
-		// View has a 1-cell border; canvas origin is (1,1) in the view.
+		sp := m.Current()
+		ox, oy := wantCanvasOrigin(m.TermW, m.TermH, sp.Width, sp.Height)
 		m = send(m, tea.MouseClickMsg{
-			X: 4, Y: 3,
+			X: ox + 3, Y: oy + 2,
 			Button: tea.MouseLeft,
 		})
 		if m.CursorC == 0 && m.CursorR == 0 {
 			t.Fatal("click must move the cursor off the origin")
+		}
+		if m.CursorC != 3 || m.CursorR != 2 {
+			t.Fatalf("click on centered canvas landed on (%d,%d), want (2,3) row/col", m.CursorR, m.CursorC)
 		}
 		if m.Win != WinCanvas {
 			t.Fatal("clicking the canvas focuses it")
@@ -293,7 +322,26 @@ func TestMouseSelect(t *testing.T) {
 		if m.CursorR < 0 || m.CursorR >= sp.Height || m.CursorC < 0 || m.CursorC >= sp.Width {
 			t.Fatalf("cursor escaped the sprite: (%d,%d)", m.CursorR, m.CursorC)
 		}
+		if m.CursorR != 0 || m.CursorC != 0 {
+			t.Fatalf("off-canvas click must leave the cursor put, got (%d,%d)", m.CursorR, m.CursorC)
+		}
 	})
+}
+
+func writeSizeShip(t *testing.T, dir string, sz sprite.Size, ch rune) string {
+	t.Helper()
+	w, h := sz.Dim()
+	a := &sprite.Atlas{Palette: append([]sprite.PaletteEntry(nil), sprite.DefaultPalette...)}
+	for _, heading := range sprite.Headings {
+		sp := sprite.New(w, h)
+		sp.Set(0, 0, sprite.Cell{Ch: ch, FG: 252, BG: -1})
+		a.SetFrame(sz, heading, sp)
+	}
+	path := filepath.Join(dir, fmt.Sprintf("lm-%d.json", int(sz)))
+	if err := a.WriteFile(path); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func TestSaveJSON(t *testing.T) {
@@ -332,15 +380,210 @@ func TestSaveJSON(t *testing.T) {
 	})
 }
 
+func TestSavePersistsCurrentCanvas(t *testing.T) {
+	t.Run("happy: unique painted cell survives Save and LoadFile", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "lm-4.json")
+		m := New(lander.DefaultAtlas(), path)
+		m.Size = sprite.Size4
+		m.Heading = sprite.N
+		sp := cloneSprite(m.Current())
+		want := sprite.Cell{Ch: 'Ω', FG: 123, BG: 45}
+		sp.Set(1, 2, want)
+		m.setCurrent(sp)
+		if m.Path != path {
+			t.Fatalf("title-bar path %q, want %q", m.Path, path)
+		}
+		if err := m.Save(); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+		loaded, err := sprite.LoadFile(m.Path)
+		if err != nil {
+			t.Fatalf("LoadFile(%s): %v", m.Path, err)
+		}
+		got := loaded.MustFrame(m.Size, m.Heading).At(1, 2)
+		if got.Ch != want.Ch || got.FG != want.FG || got.BG != want.BG {
+			t.Fatalf("disk cell %+v, want %+v", got, want)
+		}
+	})
+	t.Run("happy: size-4 paint is still on disk after Ctrl-P to size 3 and Save", func(t *testing.T) {
+		dir := t.TempDir()
+		path4 := writeSizeShip(t, dir, sprite.Size4, 'A')
+		path3 := writeSizeShip(t, dir, sprite.Size3, 'B')
+		m, err := Open(path4)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		m.AssetsDir = dir
+		sp := cloneSprite(m.Current())
+		want := sprite.Cell{Ch: 'Ω', FG: 123, BG: 45}
+		sp.Set(1, 2, want)
+		m.setCurrent(sp)
+
+		m = send(m, keyCtrl('p'))
+		m.ShipPickerSize = sprite.Size3
+		m.ShipPickerHead = sprite.N
+		m = send(m, keyType(tea.KeyEnter))
+		if m.Size != sprite.Size3 {
+			t.Fatalf("enter must switch to size 3, got %d", m.Size)
+		}
+		if m.Path != path3 {
+			t.Fatalf("title-bar path %q, want size-3 file %q", m.Path, path3)
+		}
+		if err := m.Save(); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+		cur, err := sprite.LoadFile(m.Path)
+		if err != nil {
+			t.Fatalf("LoadFile current path: %v", err)
+		}
+		if _, ok := cur.Frame(sprite.Size3, sprite.N); !ok {
+			t.Fatal("size-3 file must still have its heading after save")
+		}
+		loaded4, err := sprite.LoadFile(path4)
+		if err != nil {
+			t.Fatalf("LoadFile size 4: %v", err)
+		}
+		got := loaded4.MustFrame(sprite.Size4, sprite.N).At(1, 2)
+		if got.Ch != want.Ch || got.FG != want.FG || got.BG != want.BG {
+			t.Fatalf("size-4 lander was not flushed: disk %+v, want %+v", got, want)
+		}
+	})
+	t.Run("unhappy: Save does not write an empty atlas over the title-bar file", func(t *testing.T) {
+		dir := t.TempDir()
+		path := writeSizeShip(t, dir, sprite.Size4, 'Q')
+		m, err := Open(path)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.Atlas = nil
+		if err := m.Save(); err == nil {
+			t.Fatal("save with no atlas must fail")
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) != string(before) {
+			t.Fatal("failed save must not clobber the file")
+		}
+	})
+}
+
+func TestSaveKeyToast(t *testing.T) {
+	t.Run("happy: s writes the atlas and a 3-height toast that clears", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "lm.json")
+		m := New(lander.DefaultAtlas(), path)
+		m.TermW, m.TermH = 80, 24
+
+		got, cmd := m.Update(key('s'))
+		m = got.(Model)
+		if cmd == nil {
+			t.Fatal("s must start a 5s dismiss tick")
+		}
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("s must save: %v", err)
+		}
+		banner, err := termfont.Lines(3, "SAVED")
+		if err != nil {
+			t.Fatalf("termfont: %v", err)
+		}
+		v := m.View().Content
+		if strings.Contains(v, "wrote ") {
+			t.Fatal("must not keep the old wrote-path status")
+		}
+		for _, line := range banner {
+			if !strings.Contains(v, strings.TrimSpace(line)) {
+				t.Fatalf("view missing 3-height toast line %q\n%s", line, v)
+			}
+		}
+		art := strings.Index(v, "canvas")
+		toast := strings.Index(v, strings.TrimSpace(banner[0]))
+		if toast < 0 || art < 0 || toast > art {
+			t.Fatal("toast must sit above the art")
+		}
+
+		got, cmd = m.Update(keyCtrl('s'))
+		m = got.(Model)
+		if cmd == nil {
+			t.Fatal("ctrl-s must keep saving with a dismiss tick")
+		}
+
+		m = send(m, saveToastClearMsg{id: m.toastID})
+		if m.toast != "" {
+			t.Fatal("toast must vanish after the tick")
+		}
+		v = m.View().Content
+		if strings.Contains(v, strings.TrimSpace(banner[0])) {
+			t.Fatal("dismissed toast must leave the view")
+		}
+	})
+	t.Run("unhappy: failed save still toasts then clears; insert still types s", func(t *testing.T) {
+		m := newEd(t)
+		got, cmd := m.Update(key('s'))
+		m = got.(Model)
+		if cmd == nil {
+			t.Fatal("failed save must still schedule dismiss")
+		}
+		if m.toast != "ERR" {
+			t.Fatalf("failed save must toast ERR, got %q", m.toast)
+		}
+		if m.err != "" {
+			t.Fatal("error must not stick in the status line")
+		}
+		m = send(m, saveToastClearMsg{id: m.toastID})
+		if m.toast != "" {
+			t.Fatal("error toast must clear")
+		}
+
+		dir := t.TempDir()
+		path := filepath.Join(dir, "lm.json")
+		m = New(lander.DefaultAtlas(), path)
+		m.Inserting = true
+		m = send(m, key('s'))
+		if _, err := os.Stat(path); err == nil {
+			t.Fatal("insert mode must type s, not save")
+		}
+		cell := m.Current().At(m.CursorR, m.CursorC)
+		if cell.Ch != 's' {
+			t.Fatalf("insert s must land on the cell, got %q", string(cell.Ch))
+		}
+	})
+}
+
 func TestViewShowsWindows(t *testing.T) {
-	t.Run("happy: the view contains the canvas, a palette, and the frames list", func(t *testing.T) {
+	t.Run("happy: the default view is centered art with no sidebar chrome", func(t *testing.T) {
 		m := newEd(t)
 		m.TermW, m.TermH = 80, 24
 		v := m.View().Content
-		for _, want := range []string{"silver", "gold", "N", "NE"} {
-			if !strings.Contains(v, want) {
-				t.Fatalf("view missing %q", want)
-			}
+		if !strings.Contains(v, "canvas") {
+			t.Fatal("default view must still show the canvas")
+		}
+		if sidebarChrome(v) {
+			t.Fatal("default view must not keep symbols/palette/frames on the side")
+		}
+		if !canvasLineIndented(v) {
+			t.Fatal("the art box must be centered, not jammed against the left edge")
+		}
+		sp := m.Current()
+		ox, _ := wantCanvasOrigin(m.TermW, m.TermH, sp.Width, sp.Height)
+		if ox <= 1 {
+			t.Fatalf("centered canvas origin x=%d, want > 1 on an 80-col terminal", ox)
+		}
+	})
+	t.Run("happy: Ctrl-W L opens the symbols popup over the centered art", func(t *testing.T) {
+		m := newEd(t)
+		m.TermW, m.TermH = 80, 24
+		m = send(m, keyCtrl('w'))
+		m = send(m, key('l'))
+		v := strings.ToLower(m.View().Content)
+		if !strings.Contains(v, "symbols") {
+			t.Fatal("Ctrl-W L must show the symbols popup")
 		}
 	})
 	t.Run("unhappy: a tiny terminal still renders without panicking", func(t *testing.T) {
@@ -350,6 +593,44 @@ func TestViewShowsWindows(t *testing.T) {
 			t.Fatal("tiny view should still produce something")
 		}
 	})
+}
+
+func sidebarChrome(view string) bool {
+	v := strings.ToLower(view)
+	for _, mark := range []string{"symbols", "silver", "gold", " frames "} {
+		if strings.Contains(v, mark) {
+			return true
+		}
+	}
+	return false
+}
+
+func canvasLineIndented(view string) bool {
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "canvas") && strings.Contains(line, "╭") {
+			return strings.HasPrefix(line, " ")
+		}
+	}
+	return false
+}
+
+// wantCanvasOrigin is the inner (x,y) of a box centered in the terminal
+// under a 1-line title and 2-line footer (meta + status).
+func wantCanvasOrigin(termW, termH, spriteW, spriteH int) (x, y int) {
+	boxW, boxH := spriteW+2, spriteH+2
+	padX := (termW - boxW) / 2
+	if padX < 0 {
+		padX = 0
+	}
+	avail := termH - 3
+	if avail < 1 {
+		avail = 1
+	}
+	padY := (avail - boxH) / 2
+	if padY < 0 {
+		padY = 0
+	}
+	return padX + 1, 1 + padY + 1
 }
 
 func TestFrameSwitching(t *testing.T) {
@@ -367,6 +648,111 @@ func TestFrameSwitching(t *testing.T) {
 		m.Size = sprite.Size4
 		if m.Current().Width != 26 {
 			t.Fatalf("size 4 canvas must be 26 wide, got %d", m.Current().Width)
+		}
+	})
+	t.Run("happy: frames h/l walk every heading", func(t *testing.T) {
+		m := newEd(t)
+		m.Win = WinFrames
+		m.Heading = sprite.N
+		seen := map[sprite.Heading]bool{m.Heading: true}
+		for i := 0; i < len(sprite.Headings); i++ {
+			m = send(m, key('l'))
+			seen[m.Heading] = true
+		}
+		if m.Heading != sprite.N {
+			t.Fatalf("eight steps of l must return to N, got %s", m.Heading)
+		}
+		if len(seen) != len(sprite.Headings) {
+			t.Fatalf("l must visit all %d headings, got %d", len(sprite.Headings), len(seen))
+		}
+	})
+	t.Run("happy: [ and ] cycle headings on the canvas", func(t *testing.T) {
+		m := newEd(t)
+		m.Win = WinCanvas
+		m.Heading = sprite.N
+		m = send(m, key(']'))
+		if m.Heading != sprite.NE {
+			t.Fatalf("] must advance N → NE, got %s", m.Heading)
+		}
+		m = send(m, key('['))
+		if m.Heading != sprite.N {
+			t.Fatalf("[ must step back to N, got %s", m.Heading)
+		}
+		seen := map[sprite.Heading]bool{m.Heading: true}
+		for i := 0; i < len(sprite.Headings); i++ {
+			m = send(m, key(']'))
+			seen[m.Heading] = true
+		}
+		if len(seen) != len(sprite.Headings) {
+			t.Fatalf("] must visit all %d headings, got %d", len(sprite.Headings), len(seen))
+		}
+	})
+	t.Run("unhappy: heading keys do not stamp the canvas", func(t *testing.T) {
+		m := newEd(t)
+		m.Win = WinCanvas
+		before := sprite.Render(m.Current())
+		m = send(m, key(']'))
+		m = send(m, key('['))
+		if sprite.Render(m.Atlas.MustFrame(m.Size, sprite.N)) != before {
+			t.Fatal("[ ] must change heading only, not paint N")
+		}
+	})
+	t.Run("unhappy: heading keys skip a missing frame instead of panicking", func(t *testing.T) {
+		m := newEd(t)
+		m.Win = WinCanvas
+		m.Heading = sprite.N
+		n := m.Current()
+		a := &sprite.Atlas{Palette: append([]sprite.PaletteEntry(nil), m.Atlas.Palette...)}
+		a.SetFrame(sprite.Size4, sprite.N, n)
+		a.SetFrame(sprite.Size4, sprite.E, n)
+		m.Atlas = a
+		m = send(m, key(']'))
+		if m.Heading != sprite.E {
+			t.Fatalf("] must skip the missing NE and land on E, got %s", m.Heading)
+		}
+	})
+}
+
+func TestWidePasteDoesNotShredFooter(t *testing.T) {
+	const wide = '◽' // two terminal cells; pasting this used to wrap the footer
+	t.Run("happy: hovering a wide pasted glyph keeps recent/cell/cut labels intact", func(t *testing.T) {
+		m := newEd(t)
+		m.TermW, m.TermH = 80, 24
+		sp := cloneSprite(m.Current())
+		sp.Set(9, 8, sprite.Cell{Ch: wide, FG: 208, BG: 52})
+		m.setCurrent(sp)
+		m.CursorR, m.CursorC = 9, 8
+		m.RecentGlyphs = []rune{wide}
+		m.status = "cut " + string(wide) + " fg 208 bg 52"
+		plain := strip(m.View().Content)
+		if !strings.Contains(plain, "recent glyphs") {
+			t.Fatalf("footer lost 'recent glyphs': %q", plain)
+		}
+		if !strings.Contains(plain, "cell (9,8)") {
+			t.Fatalf("footer lost 'cell (9,8)': %q", plain)
+		}
+		if !strings.Contains(plain, "cut ") {
+			t.Fatalf("footer lost cut status: %q", plain)
+		}
+		for i, line := range strings.Split(m.View().Content, "\n") {
+			if n := visibleLen(line); n > m.TermW {
+				t.Fatalf("line %d is %d cells, wider than term %d: %q", i, n, m.TermW, strip(line))
+			}
+		}
+	})
+	t.Run("unhappy: a row of wide runes still fits the 26-col canvas box", func(t *testing.T) {
+		m := newEd(t)
+		m.TermW, m.TermH = 80, 24
+		sp := cloneSprite(m.Current())
+		for c := 0; c < sp.Width; c++ {
+			sp.Set(0, c, sprite.Cell{Ch: wide, FG: 208, BG: 52})
+		}
+		m.setCurrent(sp)
+		raw := renderCanvas(m.Current(), m)
+		for i, line := range strings.Split(raw, "\n") {
+			if n := visibleLen(line); n != sp.Width+2 {
+				t.Fatalf("box line %d is %d cells, want %d: %q", i, n, sp.Width+2, strip(line))
+			}
 		}
 	})
 }
