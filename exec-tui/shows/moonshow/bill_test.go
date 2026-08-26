@@ -2,13 +2,14 @@ package moonshow
 
 // Tests written FIRST: the moon screenplay is a composable two-scene
 // bill. Scene one, "the moon": the bare disc alone under a parked sky
-// — nothing on stage moves at all. Scene two, "orbit": a spaceship
-// streaks in fast off the left wing, brakes smoothly onto its orbit,
-// and circles the moon indefinitely until the next cut — no line
-// drawn around the moon, the craft alone traces the path. The bill is
-// the composable unit — screenplay.Compose adds bills together into
-// one big show — and after this bill's last scene there is nothing
-// left.
+// — nothing on stage moves at all. The cut, not a clock, brings scene
+// two. Scene two, "orbit": the lander is already on the ring and
+// circles the moon indefinitely until the next cut — no line drawn
+// around the moon, the craft alone traces the path. Waiting out the
+// old arrival delay on scene one must never conjure the lander. The
+// bill is the composable unit — screenplay.Compose adds bills together
+// into one big show — and after this bill's last scene there is
+// nothing left.
 
 import (
 	"regexp"
@@ -105,41 +106,42 @@ func TestMoonShowBill(t *testing.T) {
 			t.Fatal("scene one must hold perfectly still, stars and all")
 		}
 	})
-	t.Run("happy: scene two opens exactly like scene one — no line rises, only the ship will", func(t *testing.T) {
-		one := Bill()[0].Scene
-		one.Start()
-		defer one.Stop()
-		two := Bill()[1].Scene
-		two.Start()
-		defer two.Stop()
-		if render(two) != render(one) {
-			t.Fatal("before the ship enters, the orbit scene is the moon scene — nothing else on stage")
-		}
-	})
-	t.Run("happy: scene two streaks the ship in and orbits it indefinitely", func(t *testing.T) {
+	t.Run("happy: scene two opens with the lander already on the orbit", func(t *testing.T) {
 		sc := Bill()[1].Scene
 		sc.Start()
 		defer sc.Stop()
-		if strings.ContainsRune(render(sc), moon.MarkerGlyph) {
-			t.Fatal("the ship must open off stage")
+		opening := render(sc)
+		if !strings.ContainsRune(opening, '▓') {
+			t.Fatal("the orbit scene still shows the moon")
 		}
-		sc.Update(moon.ArriveSeconds + 0.5)
-		mid := render(sc)
-		r0, c0, ok := markerCell(mid)
+		r0, c0, ok := markerCell(opening)
 		if !ok {
-			t.Fatal("past the streak the ship must be on stage")
+			t.Fatal("the lander must be on the ring from the first frame — no arrival delay")
 		}
 		sc.Update(3)
 		late := render(sc)
 		r1, c1, ok := markerCell(late)
 		if !ok {
-			t.Fatal("the ship must keep orbiting")
+			t.Fatal("the lander must keep orbiting")
 		}
 		if r0 == r1 && c0 == c1 {
-			t.Fatal("the orbit must carry the ship on — it loops until the cut")
+			t.Fatal("the orbit must carry the lander on — it loops until the cut")
 		}
-		if skyColumns(mid, 12) != skyColumns(late, 12) {
+		if skyColumns(opening, 12) != skyColumns(late, 12) {
 			t.Fatal("the sky behind the orbit holds still")
+		}
+	})
+	t.Run("unhappy: waiting on scene one never brings the lander — there is no delay cue", func(t *testing.T) {
+		sc := Bill()[0].Scene
+		sc.Start()
+		defer sc.Stop()
+		sc.Update(moon.ArriveSeconds + 1)
+		v := render(sc)
+		if strings.ContainsRune(v, moon.MarkerGlyph) {
+			t.Fatal("the lander must not appear until the cut — waiting is not a scene")
+		}
+		if !strings.ContainsRune(v, '▓') {
+			t.Fatal("scene one must still be just the moon")
 		}
 	})
 	t.Run("happy: the composed show walks the bill and then has nothing left", func(t *testing.T) {
