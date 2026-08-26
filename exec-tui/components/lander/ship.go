@@ -53,10 +53,6 @@ const (
 	// booster stays full until then, then steps ¾, ½, ¼, and cuts
 	// off on the pad.
 	LandThrottleLead = 3 * ThrottleStageSeconds
-	// dustDieSeconds is how fast the pad cloud counts down once a
-	// DustAt run ends. Short so "how long it runs" is the emit
-	// window, not a two-second linger after.
-	dustDieSeconds = 0.15
 	// landSurfaceRows is the moon horizon's center thickness — the
 	// hull parks with its feet on that ridge.
 	landSurfaceRows = 5
@@ -77,24 +73,31 @@ const (
 // the hull and arms the fire for its stage; Stop drops everything so
 // a stopped ship holds no allocation, and a later Start rebuilds it.
 type Ship struct {
-	Body       sprite.Sprite
-	Flame      *fire.Flame
-	seed       int64
-	clock      float64
-	w, h       int
-	dark       bool
-	hold       float64
-	heading    sprite.Heading
-	dropSec    float64
-	landSec    float64
-	stageSec   float64
-	dustSec    float64
-	dustStart  float64
-	dustRun    float64
-	dustTimed  bool
-	flameBase  particle.Config
-	padDust    *dust.Cloud
-	dustFading bool
+	Body        sprite.Sprite
+	Flame       *fire.Flame
+	seed        int64
+	clock       float64
+	w, h        int
+	dark        bool
+	hold        float64
+	heading     sprite.Heading
+	dropSec     float64
+	landSec     float64
+	stageSec    float64
+	dustSec     float64
+	dustStart   float64
+	dustRun     float64
+	dustTimed   bool
+	thTimed     bool
+	th75        float64
+	th50        float64
+	th25        float64
+	thOff       float64
+	dustLoss    float64
+	dustLossSet bool
+	flameBase   particle.Config
+	padDust     *dust.Cloud
+	dustFading  bool
 }
 
 // NewShip binds the craft to its fire seed. Nothing is built until
@@ -127,6 +130,7 @@ func (s *Ship) Start(w, h int) {
 	}
 	if s.landSec > 0 {
 		s.armLandPlume()
+		s.applyLandThrottle()
 	}
 }
 
@@ -193,6 +197,9 @@ func (s *Ship) applyLandThrottle() {
 		return
 	}
 	th := landThrottle(s.clock-s.hold, s.landSec, s.stageOrDefault())
+	if s.thTimed {
+		th = throttleAt(s.clock-s.hold, s.th75, s.th50, s.th25, s.thOff)
+	}
 	cfg := s.flameBase
 	if th <= 0 {
 		cfg.Count = 0
@@ -262,8 +269,11 @@ func (s *Ship) updateLandDust(dt float64) {
 	s.padDust.Update(dt)
 }
 
-// updateTimedDust is the DustAt path: emit on [start, start+run),
-// then a short fade. A non-positive run never arms a cloud.
+// updateTimedDust is the DustAt path: emit on [start, start+run).
+// The cloud starts draining at LossPerMs (or DustLoss) when the
+// engines first cut (Fire75) or when the run ends, whichever is
+// sooner — a taper, not the old 0.15s blink. A non-positive run
+// never arms a cloud.
 func (s *Ship) updateTimedDust(dt float64) {
 	if s.dustRun <= 0 {
 		return
@@ -282,11 +292,25 @@ func (s *Ship) updateTimedDust(dt float64) {
 		s.padDust.Start(s.w, s.h)
 		s.dustFading = false
 	}
-	if t >= end && !s.dustFading {
-		s.padDust.Fade(dustDieSeconds)
+	if !s.dustFading && s.shouldDrain(t, end) {
+		s.padDust.Loss(s.lossOrDefault())
 		s.dustFading = true
 	}
 	s.padDust.Update(dt)
+}
+
+func (s *Ship) shouldDrain(t, end float64) bool {
+	if t >= end {
+		return true
+	}
+	return s.thTimed && t >= s.th75
+}
+
+func (s *Ship) lossOrDefault() float64 {
+	if s != nil && s.dustLossSet {
+		return s.dustLoss
+	}
+	return dust.LossPerMs
 }
 
 // Clock is how many seconds of scene time the ship has played.
@@ -383,6 +407,19 @@ func (s *Ship) ThrottleStage(seconds float64) *Ship {
 	return s
 }
 
+// ThrottleAt times the landing booster steps from t=0: full until
+// at75, then ¾ until at50, ½ until at25, ¼ until off, then cut.
+// Off at 0 keeps the booster dark. Call before Start. Nil-safe.
+// ThrottleAt, if set, wins over ThrottleStage.
+func (s *Ship) ThrottleAt(at75, at50, at25, off float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.th75, s.th50, s.th25, s.thOff = at75, at50, at25, off
+	s.thTimed = true
+	return s
+}
+
 // Dust sets how long the pad cloud lingers after the booster cuts
 // off. seconds <= 0 keeps dust.FadeSeconds. Call before Start.
 // Nil-safe. DustAt, if also set, wins.
@@ -404,6 +441,19 @@ func (s *Ship) DustAt(start, run float64) *Ship {
 	s.dustStart = start
 	s.dustRun = run
 	s.dustTimed = true
+	return s
+}
+
+// DustLoss is how many pad specks leave per millisecond once the
+// engines start cutting (or the DustAt run ends). perMs <= 0 stops
+// new emission but does not blink the live cloud out. Call before
+// Start. Nil-safe.
+func (s *Ship) DustLoss(perMs float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.dustLoss = perMs
+	s.dustLossSet = true
 	return s
 }
 
@@ -510,6 +560,27 @@ func LandPadRow(stageH int) int {
 // speaks the stock stages.
 func LandThrottle(t, seconds float64) float64 {
 	return landThrottle(t, seconds, ThrottleStageSeconds)
+}
+
+// throttleAt is booster strength at t seconds when the four stage
+// offsets are set from t=0.
+func throttleAt(t, at75, at50, at25, off float64) float64 {
+	if t < 0 {
+		t = 0
+	}
+	if t >= off {
+		return 0
+	}
+	if t >= at25 {
+		return 0.25
+	}
+	if t >= at50 {
+		return 0.5
+	}
+	if t >= at75 {
+		return 0.75
+	}
+	return 1
 }
 
 func landThrottle(t, seconds, stageSec float64) float64 {

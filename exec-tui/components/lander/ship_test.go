@@ -816,6 +816,46 @@ func TestLandThrottle(t *testing.T) {
 			t.Fatal("ThrottleStage(0) must keep the stock lead — 0.7s from the pad the booster has already stepped down")
 		}
 	})
+	t.Run("happy: ThrottleAt times ¾, ½, ¼, and off from t=0, independent of the pad", func(t *testing.T) {
+		s := NewShip(40).North().Land(LandSeconds).ThrottleAt(1.0, 2.0, 3.0, 4.0)
+		s.Start(screenW, screenH)
+		base := s.Flame.Config().Count
+		if base < 1 {
+			t.Fatal("test premise: a landing ship must arm a live booster")
+		}
+		warmShip(s, 0.5)
+		if got := s.Flame.Config().Count; got != base {
+			t.Fatalf("before ¾ the booster must be full, count %d want %d", got, base)
+		}
+		warmShip(s, 0.7)
+		if got := s.Flame.Config().Count; got != int(math.Round(float64(base)*0.75)) {
+			t.Fatalf("at ¾ count %d, want ¾ of %d", got, base)
+		}
+		warmShip(s, 1.0)
+		if got := s.Flame.Config().Count; got != int(math.Round(float64(base)*0.5)) {
+			t.Fatalf("at ½ count %d, want ½ of %d", got, base)
+		}
+		warmShip(s, 1.0)
+		if got := s.Flame.Config().Count; got != int(math.Round(float64(base)*0.25)) {
+			t.Fatalf("at ¼ count %d, want ¼ of %d", got, base)
+		}
+		warmShip(s, 1.1)
+		if s.Flame.Config().Count != 0 {
+			t.Fatalf("past fire-off count %d, want 0 — the pad is still 1s away", s.Flame.Config().Count)
+		}
+	})
+	t.Run("unhappy: ThrottleAt on nil stays nil, and off at t=0 never lights", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.ThrottleAt(1, 2, 3, 4) != nil {
+			t.Fatal("ThrottleAt must return the nil receiver")
+		}
+		s := NewShip(41).North().Land(LandSeconds).ThrottleAt(1, 2, 3, 0)
+		s.Start(screenW, screenH)
+		warmShip(s, 0.5)
+		if s.Flame.Config().Count != 0 {
+			t.Fatalf("fire-off at 0 must keep the booster dark, count %d", s.Flame.Config().Count)
+		}
+	})
 }
 
 // dustRune reports a dust-ladder glyph — braille or a shade block.
@@ -949,8 +989,29 @@ func TestLandDust(t *testing.T) {
 		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
 			t.Fatalf("mid-run the cloud must still blow, left=%v right=%v", l, r)
 		}
-		warmShip(s, 0.40)
-		noKick(t, s, "past the dust run")
+	})
+	t.Run("happy: DustLoss drains the cloud as the engines start cutting, not in a blink", func(t *testing.T) {
+		s := NewShip(42).North().Land(LandSeconds).
+			ThrottleAt(1.0, 2.0, 3.0, 4.0).
+			DustAt(0.2, 8.0).
+			DustLoss(0.05)
+		s.Start(screenW, screenH)
+		warmShip(s, 0.9)
+		held := livePad(s)
+		if held == 0 {
+			t.Fatal("test premise: the pad must already be dusty before ¾")
+		}
+		warmShip(s, 0.3)
+		got := livePad(s)
+		if got == 0 {
+			t.Fatal("0.3s after ¾ the cloud must still hold specks — a drain, not a blink")
+		}
+		if got >= held {
+			t.Fatalf("after ¾ %d specks, held %d — the drain must already be falling", got, held)
+		}
+		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+			t.Fatalf("mid-drain the fringe must still blow both ways, left=%v right=%v", l, r)
+		}
 	})
 	t.Run("unhappy: DustAt on nil stays nil, and a non-positive run never kicks", func(t *testing.T) {
 		var ghost *Ship
@@ -979,6 +1040,26 @@ func TestLandDust(t *testing.T) {
 		warmShip(stock, LandSeconds+0.5)
 		if l, r, _, _ := kickedDust(stock.Render(), centerCol); !l || !r {
 			t.Fatalf("the stock linger must still be blowing 0.5s after off, left=%v right=%v", l, r)
+		}
+	})
+	t.Run("unhappy: DustLoss on nil stays nil, and a zero rate does not blink the cloud out", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.DustLoss(0.05) != nil {
+			t.Fatal("DustLoss must return the nil receiver")
+		}
+		s := NewShip(43).North().Land(LandSeconds).
+			ThrottleAt(0.4, 0.5, 0.6, 0.7).
+			DustAt(0.1, 8.0).
+			DustLoss(0)
+		s.Start(screenW, screenH)
+		warmShip(s, 0.35)
+		held := livePad(s)
+		if held == 0 {
+			t.Fatal("test premise: the pad must already be dusty")
+		}
+		warmShip(s, 0.4)
+		if got := livePad(s); got == 0 {
+			t.Fatalf("zero loss must not trim the live specks away, held %d now %d", held, got)
 		}
 	})
 	t.Run("unhappy: a fall and a dark landing never kick dust", func(t *testing.T) {

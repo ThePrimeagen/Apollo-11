@@ -303,3 +303,79 @@ func TestCloudFade(t *testing.T) {
 		}
 	})
 }
+
+// TestCloudLoss: Loss drains live specks at a particles-per-millisecond
+// rate from the cue, emission tapering with the remaining budget, so
+// the kick dies down instead of blinking out. Loss(0) stops feeding
+// but does not trim — specks die of old age.
+func TestCloudLoss(t *testing.T) {
+	t.Run("happy: the kick loses specks at the given rate and is still dusty mid-drain", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(7)
+		cl.Start(80, 24)
+		held := liveDust(cl)
+		if held == 0 {
+			t.Fatal("test premise: a warmed cloud opens dusty")
+		}
+		const perMs = 0.05
+		cl.Loss(perMs)
+		const dt = 1.0 / 30
+		for i := 0; i < 15; i++ { // 0.5s → 25 specks
+			cl.Update(dt)
+		}
+		got := liveDust(cl)
+		if got == 0 {
+			t.Fatal("0.5s into a 0.05/ms drain the kick must still hold specks — a taper, not a blink")
+		}
+		if got >= held {
+			t.Fatalf("0.5s in, %d specks, held %d — the drain must already be under the opening", got, held)
+		}
+		want := held - int(math.Round(perMs*500))
+		if want < 0 {
+			want = 0
+		}
+		if got > want+4 {
+			t.Fatalf("0.5s in, %d specks live, a 0.05/ms drain from %d allows about %d", got, held, want)
+		}
+		farLeft, _, farRight := sides(cl.Render(), 28, 52)
+		if !farLeft || !farRight {
+			t.Fatalf("mid-drain the blown fringe must still drift out both sides, left=%v right=%v", farLeft, farRight)
+		}
+	})
+	t.Run("happy: a fast drain reaches zero instead of hanging on", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(7)
+		cl.Start(80, 24)
+		if liveDust(cl) == 0 {
+			t.Fatal("test premise: a warmed cloud opens dusty")
+		}
+		cl.Loss(2.0)
+		for i := 0; i < 20; i++ {
+			cl.Update(1.0 / 30)
+		}
+		if got := liveDust(cl); got != 0 {
+			t.Fatalf("a 2/ms drain must have emptied the kick, %d specks still live", got)
+		}
+		noDust(t, cl, "past a fast drain")
+	})
+	t.Run("unhappy: Loss(<=0) does not trim, and Loss on nil stays nil", func(t *testing.T) {
+		t.Cleanup(ResetPuff)
+		cl := NewCloud(11)
+		cl.Start(80, 24)
+		held := liveDust(cl)
+		if held == 0 {
+			t.Fatal("test premise: a warmed cloud opens dusty")
+		}
+		cl.Loss(0)
+		for i := 0; i < 6; i++ { // 0.2s — well under particle life
+			cl.Update(1.0 / 30)
+		}
+		if got := liveDust(cl); got == 0 {
+			t.Fatalf("Loss(0) must not blink the live specks out, held %d now %d", held, got)
+		}
+		var ghost *Cloud
+		if ghost.Loss(0.05) != nil {
+			t.Fatal("Loss must return the nil receiver")
+		}
+	})
+}

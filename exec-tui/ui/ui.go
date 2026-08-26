@@ -16,6 +16,7 @@ import (
 
 	"github.com/theprimeagen/apollo-11/button-lab/button"
 	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/danzig"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander/descent"
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
 )
@@ -155,11 +156,12 @@ type Model struct {
 	plan          []flightAction
 	flightCaption string
 	frame         int
+	showCode      bool // DANZIG card in the center gap
 }
 
 // NewModel wraps an engine.
 func NewModel(e *sim.Engine) Model {
-	return Model{eng: e, w: 120, h: 40}
+	return Model{eng: e, w: 120, h: 40, showCode: true}
 }
 
 // Init starts the frame ticker.
@@ -306,6 +308,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.sel = (m.sel + 1) % 3
 	case 'z':
 		m.zoom = (m.zoom + 1) % len(zoomBPC)
+	case 'c':
+		m.showCode = !m.showCode
 	case 'd':
 		m.eng.StartDescent()
 	case 'f':
@@ -318,6 +322,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.eng.SetWallToAGC(8)
 			m.eng.StartDescent()
 			m.eng.SetRadarBug(true)
+			m.showCode = false // the lander takes the gap
 		}
 	case 'n':
 		m.sel = 1
@@ -341,6 +346,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.pending = nil
 		m.flight = false
 		m.plan = nil
+		m.showCode = true
 	}
 	return m, nil
 }
@@ -460,8 +466,24 @@ func (m Model) viewContent() string {
 	if gap < 1 {
 		gap = 1
 	}
-	// during a flight, the lander descends in the center gap — when there
-	// is room for it
+	// the center gap holds the DANZIG card (how the exec picks a job)
+	// or, during a flight, the lander — pin 'c' to keep the card.
+	if m.showCode && gap >= danzig.CardWidth() {
+		mid := danzig.Highlight(danzig.Source)
+		midW := lipgloss.Width(mid)
+		pad1 := (gap - midW) / 2
+		if pad1 < 0 {
+			pad1 = 0
+		}
+		pad2 := gap - midW - pad1
+		if pad2 < 0 {
+			pad2 = 0
+		}
+		body := lipgloss.JoinHorizontal(lipgloss.Top,
+			left, strings.Repeat(" ", pad1), mid, strings.Repeat(" ", pad2), right)
+		b.WriteString(body)
+		return b.String()
+	}
 	if m.flight && gap >= descent.Width+2 {
 		mid := descent.Render(m.landerState())
 		pad1 := (gap - descent.Width) / 2

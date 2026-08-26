@@ -34,6 +34,10 @@ type Cloud struct {
 	fadeSec           float64
 	fadeClock         float64
 	leftMax, rightMax int
+
+	losing     bool
+	lossPerMs  float64
+	lossBudget float64
 }
 
 // NewCloud binds a kick to its particle seed. Nothing is built until Start.
@@ -61,6 +65,35 @@ func (c *Cloud) Fade(seconds float64) *Cloud {
 	return c
 }
 
+// LossPerMs is the stock drain of a landing cloud: 0.05 specks per
+// millisecond (50 a second) once the engines start cutting. Slow
+// enough that the blown fringe stays in the air; fast enough that
+// the pad clears a couple of seconds after booster-off.
+const LossPerMs = 0.05
+
+// Loss drains live specks at perMs particles per millisecond from
+// the cue, emission tapering with the remaining budget, so the kick
+// dies down instead of blinking out. perMs <= 0 stops feeding but
+// does not trim — specks die of old age. Call before Start to drain
+// from the curtain, or after Start to drain from this instant.
+// Nil-safe.
+func (c *Cloud) Loss(perMs float64) *Cloud {
+	if c == nil {
+		return nil
+	}
+	c.losing = true
+	c.lossPerMs = perMs
+	if c.lossPerMs < 0 {
+		c.lossPerMs = 0
+	}
+	c.fadeSec = 0
+	if c.Left != nil {
+		c.leftMax, c.rightMax = len(c.Left.Particles), len(c.Right.Particles)
+		c.lossBudget = float64(c.leftMax + c.rightMax)
+	}
+	return c
+}
+
 // Start builds both engines for a w×h stage and warms them so the
 // curtain rises on dust already in the air. The warm kick is a fading
 // cloud's max: its countdown starts here.
@@ -80,6 +113,9 @@ func (c *Cloud) Start(w, h int) {
 	}
 	c.fadeClock = 0
 	c.leftMax, c.rightMax = len(c.Left.Particles), len(c.Right.Particles)
+	if c.losing {
+		c.lossBudget = float64(c.leftMax + c.rightMax)
+	}
 }
 
 func (c *Cloud) units() (w, h float64) {
@@ -98,13 +134,16 @@ func (c *Cloud) Update(dt float64) {
 	uw, uh := c.units()
 	left, right := ActivePuff().Engines(uw, uh)
 	frac := c.countdown(dt)
+	if c.losing {
+		frac = c.drain(dt)
+	}
 	left.Count = scaled(left.Count, frac)
 	right.Count = scaled(right.Count, frac)
 	c.Left.Cfg = left
 	c.Right.Cfg = right
 	c.Left.Update(dt)
 	c.Right.Update(dt)
-	if c.fadeSec > 0 {
+	if c.fadeSec > 0 || (c.losing && c.lossPerMs > 0) {
 		trim(c.Left, scaled(c.leftMax, frac))
 		trim(c.Right, scaled(c.rightMax, frac))
 	}
@@ -123,6 +162,24 @@ func (c *Cloud) countdown(dt float64) float64 {
 		return 0
 	}
 	return frac
+}
+
+// drain spends the loss budget and reports the fraction of the
+// opening kick still allowed. A zero rate stops emission (frac 0)
+// without trimming.
+func (c *Cloud) drain(dt float64) float64 {
+	if c.lossPerMs <= 0 {
+		return 0
+	}
+	c.lossBudget -= c.lossPerMs * dt * 1000
+	if c.lossBudget < 0 {
+		c.lossBudget = 0
+	}
+	max := float64(c.leftMax + c.rightMax)
+	if max <= 0 {
+		return 0
+	}
+	return c.lossBudget / max
 }
 
 // scaled is n specks allowed at frac of the countdown.

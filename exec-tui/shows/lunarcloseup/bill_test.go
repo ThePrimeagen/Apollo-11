@@ -495,7 +495,7 @@ func TestLunarCloseUpBill(t *testing.T) {
 			t.Fatal("at touchdown the booster must cut off — only gray pad dust may remain")
 		}
 	})
-	t.Run("happy: the landing kicks dust at DustStart and keeps it blowing through DustRun", func(t *testing.T) {
+	t.Run("happy: the landing kicks dust at DustStart and still blows as the engines start cutting", func(t *testing.T) {
 		sc := Bill()[4].Scene
 		sc.Start()
 		defer sc.Stop()
@@ -504,13 +504,18 @@ func TestLunarCloseUpBill(t *testing.T) {
 		if l, r := offHullDust(paint(sc)); !l || !r {
 			t.Fatalf("when the dust offset arrives the pad must kick dust both ways, left=%v right=%v", l, r)
 		}
-		tick(sc, landing.DustRun-0.4)
+		tick(sc, 0.3)
 		if l, r := offHullDust(paint(sc)); !l || !r {
-			t.Fatalf("through the dust run the cloud must still blow both ways, left=%v right=%v", l, r)
+			t.Fatalf("as the engines cut the cloud must still blow both ways — a taper, not a blink, left=%v right=%v", l, r)
 		}
 	})
-	t.Run("unhappy: no dust before DustStart, none after DustRun, and the fall never kicks", func(t *testing.T) {
+	t.Run("unhappy: no dust before DustStart, a fast drain clears after the engines cut, and the fall never kicks", func(t *testing.T) {
 		t.Cleanup(landing.Reset)
+		c := landing.DefaultConfig()
+		c.DustLoss = 2.0
+		if err := landing.Use(c); err != nil {
+			t.Fatal(err)
+		}
 		sc := Bill()[4].Scene
 		sc.Start()
 		defer sc.Stop()
@@ -519,9 +524,9 @@ func TestLunarCloseUpBill(t *testing.T) {
 		if l, r := offHullDust(paint(sc)); l || r {
 			t.Fatal("no dust may kick before the start offset")
 		}
-		tick(sc, landing.DustRun+0.6)
+		tick(sc, 1.5)
 		if l, r := offHullDust(paint(sc)); l || r {
-			t.Fatal("after the dust run the pad must be clear")
+			t.Fatal("a 2/ms drain must have cleared the pad after the engines cut")
 		}
 		fall := Bill()[3].Scene
 		fall.Start()

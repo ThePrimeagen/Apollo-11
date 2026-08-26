@@ -57,7 +57,7 @@ func TestLandingSceneRunner(t *testing.T) {
 	t.Run("happy: the house opens on scene 1/1 — landing, moon floor, craft off the top", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"landing", "play", "50ms", "save", "quit", "land", "dust"} {
+		for _, want := range []string{"landing", "play", "50ms", "save", "quit", "land", "dust", "fire", "loss"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
@@ -145,6 +145,19 @@ func TestLandingSceneRunner(t *testing.T) {
 		if got := m.show.Cfg.DustRun; math.Abs(got-(landing.DustRun+landing.StepSeconds)) > 1e-9 {
 			t.Fatalf("dust run after +50ms is %v, want %v", got, landing.DustRun+landing.StepSeconds)
 		}
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('l'))
+		if got := m.show.Cfg.DustLoss; math.Abs(got-(landing.DustLoss+landing.StepLoss)) > 1e-9 {
+			t.Fatalf("dust loss after +1 step is %v, want %v", got, landing.DustLoss+landing.StepLoss)
+		}
+		if !strings.Contains(m.View().Content, "/ms") {
+			t.Fatal("dust loss must show as particles per millisecond")
+		}
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('l'))
+		if got := m.show.Cfg.Fire75; math.Abs(got-(landing.Fire75+landing.StepSeconds)) > 1e-9 {
+			t.Fatalf("fire ¾ after +50ms is %v, want %v", got, landing.Fire75+landing.StepSeconds)
+		}
 		if !strings.Contains(m.View().Content, ">") {
 			t.Fatal("the selected knob must be marked")
 		}
@@ -168,6 +181,18 @@ func TestLandingSceneRunner(t *testing.T) {
 		m = press(m, runeKey('h'))
 		if m.show.Cfg.DustRun != 0 {
 			t.Fatalf("dust run %v, want 0", m.show.Cfg.DustRun)
+		}
+		m.show.Cfg.DustLoss = 0
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('h'))
+		if m.show.Cfg.DustLoss != 0 {
+			t.Fatalf("dust loss %v, want 0", m.show.Cfg.DustLoss)
+		}
+		m.show.Cfg.Fire75 = 0
+		m.cursor = landing.KnobFire75
+		m = press(m, runeKey('h'))
+		if m.show.Cfg.Fire75 != 0 {
+			t.Fatalf("fire ¾ %v, want 0", m.show.Cfg.Fire75)
 		}
 		_, cmd := m.Update(space())
 		if cmd != nil {
@@ -218,6 +243,11 @@ func TestLandingSceneRunner(t *testing.T) {
 		m.show.Cfg.LandSeconds = 4.25
 		m.show.Cfg.DustStart = 2.0
 		m.show.Cfg.DustRun = 1.5
+		m.show.Cfg.Fire75 = 1.0
+		m.show.Cfg.Fire50 = 2.0
+		m.show.Cfg.Fire25 = 3.0
+		m.show.Cfg.FireOff = 4.0
+		m.show.Cfg.DustLoss = 0.075
 		mm, cmd := m.Update(runeKey('s'))
 		if cmd != nil {
 			t.Fatal("s must save, not quit")

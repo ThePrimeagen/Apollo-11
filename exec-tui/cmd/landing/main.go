@@ -1,8 +1,9 @@
 // landing: the portable landing scene from scenes/landing. A huge moon
 // horizon as a colored floor and the north-facing lander coming down
-// onto it — booster full, then ¾, ½, ¼, then off on the pad. Pad dust
-// starts at DustStart and blows for DustRun. Play rebuilds from the
-// current knobs; j/k select a knob, h/l walk it 50ms. q quits.
+// onto it — booster full, then ¾, ½, ¼, then off, each at its own
+// t=0 offset. Pad dust starts at DustStart and blows for DustRun.
+// Play rebuilds from the current knobs; j/k select a knob, h/l walk
+// it 50ms. q quits.
 //
 //	p / enter / space   play from the top
 //	j / k               select knob
@@ -39,7 +40,7 @@ const (
 	minW       = 10
 	minH       = 4
 	frameMs    = 1000.0 / 30
-	statusRows = 4
+	statusRows = 1 + int(landing.KnobCount)
 )
 
 // applySky loads a tuned sky config and makes it the active sky. A
@@ -216,19 +217,16 @@ func (m model) status(w int) []string {
 		help = dim + pad(m.note, w) + reset
 	}
 	rows := []string{help}
-	for i, label := range []string{"land", "dust start", "dust run"} {
-		sec := m.show.Cfg.LandSeconds
-		switch landing.Knob(i) {
-		case landing.KnobDustStart:
-			sec = m.show.Cfg.DustStart
-		case landing.KnobDustRun:
-			sec = m.show.Cfg.DustRun
-		}
+	for i := landing.Knob(0); i < landing.KnobCount; i++ {
 		marker, color := "  ", dim
-		if landing.Knob(i) == m.cursor {
+		if i == m.cursor {
 			marker, color = "> ", hot
 		}
-		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %6.3fs", marker, label, sec), w)+reset)
+		unit := "s"
+		if i == landing.KnobDustLoss {
+			unit = "/ms"
+		}
+		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %6.3f%s", marker, landing.KnobLabel(i), m.show.Cfg.Value(i), unit), w)+reset)
 	}
 	return rows
 }

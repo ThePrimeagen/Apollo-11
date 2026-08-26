@@ -9,15 +9,35 @@ import (
 	"sync"
 )
 
-// Config is the three live knobs on the landing: how long the craft
-// takes to come down, when the pad dust starts, and how long it blows.
-// The standalone runner nudges them 50ms at a time; Play rebuilds the
-// scene from whatever they hold. s writes this JSON next to the scene.
-// 02. Walkthrough plays the same Active config.
+// Config is the live knobs on the landing: how long the craft takes
+// to come down, when the pad dust starts and how long it blows, how
+// fast specks leave as the engines cut, and the t=0 offsets of each
+// booster step (¾, ½, ¼, off). The standalone runner nudges time
+// knobs 50ms at a time and dust loss 0.005/ms; Play rebuilds the
+// scene from whatever they hold. s writes this JSON next to the
+// scene. 02. Walkthrough plays the same Active config.
 type Config struct {
 	LandSeconds float64 `json:"landSeconds"`
 	DustStart   float64 `json:"dustStart"`
 	DustRun     float64 `json:"dustRun"`
+	Fire75      float64 `json:"fire75"`
+	Fire50      float64 `json:"fire50"`
+	Fire25      float64 `json:"fire25"`
+	FireOff     float64 `json:"fireOff"`
+	DustLoss    float64 `json:"dustLoss"`
+}
+
+// fileJSON is the on-disk shape. Fire offsets are pointers so an
+// older file that only had land/dust keeps the stock fire times.
+type fileJSON struct {
+	LandSeconds float64  `json:"landSeconds"`
+	DustStart   float64  `json:"dustStart"`
+	DustRun     float64  `json:"dustRun"`
+	Fire75      *float64 `json:"fire75"`
+	Fire50      *float64 `json:"fire50"`
+	Fire25      *float64 `json:"fire25"`
+	FireOff     *float64 `json:"fireOff"`
+	DustLoss    *float64 `json:"dustLoss"`
 }
 
 // Knob is which timing the cursor is on.
@@ -27,12 +47,69 @@ const (
 	KnobLand Knob = iota
 	KnobDustStart
 	KnobDustRun
+	KnobDustLoss
+	KnobFire75
+	KnobFire50
+	KnobFire25
+	KnobFireOff
 	KnobCount
 )
 
+// KnobLabel is the panel name of knob k.
+func KnobLabel(k Knob) string {
+	switch k {
+	case KnobLand:
+		return "land"
+	case KnobDustStart:
+		return "dust start"
+	case KnobDustRun:
+		return "dust run"
+	case KnobDustLoss:
+		return "dust loss"
+	case KnobFire75:
+		return "fire 3/4"
+	case KnobFire50:
+		return "fire 1/2"
+	case KnobFire25:
+		return "fire 1/4"
+	case KnobFireOff:
+		return "fire off"
+	default:
+		return ""
+	}
+}
+
+// Value is the selected knob's current seconds.
+func (c Config) Value(k Knob) float64 {
+	switch k {
+	case KnobLand:
+		return c.LandSeconds
+	case KnobDustStart:
+		return c.DustStart
+	case KnobDustRun:
+		return c.DustRun
+	case KnobDustLoss:
+		return c.DustLoss
+	case KnobFire75:
+		return c.Fire75
+	case KnobFire50:
+		return c.Fire50
+	case KnobFire25:
+		return c.Fire25
+	case KnobFireOff:
+		return c.FireOff
+	default:
+		return 0
+	}
+}
+
 const (
-	// StepSeconds is one tick of a live knob: 50ms.
+	// StepSeconds is one tick of a time knob: 50ms.
 	StepSeconds = 0.050
+
+	// StepLoss is one tick of the dust-loss knob: 0.005 particles
+	// per millisecond (5 specks a second).
+	StepLoss = 0.005
 
 	// DefaultConfigPath is the scene's own JSON, relative to the
 	// module root.
@@ -43,19 +120,24 @@ var (
 	errLand      = errors.New("landing: land duration must be at least 50ms")
 	errDustStart = errors.New("landing: dust start must not be negative")
 	errDustRun   = errors.New("landing: dust run must not be negative")
+	errFire      = errors.New("landing: fire stage offsets must not be negative")
+	errDustLoss  = errors.New("landing: particle loss must not be negative")
 
 	activeMu sync.Mutex
 	active   = DefaultConfig()
 )
 
-// DefaultConfig is the portable landing's stock timing: a 5s fall,
-// dust from the first booster step-down, blowing through off and the
-// old two-second linger.
+// DefaultConfig is the portable landing's stock timing.
 func DefaultConfig() Config {
 	return Config{
 		LandSeconds: LandSeconds,
 		DustStart:   DustStart,
 		DustRun:     DustRun,
+		Fire75:      Fire75,
+		Fire50:      Fire50,
+		Fire25:      Fire25,
+		FireOff:     FireOff,
+		DustLoss:    DustLoss,
 	}
 }
 
@@ -97,6 +179,14 @@ func (c Config) Validate() error {
 	if c.DustRun < 0 || math.IsNaN(c.DustRun) || math.IsInf(c.DustRun, 0) {
 		return errDustRun
 	}
+	for _, v := range []float64{c.Fire75, c.Fire50, c.Fire25, c.FireOff} {
+		if v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+			return errFire
+		}
+	}
+	if c.DustLoss < 0 || math.IsNaN(c.DustLoss) || math.IsInf(c.DustLoss, 0) {
+		return errDustLoss
+	}
 	return nil
 }
 
@@ -106,9 +196,34 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	var c Config
-	if err := json.Unmarshal(raw, &c); err != nil {
+	var f fileJSON
+	if err := json.Unmarshal(raw, &f); err != nil {
 		return Config{}, fmt.Errorf("landing: %s: %w", path, err)
+	}
+	c := Config{
+		LandSeconds: f.LandSeconds,
+		DustStart:   f.DustStart,
+		DustRun:     f.DustRun,
+		Fire75:      Fire75,
+		Fire50:      Fire50,
+		Fire25:      Fire25,
+		FireOff:     FireOff,
+		DustLoss:    DustLoss,
+	}
+	if f.Fire75 != nil {
+		c.Fire75 = *f.Fire75
+	}
+	if f.Fire50 != nil {
+		c.Fire50 = *f.Fire50
+	}
+	if f.Fire25 != nil {
+		c.Fire25 = *f.Fire25
+	}
+	if f.FireOff != nil {
+		c.FireOff = *f.FireOff
+	}
+	if f.DustLoss != nil {
+		c.DustLoss = *f.DustLoss
 	}
 	if err := c.Validate(); err != nil {
 		return Config{}, err
@@ -129,26 +244,47 @@ func LoadOrDefault(path string) (Config, error) {
 	return Config{}, err
 }
 
-// Save writes the three knobs as JSON, snapped to 50ms so the file
-// stays easy to edit by hand.
+// Save writes the knobs as JSON, snapped to 50ms so the file stays
+// easy to edit by hand.
 func (c Config) Save(path string) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
 	c = c.snapped()
-	raw := []byte(fmt.Sprintf("{\n  \"landSeconds\": %.3f,\n  \"dustStart\": %.3f,\n  \"dustRun\": %.3f\n}\n",
-		c.LandSeconds, c.DustStart, c.DustRun))
+	raw := []byte(fmt.Sprintf("{\n"+
+		"  \"landSeconds\": %.3f,\n"+
+		"  \"dustStart\": %.3f,\n"+
+		"  \"dustRun\": %.3f,\n"+
+		"  \"fire75\": %.3f,\n"+
+		"  \"fire50\": %.3f,\n"+
+		"  \"fire25\": %.3f,\n"+
+		"  \"fireOff\": %.3f,\n"+
+		"  \"dustLoss\": %.3f\n"+
+		"}\n",
+		c.LandSeconds, c.DustStart, c.DustRun,
+		c.Fire75, c.Fire50, c.Fire25, c.FireOff, c.DustLoss))
 	return os.WriteFile(path, raw, 0o644)
 }
 
 func snap(v float64) float64 {
-	return math.Round(v/StepSeconds) * StepSeconds
+	steps := 1 / StepSeconds
+	return math.Round(v*steps) / steps
+}
+
+func snapLoss(v float64) float64 {
+	steps := 1 / StepLoss
+	return math.Round(v*steps) / steps
 }
 
 func (c Config) snapped() Config {
 	c.LandSeconds = snap(c.LandSeconds)
 	c.DustStart = snap(c.DustStart)
 	c.DustRun = snap(c.DustRun)
+	c.Fire75 = snap(c.Fire75)
+	c.Fire50 = snap(c.Fire50)
+	c.Fire25 = snap(c.Fire25)
+	c.FireOff = snap(c.FireOff)
+	c.DustLoss = snapLoss(c.DustLoss)
 	if c.LandSeconds < StepSeconds {
 		c.LandSeconds = StepSeconds
 	}
@@ -158,32 +294,67 @@ func (c Config) snapped() Config {
 	if c.DustRun < 0 {
 		c.DustRun = 0
 	}
+	if c.Fire75 < 0 {
+		c.Fire75 = 0
+	}
+	if c.Fire50 < 0 {
+		c.Fire50 = 0
+	}
+	if c.Fire25 < 0 {
+		c.Fire25 = 0
+	}
+	if c.FireOff < 0 {
+		c.FireOff = 0
+	}
+	if c.DustLoss < 0 {
+		c.DustLoss = 0
+	}
 	return c
 }
 
-// Nudge walks the selected knob by dir steps of 50ms. Land will not
-// go below one step; dust start and run will not go negative. A bad
-// cursor is a no-op.
-func (c *Config) Nudge(k Knob, dir int) {
-	if c == nil || dir == 0 {
-		return
-	}
-	step := StepSeconds * float64(dir)
+func (c *Config) set(k Knob, v float64) {
 	switch k {
 	case KnobLand:
-		c.LandSeconds = snap(c.LandSeconds + step)
-		if c.LandSeconds < StepSeconds {
-			c.LandSeconds = StepSeconds
-		}
+		c.LandSeconds = v
 	case KnobDustStart:
-		c.DustStart = snap(c.DustStart + step)
-		if c.DustStart < 0 {
-			c.DustStart = 0
-		}
+		c.DustStart = v
 	case KnobDustRun:
-		c.DustRun = snap(c.DustRun + step)
-		if c.DustRun < 0 {
-			c.DustRun = 0
-		}
+		c.DustRun = v
+	case KnobDustLoss:
+		c.DustLoss = v
+	case KnobFire75:
+		c.Fire75 = v
+	case KnobFire50:
+		c.Fire50 = v
+	case KnobFire25:
+		c.Fire25 = v
+	case KnobFireOff:
+		c.FireOff = v
 	}
+}
+
+// Nudge walks the selected knob by dir steps. Time knobs move 50ms;
+// dust loss moves 0.005/ms. Land will not go below one time step;
+// every other knob will not go negative. A bad cursor is a no-op.
+func (c *Config) Nudge(k Knob, dir int) {
+	if c == nil || dir == 0 || k < 0 || k >= KnobCount {
+		return
+	}
+	if k == KnobDustLoss {
+		v := snapLoss(c.DustLoss + StepLoss*float64(dir))
+		if v < 0 {
+			v = 0
+		}
+		c.DustLoss = v
+		return
+	}
+	v := snap(c.Value(k) + StepSeconds*float64(dir))
+	if k == KnobLand {
+		if v < StepSeconds {
+			v = StepSeconds
+		}
+	} else if v < 0 {
+		v = 0
+	}
+	c.set(k, v)
 }

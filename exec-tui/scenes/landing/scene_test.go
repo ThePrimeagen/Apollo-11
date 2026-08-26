@@ -1,10 +1,11 @@
 package landing
 
 // Tests written FIRST: the landing scene is a portable one-scene bill.
-// Three live knobs retune it 50ms at a time: LandSeconds (top-to-bottom
+// Seven live knobs retune it 50ms at a time: LandSeconds (top-to-bottom
 // fall), DustStart (offset from t=0), DustRun (how long the pad cloud
-// blows). Play is Start after Stop: a fresh craft from the current
-// knobs. StageSeconds stays a code constant.
+// blows), and the four fire stage offsets from t=0. Play is Start after
+// Stop: a fresh craft from the current knobs. StageSeconds stays a
+// code constant for the stock fire defaults.
 
 import (
 	"strings"
@@ -104,7 +105,7 @@ func offHullDust(scr *screenplay.Screen) (left, right bool) {
 func throttleLead() float64 { return 3 * StageSeconds }
 
 func TestLandingKnobs(t *testing.T) {
-	t.Run("happy: the three knobs are the landing's timing", func(t *testing.T) {
+	t.Run("happy: the eight knobs are the landing's timing", func(t *testing.T) {
 		if LandSeconds <= 0 {
 			t.Fatal("LandSeconds is how fast the lander lands — it must be a duration")
 		}
@@ -113,6 +114,12 @@ func TestLandingKnobs(t *testing.T) {
 		}
 		if DustRun <= 0 {
 			t.Fatal("DustRun is how long the pad dust blows — it must be a duration")
+		}
+		if DustLoss <= 0 {
+			t.Fatal("DustLoss is how fast specks leave as the engines cut — it must be a rate")
+		}
+		if Fire75 < 0 || Fire50 < 0 || Fire25 < 0 || FireOff < 0 {
+			t.Fatal("fire stage offsets are from t=0 — they must not be negative")
 		}
 		if StepSeconds != 0.050 {
 			t.Fatalf("live knobs step %v, want 50ms", StepSeconds)
@@ -127,6 +134,12 @@ func TestLandingKnobs(t *testing.T) {
 		}
 		if DustRun == LandSeconds {
 			t.Fatal("dust run and land duration must be independent knobs")
+		}
+		if Fire75 == FireOff {
+			t.Fatal("¾ and engine-off must be independent offsets")
+		}
+		if DustLoss == DustRun {
+			t.Fatal("particle loss and dust run are different units — they must not share a value by accident")
 		}
 	})
 }
@@ -192,32 +205,67 @@ func TestLandingScene(t *testing.T) {
 			t.Fatal("at touchdown the booster must cut off — only gray pad dust may remain")
 		}
 	})
-	t.Run("happy: dust starts at DustStart and keeps blowing through DustRun", func(t *testing.T) {
+	t.Run("happy: dust starts at DustStart and keeps blowing until the engines cut", func(t *testing.T) {
 		sc := New(nil)
+		sc.Cfg.DustStart = 0.5
+		sc.Cfg.DustRun = 5.0
+		sc.Cfg.Fire75 = 1.5
+		sc.Cfg.Fire50 = 2.0
+		sc.Cfg.Fire25 = 2.5
+		sc.Cfg.FireOff = 3.0
+		sc.Cfg.DustLoss = 0.05
 		sc.Start()
 		defer sc.Stop()
 		_ = paint(sc)
-		tick(sc, DustStart+0.2)
+		tick(sc, 0.7)
 		if l, r := offHullDust(paint(sc)); !l || !r {
 			t.Fatalf("when the dust offset arrives the pad must kick dust both ways, left=%v right=%v", l, r)
 		}
-		tick(sc, DustRun-0.4)
+		tick(sc, 0.6)
 		if l, r := offHullDust(paint(sc)); !l || !r {
-			t.Fatalf("through the dust run the cloud must still blow both ways, left=%v right=%v", l, r)
+			t.Fatalf("before the first engine cut the cloud must still blow both ways, left=%v right=%v", l, r)
 		}
 	})
-	t.Run("unhappy: no dust before DustStart, and none after DustRun", func(t *testing.T) {
+	t.Run("happy: after the engines start cutting the cloud thins, it does not blink out", func(t *testing.T) {
 		sc := New(nil)
+		sc.Cfg.DustStart = 0.2
+		sc.Cfg.DustRun = 8.0
+		sc.Cfg.Fire75 = 0.5
+		sc.Cfg.Fire50 = 1.0
+		sc.Cfg.Fire25 = 1.5
+		sc.Cfg.FireOff = 2.0
+		sc.Cfg.DustLoss = 0.04
 		sc.Start()
 		defer sc.Stop()
 		_ = paint(sc)
-		tick(sc, DustStart-0.2)
+		tick(sc, 0.55)
+		if l, r := offHullDust(paint(sc)); !l || !r {
+			t.Fatal("test premise: the pad must already be dusty when the engines start cutting")
+		}
+		tick(sc, 0.2)
+		if l, r := offHullDust(paint(sc)); !l || !r {
+			t.Fatal("0.2s into the drain the blown fringe must still be in the air — a taper, not a blink")
+		}
+	})
+	t.Run("unhappy: no dust before DustStart, and a high loss clears the pad after the engines cut", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.DustStart = 0.5
+		sc.Cfg.DustRun = 8.0
+		sc.Cfg.Fire75 = 0.6
+		sc.Cfg.Fire50 = 0.7
+		sc.Cfg.Fire25 = 0.8
+		sc.Cfg.FireOff = 0.9
+		sc.Cfg.DustLoss = 2.0
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.3)
 		if l, r := offHullDust(paint(sc)); l || r {
 			t.Fatal("no dust may kick before the start offset")
 		}
-		tick(sc, DustRun+0.6)
+		tick(sc, 1.2)
 		if l, r := offHullDust(paint(sc)); l || r {
-			t.Fatal("after the dust run the pad must be clear")
+			t.Fatal("a 2/ms drain must have cleared the pad after the engines cut")
 		}
 	})
 	t.Run("happy: Start after Stop replays from the top with the current knobs", func(t *testing.T) {
@@ -261,6 +309,31 @@ func TestLandingScene(t *testing.T) {
 		tick(sc, 0.25)
 		if !strings.ContainsRune(paint(sc).Render(), '▟') {
 			t.Fatal("a 0.2s land must already be on the pad")
+		}
+	})
+	t.Run("happy: fire offsets are what the next play uses", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.Fire75 = 0.2
+		sc.Cfg.Fire50 = 0.4
+		sc.Cfg.Fire25 = 0.6
+		sc.Cfg.FireOff = 0.8
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 1.0)
+		if hotBraille(paint(sc)) {
+			t.Fatal("past fire-off the booster must already be dark — the pad is still seconds away")
+		}
+	})
+	t.Run("unhappy: fire-off at t=0 never lights, even while the craft is still falling", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.FireOff = 0
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.5)
+		if hotBraille(paint(sc)) {
+			t.Fatal("fire-off at 0 must keep the booster dark on the way down")
 		}
 	})
 	t.Run("unhappy: changing knobs mid-flight does not teleport the in-flight craft", func(t *testing.T) {
