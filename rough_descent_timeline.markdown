@@ -50,21 +50,27 @@ theft ≈ ~100% — a quiet knife edge. No spare margin, but nothing tipping it 
 | 102:39:31 | +386 s | ~24,500 ft | Throttle down, on time |
 
 **When did Buzz type the 1668?** At ~102:38:04 (PDI+299 s, ~34,000 ft), mid-P63, right
-after radar lock — and again at ~102:38:55. Each keying was followed ~12 s (≈6 guidance
-cycles) later by a **1202**. So the 1668 caused the two P63 **core-set** overflows only.
-It did **not** cause the 1201 — that came in P64 with no monitor up at all.
+after radar lock — and again at ~102:38:55. He typed it **once each time**; the monitor
+then refreshes itself every second (MONREQ respawns the MONDO job at 1 Hz) with no
+further typing. Each monitor start was followed ~12 s later by a **1202**; a third use
+(~+374, exited after ~10 s) caused no alarm. The 1668's *running load* — not the
+keystrokes — caused the two P63 core-set overflows. It did **not** cause the 1201.
 
 ## Region 4 — P64 (+506 s → +603 s): alarms 3–5, including the 2,000 ft one
 
 P64 added landing-point-designator/redesignation processing to every SERVICER pass
-(essential, unsheddable) and HIGATJOB parked on a VAC ~8 s at entry. No monitor needed —
-demand was > 105% on essentials alone, so restarts cured nothing.
+(essential, unsheddable), put up the **flashing V06N64** display (a job that holds a
+core set + VAC while it sleeps awaiting the crew's PRO), and HIGATJOB parked on a VAC
+(≤22 s, from ~6 s before high gate). Per the Tillman downlist, all three P64 alarms
+occurred **with no crew DSKY activity**. Demand was > 105% on essentials alone, so
+restarts cured nothing.
 
 | GET | T+PDI | Alt | Event |
 | :--- | :--- | :--- | :--- |
-| 102:41:32 | +506 s | 7,400 ft | High gate — **P64**, pitchover, LPD active |
-| **102:42:18** | **+552 s** | ~3,000 ft | **ALARM 3: 1201** (no VAC areas) — stub VACs + HIGATJOB's held VAC hit the 5-VAC wall |
-| **102:42:43** | **+578 s** | **~2,000 ft** | **ALARM 4: 1202** — this is the ~2,000 ft alarm. **Still P64, not P66** |
+| 102:41:32 | +506 s | 7,400 ft | High gate — **P64**, pitchover, flashing V06N64 up, LPD active |
+| **102:42:18** | **+552 s** | ~3,000 ft | **ALARM 3: 1201** (no VAC areas) — flashing-display VAC + HIGATJOB VAC + stub VACs hit the 5-VAC wall |
+| 102:42:33 | +568 s | — | Crew keys **PRO** — V06N64 goes static (its VAC hold ends); HIGATJOB gone since the restart |
+| **102:42:43** | **+578 s** | **~2,000 ft** | **ALARM 4: 1202** — this is the ~2,000 ft alarm. **Still P64, not P66.** Core-first regime again |
 | **102:42:58** | **+594 s** | 770 ft | **ALARM 5: 1202** (last) |
 | 102:43:08 | +603 s | ~650 ft | Armstrong: AUTO → ATT HOLD — sheds auto-steering load; alarms stop |
 
