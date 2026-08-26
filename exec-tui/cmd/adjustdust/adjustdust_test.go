@@ -61,6 +61,34 @@ func TestTuner(t *testing.T) {
 			t.Fatal("nudging the loop knob up must flip it back upward")
 		}
 	})
+	t.Run("happy: count climbs as high as you can hold — no ceiling", func(t *testing.T) {
+		t.Cleanup(dust.ResetPuff)
+		dust.ResetPuff()
+		tu := NewTuner()
+		start := tu.Puff.Count
+		tu.Nudge(100000)
+		if got := tu.Puff.Count; got != start+100000 {
+			t.Fatalf("count %d after +100000 nudges, want %d — no artificial ceiling", got, start+100000)
+		}
+		if err := dust.UsePuff(tu.Puff); err != nil {
+			t.Fatalf("a huge count must be a valid puff: %v", err)
+		}
+	})
+	t.Run("happy: count reaches exactly zero and the silent puff applies", func(t *testing.T) {
+		t.Cleanup(dust.ResetPuff)
+		dust.ResetPuff()
+		tu := NewTuner()
+		tu.Nudge(-tu.Puff.Count)
+		if tu.Puff.Count != 0 {
+			t.Fatalf("count %d, want exactly zero", tu.Puff.Count)
+		}
+		if err := dust.UsePuff(tu.Puff); err != nil {
+			t.Fatalf("a zero count must be a valid puff: %v", err)
+		}
+		if dust.ActivePuff().Count != 0 {
+			t.Fatalf("active count %d, want the zero we set", dust.ActivePuff().Count)
+		}
+	})
 	t.Run("happy: the ladder never folds and reversed ranges swap", func(t *testing.T) {
 		t.Cleanup(dust.ResetPuff)
 		dust.ResetPuff()
@@ -106,8 +134,8 @@ func TestTuner(t *testing.T) {
 		}
 		tu.Move(-999)
 		tu.Nudge(-999)
-		if tu.Puff.Count < 1 {
-			t.Fatalf("count %d fell through its floor", tu.Puff.Count)
+		if tu.Puff.Count != 0 {
+			t.Fatalf("count %d, want a hard stop at zero — never negative, no floor above it", tu.Puff.Count)
 		}
 		tu.Move(8) // angle
 		tu.Nudge(999)
