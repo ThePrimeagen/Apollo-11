@@ -289,6 +289,55 @@ func TestShipOnStage(t *testing.T) {
 	})
 }
 
+// plumeRowCounts sums flame glyphs per hull-relative row over the next
+// frames, scanning only the columns right of the hull art (col+22 on)
+// so no hull rune is ever miscounted as fire.
+func plumeRowCounts(s *Ship, frames int) map[int]int {
+	counts := map[int]int{}
+	for i := 0; i < frames; i++ {
+		s.Update(1.0 / 30)
+		stage := s.Render()
+		row, col := FlightPath(screenW, screenH, s.Clock())
+		for r := 0; r < stage.Height; r++ {
+			for c := col + 22; c < stage.Width; c++ {
+				if flameGlyph(stage.At(r, c).Ch) {
+					counts[r-row]++
+				}
+			}
+		}
+	}
+	return counts
+}
+
+func TestWestPlumeAlignment(t *testing.T) {
+	t.Run("happy: the parked plume centers on the engine bell — beam on the nozzle rows, flare above and below", func(t *testing.T) {
+		s := NewShip(4).Parked()
+		s.Start(screenW, screenH)
+		warmShip(s, 3.0)
+		counts := plumeRowCounts(s, 10)
+		if counts[3] == 0 {
+			t.Fatal("no fire ever flared above the bell (hull row 3) — the plume hangs one cell low")
+		}
+		if counts[6] == 0 {
+			t.Fatal("no fire ever flared below the bell (hull row 6)")
+		}
+		if beam, flare := counts[4]+counts[5], counts[3]+counts[6]; beam < flare {
+			t.Fatalf("the beam must ride the two nozzle rows: rows 4+5 hold %d cells, rows 3+6 hold %d", beam, flare)
+		}
+	})
+	t.Run("unhappy: the plume never spills past the bell's lip rows", func(t *testing.T) {
+		s := NewShip(4).Parked()
+		s.Start(screenW, screenH)
+		warmShip(s, 3.0)
+		counts := plumeRowCounts(s, 10)
+		for r, n := range counts {
+			if r < 3 || r > 6 {
+				t.Fatalf("fire painted on hull row %d (%d cells) — the box is rows 3..6 only", r, n)
+			}
+		}
+	})
+}
+
 func TestDarkShip(t *testing.T) {
 	t.Run("happy: a dark start builds the hull and leaves the booster cold", func(t *testing.T) {
 		s := NewShip(8).Dark()
