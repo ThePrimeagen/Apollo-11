@@ -24,7 +24,7 @@ func Bill() screenplay.Bill {
 			Assemble: func() []screenplay.Component {
 				return []screenplay.Component{
 					stars.NewTunedStarfield().Still(),
-					moon.New().Bare(),
+					moon.New(),
 				}
 			},
 		}},
@@ -32,7 +32,8 @@ func Bill() screenplay.Bill {
 			Assemble: func() []screenplay.Component {
 				return []screenplay.Component{
 					stars.NewTunedStarfield().Still(),
-					moon.New().Arrive(),
+					moon.New(),
+					moon.NewOrbit().Arrive(),
 				}
 			},
 		}},

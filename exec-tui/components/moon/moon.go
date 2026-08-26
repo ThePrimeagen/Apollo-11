@@ -1,13 +1,16 @@
-// Package moon is the descent-orbit explainer card: a pixelated moon
-// centered on stage, a wide dotted ring circling it — the descent
-// path — and a lone gold marker riding that ring eastward over the
-// top. It answers the arrival scene's question: this is where the
-// craft was, and why it flies sideways.
+// Package moon holds two separate, composable performers. Moon is the
+// pixelated disc alone — a static card any scene can reuse. Orbit is
+// the wide dotted ring circling it — the descent path — and the lone
+// gold craft riding that ring eastward over the top; cast it over a
+// Moon and the card answers the arrival scene's question: this is
+// where the craft was, and why it flies sideways.
 //
 // All circle math runs in half-cell "pixels": a terminal cell is about
 // twice as tall as it is wide, so one column counts one pixel and one
 // row counts two. A radius of R pixels spans R columns but only R/2
 // rows, and both the disc and the ring read round on a real terminal.
+// Both performers share Geometry, so any orbit fits any moon on the
+// same stage.
 package moon
 
 import (
@@ -161,11 +164,8 @@ func ringCell(cx, cy, ringR int, theta float64) (row, col int) {
 // clock carries across restarts, so a resize never rewinds the orbit.
 type Moon struct {
 	base   sprite.Sprite
-	clock  float64
 	w, h   int
 	staged bool
-	bare   bool
-	arrive bool
 }
 
 // New binds nothing yet: the curtain owns the allocation.
@@ -173,76 +173,33 @@ func New() *Moon {
 	return &Moon{}
 }
 
-// Bare strips the card to the moon alone — no descent path, no craft:
-// the opening beat of the moon screenplay. Call before Start.
-// Nil-safe.
-func (m *Moon) Bare() *Moon {
-	if m == nil {
-		return nil
-	}
-	m.bare = true
-	return m
-}
-
-// Arrive flies the craft in before the orbit: a fast streak off the
-// left wing at orbit height that merges onto the top of the ring and
-// loops the clockwise orbit until the cut. Call before Start.
-// Nil-safe.
-func (m *Moon) Arrive() *Moon {
-	if m == nil {
-		return nil
-	}
-	m.arrive = true
-	return m
-}
-
-// Start paints the base — the surface, and the descent path unless
-// the card is bare — for a w×h stage.
+// Start paints the surface for a w×h stage.
 func (m *Moon) Start(w, h int) {
 	if m == nil {
 		return
 	}
 	m.w, m.h = w, h
-	m.base = paintBase(w, h, !m.bare)
+	m.base = paintDisc(w, h)
 	m.staged = true
 }
 
-// Update advances the orbit clock. dt <= 0 holds the marker still.
-func (m *Moon) Update(dt float64) {
-	if m == nil || dt <= 0 {
-		return
-	}
-	m.clock += dt
-}
+// Update is a no-op: the moon holds still — motion belongs to the
+// performers cast around it.
+func (m *Moon) Update(dt float64) {}
 
-// Render lays the marker over the cached base — on the ring for the
-// stock card, along the arrival streak for an arriving one, nowhere
-// for a bare moon. Before Start and after Stop the card is off, so
-// the stage is empty; a stage with no geometry stays transparent for
-// the sky behind it.
+// Render is the cached disc on a stage-sized sprite. Before Start and
+// after Stop the card is off, so the stage is empty; a stage with no
+// geometry stays transparent for the sky behind it.
 func (m *Moon) Render() sprite.Sprite {
 	if m == nil || !m.staged || m.w < 1 || m.h < 1 {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(m.w, m.h)
 	sprite.Blit(stage, 0, 0, m.base)
-	if m.bare {
-		return stage
-	}
-	cx, cy, _, ringR := Geometry(m.w, m.h)
-	if ringR < 1 {
-		return stage
-	}
-	row, col := ringCell(cx, cy, ringR, angleAt(m.clock))
-	if m.arrive {
-		row, col = ArrivalAt(m.w, m.h, m.clock)
-	}
-	stage.Set(row, col, sprite.Cell{Ch: MarkerGlyph, FG: MarkerInk, BG: -1})
 	return stage
 }
 
-// Stop drops the base for the collector; a fresh Start repaints it.
-// The clock stays, so the next stage picks the orbit up mid-flight.
+// Stop drops the surface for the collector; a fresh Start repaints it.
 func (m *Moon) Stop() {
 	if m == nil {
 		return
@@ -251,12 +208,94 @@ func (m *Moon) Stop() {
 	m.staged = false
 }
 
-// paintBase is the still life: the pixelated disc, under the dotted
-// descent path when withRing is set. Deterministic — the same stage
-// always paints the same moon.
-func paintBase(w, h int, withRing bool) sprite.Sprite {
+// Orbit is the descent path and the craft riding it, painted over
+// transparency so it lays cleanly on top of a Moon — or anything
+// else on the same stage. Start paints and caches the dotted ring;
+// Update runs the orbit clock; Render lays the craft over the ring —
+// on the ring from the first frame, or streaking in first for an
+// arriving orbit; Stop drops the ring so a stopped orbit holds no
+// allocation. The clock carries across restarts, so a resize never
+// rewinds the lap.
+type Orbit struct {
+	ring   sprite.Sprite
+	clock  float64
+	w, h   int
+	staged bool
+	arrive bool
+}
+
+// NewOrbit binds nothing yet: the curtain owns the allocation.
+func NewOrbit() *Orbit {
+	return &Orbit{}
+}
+
+// Arrive flies the craft in before the orbit: a fast streak off the
+// left wing at orbit height that merges onto the top of the ring and
+// loops the clockwise orbit until the cut. Call before Start.
+// Nil-safe.
+func (o *Orbit) Arrive() *Orbit {
+	if o == nil {
+		return nil
+	}
+	o.arrive = true
+	return o
+}
+
+// Start paints the dotted descent path for a w×h stage.
+func (o *Orbit) Start(w, h int) {
+	if o == nil {
+		return
+	}
+	o.w, o.h = w, h
+	o.ring = paintRing(w, h)
+	o.staged = true
+}
+
+// Update advances the orbit clock. dt <= 0 holds the craft still.
+func (o *Orbit) Update(dt float64) {
+	if o == nil || dt <= 0 {
+		return
+	}
+	o.clock += dt
+}
+
+// Render lays the craft over the cached ring — at MarkerAt for the
+// stock orbit, along ArrivalAt for an arriving one. Before Start and
+// after Stop the orbit is off, so the stage is empty; a stage with no
+// geometry stays transparent.
+func (o *Orbit) Render() sprite.Sprite {
+	if o == nil || !o.staged || o.w < 1 || o.h < 1 {
+		return sprite.Sprite{}
+	}
+	stage := sprite.New(o.w, o.h)
+	sprite.Blit(stage, 0, 0, o.ring)
+	cx, cy, _, ringR := Geometry(o.w, o.h)
+	if ringR < 1 {
+		return stage
+	}
+	row, col := ringCell(cx, cy, ringR, angleAt(o.clock))
+	if o.arrive {
+		row, col = ArrivalAt(o.w, o.h, o.clock)
+	}
+	stage.Set(row, col, sprite.Cell{Ch: MarkerGlyph, FG: MarkerInk, BG: -1})
+	return stage
+}
+
+// Stop drops the ring for the collector; a fresh Start repaints it.
+// The clock stays, so the next stage picks the orbit up mid-flight.
+func (o *Orbit) Stop() {
+	if o == nil {
+		return
+	}
+	o.ring = sprite.Sprite{}
+	o.staged = false
+}
+
+// paintDisc is the moon's still life: the pixelated surface alone.
+// Deterministic — the same stage always paints the same moon.
+func paintDisc(w, h int) sprite.Sprite {
 	stage := sprite.New(w, h)
-	cx, cy, moonR, ringR := Geometry(w, h)
+	cx, cy, moonR, _ := Geometry(w, h)
 	if moonR < 1 {
 		return stage
 	}
@@ -270,7 +309,16 @@ func paintBase(w, h int, withRing bool) sprite.Sprite {
 			stage.Set(r, c, surfaceCell(px/float64(moonR), -py/float64(moonR), r, c))
 		}
 	}
-	if !withRing {
+	return stage
+}
+
+// paintRing is the orbit's still life: the dotted descent path over
+// transparency. Deterministic — the same stage always paints the same
+// ring.
+func paintRing(w, h int) sprite.Sprite {
+	stage := sprite.New(w, h)
+	cx, cy, moonR, ringR := Geometry(w, h)
+	if moonR < 1 {
 		return stage
 	}
 	steps := max(20, ringR*2)

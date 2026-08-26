@@ -99,7 +99,7 @@ stops the old scene before starting the new.
 | `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe |
 | `components/lander` | `Ship` — atlas hull + optional booster plume + `FlightPath` choreography |
 | `components/dsky` | `Panel` — the DSKY docking on the right third, column-by-column |
-| `components/moon` | `Moon` — the pixelated moon under the dotted descent path, gold marker riding it |
+| `components/moon` | `Moon` — the pixelated disc alone, one reusable performer; `Orbit` — the dotted descent path + the gold craft riding it, cast over any moon |
 | `components/title` | `Title` — banner cards set in terminal-fonts |
 
 The `screenplay` package knows nothing about landers, stars, or fonts —

@@ -76,6 +76,7 @@ func premiere() *screenplay.Screenplay {
 				return []screenplay.Component{
 					stars.NewTunedStarfield().Still(),
 					moon.New(),
+					moon.NewOrbit(),
 				}
 			},
 		}},
