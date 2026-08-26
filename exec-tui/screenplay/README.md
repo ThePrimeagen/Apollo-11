@@ -17,13 +17,13 @@ four-scene bill:
   third of the sky blanks out one column at a time from the right edge,
   and the DSKY (V16 N68 on P63) docks in that space.
 - **Scene 3 — descent orbit.** The explainer: a pixelated moon at
-  center stage under a wide dotted ring — the descent path — and a
-  lone gold marker rides that ring eastward over the top. The sky
+  center stage with a lone gold craft circling it eastward over the
+  top — no line drawn, the craft alone traces the path. The sky
   behind it holds perfectly still (`NewTunedStarfield().Still()`) —
-  the marker is the only thing moving. This is where the craft was,
+  the craft is the only thing moving. This is where the craft was,
   and why it flies sideways. All circle math runs in half-cell pixels
-  (a terminal cell is ~2× taller than wide), so the moon and the ring
-  read round on a real terminal.
+  (a terminal cell is ~2× taller than wide), so the moon and the
+  orbit read round on a real terminal.
 - **Scene 4 — the end.** `THE END` in the height-5 terminal-fonts banner,
   centered under the same sky.
 
@@ -80,9 +80,9 @@ composable unit — and `Compose(bills...)` flattens bills, in order,
 into one big screenplay, so the final product is every show's bill
 added together. `shows/moonshow` is the first packaged bill: scene
 one, the bare moon alone under a parked sky; scene two, a spaceship
-streaks in fast off the left wing and orbits the descent ring until
-the next cut (`go run ./cmd/moon` plays it; space past the last scene
-ends the show).
+streaks in fast off the left wing, brakes onto its orbit, and circles
+the moon until the next cut (`go run ./cmd/moon` plays it; space past
+the last scene ends the show).
 
 The `Screen` is the shared render target: one Lip Gloss v2 canvas — a
 `uv.Cell` of content plus style per terminal cell — plus `Resize` /
@@ -99,7 +99,7 @@ stops the old scene before starting the new.
 | `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe |
 | `components/lander` | `Ship` — atlas hull + optional booster plume + `FlightPath` choreography |
 | `components/dsky` | `Panel` — the DSKY docking on the right third, column-by-column |
-| `components/moon` | `Moon` — the pixelated disc alone, one reusable performer; `Orbit` — the dotted descent path + the gold craft riding it, cast over any moon |
+| `components/moon` | `Moon` — the pixelated disc alone, one reusable performer; `Orbit` — the lone gold craft circling it, cast over any moon |
 | `components/title` | `Title` — banner cards set in terminal-fonts |
 
 The `screenplay` package knows nothing about landers, stars, or fonts —

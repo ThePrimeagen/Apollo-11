@@ -1,16 +1,16 @@
 // Package moon holds two separate, composable performers. Moon is the
 // pixelated disc alone — a static card any scene can reuse. Orbit is
-// the wide dotted ring circling it — the descent path — and the lone
-// gold craft riding that ring eastward over the top; cast it over a
-// Moon and the card answers the arrival scene's question: this is
-// where the craft was, and why it flies sideways.
+// the lone gold craft circling it eastward over the top — no line
+// drawn around the moon, the craft alone traces the path; cast it
+// over a Moon and the card answers the arrival scene's question: this
+// is where the craft was, and why it flies sideways.
 //
 // All circle math runs in half-cell "pixels": a terminal cell is about
 // twice as tall as it is wide, so one column counts one pixel and one
 // row counts two. A radius of R pixels spans R columns but only R/2
-// rows, and both the disc and the ring read round on a real terminal.
-// Both performers share Geometry, so any orbit fits any moon on the
-// same stage.
+// rows, and both the disc and the orbit read round on a real
+// terminal. Both performers share Geometry, so any orbit fits any
+// moon on the same stage.
 package moon
 
 import (
@@ -26,16 +26,11 @@ const (
 	// top of the ring, where the orbit begins — long enough that the
 	// entry reads on screen, short enough to stay a streak.
 	ArriveSeconds = 2.5
-	// RingGlyph is one dot of the descent path.
-	RingGlyph = '◦'
-	// MarkerGlyph is the craft riding the path.
+	// MarkerGlyph is the craft riding the orbit.
 	MarkerGlyph = '◆'
 	// MarkerInk is the marker's xterm-256 color: the mission gold,
 	// the same ink the title cards wear.
 	MarkerInk = 178
-	// RingInk is the dotted path's gray — bright enough to survive a
-	// small font and a compressed tape.
-	RingInk = 247
 )
 
 // The surface's xterm-256 grays: the sunlit body, the darkened limb,
@@ -53,8 +48,8 @@ const (
 	// before the top, so the eastward crossing plays early.
 	startAngle = 3 * math.Pi / 4
 	// ringGap is how many pixels of empty space sit between the
-	// surface and the descent path: the moon stays a little small so
-	// the orbit flies wide.
+	// surface and the orbit: the moon stays a little small so the
+	// craft flies wide of it.
 	ringGap = 8
 	// minMoonR is the smallest moon worth staging; below it the
 	// component sits the scene out.
@@ -135,12 +130,23 @@ func ArrivalAt(w, h int, t float64) (row, col int) {
 		return ringCell(cx, cy, ringR, theta)
 	}
 	row, _ = ringCell(cx, cy, ringR, math.Pi/2)
-	// The same ease-out cubic the premiere's craft flies: fast off
-	// the wing, gentle into the merge.
-	p := t / ArriveSeconds
-	eased := 1 - math.Pow(1-p, 3)
+	// A velocity-matched brake: the streak opens fast and slows
+	// smoothly to exactly the orbit's eastward pace at the merge — no
+	// stall, no lurch. s is the distance still to fly, quadratic in
+	// the time remaining, with s'(merge) = the orbital speed.
 	const start = -3.0
-	return row, int(math.Round(start + eased*(float64(cx)-start)))
+	dist := float64(cx) - start
+	vEnd := float64(ringR) * 2 * math.Pi / OrbitSeconds
+	b := vEnd * ArriveSeconds
+	a := dist - b
+	if a < 0 {
+		// A stage too narrow to brake on: glide the whole way in at
+		// one steady pace instead.
+		a, b = 0, dist
+	}
+	u := 1 - t/ArriveSeconds
+	s := a*u*u + b*u
+	return row, int(math.Round(float64(cx) - s))
 }
 
 // angleAt winds the clock backwards through the angles: a clockwise
@@ -157,8 +163,8 @@ func ringCell(cx, cy, ringR int, theta float64) (row, col int) {
 	return row, col
 }
 
-// Moon is the card as a scene component. Start paints and caches the
-// still life — the disc and the dotted ring — for its stage; Update
+// Moon is the disc as a scene component. Start paints and caches the
+// still life — the surface alone — for its stage; Update
 // runs the orbit clock; Render lays the marker over the cached base;
 // Stop drops the base so a stopped moon holds no allocation. The
 // clock carries across restarts, so a resize never rewinds the orbit.
@@ -208,16 +214,15 @@ func (m *Moon) Stop() {
 	m.staged = false
 }
 
-// Orbit is the descent path and the craft riding it, painted over
-// transparency so it lays cleanly on top of a Moon — or anything
-// else on the same stage. Start paints and caches the dotted ring;
-// Update runs the orbit clock; Render lays the craft over the ring —
-// on the ring from the first frame, or streaking in first for an
-// arriving orbit; Stop drops the ring so a stopped orbit holds no
-// allocation. The clock carries across restarts, so a resize never
-// rewinds the lap.
+// Orbit is the lone craft circling the moon — no line drawn, the
+// craft alone traces the path — painted over transparency so it lays
+// cleanly on top of a Moon, or anything else on the same stage. Start
+// pins the stage; Update runs the orbit clock; Render lays the craft
+// at its instant on the path — on the orbit from the first frame, or
+// streaking in first for an arriving orbit; Stop strikes the stage.
+// The clock carries across restarts, so a resize never rewinds the
+// lap.
 type Orbit struct {
-	ring   sprite.Sprite
 	clock  float64
 	w, h   int
 	staged bool
@@ -230,9 +235,8 @@ func NewOrbit() *Orbit {
 }
 
 // Arrive flies the craft in before the orbit: a fast streak off the
-// left wing at orbit height that merges onto the top of the ring and
-// loops the clockwise orbit until the cut. Call before Start.
-// Nil-safe.
+// left wing at orbit height that brakes onto the top of the orbit and
+// loops clockwise until the cut. Call before Start. Nil-safe.
 func (o *Orbit) Arrive() *Orbit {
 	if o == nil {
 		return nil
@@ -241,13 +245,12 @@ func (o *Orbit) Arrive() *Orbit {
 	return o
 }
 
-// Start paints the dotted descent path for a w×h stage.
+// Start pins the stage the craft flies on.
 func (o *Orbit) Start(w, h int) {
 	if o == nil {
 		return
 	}
 	o.w, o.h = w, h
-	o.ring = paintRing(w, h)
 	o.staged = true
 }
 
@@ -259,16 +262,15 @@ func (o *Orbit) Update(dt float64) {
 	o.clock += dt
 }
 
-// Render lays the craft over the cached ring — at MarkerAt for the
-// stock orbit, along ArrivalAt for an arriving one. Before Start and
-// after Stop the orbit is off, so the stage is empty; a stage with no
-// geometry stays transparent.
+// Render lays the lone craft on a stage-sized sprite — at MarkerAt
+// for the stock orbit, along ArrivalAt for an arriving one. Before
+// Start and after Stop the orbit is off, so the stage is empty; a
+// stage with no geometry stays transparent.
 func (o *Orbit) Render() sprite.Sprite {
 	if o == nil || !o.staged || o.w < 1 || o.h < 1 {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(o.w, o.h)
-	sprite.Blit(stage, 0, 0, o.ring)
 	cx, cy, _, ringR := Geometry(o.w, o.h)
 	if ringR < 1 {
 		return stage
@@ -281,13 +283,12 @@ func (o *Orbit) Render() sprite.Sprite {
 	return stage
 }
 
-// Stop drops the ring for the collector; a fresh Start repaints it.
-// The clock stays, so the next stage picks the orbit up mid-flight.
+// Stop strikes the stage. The clock stays, so the next stage picks
+// the orbit up mid-flight.
 func (o *Orbit) Stop() {
 	if o == nil {
 		return
 	}
-	o.ring = sprite.Sprite{}
 	o.staged = false
 }
 
@@ -308,24 +309,6 @@ func paintDisc(w, h int) sprite.Sprite {
 			}
 			stage.Set(r, c, surfaceCell(px/float64(moonR), -py/float64(moonR), r, c))
 		}
-	}
-	return stage
-}
-
-// paintRing is the orbit's still life: the dotted descent path over
-// transparency. Deterministic — the same stage always paints the same
-// ring.
-func paintRing(w, h int) sprite.Sprite {
-	stage := sprite.New(w, h)
-	cx, cy, moonR, ringR := Geometry(w, h)
-	if moonR < 1 {
-		return stage
-	}
-	steps := max(20, ringR*2)
-	for i := 0; i < steps; i++ {
-		theta := 2 * math.Pi * float64(i) / float64(steps)
-		row, col := ringCell(cx, cy, ringR, theta)
-		stage.Set(row, col, sprite.Cell{Ch: RingGlyph, FG: RingInk, BG: -1})
 	}
 	return stage
 }

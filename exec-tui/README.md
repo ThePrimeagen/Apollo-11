@@ -19,7 +19,7 @@ components/   everything a scene puts together
   stars/      the four-layer starfield — owns its config.json
   lander/     the Apollo LM: atlas art, lm.json, the Ship component
     descent/  the legacy descent-view renderer (used by the sim UI)
-  moon/       Moon (the reusable pixelated disc) + Orbit (descent path + craft)
+  moon/       Moon (the reusable pixelated disc) + Orbit (the craft circling it)
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)

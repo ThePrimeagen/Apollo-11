@@ -8,9 +8,9 @@
 // cold engine. Scene 2, "dsky": the
 // parked craft stays, the right third of the sky wipes away one column
 // at a time (~500ms), and the DSKY docks in that space. Scene 3,
-// "descent orbit": the pixelated moon under a wide dotted ring — the
-// descent path — and a lone gold marker riding the ring eastward over
-// the top of a perfectly still sky: where the craft was, and why it
+// "descent orbit": the pixelated moon with a lone gold craft circling
+// it eastward over the top of a perfectly still sky — no line drawn,
+// the craft alone traces the path: where the craft was, and why it
 // flies sideways. Scene 4, "the end": the height-5 banner card,
 // centered under the same sky.
 //
