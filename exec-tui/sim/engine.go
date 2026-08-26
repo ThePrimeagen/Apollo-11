@@ -271,6 +271,7 @@ type DSKYState struct {
 	Verb, Noun string
 	R1, R2, R3 string
 	ProgLamp   bool
+	Entering   byte // 'V', 'N', or 0 — the field currently being keyed
 }
 
 // ---------------------------------------------------------------------------
@@ -978,7 +979,7 @@ func (e *Engine) PendingDSPTAB() int { return e.dsptab }
 
 // DSKY returns the display state.
 func (e *Engine) DSKY() DSKYState {
-	d := DSKYState{Verb: e.verbBuf, Noun: e.nounBuf, ProgLamp: e.progLamp}
+	d := DSKYState{Verb: e.verbBuf, Noun: e.nounBuf, ProgLamp: e.progLamp, Entering: e.entering}
 	if e.phase != P00 {
 		// Scripted flavor values (educational, not dynamics): P63 starts at
 		// 49,971 ft sinking toward high gate at 7,400 ft.

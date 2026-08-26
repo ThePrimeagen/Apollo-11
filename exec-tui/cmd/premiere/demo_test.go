@@ -133,7 +133,7 @@ func TestPremiere(t *testing.T) {
 		}
 		m = frames(m, 15) // 500ms at 30 fps
 		v := m.View().Content
-		for _, want := range []string{"VERB", "NOUN", "PROG"} {
+		for _, want := range []string{"VERB", "NOUN", "PROG", "ENTR"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("after the wipe the DSKY is missing %q", want)
 			}

@@ -47,7 +47,7 @@ func Catalog() []Entry {
 		{ID: "lander", Section: "DEMO", Title: "LANDER DEMO", Desc: "the continuous descent with alarms at their true moments", Pkg: "./cmd/lander"},
 		{ID: "stars", Section: "DEMO", Title: "STARS DEMO", Desc: "browse the starfield fly strategies", Pkg: "./cmd/stars"},
 		{ID: "nyan", Section: "DEMO", Title: "NYAN CAT", Desc: "pop-tart cat with a live rainbow particle trail", Pkg: "./cmd/nyan"},
-		{ID: "dsky", Section: "DEMO", Title: "DSKY DEMO", Desc: "a lone DSKY replaying the descent displays", Module: "dsky-lab", Pkg: "."},
+		{ID: "dsky", Section: "DEMO", Title: "DSKY DEMO", Desc: "a lone DSKY with keypad — press 0-9, replay the descent displays", Module: "dsky-lab", Pkg: "."},
 		{ID: "button", Section: "DEMO", Title: "BUTTON DEMO", Desc: "the cockpit toggle switch playground", Module: "button-lab", Pkg: "."},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},

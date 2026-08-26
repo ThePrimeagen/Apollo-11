@@ -82,6 +82,8 @@ func (m Model) dskyState() dsky.State {
 	e := m.eng
 	d := e.DSKY()
 	st := dsky.State{Verb: d.Verb, Noun: d.Noun, CompActy: e.CompActy()}
+	st.Typing.Verb = d.Entering == 'V'
+	st.Typing.Noun = d.Entering == 'N'
 	ph := e.Phase()
 	switch ph {
 	case sim.P63:
