@@ -9,7 +9,7 @@ import (
 )
 
 func (m *Model) openColorPalette() {
-	if m.PickerOpen || m.ShipPickerOpen || m.GlyphGridOpen || m.Inserting {
+	if m.PickerOpen || m.FilePickerOpen || m.GlyphGridOpen || m.Inserting {
 		return
 	}
 	m.ColorPaletteOpen = true

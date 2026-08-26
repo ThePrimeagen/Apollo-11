@@ -1,6 +1,7 @@
 // Package lander is the Apollo LM component: the hand-drawn sprite
-// atlas (every size and heading), the editable JSON art that ships
-// beside it, and the scene-facing craft built from both.
+// atlas (every size and heading), the loader for the editable JSON art
+// that ships in the repo assets/ folder, and the scene-facing craft
+// built from both.
 package lander
 
 import (

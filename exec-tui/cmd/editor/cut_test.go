@@ -9,13 +9,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 )
 
 func cutEd(t *testing.T) Model {
 	t.Helper()
-	return New(lander.DefaultAtlas(), "")
+	return New(blankTestAtlas(), "")
 }
 
 func cutSend(m Model, msg tea.Msg) Model {

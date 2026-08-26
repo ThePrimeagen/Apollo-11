@@ -12,12 +12,13 @@ go run .
 ## Layout
 
 ```
+assets/       every lunar atlas in one folder: lm-1.json … lm-4.json + lm.json
 components/   everything a scene puts together
   sprite/     the pixel model: Sprite = width × height cells (rune + fg/bg)
   particle/   the particle engine
   fire/       flame, booster, compass — owns its config.json
   stars/      the four-layer starfield — owns its config.json
-  lander/     the Apollo LM: atlas art, lm.json, the Ship component
+  lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component
     descent/  the legacy descent-view renderer (used by the sim UI)
   moon/       Moon (the reusable pixelated disc) + Orbit (the craft circling it)
   rocket/     the size-4 rocket over a down-firing booster
@@ -34,7 +35,8 @@ cmd/          every runnable: editors, demos, tuners
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser
   preview/    atlas / fire / rocket previews and tapes
-  editor/     the vim-ish LM sprite editor (edits components/lander/lm.json)
+  editor/     the vim-ish ASCII editor — point it at any folder of atlases
+              (default assets/); C-p quick-opens across its files
   adjustflame/  tunes components/fire/config.json
   adjuststars/  tunes components/stars/config.json
 menu/ sim/ ui/  the launcher and the legacy Executive sim
@@ -43,8 +45,9 @@ menu/ sim/ ui/  the launcher and the legacy Executive sim
 Components live one lifecycle (see `screenplay/README.md`): `Start(w, h)`
 allocates for the stage, `Update(dt)` runs the clock, `Render()` returns a
 stage-sized `sprite.Sprite`, `Stop()` frees — and `Start` may come again.
-Each component's tuning file sits beside its code, so the tuners, the
-premiere, and the editor all read the same home.
+Each component's tuning file sits beside its code, so the tuners and the
+premiere read the same home. The lunar atlases are the one exception:
+they all live in `assets/`, the folder the editor opens by default.
 
 ## The legacy Executive sim
 

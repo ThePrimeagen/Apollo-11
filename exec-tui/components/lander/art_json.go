@@ -13,7 +13,8 @@ const artAssets = "assets"
 
 // FindArtDir locates the folder of shipped lm-*.json atlases: a nearby
 // assets/ that already holds them, then any assets/ next to a go.mod,
-// then this package's own folder (lm.json).
+// then any folder carrying the legacy single-file lm.json. All the
+// lunar art lives together there — lm.json included.
 func FindArtDir() string {
 	seen := map[string]bool{}
 	var cands []string

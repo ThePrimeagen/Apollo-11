@@ -95,7 +95,8 @@ func runFlame() error {
 	return err
 }
 
-// runEditor opens the LM sprite editor on the shipped size-4 atlas.
+// runEditor opens the ASCII sprite editor on the module's assets
+// folder — every atlas loaded, ctrl-p to switch between them.
 // In-process so a bad file returns the load error on the menu instead
 // of a bare `go run` exit status.
 func runEditor() error {
@@ -103,13 +104,9 @@ func runEditor() error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(root, filepath.FromSlash(editor.DefaultAtlasPath))
-	if _, err := os.Stat(path); err != nil {
-		if cand := filepath.Join(editor.FindAssetsDir(), "lm-4.json"); cand != path {
-			if _, err := os.Stat(cand); err == nil {
-				path = cand
-			}
-		}
+	path := filepath.Join(root, editor.DefaultAssetsDir)
+	if st, err := os.Stat(path); err != nil || !st.IsDir() {
+		path = editor.FindAssetsDir()
 	}
 	m, err := editor.Open(path)
 	if err != nil {
