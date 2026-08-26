@@ -1,0 +1,50 @@
+{
+  "angleDeg": 0,
+  "muzzleX": 0.18,
+  "muzzleY": 0.52,
+  "smokeDelay": 0.12,
+  "smokeRiseDeg": 42,
+  "edgeAt": 2,
+  "midAt": 4,
+  "coreAt": 7,
+  "flash": {
+    "count": 90,
+    "minLife": 0.05,
+    "maxLife": 0.16,
+    "minSpeed": 16,
+    "maxSpeed": 44,
+    "spread": 0.48,
+    "nozzle": 1.2,
+    "maxDistance": 7.5
+  },
+  "pellets": {
+    "count": 7,
+    "minLife": 0.55,
+    "maxLife": 0.75,
+    "minSpeed": 58,
+    "maxSpeed": 74,
+    "spread": 0.07,
+    "nozzle": 0.6,
+    "maxDistance": 0
+  },
+  "sparks": {
+    "count": 26,
+    "minLife": 0.18,
+    "maxLife": 0.5,
+    "minSpeed": 9,
+    "maxSpeed": 26,
+    "spread": 0.5,
+    "nozzle": 0.8,
+    "maxDistance": 0
+  },
+  "smoke": {
+    "count": 16,
+    "minLife": 0.9,
+    "maxLife": 1.8,
+    "minSpeed": 2.5,
+    "maxSpeed": 6,
+    "spread": 0.55,
+    "nozzle": 2.2,
+    "maxDistance": 0
+  }
+}
