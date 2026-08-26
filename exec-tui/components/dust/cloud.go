@@ -44,9 +44,9 @@ func NewCloud(seed int64) *Cloud {
 // Fade makes the cloud a one-shot burst: from Start it counts its
 // particles down — linearly, from however many the warm kick holds to
 // zero over seconds — emission tapering with the same line and the
-// oldest specks, the far fringe, dying first. seconds <= 0 keeps the
-// endless kick. Call before Start; a fresh Start rewinds the
-// countdown. Nil-safe.
+// freshest specks dying first, so the blown fringe drifts out and
+// thins instead of being erased. seconds <= 0 keeps the endless kick.
+// Call before Start; a fresh Start rewinds the countdown. Nil-safe.
 func (c *Cloud) Fade(seconds float64) *Cloud {
 	if c == nil {
 		return nil
@@ -83,7 +83,7 @@ func (c *Cloud) units() (w, h float64) {
 
 // Update pulls the active puff onto both engines and burns them. A
 // fading cloud also runs its countdown: emission scales down the fade
-// line and the live specks are capped to it, oldest first, so the
+// line and the live specks are capped to it, freshest first, so the
 // count falls from the max to zero across the window. dt <= 0 holds.
 func (c *Cloud) Update(dt float64) {
 	if c == nil || dt <= 0 || c.Left == nil || c.Right == nil {
@@ -127,14 +127,16 @@ func scaled(n int, frac float64) int {
 	return int(math.Round(float64(n) * frac))
 }
 
-// trim caps the live specks at allowed, oldest first: the far fringe
-// dissolves while the fresh kick keeps churning at the floor.
+// trim caps the live specks at allowed, freshest first: the kick
+// stops feeding while the blown fringe drifts out, thins, and expires
+// on its own — a dust-off dying down, not contracting into a churn
+// at the floor.
 func trim(e *particle.Engine, allowed int) {
 	if allowed < 0 {
 		allowed = 0
 	}
 	if len(e.Particles) > allowed {
-		e.Particles = e.Particles[len(e.Particles)-allowed:]
+		e.Particles = e.Particles[:allowed]
 	}
 }
 
