@@ -411,6 +411,7 @@ func TestCatalog(t *testing.T) {
 			"viewer", "landing", "america", "moonwalk", "skies",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config",
+			"dsky",
 			"legacy", "timeline",
 			"agctop", "agcgraph",
 		}
@@ -442,6 +443,7 @@ func TestCatalog(t *testing.T) {
 			"dust-config":    "Particles",
 			"gunfire-config": "Particles",
 			"cloud-config":   "Particles",
+			"dsky":           "Labs",
 			"legacy":         "LEGACY TUIS",
 			"timeline":       "LEGACY TUIS",
 			"agctop":         "EXECUTIVE",
@@ -649,7 +651,7 @@ func TestCatalog(t *testing.T) {
 				t.Fatalf("the DEMO section is gone — scenes replaced the demos, found %+v", e)
 			}
 			switch e.ID {
-			case "lander", "stars", "nyan", "dustoff", "dsky", "button", "gunfire":
+			case "lander", "stars", "nyan", "dustoff", "button", "gunfire":
 				t.Fatalf("demo %q must not be listed, found %+v", e.ID, e)
 			}
 		}
@@ -659,6 +661,37 @@ func TestCatalog(t *testing.T) {
 			if e.ID == "seg" || strings.Contains(e.Title, "SEG") {
 				t.Fatalf("the seg lab must not be listed, found %+v", e)
 			}
+		}
+	})
+	t.Run("happy: the styled DSKY lab is launchable under Labs", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.ID != "dsky" {
+				continue
+			}
+			if e.Section != "Labs" || e.Module != "dsky-lab" || e.Pkg != "." {
+				t.Fatalf("the DSKY must run the dsky-lab module under Labs, got %+v", e)
+			}
+			for _, want := range []string{"bezel", "keypad"} {
+				if !strings.Contains(e.Desc, want) {
+					t.Fatalf("the DSKY entry must name the styled unit's %s, got %q", want, e.Desc)
+				}
+			}
+			return
+		}
+		t.Fatal("the styled DSKY lab must be in the launcher")
+	})
+	t.Run("unhappy: the DSKY is listed exactly once and never on a DEMO shelf", func(t *testing.T) {
+		n := 0
+		for _, e := range Catalog() {
+			if e.ID == "dsky" {
+				n++
+				if e.Section == "DEMO" {
+					t.Fatalf("the DSKY must not sit under DEMO, found %+v", e)
+				}
+			}
+		}
+		if n != 1 {
+			t.Fatalf("the DSKY must be listed exactly once, saw %d", n)
 		}
 	})
 	t.Run("happy: every entry is fully described", func(t *testing.T) {
