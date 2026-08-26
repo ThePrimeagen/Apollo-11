@@ -108,10 +108,16 @@ func WritePNGs(dir string, scale int) error {
 			return err
 		}
 	}
-	if err := writeStrip(filepath.Join(dir, "astronaut-run-strip.png"), RunPoses, scale); err != nil {
+	// Strips cap their magnification so a wide sheet stays under
+	// preview width and never gets resampled off the pixel grid.
+	stripScale := scale
+	if stripScale > 8 {
+		stripScale = 8
+	}
+	if err := writeStrip(filepath.Join(dir, "astronaut-run-strip.png"), RunPoses, stripScale); err != nil {
 		return err
 	}
-	if err := writeStrip(filepath.Join(dir, "astronaut-sheet.png"), Poses, scale); err != nil {
+	if err := writeStrip(filepath.Join(dir, "astronaut-sheet.png"), Poses, stripScale); err != nil {
 		return err
 	}
 	return nil

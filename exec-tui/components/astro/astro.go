@@ -24,7 +24,7 @@ const (
 	Rows = PxH / 2
 	// GripCol is the pixel column the pole hands close around — the
 	// scene parks the sprite so this column rides the flagpole.
-	GripCol = 13
+	GripCol = 14
 )
 
 // Size is the atlas size slot the astronaut frames live in.
