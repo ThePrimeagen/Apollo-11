@@ -208,7 +208,7 @@ func (m *Model) applyColorKey(r rune) bool {
 }
 
 func (m *Model) openPicker() {
-	if m.ColorPaletteOpen || m.ShipPickerOpen || m.GlyphGridOpen || m.Inserting {
+	if m.ColorPaletteOpen || m.FilePickerOpen || m.GlyphGridOpen || m.Inserting {
 		return
 	}
 	m.PickerOpen = true

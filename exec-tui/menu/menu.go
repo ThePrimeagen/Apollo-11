@@ -43,7 +43,7 @@ func Catalog() []Entry {
 		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
-		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish editor for ASCII ships in assets/ (C-p sizes×headings, C-e glyphs)"},
+		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish ASCII editor over the assets/ folder (C-p files, C-e glyphs)"},
 		{ID: "particle", Section: "CONFIG", Title: "PARTICLE CONFIG", Desc: "tune the nyan rainbow trail (bands, life, spawn)", Pkg: "./cmd/adjustparticle/main"},
 		{ID: "lander", Section: "DEMO", Title: "LANDER DEMO", Desc: "the continuous descent with alarms at their true moments", Pkg: "./cmd/lander"},
 		{ID: "stars", Section: "DEMO", Title: "STARS DEMO", Desc: "browse the starfield fly strategies", Pkg: "./cmd/stars"},

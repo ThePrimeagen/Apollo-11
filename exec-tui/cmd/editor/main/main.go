@@ -1,6 +1,13 @@
 package main
 
-// lander-edit: a vim-ish terminal editor for the LM ASCII atlas.
+// ascii-editor: a vim-ish terminal editor for JSON sprite atlases.
+//
+// Point it at a folder and it loads every atlas in it — ctrl-p is the
+// quick-open over those files. Point it at one .json file to edit just
+// that (a brand-new .json path is seeded with a blank canvas). With no
+// argument it opens the nearest assets/ folder.
+//
+//	go run ./cmd/editor/main [folder | file.json]
 //
 //	ctrl-h / ctrl-l  cycle canvas layers: ascii outline ↔ foreground ↔ background
 //	h j k l / arrows  move the canvas cursor
@@ -17,8 +24,9 @@ package main
 //	ctrl-w h/l  close popup / open symbols
 //	ctrl-w j/k  open palette / frames (popups over centered art)
 //	mouse       click a canvas cell or a symbol to jump there
-//	s / ctrl-s  save JSON (3-height toast, 5s)
-//	ctrl-p      size×heading gallery — full composite (outline+fg+bg)
+//	s / ctrl-s  save every open file (3-height toast, 5s)
+//	ctrl-p      file picker: every atlas in the folder — type to filter,
+//	            ^J/^K move, enter opens, esc closes
 //	ctrl-e      26×10 glyph grid (hjkl + enter, or 1a–0z)
 //	ctrl-k      named color palette (jk move, enter pick, esc close)
 //	q           quit
@@ -26,7 +34,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -35,11 +42,9 @@ import (
 )
 
 func main() {
-	path := editor.DefaultAtlasPath
+	path := editor.FindAssetsDir()
 	if len(os.Args) > 1 {
 		path = os.Args[1]
-	} else if cand := filepath.Join(editor.FindAssetsDir(), "lm-4.json"); fileExists(cand) {
-		path = cand
 	}
 	m, err := editor.Open(path)
 	if err != nil {
@@ -65,9 +70,4 @@ func (w wrapSave) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	got, cmd := w.Model.Update(msg)
 	w.Model = got.(editor.Model)
 	return w, cmd
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

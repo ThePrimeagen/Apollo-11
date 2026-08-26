@@ -150,6 +150,7 @@ func TestLayerViews(t *testing.T) {
 	t.Run("happy: outline renders glyphs in white without the cell background", func(t *testing.T) {
 		m := stampGold(t, newEd(t))
 		m.TermW, m.TermH = 80, 24
+		m.CursorC = 1 // off the stamp so reverse-video does not hide the color
 		m.Layer = LayerOutline
 		v := m.View().Content
 		if !strings.Contains(v, "\x1b[38;5;231m") {
@@ -165,6 +166,7 @@ func TestLayerViews(t *testing.T) {
 	t.Run("happy: fg layer shows foreground color without the background fill", func(t *testing.T) {
 		m := stampGold(t, newEd(t))
 		m.TermW, m.TermH = 80, 24
+		m.CursorC = 1 // off the stamp so reverse-video does not hide the color
 		m.Layer = LayerFG
 		v := m.View().Content
 		if !strings.Contains(v, "\x1b[38;5;178m") {
@@ -177,6 +179,7 @@ func TestLayerViews(t *testing.T) {
 	t.Run("happy: bg layer makes the background fill visible", func(t *testing.T) {
 		m := stampGold(t, newEd(t))
 		m.TermW, m.TermH = 80, 24
+		m.CursorC = 1 // off the stamp so reverse-video does not hide the color
 		m.Layer = LayerBG
 		v := m.View().Content
 		if !strings.Contains(v, "\x1b[48;5;94m") {

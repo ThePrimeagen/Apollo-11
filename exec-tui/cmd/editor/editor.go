@@ -8,7 +8,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
@@ -40,7 +39,7 @@ func (w Window) String() string {
 
 type cellKey struct{ R, C int }
 
-// Model is the lander sprite editor.
+// Model is the ASCII sprite editor.
 type Model struct {
 	Atlas   *sprite.Atlas
 	Size    sprite.Size
@@ -76,12 +75,12 @@ type Model struct {
 	CubeRed      int
 
 	AssetsDir string
+	Files     []Asset
 
-	ShipPickerOpen bool
-	ShipPickerSize sprite.Size
-	ShipPickerHead sprite.Heading
-	sizeCache      map[sprite.Size]*sprite.Atlas
-	sizePaths      map[sprite.Size]string
+	FilePickerOpen  bool
+	FilePickerIdx   int
+	FilePickerQuery string
+	atlases         map[string]*sprite.Atlas
 
 	GlyphGridOpen  bool
 	GlyphGridDigit rune
@@ -97,7 +96,7 @@ type Model struct {
 // New boots the editor on an atlas. path is where :w / Save writes.
 func New(a *sprite.Atlas, path string) Model {
 	if a == nil {
-		a = lander.DefaultAtlas()
+		a = blankAtlas()
 	}
 	pal := 1
 	if len(a.Palette) == 0 {
@@ -122,7 +121,7 @@ func New(a *sprite.Atlas, path string) Model {
 		SymIdx:    0,
 		PickerIdx: 23,
 		Layer:     LayerOutline,
-		status:    "layer outline  ^H/^L layers  hjkl move  p paste  ^E glyphs  ^K colors  ^P gallery  s save  q quit",
+		status:    "layer outline  ^H/^L layers  hjkl move  p paste  ^E glyphs  ^K colors  ^P files  s save  q quit",
 	}
 }
 
@@ -212,8 +211,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handlePickerKey(msg)
 	}
 
-	if m.ShipPickerOpen {
-		return m.handleShipPickerKey(msg)
+	if m.FilePickerOpen {
+		return m.handleFilePickerKey(msg)
 	}
 
 	if m.GlyphGridOpen {
@@ -237,7 +236,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.pendingWin = true
 		return m, nil
 	case "ctrl+p":
-		m.openShipPicker()
+		m.openFilePicker()
 		return m, nil
 	case "ctrl+e":
 		m.openGlyphGrid()
@@ -776,8 +775,8 @@ func (m *Model) handleMouse(msg tea.MouseClickMsg) {
 }
 
 // Save writes the current canvas to the title-bar path, then flushes
-// every other size still sitting in sizeCache. Ctrl-P swaps atlases;
-// saving only the one on screen used to leave the lander in RAM.
+// every other atlas still warm in the cache. Ctrl-P swaps files;
+// saving only the one on screen would leave the others' edits in RAM.
 func (m Model) Save() error {
 	if m.Path == "" {
 		return fmt.Errorf("no path to save")
@@ -789,22 +788,12 @@ func (m Model) Save() error {
 	if err := m.Atlas.WriteFile(m.Path); err != nil {
 		return err
 	}
-	return m.flushSizeCache()
+	return m.flushAtlases()
 }
 
-func (m Model) flushSizeCache() error {
-	for sz, a := range m.sizeCache {
-		if a == nil || a == m.Atlas || sz == m.Size {
-			continue
-		}
-		path := ""
-		if m.sizePaths != nil {
-			path = m.sizePaths[sz]
-		}
-		if path == "" {
-			path = m.sizeAssetPath(sz)
-		}
-		if path == "" || path == m.Path {
+func (m Model) flushAtlases() error {
+	for path, a := range m.atlases {
+		if a == nil || a == m.Atlas || path == "" || path == m.Path {
 			continue
 		}
 		if err := a.WriteFile(path); err != nil {
@@ -934,9 +923,9 @@ func (m Model) View() tea.View {
 	tw, th := m.termSize()
 	m.TermW, m.TermH = tw, th
 	sp := m.Current()
-	title := fmt.Sprintf("LM EDITOR  size %d  heading %s  layer %s  %s", m.Size, m.Heading, m.Layer, m.Path)
+	title := fmt.Sprintf("ASCII EDITOR  size %d  heading %s  layer %s  %s", m.Size, m.Heading, m.Layer, m.Path)
 	if m.Path == "" {
-		title = fmt.Sprintf("LM EDITOR  size %d  heading %s  layer %s", m.Size, m.Heading, m.Layer)
+		title = fmt.Sprintf("ASCII EDITOR  size %d  heading %s  layer %s", m.Size, m.Heading, m.Layer)
 	}
 
 	body := m.centeredCanvas()
@@ -966,8 +955,8 @@ func (m Model) View() tea.View {
 	if m.PickerOpen {
 		content = renderEightBitOverlay(m) + "\n" + content
 	}
-	if m.ShipPickerOpen {
-		content = renderShipPicker(m) + "\n" + content
+	if m.FilePickerOpen {
+		content = renderFilePicker(m) + "\n" + content
 	}
 	if m.GlyphGridOpen {
 		content = renderGlyphGrid(m) + "\n" + content
@@ -1222,7 +1211,7 @@ func recentsOrigin(termW, termH, spriteW, spriteH int) (glyphY, colorY int) {
 }
 
 func (m *Model) handleRecentsClick(x, y int) bool {
-	if m.PickerOpen || m.ShipPickerOpen || m.GlyphGridOpen || m.ColorPaletteOpen {
+	if m.PickerOpen || m.FilePickerOpen || m.GlyphGridOpen || m.ColorPaletteOpen {
 		return false
 	}
 	if m.Win != WinCanvas {

@@ -10,23 +10,21 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
-// DefaultAssetsDir is the folder of JSON ships, relative to the
-// exec-tui module root the launcher and `go run` start from.
+// DefaultAssetsDir is the folder of JSON atlases the editor opens when
+// no path is given, relative to the module root the launcher and
+// `go run` start from.
 const DefaultAssetsDir = "assets"
 
-// DefaultAtlasPath is the ship the editor opens when no path is given.
-const DefaultAtlasPath = "assets/lm-4.json"
-
-// ShipFile is one JSON atlas in the assets folder.
-type ShipFile struct {
+// Asset is one JSON atlas in the assets folder.
+type Asset struct {
 	Name string
 	Path string
 }
 
-// ListShips returns every *.json atlas in dir, sorted by name.
+// ListAssets returns every *.json atlas in dir, sorted by name.
 // A missing directory is an empty list, not an error — the picker
 // can still open and say there is nothing to switch to.
-func ListShips(dir string) ([]ShipFile, error) {
+func ListAssets(dir string) ([]Asset, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -34,12 +32,12 @@ func ListShips(dir string) ([]ShipFile, error) {
 		}
 		return nil, err
 	}
-	var out []ShipFile
+	var out []Asset
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		out = append(out, ShipFile{
+		out = append(out, Asset{
 			Name: strings.TrimSuffix(e.Name(), ".json"),
 			Path: filepath.Join(dir, e.Name()),
 		})
@@ -48,9 +46,19 @@ func ListShips(dir string) ([]ShipFile, error) {
 	return out, nil
 }
 
-// LoadShip reads a JSON atlas from path.
-func LoadShip(path string) (*sprite.Atlas, error) {
+// LoadAsset reads a JSON atlas from path.
+func LoadAsset(path string) (*sprite.Atlas, error) {
 	return sprite.LoadFile(path)
+}
+
+// blankAtlas is the seed for brand-new files: the default palette and
+// one empty size-4 frame — a fresh canvas with no project's art baked
+// in. Editing other sizes and headings creates their frames on demand.
+func blankAtlas() *sprite.Atlas {
+	a := &sprite.Atlas{Palette: append([]sprite.PaletteEntry(nil), sprite.DefaultPalette...)}
+	w, h := sprite.Size4.Dim()
+	a.SetFrame(sprite.Size4, sprite.N, sprite.New(w, h))
+	return a
 }
 
 // FindAssetsDir locates the shipped assets folder: first a nearby
@@ -126,10 +134,24 @@ func (m *Model) snapToExistingFrame() {
 	}
 }
 
-func (m *Model) applyShip(path string) error {
-	a, err := LoadShip(path)
-	if err != nil {
-		return err
+// openAsset switches the canvas to the atlas at path. The atlas being
+// left stays warm in the cache, so its unsaved edits survive the
+// switch and the next save flushes them to disk.
+func (m *Model) openAsset(path string) error {
+	if m.atlases == nil {
+		m.atlases = map[string]*sprite.Atlas{}
+	}
+	if m.Atlas != nil && m.Path != "" {
+		m.atlases[m.Path] = m.Atlas
+	}
+	a := m.atlases[path]
+	if a == nil {
+		var err error
+		a, err = LoadAsset(path)
+		if err != nil {
+			return err
+		}
+		m.atlases[path] = a
 	}
 	m.Atlas = a
 	m.Path = path

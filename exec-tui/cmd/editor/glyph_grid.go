@@ -79,7 +79,7 @@ func GlyphAt(colKey, rowKey rune) (rune, bool) {
 }
 
 func (m *Model) openGlyphGrid() {
-	if m.PickerOpen || m.ShipPickerOpen || m.ColorPaletteOpen || m.Inserting {
+	if m.PickerOpen || m.FilePickerOpen || m.ColorPaletteOpen || m.Inserting {
 		return
 	}
 	m.GlyphGridOpen = true
