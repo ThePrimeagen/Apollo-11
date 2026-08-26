@@ -1,5 +1,5 @@
 // Package menu is the exec-tui launcher: a scrollable list of every lab
-// and configurator in the repo, grouped by category — the main program,
+// and configurator in the repo, grouped by category — the main programs,
 // the configurators, the demo labs, and the legacy TUIs. j/k (or arrows)
 // move over entries (headers are never selectable), enter runs the
 // highlighted program, q quits. Running exec-tui with no arguments opens
@@ -33,13 +33,15 @@ type Entry struct {
 	Section string
 }
 
-// Catalog lists every runnable program by category: the main program,
-// then the config editors, then the demos, then the legacy TUIs.
+// Catalog lists every runnable program by category: the main programs
+// (the premiere, then the lunar lander close-up), then the config
+// editors, then the demos, then the legacy TUIs.
 // Everything this module owns launches out of its own cmd/ folder;
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
 	return []Entry{
 		{ID: "screenplay", Section: "MAIN PROGRAM", Title: "SCREENPLAY", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
+		{ID: "closeup", Section: "MAIN PROGRAM", Title: "LUNAR LANDER CLOSE-UP", Desc: "stars drift, then the zoomed-in lander slides in from the right", Pkg: "./cmd/lunarcloseup"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish editor for ASCII ships in assets/ (C-p sizes×headings, C-e glyphs)"},

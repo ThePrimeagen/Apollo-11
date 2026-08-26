@@ -82,7 +82,10 @@ added together. `shows/moonshow` is the first packaged bill: scene
 one, the bare moon alone under a parked sky; scene two, a spaceship
 streaks in fast off the left wing, brakes onto its orbit, and circles
 the moon until the next cut (`go run ./cmd/moon` plays it; space past
-the last scene ends the show).
+the last scene ends the show). `shows/lunarcloseup` is the second: a
+copy of the premiere's arrival as its own one-scene bill — drifting
+stars, then the zoomed-in lander slides in from the right
+(`go run ./cmd/lunarcloseup`; space past the last scene ends the show).
 
 The `Screen` is the shared render target: one Lip Gloss v2 canvas — a
 `uv.Cell` of content plus style per terminal cell — plus `Resize` /
