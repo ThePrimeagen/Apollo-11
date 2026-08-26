@@ -1,12 +1,13 @@
 package moon
 
 // Tests written FIRST: the descent-orbit card — a pixelated moon
-// centered on stage with a dotted ring circling it (the descent path)
-// and a gold marker riding that ring westward over the top, the way
-// the LM flew its powered descent sideways. Geometry speaks half-cell
-// "pixels" — a terminal cell is one pixel wide and two tall — so both
-// circles read round on a real terminal. As a component: Start pins
-// the stage, Update runs the orbit clock, Render hands back the
+// centered on stage with a wide dotted ring circling it (the descent
+// path) and a lone gold marker riding that ring eastward over the top
+// — sideways, no fire behind it. The disc stays a little small so the
+// orbit flies wide of the surface. Geometry speaks half-cell "pixels"
+// — a terminal cell is one pixel wide and two tall — so both circles
+// read round on a real terminal. As a component: Start pins the
+// stage, Update runs the orbit clock, Render hands back the
 // stage-sized card, Stop empties the stage; the clock carries across
 // restarts so a resize never rewinds the orbit.
 
@@ -55,8 +56,8 @@ func TestGeometry(t *testing.T) {
 		if moonR < 8 {
 			t.Fatalf("moonR %dpx — the default stage deserves a real moon", moonR)
 		}
-		if ringR-moonR < 3 {
-			t.Fatalf("ring %dpx hugs the disc %dpx — the path must clear the surface", ringR, moonR)
+		if ringR-moonR < 6 {
+			t.Fatalf("ring %dpx hugs the disc %dpx — the moon stays small so the orbit flies wide", ringR, moonR)
 		}
 		if cx-ringR < 1 || cx+ringR > stageW-2 {
 			t.Fatalf("ring spills the stage horizontally: cx %d ringR %d width %d", cx, ringR, stageW)
@@ -89,15 +90,15 @@ func TestMarkerPath(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: over the top it flies west — sideways, like the arrival", func(t *testing.T) {
-		// The marker opens on the upper-right arc and crosses the top a
-		// beat later; across that crossing its column must fall.
+	t.Run("happy: over the top it flies east — still sideways, the other way around", func(t *testing.T) {
+		// The marker opens on the upper-left arc and crosses the top a
+		// beat later; across that crossing its column must rise.
 		topT := OrbitSeconds / 8
 		_, before := MarkerAt(stageW, stageH, topT-0.4)
 		rowTop, _ := MarkerAt(stageW, stageH, topT)
 		_, after := MarkerAt(stageW, stageH, topT+0.4)
-		if after >= before {
-			t.Fatalf("cols %d → %d across the top — the marker must fly west", before, after)
+		if after <= before {
+			t.Fatalf("cols %d → %d across the top — the marker must fly east", before, after)
 		}
 		if rowTop > cy-ringR/2+1 {
 			t.Fatalf("row %d at the crossing, want the top of the ring (~%d)", rowTop, cy-ringR/2)
@@ -207,6 +208,33 @@ func TestMoonOnStage(t *testing.T) {
 		}
 		if got := sp.At(r0, c0); got.Ch == MarkerGlyph {
 			t.Fatal("the marker must leave its old cell behind")
+		}
+	})
+	t.Run("happy: the marker flies alone — no fire trail, nothing stray", func(t *testing.T) {
+		known := map[rune]bool{'▓': true, '▒': true, '░': true, RingGlyph: true, MarkerGlyph: true}
+		m := New()
+		m.Start(stageW, stageH)
+		for _, dt := range []float64{0, 1.7, 4.2} {
+			m.Update(dt)
+			sp := m.Render()
+			markers := 0
+			for r := 0; r < stageH; r++ {
+				for c := 0; c < stageW; c++ {
+					cell := sp.At(r, c)
+					if cell.Transparent() {
+						continue
+					}
+					if !known[cell.Ch] {
+						t.Fatalf("stray glyph %q at (%d,%d) — the craft flies with no trail", cell.Ch, r, c)
+					}
+					if cell.Ch == MarkerGlyph {
+						markers++
+					}
+				}
+			}
+			if markers != 1 {
+				t.Fatalf("%d marker cells — the craft is one lone gold diamond", markers)
+			}
 		}
 	})
 	t.Run("happy: renders between updates are identical — the card is deterministic", func(t *testing.T) {
