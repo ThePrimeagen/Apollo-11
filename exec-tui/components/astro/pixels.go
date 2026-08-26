@@ -98,7 +98,7 @@ var grids = map[sprite.Heading][]string{
 		/*  9 */ "..DDDWWWWWWWWW..",
 		/* 10 */ "......WWWWWWW...",
 		/* 11 */ "...DD.WWWWWWW...",
-		/* 12 */ ".....WWWWWWWDDD.",
+		/* 12 */ ".....WW.WWWWDDD.",
 		/* 13 */ "....WWW.....DDD.",
 		/* 14 */ "...DDD..........",
 		/* 15 */ "..DDDD..........",
