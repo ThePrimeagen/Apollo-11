@@ -1,3 +1,0 @@
-func hello_world() {
-	fmt.Println("hello world")
-}
