@@ -440,6 +440,66 @@ func TestSetConfig(t *testing.T) {
 	})
 }
 
+func TestBurst(t *testing.T) {
+	t.Run("happy: Burst is the one-shot trigger — Period 0 never auto-emits, the squeeze does", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Period = 0
+		e := New(1, cfg)
+		e.Update(1)
+		if len(e.Particles) != 0 {
+			t.Fatalf("Period=0 must hold fire, got %d", len(e.Particles))
+		}
+		e.Burst()
+		if len(e.Particles) != cfg.Count {
+			t.Fatalf("one squeeze emits %d, want the count %d", len(e.Particles), cfg.Count)
+		}
+		for i, p := range e.Particles {
+			if p.Pos != cfg.Origin {
+				t.Fatalf("particle %d burst at %+v, want the origin %+v", i, p.Pos, cfg.Origin)
+			}
+			if p.Age != 0 {
+				t.Fatalf("particle %d burst with age %f, want 0", i, p.Age)
+			}
+		}
+		e.Burst()
+		if len(e.Particles) != 2*cfg.Count {
+			t.Fatalf("a second squeeze stacks to %d, want %d", len(e.Particles), 2*cfg.Count)
+		}
+	})
+	t.Run("happy: burst particles fly, age, and die like any other", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Period = 0
+		cfg.MinLife, cfg.MaxLife = 0.1, 0.2
+		e := New(2, cfg)
+		e.Burst()
+		e.Update(0.05)
+		if len(e.Particles) == 0 {
+			t.Fatal("mid-life the batch must still fly")
+		}
+		if avgX(e.Particles) >= cfg.Origin.X {
+			t.Fatalf("a leftward burst must drift left, avgX=%.2f origin=%.2f", avgX(e.Particles), cfg.Origin.X)
+		}
+		e.Update(2)
+		if len(e.Particles) != 0 {
+			t.Fatalf("after 2s the whole batch must be dead, still %d", len(e.Particles))
+		}
+	})
+	t.Run("unhappy: a zero count bursts nothing", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Period = 0
+		cfg.Count = 0
+		e := New(3, cfg)
+		e.Burst()
+		if len(e.Particles) != 0 {
+			t.Fatalf("Count=0 must burst 0, got %d", len(e.Particles))
+		}
+	})
+	t.Run("unhappy: a nil engine skips the cue without a panic", func(t *testing.T) {
+		var ghost *Engine
+		ghost.Burst()
+	})
+}
+
 func TestMaxDistance(t *testing.T) {
 	t.Run("happy: particles die when they travel farther than MaxDistance from the origin", func(t *testing.T) {
 		cfg := testCfg()
