@@ -2,9 +2,10 @@
 // (width × height), a nozzle (origin), a direction, a count and a period.
 //
 // Update is the only clock: live particles move, expire, and leave the box;
-// new ones spawn at the origin on each period. Occupancy counts how many
-// live particles sit in each terminal cell so a caller can color by density.
-// The package does not draw.
+// new ones spawn at the origin on each period. Burst spawns one batch on
+// demand — the one-shot trigger for effects with no period at all.
+// Occupancy counts how many live particles sit in each terminal cell so a
+// caller can color by density. The package does not draw.
 //
 // The engine flies under one of two modes, carried on the Config. The
 // default, ModeStraight, keeps every particle on its velocity. ModeSwirl —
@@ -279,6 +280,19 @@ func (e *Engine) advanceSwirl(dt float64) {
 		}
 	}
 	e.Particles = e.Particles[:n]
+}
+
+// Burst emits one batch of Count particles right now, regardless of
+// the period clock — the one-shot trigger. An engine with Period 0
+// never emits on its own, so Burst is its only squeeze: fire, watch
+// the batch fly out and die, fire again whenever. The period clock is
+// untouched, so auto-emitting engines keep their schedule. Nil
+// engines skip the cue.
+func (e *Engine) Burst() {
+	if e == nil {
+		return
+	}
+	e.emit()
 }
 
 func (e *Engine) emitDue(dt float64) {
