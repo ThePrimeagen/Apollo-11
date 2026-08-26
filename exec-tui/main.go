@@ -20,6 +20,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
 	"github.com/theprimeagen/apollo-11/exec-tui/sim"
+	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/ui"
 )
 
@@ -39,8 +40,7 @@ func main() {
 
 // pick runs the menu program and returns the chosen entry, if any.
 func pick(status string) (menu.Entry, bool) {
-	p := tea.NewProgram(menu.New(menu.Catalog(), status), colorOpts()...)
-	got, err := p.Run()
+	got, err := termreset.Run(menu.New(menu.Catalog(), status), colorOpts()...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "exec-tui:", err)
 		os.Exit(1)
@@ -69,7 +69,7 @@ func launch(e menu.Entry) error {
 	}
 	switch e.ID {
 	case "legacy":
-		_, err := tea.NewProgram(ui.NewModel(sim.New()), colorOpts()...).Run()
+		_, err := termreset.Run(ui.NewModel(sim.New()), colorOpts()...)
 		return err
 	case "flame":
 		return runFlame()
@@ -91,7 +91,7 @@ func runFlame() error {
 	if err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(m, colorOpts()...).Run()
+	_, err = termreset.Run(m, colorOpts()...)
 	return err
 }
 
@@ -115,7 +115,7 @@ func runEditor() error {
 	if err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(m, colorOpts()...).Run()
+	_, err = termreset.Run(m, colorOpts()...)
 	return err
 }
 
@@ -144,6 +144,7 @@ func runLocal(e menu.Entry) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, &captured)
 	err = cmd.Run()
+	termreset.Restore()
 	if err == nil {
 		return nil
 	}
@@ -184,5 +185,7 @@ func runExternal(e menu.Entry) error {
 	cmd := exec.Command("go", "run", e.Pkg)
 	cmd.Dir = dir
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return cmd.Run()
+	err = cmd.Run()
+	termreset.Restore()
+	return err
 }

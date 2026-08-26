@@ -22,6 +22,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
+	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 const (
@@ -176,7 +177,7 @@ func main() {
 	if p, ok := forcedColorProfile(); ok {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
-	if _, err := tea.NewProgram(newModel(*seconds), opts...).Run(); err != nil {
+	if _, err := termreset.Run(newModel(*seconds), opts...); err != nil {
 		fmt.Fprintln(os.Stderr, "nyan:", err)
 		os.Exit(1)
 	}

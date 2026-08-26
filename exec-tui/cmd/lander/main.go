@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander/descent"
+	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 type scriptEvent struct {
@@ -184,7 +185,7 @@ func (m demoModel) View() tea.View {
 }
 
 func main() {
-	if _, err := tea.NewProgram(newDemoModel()).Run(); err != nil {
+	if _, err := termreset.Run(newDemoModel()); err != nil {
 		fmt.Fprintln(os.Stderr, "lander:", err)
 		os.Exit(1)
 	}

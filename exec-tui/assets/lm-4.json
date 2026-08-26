@@ -68,9 +68,9 @@
           "..........................",
           "..........................",
           ".........W......W.........",
+          "....GGGGGGGGGGGGGGGGGG....",
           "...GGGGGGGGGGGGGGGGGGGG...",
           "..GGGGGGGGGGGGGGGGGGGGGG..",
-          ".GGGGGGGGGGGGGGGGGGGGGGGG.",
           "..........................",
           "..........................",
           "..........................",
@@ -117,40 +117,40 @@
       },
       "W": {
         "glyphs": [
-          "       ▗▄▟█████▌╱◥     -  ",
+          "          ▟████▌╱◥     -  ",
           "      ▗▟███████▌    ▁     ",
           "  ▗▄███████████▌    ▔     ",
-          "▄▌▐████████████▌▄▄▄▄▄     ",
-          "█▌▐█▛  ▐███████▌▐████     ",
-          "█▌▐█▙  ▐███████▌▐████     ",
-          "▀▌▐████████████▌▀▀▀▀▀     ",
+          "▄▌▐████████████▌▄▄▄▄▄▇    ",
+          "█▌▐█▛  ▐███████▌▐████▇    ",
+          "█▌▐█▙  ▐███████▌▐████▇    ",
+          "▀▌▐████████████▌▀▀▀▀▀▇    ",
           "  ▝▀███████████▌    ▁     ",
           "      ▝▜███████▌╲◢        ",
-          "       ▝▀▜█████▌ ╲    --  "
+          "          ▜████▌ ╲    --  "
         ],
         "fg": [
-          ".......GGGGGGGGGSS.....S..",
+          "..........GGGGGGSS.....S..",
           "......SGGGGGGGGG....S.....",
           "..SSSSSSGGGGGGGG....S.....",
-          "SSSSSWWSGGGGGGGGEEEEE.....",
-          "SSSSS..GGGGGGGGGEEEEE.....",
-          "SSSSS..GGGGGGGGGEEEEE.....",
-          "SSSSSWWSGGGGGGGGEEEEE.....",
+          "SSSSSWWSGGGGGGGGEEEEEE....",
+          "SSSSS..GGGGGGGGGEEEEEE....",
+          "SSSSS..GGGGGGGGGEEEEEE....",
+          "SSSSSWWSGGGGGGGGEEEEEE....",
           "..SSSSSSGGGGGGGG....S.....",
           "......SGGGGGGGGGSS........",
-          ".......GGGGGGGGG.S....SS.."
+          "..........GGGGGG.S....SS.."
         ],
         "bg": [
-          ".......GGGGGGGGG..........",
+          "..........GGGGGG..........",
           ".......GGGGGGGGG..........",
           "........GGGGGGGG..........",
-          ".....WW.GGGGGGGG..........",
-          ".......GGGGGGGGG..........",
-          ".......GGGGGGGGG..........",
-          ".....WW.GGGGGGGG..........",
+          ".....WW.GGGGGGGG.....G....",
+          ".......GGGGGGGGG.....G....",
+          ".......GGGGGGGGG.....G....",
+          ".....WW.GGGGGGGG.....G....",
           "........GGGGGGGG..........",
           ".......GGGGGGGGG..........",
-          ".......GGGGGGGGG.........."
+          "..........GGGGGG.........."
         ]
       }
     }

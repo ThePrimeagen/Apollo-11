@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustparticle"
+	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 func main() {
@@ -30,7 +31,7 @@ func main() {
 	if p, ok := adjustparticle.ForcedColorProfile(); ok {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
-	if _, err := tea.NewProgram(m, opts...).Run(); err != nil {
+	if _, err := termreset.Run(m, opts...); err != nil {
 		fmt.Fprintln(os.Stderr, "adjustparticle:", err)
 		os.Exit(1)
 	}

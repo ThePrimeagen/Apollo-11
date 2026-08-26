@@ -370,3 +370,53 @@ func TestParkedShip(t *testing.T) {
 		}
 	})
 }
+
+func TestHoldShip(t *testing.T) {
+	const hold = FlyInHoldSeconds
+	t.Run("happy: a held ship stays offstage until the wait is over", func(t *testing.T) {
+		s := NewShip(12).Dark().Hold(hold)
+		s.Start(screenW, screenH)
+		warmShip(s, hold-0.1)
+		if n := opaqueCells(s.Render()); n != 0 {
+			t.Fatalf("during the hold the craft lit %d cells — it is still offstage", n)
+		}
+		s.Update(0.2)
+		if opaqueCells(s.Render()) == 0 {
+			t.Fatal("once the hold ends the fly-in must have started")
+		}
+	})
+	t.Run("happy: after the hold the fly-in parks on the same mark", func(t *testing.T) {
+		s := NewShip(13).Dark().Hold(hold)
+		s.Start(screenW, screenH)
+		warmShip(s, hold+FlyInSeconds)
+		wantRow, wantCol := FlightPath(screenW, screenH, FlyInSeconds)
+		stage := s.Render()
+		for r := 0; r < s.Body.Height; r++ {
+			for c := 0; c < s.Body.Width; c++ {
+				b := s.Body.At(r, c)
+				if b.Transparent() {
+					continue
+				}
+				if got := stage.At(wantRow+r, wantCol+c); got != b {
+					t.Fatalf("held hull cell (%d,%d) missing at park: %+v -> %+v", r, c, b, got)
+				}
+			}
+		}
+	})
+	t.Run("happy: Hold then Parked skips the wait and the fly-in", func(t *testing.T) {
+		s := NewShip(14).Dark().Hold(hold).Parked()
+		s.Start(screenW, screenH)
+		if s.Clock() != hold+FlyInSeconds {
+			t.Fatalf("clock %f, want hold+FlyInSeconds (%f)", s.Clock(), hold+FlyInSeconds)
+		}
+		if opaqueCells(s.Render()) == 0 {
+			t.Fatal("Hold().Parked() must already be on stage")
+		}
+	})
+	t.Run("unhappy: Hold on a nil ship is still nil", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.Hold(hold) != nil {
+			t.Fatal("Hold must return the nil receiver")
+		}
+	})
+}

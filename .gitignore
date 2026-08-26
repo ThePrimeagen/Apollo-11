@@ -1,3 +1,5 @@
 yaYUL.exe
 node_modules
 exec-tui/exec-tui
+tmp
+exec-tui/tmp

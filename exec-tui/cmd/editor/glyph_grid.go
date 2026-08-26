@@ -23,12 +23,20 @@ func buildGlyphGrid() [GlyphGridRows][GlyphGridCols]rune {
 	for r := rune(0x2500); r <= 0x257F; r++ { // box drawing
 		chars = append(chars, r)
 	}
+	// BMP only has ▀ (upper half) and ▔ (upper 1/8). These five
+	// complete the top-side ramp that mirrors 1b–1h.
+	for r := rune(0x1FB82); r <= 0x1FB86; r++ {
+		chars = append(chars, r)
+	}
+	geo := make([]rune, 0, 94)
 	for r := rune(0x25A0); r <= 0x25FF; r++ { // geometric shapes
 		if r == '\u25FD' || r == '\u25FE' {
 			continue // ◽ ◾ are two cells wide and shove the row
 		}
-		chars = append(chars, r)
+		geo = append(geo, r)
 	}
+	// Drop the last five geometrics so the grid stays 260 cells.
+	chars = append(chars, geo[:len(geo)-5]...)
 	chars = append(chars, '←', '↑', '→', '↓', '·', '•')
 	var grid [GlyphGridRows][GlyphGridCols]rune
 	i := 0

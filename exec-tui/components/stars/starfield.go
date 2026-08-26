@@ -28,6 +28,7 @@ type Starfield struct {
 	dockSec   float64
 	slideSec  float64
 	slideBody int
+	slideHold float64
 }
 
 // NewStarfield opens a sky flying in the given style.
@@ -64,6 +65,16 @@ func (f *Starfield) SlideIn(seconds float64, bodyCols int) *Starfield {
 	}
 	f.slideSec = seconds
 	f.slideBody = bodyCols
+	return f
+}
+
+// Hold waits seconds of the sky's own fly before the SlideIn
+// translation starts. Call before Start. Nil-safe.
+func (f *Starfield) Hold(seconds float64) *Starfield {
+	if f == nil {
+		return nil
+	}
+	f.slideHold = seconds
 	return f
 }
 
@@ -163,7 +174,7 @@ func (f *Starfield) Render() sprite.Sprite {
 	if f.dockMin > 0 || f.dockSec > 0 {
 		cutoff = f.w - wipeCols(DockCols(f.w, f.dockMin), f.clock, f.dockSec)
 	}
-	shift := SlideOffset(f.w, f.slideBody, f.clock, f.slideSec)
+	shift := SlideOffset(f.w, f.slideBody, f.clock-f.slideHold, f.slideSec)
 	f.cat.Paint(int(f.clock*StarFPS), f.fly, func(row, col int, ch rune, fg int) {
 		col = wrap(col-shift, f.w)
 		if col >= cutoff {

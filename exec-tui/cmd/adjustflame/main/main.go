@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
+	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/ui"
 )
 
@@ -38,8 +39,7 @@ func main() {
 	if p, ok := ui.ForcedColorProfile(); ok {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
-	p := tea.NewProgram(m, opts...)
-	if _, err := p.Run(); err != nil {
+	if _, err := termreset.Run(m, opts...); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

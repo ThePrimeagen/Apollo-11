@@ -1,10 +1,11 @@
 // premiere: the three-scene showcase for the screenplay component.
 //
-// Scene 1, "arrival": the Apollo craft slides in from the right wing
-// over a starfield that translates with it — every star speeds up on
-// the same ease-out cubic the hull flies, so the whole scene rushes
-// left as the ship comes in, then the sky settles back into its own
-// drift once the craft parks. Hull only, cold engine. Scene 2, "dsky": the
+// Scene 1, "arrival": three seconds of drifting sky, then the Apollo
+// craft slides in from the right wing over a starfield that translates
+// with it — every star speeds up on the same ease-out cubic the hull
+// flies, so the whole scene rushes left as the ship comes in, then the
+// sky settles back into its own drift once the craft parks. Hull only,
+// cold engine. Scene 2, "dsky": the
 // parked craft stays, the right third of the sky wipes away one column
 // at a time (~500ms), and the DSKY docks in that space. Scene 3, "the
 // end": the height-5 banner card, centered under the same sky.
@@ -32,6 +33,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
+	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 const (
@@ -50,8 +52,8 @@ func premiere() *screenplay.Screenplay {
 		screenplay.Entry{Name: "arrival", Scene: &screenplay.Ensemble{
 			Assemble: func() []screenplay.Component {
 				return []screenplay.Component{
-					stars.NewTunedStarfield().SlideIn(lander.FlyInSeconds, lander.BodyCols),
-					lander.NewShip(11).Dark(),
+					stars.NewTunedStarfield().SlideIn(lander.FlyInSeconds, lander.BodyCols).Hold(lander.FlyInHoldSeconds),
+					lander.NewShip(11).Dark().Hold(lander.FlyInHoldSeconds),
 				}
 			},
 		}},
@@ -223,7 +225,7 @@ func main() {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
 	m := newModel(*seconds)
-	if _, err := tea.NewProgram(m, opts...).Run(); err != nil {
+	if _, err := termreset.Run(m, opts...); err != nil {
 		fmt.Fprintln(os.Stderr, "premiere:", err)
 		os.Exit(1)
 	}

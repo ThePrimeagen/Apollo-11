@@ -18,6 +18,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 type demoModel struct {
@@ -188,7 +189,7 @@ func main() {
 	flag.Parse()
 	m := newDemo(strategyOrDefault(*name))
 	m.seconds = *seconds
-	if _, err := tea.NewProgram(m).Run(); err != nil {
+	if _, err := termreset.Run(m); err != nil {
 		fmt.Fprintln(os.Stderr, "stars:", err)
 		os.Exit(1)
 	}

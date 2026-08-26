@@ -12,8 +12,11 @@ const (
 	// BodyCols/BodyRows is the size-4 frame: the full zoomed-in craft.
 	BodyCols = 26
 	BodyRows = 10
+	// FlyInHoldSeconds is how long the craft waits offstage before
+	// the fly-in starts.
+	FlyInHoldSeconds = 3.0
 	// FlyInSeconds is how long the slide from the right wing to center
-	// stage takes.
+	// stage takes, after the hold.
 	FlyInSeconds = 4.0
 	// BobPeriodSeconds is one full up-and-down of the parked bobble.
 	BobPeriodSeconds = 10.0
@@ -42,6 +45,7 @@ type Ship struct {
 	clock float64
 	w, h  int
 	dark  bool
+	hold  float64
 }
 
 // NewShip binds the craft to its fire seed. Nothing is built until
@@ -111,7 +115,7 @@ func (s *Ship) Render() sprite.Sprite {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(s.w, s.h)
-	row, col := FlightPath(s.w, s.h, s.clock)
+	row, col := FlightPath(s.w, s.h, s.clock-s.hold)
 	if s.Flame != nil {
 		sprite.Blit(stage, col+FlameCol, row+FlameRow, s.Flame.Sprite())
 	}
@@ -130,13 +134,23 @@ func (s *Ship) Dark() *Ship {
 	return s
 }
 
+// Hold waits seconds offstage before the fly-in starts. Call before
+// Start. Nil-safe.
+func (s *Ship) Hold(seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.hold = seconds
+	return s
+}
+
 // Parked starts the clock at the fly-in park so the first frame is
-// already center-stage. Nil-safe.
+// already center-stage, skipping any Hold. Nil-safe.
 func (s *Ship) Parked() *Ship {
 	if s == nil {
 		return nil
 	}
-	s.clock = FlyInSeconds
+	s.clock = s.hold + FlyInSeconds
 	return s
 }
 

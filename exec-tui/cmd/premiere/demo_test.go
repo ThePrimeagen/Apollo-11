@@ -1,10 +1,10 @@
 package main
 
 // Demo harness tests, written first: the premiere plays a
-// three-scene bill on the shared screen. Scene one, "arrival": a
-// starfield that translates with the westbound craft as it slides in
-// from the right wing — hull only, no booster fire — then parks and
-// bobbles at center stage. Space cuts to scene two, "dsky": the craft
+// three-scene bill on the shared screen. Scene one, "arrival": three
+// seconds of drifting sky, then a starfield that translates with the
+// westbound craft as it slides in from the right wing — hull only, no
+// booster fire — then parks and bobbles at center stage. Space cuts to scene two, "dsky": the craft
 // parked, the right third of the sky wipes away one column at a time
 // (~500ms), and the DSKY docks in that space. Space cuts to scene
 // three, "the end": the height-5 banner card. Space on the final
@@ -68,14 +68,18 @@ func TestPremiere(t *testing.T) {
 	})
 	t.Run("happy: frames fly the craft in with a cold engine — hull, no fire", func(t *testing.T) {
 		m := newModel(0)
-		_ = m.View()      // the opening paint stages the cast, as bubbletea does
-		m = frames(m, 90) // three seconds
-		if m.elapsed < 2.9 || m.elapsed > 3.1 {
-			t.Fatalf("elapsed %f after 90 frames, want ~3.0", m.elapsed)
+		_ = m.View() // the opening paint stages the cast, as bubbletea does
+		m = frames(m, 60)
+		if strings.ContainsRune(m.View().Content, '▌') {
+			t.Fatal("the hold is still running — the craft must stay offstage")
+		}
+		m = frames(m, 120) // three more seconds: hold ends and the fly-in is well under way
+		if m.elapsed < 5.9 || m.elapsed > 6.1 {
+			t.Fatalf("elapsed %f after 180 frames, want ~6.0", m.elapsed)
 		}
 		v := m.View().Content
 		if !strings.ContainsRune(v, '▌') {
-			t.Fatal("three seconds in, the hull must be on screen")
+			t.Fatal("after the hold the hull must be on screen")
 		}
 		if strings.ContainsAny(v, "⠁⠒⠶▒") {
 			t.Fatal("arrival must fly a dark engine — no booster fire yet")
@@ -85,6 +89,7 @@ func TestPremiere(t *testing.T) {
 		}
 	})
 	t.Run("happy: the arrival sky slides with the craft — same cells, same ease", func(t *testing.T) {
+		hold := lander.FlyInHoldSeconds
 		for _, w := range []int{40, 72, 120} {
 			for _, tt := range []float64{0, 0.5, 1, 2, lander.FlyInSeconds, lander.FlyInSeconds + 3} {
 				_, c0 := lander.FlightPath(w, 28, 0)
@@ -92,6 +97,15 @@ func TestPremiere(t *testing.T) {
 				got := stars.SlideOffset(w, lander.BodyCols, tt, lander.FlyInSeconds)
 				if c0-c != got {
 					t.Fatalf("w=%d t=%.1f ship traveled %d, sky slide %d", w, tt, c0-c, got)
+				}
+			}
+			for _, sceneT := range []float64{0, 2, hold, hold + 1, hold + lander.FlyInSeconds, hold + lander.FlyInSeconds + 3} {
+				flyT := sceneT - hold
+				_, c0 := lander.FlightPath(w, 28, 0)
+				_, c := lander.FlightPath(w, 28, flyT)
+				got := stars.SlideOffset(w, lander.BodyCols, flyT, lander.FlyInSeconds)
+				if c0-c != got {
+					t.Fatalf("w=%d scene t=%.1f (fly t=%.1f) ship traveled %d, sky slide %d", w, sceneT, flyT, c0-c, got)
 				}
 			}
 		}

@@ -185,6 +185,44 @@ func TestGlyphGrid(t *testing.T) {
 			prev = ch
 		}
 	})
+	t.Run("happy: 7e-7i are the missing upper bars that pair with 1b-1h", func(t *testing.T) {
+		// BMP block elements give 1b-1h the full lower-eighth ramp
+		// (▁▂▃▄▅▆▇) but only ▀ (1a) and ▔ (1u) on the top. Legacy
+		// Computing fills the other five upper eighths. They sit at
+		// the start of the geometric page (7e is where ■ used to be).
+		want := []rune{
+			'\U0001FB82', // 🮂 upper 1/4
+			'\U0001FB83', // 🮃 upper 3/8
+			'\U0001FB84', // 🮄 upper 5/8
+			'\U0001FB85', // 🮅 upper 3/4
+			'\U0001FB86', // 🮆 upper 7/8
+		}
+		for i, w := range want {
+			row := rune('e' + i)
+			got, ok := GlyphAt('7', row)
+			if !ok {
+				t.Fatalf("7%c missing", row)
+			}
+			if got != w {
+				t.Fatalf("7%c: got %q (U+%04X) want %q (U+%04X)",
+					row, string(got), got, string(w), w)
+			}
+			if n := runeCols(got); n != 1 {
+				t.Fatalf("7%c %q is %d cells wide and would shove the row", row, string(got), n)
+			}
+		}
+	})
+	t.Run("unhappy: the trailing geometrics we swapped out are gone", func(t *testing.T) {
+		dropped := []rune{'◹', '◺', '◻', '◼', '◿'}
+		for _, ch := range dropped {
+			if glyphGridContains(ch) {
+				t.Fatalf("%q should have been replaced by the missing upper bars", string(ch))
+			}
+		}
+		if ch, ok := GlyphAt('7', 'e'); !ok || ch == '■' {
+			t.Fatal("7e is still ■; the upper-bar set was not slotted in")
+		}
+	})
 	t.Run("happy: hjkl move the grid cursor and enter picks that cell", func(t *testing.T) {
 		m := newEd(t)
 		m.CursorR, m.CursorC = 2, 2
@@ -323,4 +361,15 @@ func countGlyphGrid() int {
 		}
 	}
 	return n
+}
+
+func glyphGridContains(want rune) bool {
+	for _, col := range glyphGridColKeys {
+		for _, row := range lettersAZ() {
+			if ch, ok := GlyphAt(col, row); ok && ch == want {
+				return true
+			}
+		}
+	}
+	return false
 }

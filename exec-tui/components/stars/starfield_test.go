@@ -384,6 +384,40 @@ func TestStarfieldSlideIn(t *testing.T) {
 	})
 }
 
+func TestStarfieldHold(t *testing.T) {
+	const body = 26
+	const sec = 4.0
+	const hold = 3.0
+	t.Run("happy: during the hold a sliding sky does not translate yet", func(t *testing.T) {
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(hold - 0.1)
+		held := NewStarfield(Drift).SlideIn(sec, body).Hold(hold)
+		held.Start(stageW, stageH)
+		held.Update(hold - 0.1)
+		if !snapshotsEqual(spriteSnapshot(plain.Render()), spriteSnapshot(held.Render())) {
+			t.Fatal("the hold must leave the sky on its own fly — the slide has not started")
+		}
+	})
+	t.Run("happy: after the hold the slide matches a slide that started at t=0", func(t *testing.T) {
+		direct := NewStarfield(Still).SlideIn(sec, body)
+		direct.Start(stageW, stageH)
+		direct.Update(1.0)
+		held := NewStarfield(Still).SlideIn(sec, body).Hold(hold)
+		held.Start(stageW, stageH)
+		held.Update(hold + 1.0)
+		if !snapshotsEqual(spriteSnapshot(direct.Render()), spriteSnapshot(held.Render())) {
+			t.Fatal("one second after the hold the sky must match one second of an immediate slide")
+		}
+	})
+	t.Run("unhappy: Hold on a nil sky is still nil", func(t *testing.T) {
+		var ghost *Starfield
+		if ghost.Hold(hold) != nil {
+			t.Fatal("Hold must return the nil receiver")
+		}
+	})
+}
+
 func TestTunedStarfieldComponent(t *testing.T) {
 	t.Run("happy: with the stock sky active it flies exactly the drift sky", func(t *testing.T) {
 		tuned := NewTunedStarfield()

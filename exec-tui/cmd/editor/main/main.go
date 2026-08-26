@@ -31,6 +31,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
+	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 func main() {
@@ -45,8 +46,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "editor:", err)
 		os.Exit(1)
 	}
-	p := tea.NewProgram(wrapSave{Model: m})
-	if _, err := p.Run(); err != nil {
+	if _, err := termreset.Run(wrapSave{Model: m}); err != nil {
 		fmt.Fprintln(os.Stderr, "editor:", err)
 		os.Exit(1)
 	}
