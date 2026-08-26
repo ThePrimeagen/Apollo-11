@@ -103,10 +103,10 @@ stops the old scene before starting the new.
 | Package | What it owns |
 | --- | --- |
 | `screenplay` | `Screen` (the lip gloss cell canvas + xterm blit bridge), `Scene` and `Component` (the four-verb interfaces), `Ensemble` (the common scene shape), `Screenplay` (the lifecycle cursor) |
-| `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe |
-| `components/lander` | `Ship` — atlas hull + optional booster plume + `FlightPath` choreography |
+| `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe and a Slow brake |
+| `components/lander` | `Ship` — atlas hull + optional booster plume; west fly-in, north drop, north landing |
 | `components/dsky` | `Panel` — the DSKY docking on the right third, column-by-column |
-| `components/moon` | `Moon` — the pixelated disc alone, one reusable performer; `Orbit` — the lone gold craft circling it, cast over any moon |
+| `components/moon` | `Moon` — the pixelated disc alone; `Orbit` — the lone gold craft circling it; `Horizon` — a huge moon's shallow surface along the bottom |
 | `components/title` | `Title` — banner cards set in terminal-fonts |
 
 The `screenplay` package knows nothing about landers, stars, or fonts —
