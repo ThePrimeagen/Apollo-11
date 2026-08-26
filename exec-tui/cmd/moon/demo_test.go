@@ -1,12 +1,12 @@
 package main
 
 // Demo harness tests, written first: the moon demo plays the descent
-// orbit as its own one-scene bill — the pixelated moon under the
-// dotted descent path, the gold marker riding it westward, the tuned
-// starfield behind — so the scene can be run (and taped) without the
-// rest of the premiere. q and ctrl+c quit; space has no next scene to
-// cut to, so the show holds. The view is the rendered screen plus one
-// status line, always exactly window-height lines.
+// orbit as its own one-scene bill — the pixelated moon under the wide
+// dotted descent path, the lone gold marker riding it eastward, the
+// tuned starfield behind — so the scene can be run (and taped)
+// without the rest of the premiere. q and ctrl+c quit; space has no
+// next scene to cut to, so the show holds. The view is the rendered
+// screen plus one status line, always exactly window-height lines.
 
 import (
 	"regexp"

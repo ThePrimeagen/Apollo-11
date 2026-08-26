@@ -1,8 +1,8 @@
 // Package moon is the descent-orbit explainer card: a pixelated moon
-// centered on stage, a dotted ring circling it — the descent path —
-// and a gold marker riding that ring westward over the top. It answers
-// the arrival scene's question: this is where the craft was, and why
-// it flies sideways.
+// centered on stage, a wide dotted ring circling it — the descent
+// path — and a lone gold marker riding that ring eastward over the
+// top. It answers the arrival scene's question: this is where the
+// craft was, and why it flies sideways.
 //
 // All circle math runs in half-cell "pixels": a terminal cell is about
 // twice as tall as it is wide, so one column counts one pixel and one
@@ -23,8 +23,6 @@ const (
 	RingGlyph = '◦'
 	// MarkerGlyph is the craft riding the path.
 	MarkerGlyph = '◆'
-	// TrailGlyph is one ember of the marker's fading wake.
-	TrailGlyph = '•'
 	// MarkerInk is the marker's xterm-256 color: the mission gold,
 	// the same ink the title cards wear.
 	MarkerInk = 178
@@ -44,22 +42,17 @@ const (
 )
 
 const (
-	// startAngle opens the marker on the upper-right arc, a beat
-	// before the top, so the westward crossing plays early.
-	startAngle = math.Pi / 4
+	// startAngle opens the marker on the upper-left arc, a beat
+	// before the top, so the eastward crossing plays early.
+	startAngle = 3 * math.Pi / 4
 	// ringGap is how many pixels of empty space sit between the
-	// surface and the descent path.
-	ringGap = 4
+	// surface and the descent path: the moon stays a little small so
+	// the orbit flies wide.
+	ringGap = 8
 	// minMoonR is the smallest moon worth staging; below it the
 	// component sits the scene out.
 	minMoonR = 4
-	// trailStep is the angular spacing of the wake embers, in radians
-	// behind the marker.
-	trailStep = 0.14
 )
-
-// trailInks fade the wake from near-gold to dark, nearest ember first.
-var trailInks = [...]int{214, 208, 172, 94}
 
 // patch is one round terrain feature, in fractions of the moon radius
 // with y growing upward.
@@ -101,7 +94,7 @@ func Geometry(w, h int) (cx, cy, moonR, ringR int) {
 }
 
 // MarkerAt is the marker's cell at t seconds into the scene: riding
-// the ring counterclockwise — westward over the top — one lap every
+// the ring clockwise — eastward over the top — one lap every
 // OrbitSeconds. Time before the curtain clamps to the start. On a
 // stage with no geometry there is no path: (-1, -1), the off-stage
 // sentinel every Set ignores.
@@ -116,8 +109,10 @@ func MarkerAt(w, h int, t float64) (row, col int) {
 	return ringCell(cx, cy, ringR, angleAt(t))
 }
 
+// angleAt winds the clock backwards through the angles: a clockwise
+// lap on screen.
 func angleAt(t float64) float64 {
-	return startAngle + 2*math.Pi*t/OrbitSeconds
+	return startAngle - 2*math.Pi*t/OrbitSeconds
 }
 
 // ringCell is the cell nearest the ring point at theta, with rows
@@ -130,10 +125,9 @@ func ringCell(cx, cy, ringR int, theta float64) (row, col int) {
 
 // Moon is the card as a scene component. Start paints and caches the
 // still life — the disc and the dotted ring — for its stage; Update
-// runs the orbit clock; Render lays the marker and its wake over the
-// cached base; Stop drops the base so a stopped moon holds no
-// allocation. The clock carries across restarts, so a resize never
-// rewinds the orbit.
+// runs the orbit clock; Render lays the marker over the cached base;
+// Stop drops the base so a stopped moon holds no allocation. The
+// clock carries across restarts, so a resize never rewinds the orbit.
 type Moon struct {
 	base   sprite.Sprite
 	clock  float64
@@ -164,9 +158,9 @@ func (m *Moon) Update(dt float64) {
 	m.clock += dt
 }
 
-// Render lays the wake and the marker over the cached base. Before
-// Start and after Stop the card is off, so the stage is empty; a
-// stage with no geometry stays transparent for the sky behind it.
+// Render lays the marker over the cached base. Before Start and after
+// Stop the card is off, so the stage is empty; a stage with no
+// geometry stays transparent for the sky behind it.
 func (m *Moon) Render() sprite.Sprite {
 	if m == nil || !m.staged || m.w < 1 || m.h < 1 {
 		return sprite.Sprite{}
@@ -177,12 +171,7 @@ func (m *Moon) Render() sprite.Sprite {
 	if ringR < 1 {
 		return stage
 	}
-	theta := angleAt(m.clock)
-	for k := len(trailInks); k >= 1; k-- {
-		row, col := ringCell(cx, cy, ringR, theta-float64(k)*trailStep)
-		stage.Set(row, col, sprite.Cell{Ch: TrailGlyph, FG: trailInks[k-1], BG: -1})
-	}
-	row, col := ringCell(cx, cy, ringR, theta)
+	row, col := ringCell(cx, cy, ringR, angleAt(m.clock))
 	stage.Set(row, col, sprite.Cell{Ch: MarkerGlyph, FG: MarkerInk, BG: -1})
 	return stage
 }

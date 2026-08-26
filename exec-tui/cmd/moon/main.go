@@ -1,9 +1,9 @@
 // moon: the descent-orbit scene as its own show. A pixelated moon
-// centered on stage, a dotted ring circling it — the descent path —
-// and a gold marker riding the ring westward over the top under the
-// tuned starfield: where the lander was, and why it flies sideways.
-// The same scene plays third on the premiere bill; this runs it solo,
-// handy for tapes.
+// centered on stage, a wide dotted ring circling it — the descent
+// path — and a lone gold marker riding the ring eastward over the top
+// under the tuned starfield: where the lander was, and why it flies
+// sideways. The same scene plays third on the premiere bill; this
+// runs it solo, handy for tapes.
 //
 //	q         quit
 //

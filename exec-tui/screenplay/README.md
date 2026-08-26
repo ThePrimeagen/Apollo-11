@@ -16,10 +16,10 @@ four-scene bill:
 - **Scene 2 — dsky.** The parked craft stays. Over ~500ms the right
   third of the sky blanks out one column at a time from the right edge,
   and the DSKY (V16 N68 on P63) docks in that space.
-- **Scene 3 — descent orbit.** The explainer: a pixelated moon fills
-  center stage under a dotted ring — the descent path — and a gold
-  marker rides that ring westward over the top, trailing embers. This
-  is where the craft was, and why it flies sideways. All circle math
+- **Scene 3 — descent orbit.** The explainer: a pixelated moon at
+  center stage under a wide dotted ring — the descent path — and a
+  lone gold marker rides that ring eastward over the top. This is
+  where the craft was, and why it flies sideways. All circle math
   runs in half-cell pixels (a terminal cell is ~2× taller than wide),
   so the moon and the ring read round on a real terminal.
 - **Scene 4 — the end.** `THE END` in the height-5 terminal-fonts banner,

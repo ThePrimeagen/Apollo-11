@@ -7,8 +7,8 @@ package main
 // booster fire — then parks and bobbles at center stage. Space cuts to scene two, "dsky": the craft
 // parked, the right third of the sky wipes away one column at a time
 // (~500ms), and the DSKY docks in that space. Space cuts to scene
-// three, "descent orbit": the pixelated moon with the dotted descent
-// path circling it and the gold marker riding that ring westward —
+// three, "descent orbit": the pixelated moon under the wide dotted
+// descent path and the lone gold marker riding that ring eastward —
 // where the craft was, and why it flies sideways. Space cuts to scene
 // four, "the end": the height-5 banner card. Space on the final
 // scene holds; q and ctrl+c close the house. The view is the rendered
