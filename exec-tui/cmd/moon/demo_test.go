@@ -3,12 +3,12 @@ package main
 // Demo harness tests, written first: cmd/moon runs the moon screenplay
 // — the composable two-scene bill from shows/moonshow. The house opens
 // on "the moon": the bare disc alone under a parked sky, nothing
-// moving. Space cuts to "orbit": a spaceship streaks in fast off the
-// left wing, brakes smoothly onto its orbit — no line drawn around
-// the moon — and circles indefinitely. Space on the last scene ends
-// the show — there is nothing left, so the program quits. q and
-// ctrl+c quit anywhere. The view is the rendered screen plus one
-// status line, always exactly window-height lines.
+// moving. Waiting never conjures the lander — space cuts to "orbit",
+// where the lander is already on the ring and circles indefinitely.
+// Space on the last scene ends the show — there is nothing left, so
+// the program quits. q and ctrl+c quit anywhere. The view is the
+// rendered screen plus one status line, always exactly window-height
+// lines.
 
 import (
 	"regexp"
@@ -104,7 +104,19 @@ func TestMoonScreenplay(t *testing.T) {
 			t.Fatal("the bare moon under a parked sky must not move a cell")
 		}
 	})
-	t.Run("happy: space cuts to scene 2/2 — the ship streaks in and orbits indefinitely", func(t *testing.T) {
+	t.Run("unhappy: waiting out the old arrival delay never brings the lander", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, int(moon.ArriveSeconds*30)+30)
+		v := m.View().Content
+		if !strings.Contains(v, "1/2") {
+			t.Fatal("waiting must leave the house on scene one")
+		}
+		if strings.ContainsRune(v, moon.MarkerGlyph) {
+			t.Fatal("the lander must not appear until space cuts — there is no delay cue")
+		}
+	})
+	t.Run("happy: space cuts to scene 2/2 — the lander is already orbiting", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, 30)
@@ -115,31 +127,26 @@ func TestMoonScreenplay(t *testing.T) {
 				t.Fatalf("the orbit scene is missing %q", want)
 			}
 		}
-		if strings.ContainsRune(opening, moon.MarkerGlyph) {
-			t.Fatal("the ship opens off the left wing — not on stage yet")
-		}
-		m = frames(m, 30) // one second: mid-streak
-		streak := m.View().Content
-		r0, c0, ok := markerCell(streak)
+		r0, c0, ok := markerCell(opening)
 		if !ok {
-			t.Fatal("one second in, the fast ship must be streaking across")
+			t.Fatal("the lander must be on the ring from the first frame of scene two")
 		}
-		m = frames(m, 60) // two more: settled into the orbit
+		m = frames(m, 90)
 		orbit1 := m.View().Content
 		r1, c1, ok := markerCell(orbit1)
 		if !ok {
-			t.Fatal("the ship must settle into the orbit")
+			t.Fatal("the lander must keep orbiting")
 		}
 		if r0 == r1 && c0 == c1 {
-			t.Fatal("frames must carry the ship from the streak onto the ring")
+			t.Fatal("the orbit must carry the lander on")
 		}
-		m = frames(m, 45) // and on it goes — the orbit never parks
+		m = frames(m, 45)
 		r2, c2, ok := markerCell(m.View().Content)
 		if !ok {
-			t.Fatal("the ship must keep orbiting until the next cut")
+			t.Fatal("the lander must keep orbiting until the next cut")
 		}
 		if r1 == r2 && c1 == c2 {
-			t.Fatal("the orbit loops indefinitely — the ship must keep moving")
+			t.Fatal("the orbit loops indefinitely — the lander must keep moving")
 		}
 		if skyColumns(orbit1, 12) != skyColumns(m.View().Content, 12) {
 			t.Fatal("the stars behind the orbit hold still")

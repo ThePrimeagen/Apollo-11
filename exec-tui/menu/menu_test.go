@@ -53,7 +53,7 @@ func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
 		m := sized(New(Catalog(), ""), 100, 40)
 		v := stripAnsi(m.View().Content)
-		for _, want := range []string{"SCREENPLAY", "LUNAR LANDER CLOSE-UP", "FLAME", "STARS", "LEGACY"} {
+		for _, want := range []string{"MAIN", "01. Moon Orbit", "FLAME", "STARS", "LEGACY"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("menu missing %q:\n%s", want, v)
 			}
@@ -112,7 +112,7 @@ func TestMenuSections(t *testing.T) {
 	t.Run("happy: each category header renders once, above its entries", func(t *testing.T) {
 		v := stripAnsi(sized(New(Catalog(), ""), 100, 40).View().Content)
 		order := []struct{ header, first string }{
-			{"MAIN PROGRAM", "SCREENPLAY"},
+			{"Screenplays", "MAIN"},
 			{"CONFIG", "FLAME CONFIG"},
 			{"DEMO", "LANDER DEMO"},
 			{"LEGACY TUIS", "LEGACY EXEC"},
@@ -142,29 +142,29 @@ func TestMenuSections(t *testing.T) {
 			prev = hi
 		}
 	})
-	t.Run("happy: SCREENPLAY then LUNAR LANDER CLOSE-UP sit directly under MAIN PROGRAM", func(t *testing.T) {
+	t.Run("happy: MAIN then 01. Moon Orbit sit directly under Screenplays", func(t *testing.T) {
 		v := stripAnsi(sized(New(Catalog(), ""), 100, 40).View().Content)
-		hi := headerLine(v, "MAIN PROGRAM")
-		premiere := entryLine(v, "SCREENPLAY")
-		closeup := entryLine(v, "LUNAR LANDER CLOSE-UP")
-		if hi < 0 || premiere < 0 || closeup < 0 {
-			t.Fatalf("menu missing MAIN PROGRAM / SCREENPLAY / LUNAR LANDER CLOSE-UP:\n%s", v)
+		hi := headerLine(v, "Screenplays")
+		main := entryLine(v, "MAIN")
+		orbit := entryLine(v, "01. Moon Orbit")
+		if hi < 0 || main < 0 || orbit < 0 {
+			t.Fatalf("menu missing Screenplays / MAIN / 01. Moon Orbit:\n%s", v)
 		}
-		if premiere <= hi {
-			t.Fatalf("SCREENPLAY must sit under MAIN PROGRAM, header=%d entry=%d:\n%s", hi, premiere, v)
+		if main <= hi {
+			t.Fatalf("MAIN must sit under Screenplays, header=%d entry=%d:\n%s", hi, main, v)
 		}
-		if closeup != premiere+1 {
-			t.Fatalf("LUNAR LANDER CLOSE-UP must sit directly below SCREENPLAY, SCREENPLAY=%d closeup=%d:\n%s", premiere, closeup, v)
+		if orbit != main+1 {
+			t.Fatalf("01. Moon Orbit must sit directly below MAIN, MAIN=%d orbit=%d:\n%s", main, orbit, v)
 		}
-		if demo := headerLine(v, "DEMO"); demo >= 0 && closeup > demo {
-			t.Fatalf("LUNAR LANDER CLOSE-UP rendered under DEMO, not MAIN PROGRAM:\n%s", v)
+		if demo := headerLine(v, "DEMO"); demo >= 0 && orbit > demo {
+			t.Fatalf("01. Moon Orbit rendered under DEMO, not Screenplays:\n%s", v)
 		}
 	})
 	t.Run("happy: headers are never selectable — j walks entry to entry", func(t *testing.T) {
 		m := sized(New(Catalog(), ""), 100, 40)
 		m = key(m, 'j')
-		if got := Catalog()[m.sel].ID; got != "closeup" {
-			t.Fatalf("j from screenplay must land on closeup, got %q", got)
+		if got := Catalog()[m.sel].ID; got != "moon" {
+			t.Fatalf("j from MAIN must land on moon, got %q", got)
 		}
 		m = key(m, 'k')
 		m = key(m, 'k')
@@ -389,12 +389,12 @@ func TestLocateModule(t *testing.T) {
 }
 
 func TestCatalog(t *testing.T) {
-	t.Run("happy: the catalog runs main program, config, demo, legacy", func(t *testing.T) {
+	t.Run("happy: the catalog runs screenplays, config, demo, legacy", func(t *testing.T) {
 		c := Catalog()
 		want := []string{
-			"screenplay", "closeup",
+			"screenplay", "moon",
 			"flame", "stars-config", "editor", "particle",
-			"lander", "moon", "stars", "nyan", "dsky", "button",
+			"lander", "stars", "nyan", "dsky", "button",
 			"legacy", "timeline",
 		}
 		if len(c) != len(want) {
@@ -408,14 +408,13 @@ func TestCatalog(t *testing.T) {
 	})
 	t.Run("happy: entries group under their category headers in order", func(t *testing.T) {
 		wantSections := map[string]string{
-			"screenplay":   "MAIN PROGRAM",
-			"closeup":      "MAIN PROGRAM",
+			"screenplay":   "Screenplays",
+			"moon":         "Screenplays",
 			"flame":        "CONFIG",
 			"stars-config": "CONFIG",
 			"editor":       "CONFIG",
 			"particle":     "CONFIG",
 			"lander":       "DEMO",
-			"moon":         "DEMO",
 			"stars":        "DEMO",
 			"nyan":         "DEMO",
 			"dsky":         "DEMO",
@@ -436,33 +435,32 @@ func TestCatalog(t *testing.T) {
 			last = e.Section
 		}
 	})
-	t.Run("happy: the second screenplay is LUNAR LANDER CLOSE-UP", func(t *testing.T) {
+	t.Run("happy: screenplays are named MAIN then 01. Moon Orbit", func(t *testing.T) {
 		c := Catalog()
 		if len(c) < 2 {
-			t.Fatal("catalog must hold at least SCREENPLAY and LUNAR LANDER CLOSE-UP")
+			t.Fatal("catalog must hold at least MAIN and 01. Moon Orbit")
 		}
-		if c[0].ID != "screenplay" || c[0].Title != "SCREENPLAY" || c[0].Section != "MAIN PROGRAM" {
-			t.Fatalf("first entry must be SCREENPLAY under MAIN PROGRAM, got %+v", c[0])
+		if c[0].ID != "screenplay" || c[0].Title != "MAIN" || c[0].Section != "Screenplays" {
+			t.Fatalf("first entry must be MAIN under Screenplays, got %+v", c[0])
 		}
-		if c[1].ID != "closeup" || c[1].Title != "LUNAR LANDER CLOSE-UP" || c[1].Section != "MAIN PROGRAM" {
-			t.Fatalf("second entry must be LUNAR LANDER CLOSE-UP under MAIN PROGRAM, got %+v", c[1])
-		}
-		if c[1].Pkg != "./cmd/lunarcloseup" {
-			t.Fatalf("closeup must launch ./cmd/lunarcloseup, got %q", c[1].Pkg)
+		if c[1].ID != "moon" || c[1].Title != "01. Moon Orbit" || c[1].Section != "Screenplays" {
+			t.Fatalf("second entry must be 01. Moon Orbit under Screenplays, got %+v", c[1])
 		}
 	})
-	t.Run("unhappy: the close-up is not a demo and not a duplicate premiere", func(t *testing.T) {
+	t.Run("unhappy: old MAIN PROGRAM / SCREENPLAY / MOON SCREENPLAY labels are gone", func(t *testing.T) {
 		for _, e := range Catalog() {
-			if e.ID == "closeup" && e.Section == "DEMO" {
-				t.Fatalf("closeup must live under MAIN PROGRAM, not DEMO, found %+v", e)
+			if e.Section == "MAIN PROGRAM" {
+				t.Fatalf("section MAIN PROGRAM must be Screenplays, found %+v", e)
 			}
-			if e.ID == "closeup" && e.Pkg == "./cmd/premiere" {
-				t.Fatalf("closeup must not launch the premiere, found %+v", e)
+			if e.Title == "SCREENPLAY" {
+				t.Fatalf("premiere title must be MAIN, found %+v", e)
 			}
-		}
-		c := Catalog()
-		if len(c) < 2 || c[1].ID != "closeup" {
-			t.Fatal("LUNAR LANDER CLOSE-UP must be the second catalog entry")
+			if e.Title == "MOON SCREENPLAY" {
+				t.Fatalf("moon title must be 01. Moon Orbit, found %+v", e)
+			}
+			if e.ID == "moon" && e.Section == "DEMO" {
+				t.Fatalf("moon must live under Screenplays, not DEMO, found %+v", e)
+			}
 		}
 	})
 	t.Run("unhappy: the seg lab is gone from the launcher", func(t *testing.T) {
