@@ -40,7 +40,7 @@ type Entry struct {
 func Catalog() []Entry {
 	return []Entry{
 		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
-		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "the composable moon bill: the bare moon, then a ship's fast arrival into orbit", Pkg: "./cmd/moon"},
+		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish editor for ASCII ships in assets/ (C-p sizes×headings, C-e glyphs)"},
