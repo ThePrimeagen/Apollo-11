@@ -32,6 +32,13 @@ func render(sc screenplay.Scene) string {
 	return scr.Render()
 }
 
+func tick(sc screenplay.Scene, seconds float64) {
+	const dt = 1.0 / 30
+	for t := 0.0; t < seconds-dt/2; t += dt {
+		sc.Update(dt)
+	}
+}
+
 func hasStar(v string) bool {
 	for _, g := range stars.Glyphs {
 		if strings.ContainsRune(v, g) {
@@ -94,7 +101,7 @@ func TestLunarCloseUpBill(t *testing.T) {
 		sc.Start()
 		defer sc.Stop()
 		_ = render(sc) // stage the cast
-		sc.Update(0.5)
+		tick(sc, 0.5)
 		v := render(sc)
 		if !strings.ContainsRune(v, '▌') {
 			t.Fatal("the fire scene must open with the west-facing craft already on stage")
@@ -108,7 +115,7 @@ func TestLunarCloseUpBill(t *testing.T) {
 	})
 	t.Run("happy: scene two's sky slows 60% over five seconds", func(t *testing.T) {
 		if stars.BrakeClock(5, 0.6, 5) != 3.5 {
-			t.Fatalf("the fire scene's brake must cut 60% of speed over 5s (fly clock %g, want 3.5)", stars.BrakeClock(5, 0.6, 5))
+			t.Fatalf("the fire scene's brake must cut 60 percent of speed over 5s (fly clock %g, want 3.5)", stars.BrakeClock(5, 0.6, 5))
 		}
 		if stars.BrakeClock(10, 0.6, 5) != 5.5 {
 			t.Fatal("past the window the fire scene's sky must crawl at 40% speed")
@@ -125,7 +132,7 @@ func TestLunarCloseUpBill(t *testing.T) {
 		if strings.ContainsRune(render(sc), '▟') {
 			t.Fatal("at t=0 the falling craft must still be off the top")
 		}
-		sc.Update(lander.DropSeconds / 2)
+		tick(sc, lander.DropSeconds/2)
 		mid := render(sc)
 		if !strings.ContainsRune(mid, '▟') {
 			t.Fatal("mid-fall the north hull must be on stage")
@@ -136,7 +143,7 @@ func TestLunarCloseUpBill(t *testing.T) {
 		if !hasFire(mid) {
 			t.Fatal("the falling craft must keep the booster lit")
 		}
-		sc.Update(lander.DropSeconds / 2)
+		tick(sc, lander.DropSeconds/2)
 		if strings.ContainsRune(render(sc), '▟') {
 			t.Fatal("at the end of the drop the craft must have left the bottom")
 		}
@@ -161,7 +168,7 @@ func TestLunarCloseUpBill(t *testing.T) {
 		if moonRows(plain, stageW/2) != moon.HorizonCenterRows {
 			t.Fatalf("center holds %d moon rows, want %d", moonRows(plain, stageW/2), moon.HorizonCenterRows)
 		}
-		sc.Update(lander.LandSeconds)
+		tick(sc, lander.LandSeconds)
 		landed := render(sc)
 		if !strings.ContainsRune(landed, '▟') {
 			t.Fatal("at touchdown the north hull must sit on the surface")

@@ -1,10 +1,13 @@
 // lunarcloseup: the lunar lander close-up screenplay — the composable
-// one-scene bill from shows/lunarcloseup, a copy of the premiere's
-// arrival. The house opens on "Lunar Lander Close-Up": three seconds
-// of drifting sky, then the zoomed-in Apollo craft slides in from the
-// right wing over a starfield that translates with it — hull only,
-// cold engine — parks and bobbles at center stage. Space on the last
-// scene ends the show — nothing left.
+// four-scene bill from shows/lunarcloseup. The house opens on
+// "Lunar Lander Close-Up": three seconds of drifting sky, then the
+// zoomed-in Apollo craft slides in from the right, hull only, cold
+// engine. Space cuts to "fire": the parked craft lights the booster
+// and the stars slow by 60% over five seconds. Space cuts to "fall":
+// the north-facing lander, fire down, drops from the top of the
+// stage to the bottom. Space cuts to "landing": a huge moon horizon
+// (five rows high in the middle, one row at the edges) and the
+// lander coming down onto it. Space on the last scene ends the show.
 //
 //	space     next scene (past the last one, the show ends)
 //	q         quit

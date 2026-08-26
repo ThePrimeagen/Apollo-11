@@ -341,3 +341,118 @@ func inPatch(x, y float64, p patch) bool {
 	dx, dy := x-p.x, y-p.y
 	return dx*dx+dy*dy <= p.r*p.r
 }
+
+const (
+	// HorizonEdgeRows is how much moon is visible at the left and
+	// right of the stage — a one-row sliver of a huge disc.
+	HorizonEdgeRows = 1
+	// HorizonCenterRows is how much moon is visible at center stage:
+	// a shallow five-row ridge, barely curved, obviously the moon.
+	HorizonCenterRows = 5
+)
+
+// HorizonTop is the first row of moon at column col on a w×h stage:
+// a parabola that is HorizonCenterRows tall in the middle and
+// HorizonEdgeRows tall at the edges, sitting on the bottom.
+func HorizonTop(w, h, col int) int {
+	if h < 1 {
+		return 0
+	}
+	if w <= 1 {
+		top := h - HorizonCenterRows
+		if top < 0 {
+			return 0
+		}
+		return top
+	}
+	if col < 0 {
+		col = 0
+	}
+	if col > w-1 {
+		col = w - 1
+	}
+	cx := float64(w-1) / 2
+	t := (float64(col) - cx) / cx
+	rise := float64(HorizonCenterRows-HorizonEdgeRows) * (1 - t*t)
+	height := float64(HorizonEdgeRows) + rise
+	top := h - int(math.Round(height))
+	if top < 0 {
+		return 0
+	}
+	return top
+}
+
+// Horizon is the surface of a huge moon as a scene component: a
+// shallow curve along the bottom of the stage, painted in the same
+// terrain as the disc. Start paints and caches the still life; Update
+// is a no-op; Render returns the cached slab; Stop drops it.
+type Horizon struct {
+	base   sprite.Sprite
+	w, h   int
+	staged bool
+}
+
+// NewHorizon binds nothing yet: the curtain owns the allocation.
+func NewHorizon() *Horizon {
+	return &Horizon{}
+}
+
+// Start paints the surface for a w×h stage.
+func (hz *Horizon) Start(w, h int) {
+	if hz == nil {
+		return
+	}
+	hz.w, hz.h = w, h
+	hz.base = paintHorizon(w, h)
+	hz.staged = true
+}
+
+// Update is a no-op: the surface holds still.
+func (hz *Horizon) Update(dt float64) {}
+
+// Render is the cached horizon on a stage-sized sprite.
+func (hz *Horizon) Render() sprite.Sprite {
+	if hz == nil || !hz.staged || hz.w < 1 || hz.h < 1 {
+		return sprite.Sprite{}
+	}
+	stage := sprite.New(hz.w, hz.h)
+	sprite.Blit(stage, 0, 0, hz.base)
+	return stage
+}
+
+// Stop drops the surface for the collector; a fresh Start repaints it.
+func (hz *Horizon) Stop() {
+	if hz == nil {
+		return
+	}
+	hz.base = sprite.Sprite{}
+	hz.staged = false
+}
+
+// paintHorizon is the still life of a huge moon's near-side cap:
+// the same maria, craters, limb and grain as the disc, sampled
+// across a shallow bottom-of-stage curve.
+func paintHorizon(w, h int) sprite.Sprite {
+	stage := sprite.New(w, h)
+	if w < 1 || h < 1 {
+		return stage
+	}
+	for c := 0; c < w; c++ {
+		top := HorizonTop(w, h, c)
+		span := h - top
+		if span < 1 {
+			span = 1
+		}
+		x := 0.0
+		if w > 1 {
+			x = 2*float64(c)/float64(w-1) - 1
+		}
+		for r := top; r < h; r++ {
+			frac := float64(r-top) / float64(span)
+			// Sample the southern near side so maria and Tycho read.
+			y := -0.55 - 0.35*frac
+			stage.Set(r, c, surfaceCell(x, y, r, c))
+		}
+	}
+	return stage
+}

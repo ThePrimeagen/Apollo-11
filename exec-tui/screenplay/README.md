@@ -82,9 +82,13 @@ added together. `shows/moonshow` is the first packaged bill: scene
 one, the bare moon alone under a parked sky; scene two, a spaceship
 streaks in fast off the left wing, brakes onto its orbit, and circles
 the moon until the next cut (`go run ./cmd/moon` plays it; space past
-the last scene ends the show). `shows/lunarcloseup` is the second: a
-copy of the premiere's arrival as its own one-scene bill — drifting
-stars, then the zoomed-in lander slides in from the right
+the last scene ends the show). `shows/lunarcloseup` is the second: four scenes —
+the premiere's arrival as the opener (drifting stars, then the
+zoomed-in lander slides in from the right), then the parked craft
+lights its booster while the stars slow by 60% over five seconds,
+then a north-facing fall from the top of the stage to the bottom,
+then a huge moon horizon (five rows high in the middle, one row at
+the edges) that the lander comes down onto
 (`go run ./cmd/lunarcloseup`; space past the last scene ends the show).
 
 The `Screen` is the shared render target: one Lip Gloss v2 canvas — a
