@@ -21,6 +21,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 
 	"github.com/theprimeagen/apollo-11/dsky-lab/dsky"
 )
@@ -321,7 +322,11 @@ func (m model) View() tea.View {
 }
 
 func main() {
-	if _, err := tea.NewProgram(model{d: newDemo()}).Run(); err != nil {
+	// The panel is raw xterm-256; force that profile so a recording or a
+	// terminal that fails detection still shows the gray bezel and the
+	// dull-orange keyed digits.
+	opts := []tea.ProgramOption{tea.WithColorProfile(colorprofile.ANSI256)}
+	if _, err := tea.NewProgram(model{d: newDemo()}, opts...).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "dsky-lab:", err)
 		os.Exit(1)
 	}
