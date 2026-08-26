@@ -9,9 +9,10 @@
 // the top of the stage to the bottom. Scene five, "landing": a huge
 // moon horizon painted as a colored floor (five rows high in the
 // middle, one row at the edges) and the north-facing lander coming
-// down onto it. The booster stays full until the last three seconds,
-// then steps ¾, ½, ¼, and cuts off on the pad. After that there is
-// nothing left — the runner ends the show.
+// down onto it. The fall eases out — fast off the top, then a long
+// crawl that clinks onto the pad. The booster stays full until the
+// last three seconds, then steps ¾, ½, ¼, and cuts off on the pad.
+// After that there is nothing left — the runner ends the show.
 //
 // One stars.Continuity seeds every scene's sky, so a cut never jumps
 // or skips a single star: each new starfield opens on the exact frame
