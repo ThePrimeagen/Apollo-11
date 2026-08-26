@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
@@ -27,9 +29,36 @@ const (
 )
 
 func render(sc screenplay.Scene) string {
+	return paint(sc).Render()
+}
+
+func paint(sc screenplay.Scene) *screenplay.Screen {
 	scr := screenplay.NewScreen(stageW, stageH)
 	sc.Render(scr)
-	return scr.Render()
+	return scr
+}
+
+func isMoonBG(scr *screenplay.Screen, x, y int) bool {
+	c := scr.Cell(x, y)
+	if c == nil || c.Style.Bg == nil {
+		return false
+	}
+	ic, ok := c.Style.Bg.(ansi.IndexedColor)
+	if !ok {
+		return false
+	}
+	n := int(ic)
+	return n == 251 || n == 247 || n == 243 || n == 240 || n == 249
+}
+
+func moonBGRows(scr *screenplay.Screen, col int) int {
+	n := 0
+	for y := 0; y < stageH; y++ {
+		if isMoonBG(scr, col, y) {
+			n++
+		}
+	}
+	return n
 }
 
 func tick(sc screenplay.Scene, seconds float64) {
@@ -152,29 +181,49 @@ func TestLunarCloseUpBill(t *testing.T) {
 		sc := Bill()[3].Scene
 		sc.Start()
 		defer sc.Stop()
-		_ = render(sc)
-		opening := render(sc)
-		if !strings.ContainsRune(opening, '▓') {
-			t.Fatal("the landing scene must show the moon")
+		opening := paint(sc)
+		if moonBGRows(opening, stageW/2) == 0 {
+			t.Fatal("the landing scene must show the moon as a background floor")
 		}
-		if strings.ContainsRune(opening, '▟') {
+		if strings.ContainsRune(opening.Render(), '▟') {
 			t.Fatal("at t=0 the lander must still be off the top")
 		}
-		// The horizon is a shallow curve: 1 row at the edges, 5 at center.
-		plain := stripANSI(opening)
-		if moonRows(plain, 0) != moon.HorizonEdgeRows {
-			t.Fatalf("left edge holds %d moon rows, want %d", moonRows(plain, 0), moon.HorizonEdgeRows)
+		if moonBGRows(opening, 0) != moon.HorizonEdgeRows {
+			t.Fatalf("left edge holds %d moon rows, want %d", moonBGRows(opening, 0), moon.HorizonEdgeRows)
 		}
-		if moonRows(plain, stageW/2) != moon.HorizonCenterRows {
-			t.Fatalf("center holds %d moon rows, want %d", moonRows(plain, stageW/2), moon.HorizonCenterRows)
+		if moonBGRows(opening, stageW/2) != moon.HorizonCenterRows {
+			t.Fatalf("center holds %d moon rows, want %d", moonBGRows(opening, stageW/2), moon.HorizonCenterRows)
 		}
-		tick(sc, lander.LandSeconds)
-		landed := render(sc)
-		if !strings.ContainsRune(landed, '▟') {
+		tick(sc, lander.LandSeconds-lander.LandThrottleLead/6)
+		near := paint(sc)
+		if !strings.ContainsRune(near.Render(), '▟') {
+			t.Fatal("near the pad the north hull must be on stage")
+		}
+		fireOnMoon := false
+		for y := 0; y < stageH; y++ {
+			for x := 0; x < stageW; x++ {
+				c := near.Cell(x, y)
+				if c == nil || !strings.ContainsAny(c.Content, "⠁⠒⠶") {
+					continue
+				}
+				if isMoonBG(near, x, y) {
+					fireOnMoon = true
+				}
+			}
+		}
+		if !fireOnMoon {
+			t.Fatal("the plume must paint on top of the moon floor as the craft comes in")
+		}
+		tick(sc, lander.LandThrottleLead/6+0.5)
+		landed := paint(sc)
+		if !strings.ContainsRune(landed.Render(), '▟') {
 			t.Fatal("at touchdown the north hull must sit on the surface")
 		}
-		if strings.ContainsRune(landed, '▌') {
+		if strings.ContainsRune(landed.Render(), '▌') {
 			t.Fatal("the landing craft must stay north-facing")
+		}
+		if hasFire(landed.Render()) {
+			t.Fatal("at touchdown the booster must cut off")
 		}
 	})
 	t.Run("happy: the composed show walks the four scenes and then has nothing left", func(t *testing.T) {
@@ -223,47 +272,13 @@ func TestLunarCloseUpBill(t *testing.T) {
 		sc := Bill()[3].Scene
 		sc.Start()
 		defer sc.Stop()
-		plain := stripANSI(render(sc))
-		lines := strings.Split(plain, "\n")
-		if len(lines) > stageH/2 {
-			lines = lines[:stageH/2]
-		}
-		top := strings.Join(lines, "\n")
-		if strings.ContainsRune(top, '▓') {
-			t.Fatal("the landing moon must sit on the bottom, not as a disc in the sky")
+		scr := paint(sc)
+		for y := 0; y < stageH/2; y++ {
+			for x := 0; x < stageW; x++ {
+				if isMoonBG(scr, x, y) {
+					t.Fatal("the landing moon must sit on the bottom, not as a disc in the sky")
+				}
+			}
 		}
 	})
-}
-
-func stripANSI(s string) string {
-	var b strings.Builder
-	for i := 0; i < len(s); {
-		if s[i] == '\x1b' {
-			for i < len(s) && s[i] != 'm' {
-				i++
-			}
-			if i < len(s) {
-				i++
-			}
-			continue
-		}
-		b.WriteByte(s[i])
-		i++
-	}
-	return b.String()
-}
-
-func moonRows(plain string, col int) int {
-	n := 0
-	for _, line := range strings.Split(plain, "\n") {
-		rs := []rune(line)
-		if col < 0 || col >= len(rs) {
-			continue
-		}
-		switch rs[col] {
-		case '▓', '▒', '░':
-			n++
-		}
-	}
-	return n
 }

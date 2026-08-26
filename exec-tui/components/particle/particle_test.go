@@ -360,3 +360,120 @@ func avgX(ps []Particle) float64 {
 	}
 	return sum / float64(len(ps))
 }
+
+func TestSetConfig(t *testing.T) {
+	t.Run("happy: get the current config, change count and life, set it back", func(t *testing.T) {
+		e := New(1, testCfg())
+		cfg := e.Config()
+		if cfg.Count != 20 {
+			t.Fatalf("starting count %d, want 20", cfg.Count)
+		}
+		cfg.Count = 3
+		cfg.MinLife, cfg.MaxLife = 0.4, 0.4
+		if err := e.SetConfig(cfg); err != nil {
+			t.Fatalf("SetConfig: %v", err)
+		}
+		got := e.Config()
+		if got.Count != 3 || got.MaxLife != 0.4 || got.MinLife != 0.4 {
+			t.Fatalf("engine kept %+v, want count=3 life=0.4", got)
+		}
+		e.Update(0.01)
+		if len(e.Particles) != 3 {
+			t.Fatalf("next emit spawned %d, want the new count 3", len(e.Particles))
+		}
+		for i, p := range e.Particles {
+			if math.Abs(p.Life-0.4) > 1e-9 {
+				t.Fatalf("particle %d life %f, want the new max life 0.4", i, p.Life)
+			}
+		}
+	})
+	t.Run("happy: shrinking MaxDistance kills particles that have already flown past it", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Spread = 0
+		cfg.MinSpeed, cfg.MaxSpeed = 10, 10
+		cfg.MinLife, cfg.MaxLife = 10, 10
+		cfg.Count = 4
+		cfg.Period = 1
+		e := New(2, cfg)
+		e.Update(0.01)
+		if len(e.Particles) != 4 {
+			t.Fatalf("emit %d, want 4", len(e.Particles))
+		}
+		e.Update(0.5) // ~5 units from origin at speed 10
+		live := e.Config()
+		live.MaxDistance = 1
+		live.Period = 0
+		if err := e.SetConfig(live); err != nil {
+			t.Fatalf("SetConfig: %v", err)
+		}
+		e.Update(0.01)
+		if len(e.Particles) != 0 {
+			t.Fatalf("particles past MaxDistance=1 must die, still %d", len(e.Particles))
+		}
+	})
+	t.Run("unhappy: a bad config is rejected and the running engine is left alone", func(t *testing.T) {
+		e := New(1, testCfg())
+		e.Update(0.01)
+		before := e.Config()
+		n := len(e.Particles)
+		bad := before
+		bad.Count = -4
+		if err := e.SetConfig(bad); !errors.Is(err, ErrCount) {
+			t.Fatalf("got %v, want ErrCount", err)
+		}
+		if e.Config() != before {
+			t.Fatalf("a rejected set must not clobber the running config: %+v", e.Config())
+		}
+		e.Update(0.1)
+		if len(e.Particles) <= n {
+			t.Fatal("the engine must keep emitting at the old count after a rejected set")
+		}
+	})
+	t.Run("unhappy: SetConfig on a nil engine names itself and does not panic", func(t *testing.T) {
+		var ghost *Engine
+		if err := ghost.SetConfig(testCfg()); err == nil {
+			t.Fatal("a nil engine must reject SetConfig")
+		}
+		if ghost.Config() != (Config{}) {
+			t.Fatal("a nil engine has no config")
+		}
+	})
+}
+
+func TestMaxDistance(t *testing.T) {
+	t.Run("happy: particles die when they travel farther than MaxDistance from the origin", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Spread = 0
+		cfg.MinSpeed, cfg.MaxSpeed = 20, 20
+		cfg.MinLife, cfg.MaxLife = 10, 10
+		cfg.Count = 5
+		cfg.Period = 1
+		cfg.MaxDistance = 3
+		e := New(7, cfg)
+		e.Update(0.01)
+		if len(e.Particles) != 5 {
+			t.Fatalf("emit %d, want 5", len(e.Particles))
+		}
+		e.Update(0.5) // 10 units of travel, cap is 3
+		for i, p := range e.Particles {
+			d := math.Hypot(p.Pos.X-cfg.Origin.X, p.Pos.Y-cfg.Origin.Y)
+			if d > cfg.MaxDistance+1e-6 {
+				t.Fatalf("particle %d flew to distance %.2f, want <= 3", i, d)
+			}
+		}
+		if len(e.Particles) != 0 {
+			t.Fatalf("every particle must have hit MaxDistance, still %d", len(e.Particles))
+		}
+	})
+	t.Run("unhappy: MaxDistance 0 is no extra cap, and a negative distance is rejected", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.MaxDistance = 0
+		if err := New(1, cfg).Validate(); err != nil {
+			t.Fatalf("MaxDistance 0 must mean unlimited, got %v", err)
+		}
+		cfg.MaxDistance = -1
+		if err := New(1, cfg).Validate(); !errors.Is(err, ErrDistance) {
+			t.Fatalf("got %v, want ErrDistance", err)
+		}
+	})
+}

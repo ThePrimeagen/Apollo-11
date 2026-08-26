@@ -487,33 +487,57 @@ func TestHorizon(t *testing.T) {
 			t.Fatalf("center holds %d moon rows, want %d", center, HorizonCenterRows)
 		}
 	})
-	t.Run("happy: the horizon wears moon terrain and sits on the bottom, not as a disc", func(t *testing.T) {
+	t.Run("happy: the horizon is a colored floor — background inks, no terrain glyphs in the way of fire", func(t *testing.T) {
 		h := NewHorizon()
 		h.Start(stageW, stageH)
 		defer h.Stop()
 		sp := h.Render()
-		found := map[rune]bool{}
+		foundBG := map[int]bool{}
 		for r := 0; r < stageH; r++ {
 			for c := 0; c < stageW; c++ {
-				ch := sp.At(r, c).Ch
-				if sp.At(r, c).Transparent() {
+				cell := sp.At(r, c)
+				if cell.Transparent() {
 					continue
 				}
-				found[ch] = true
 				if r < stageH/2 {
 					t.Fatalf("horizon painted row %d — the surface must stay on the bottom half", r)
 				}
-				if !surfaceGlyphs[ch] {
-					t.Fatalf("horizon cell (%d,%d) wears %q — want moon terrain", r, c, string(ch))
+				if cell.Ch != ' ' && cell.Ch != 0 {
+					t.Fatalf("horizon cell (%d,%d) wears glyph %q — the floor must be background so fire can sit on it", r, c, string(cell.Ch))
 				}
+				if cell.BG < 0 {
+					t.Fatalf("horizon cell (%d,%d) has no background", r, c)
+				}
+				foundBG[cell.BG] = true
 			}
 		}
-		if !found['▓'] {
-			t.Fatal("the horizon must show the sunlit moon body")
+		if !foundBG[surfaceInk] {
+			t.Fatal("the horizon must show the sunlit moon body as a background color")
 		}
 		h.Update(3)
 		if opaqueCells(h.Render()) != opaqueCells(sp) {
 			t.Fatal("the horizon holds still — nothing on the surface moves")
+		}
+	})
+	t.Run("happy: fire painted on the horizon keeps the moon floor underneath", func(t *testing.T) {
+		h := NewHorizon()
+		h.Start(stageW, stageH)
+		defer h.Stop()
+		stage := h.Render()
+		top := HorizonTop(stageW, stageH, stageW/2)
+		floor := stage.At(top, stageW/2)
+		if floor.BG < 0 {
+			t.Fatal("the ridge must be a background color")
+		}
+		flame := sprite.New(1, 1)
+		flame.Set(0, 0, sprite.Cell{Ch: '⠁', FG: 88, BG: -1})
+		sprite.Blit(stage, stageW/2, top, flame)
+		got := stage.At(top, stageW/2)
+		if got.Ch != '⠁' {
+			t.Fatalf("fire must sit on the moon, got %q", string(got.Ch))
+		}
+		if got.BG != floor.BG {
+			t.Fatalf("moon floor %d must stay under the fire, got bg %d", floor.BG, got.BG)
 		}
 	})
 	t.Run("unhappy: a tiny stage and a nil horizon never panic", func(t *testing.T) {

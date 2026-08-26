@@ -94,12 +94,18 @@ func TestTransparentAndColors(t *testing.T) {
 			t.Fatal("fg and bg must be independently settable")
 		}
 	})
+	t.Run("happy: a space with a background color is a visible floor", func(t *testing.T) {
+		c := Cell{Ch: ' ', FG: -1, BG: 251}
+		if c.Transparent() {
+			t.Fatal("a colored background must paint even without a glyph")
+		}
+	})
 	t.Run("unhappy: a space still counts as transparent even if someone stuffed a color", func(t *testing.T) {
-		// painting a color onto a blank cell without a glyph should not
-		// leave an invisible-but-colored hole; Transparent follows the glyph.
+		// leftover FG on a blank cell is not a floor; only BG makes a
+		// space visible, so a stray foreground does not punch a hole.
 		c := Cell{Ch: ' ', FG: 178, BG: -1}
 		if !c.Transparent() {
-			t.Fatal("a blank glyph is transparent regardless of leftover color")
+			t.Fatal("a blank glyph is transparent regardless of leftover fg")
 		}
 	})
 }

@@ -137,13 +137,27 @@ func TestLunarCloseUpScreenplay(t *testing.T) {
 				t.Fatalf("the landing scene is missing %q", want)
 			}
 		}
-		if !strings.ContainsRune(v, '▓') {
-			t.Fatal("the landing scene must show the moon")
+		if !strings.Contains(v, "48;5;") {
+			t.Fatal("the landing scene must show the moon as a background floor")
 		}
-		m = frames(m, int(lander.LandSeconds*30))
+		if strings.ContainsRune(v, '▓') {
+			t.Fatal("the moon floor must be a background color, not terrain glyphs covering the fire")
+		}
+		m = frames(m, int((lander.LandSeconds-0.5)*30))
+		near := m.View().Content
+		if !strings.ContainsRune(near, '▟') {
+			t.Fatal("near the pad the north hull must be on stage")
+		}
+		if !hasFire(near) {
+			t.Fatal("the plume must still be lit as the craft comes in")
+		}
+		m = frames(m, 30)
 		landed := m.View().Content
 		if !strings.ContainsRune(landed, '▟') {
 			t.Fatal("at touchdown the north hull must sit on the surface")
+		}
+		if hasFire(landed) {
+			t.Fatal("at touchdown the booster must cut off")
 		}
 	})
 	t.Run("happy: space on the last scene ends the show — nothing left", func(t *testing.T) {
