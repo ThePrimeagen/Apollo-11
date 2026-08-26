@@ -82,6 +82,31 @@ func TestScreenBlit(t *testing.T) {
 			t.Fatalf("transparent stamp cell erased the layer below: %q", got)
 		}
 	})
+	t.Run("happy: a glyph with no background keeps the floor color underneath", func(t *testing.T) {
+		scr := NewScreen(4, 2)
+		scr.PutCell(0, 0, ' ', -1, 251)
+		sp := sprite.New(1, 1)
+		sp.Set(0, 0, sprite.Cell{Ch: '⠁', FG: 88, BG: -1})
+		scr.Blit(0, 0, sp)
+		c := scr.Cell(0, 0)
+		if c == nil || c.Content != "⠁" {
+			t.Fatalf("fire glyph missing: %+v", c)
+		}
+		if c.Style.Bg != ansi.IndexedColor(251) {
+			t.Fatalf("moon floor must stay under the fire, bg=%v", c.Style.Bg)
+		}
+	})
+	t.Run("unhappy: a source that carries its own background replaces the floor", func(t *testing.T) {
+		scr := NewScreen(4, 2)
+		scr.PutCell(0, 0, ' ', -1, 251)
+		sp := sprite.New(1, 1)
+		sp.Set(0, 0, sprite.Cell{Ch: '█', FG: 226, BG: 220})
+		scr.Blit(0, 0, sp)
+		c := scr.Cell(0, 0)
+		if c == nil || c.Style.Bg != ansi.IndexedColor(220) {
+			t.Fatalf("hot fire must paint its own bg, got %+v", c)
+		}
+	})
 	t.Run("unhappy: blits clip at every edge instead of wrapping", func(t *testing.T) {
 		scr := NewScreen(4, 3)
 		scr.Blit(-1, -1, stamp()) // only the stamp's (1,1) survives at (0,0)

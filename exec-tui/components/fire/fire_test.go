@@ -170,6 +170,46 @@ func warm(f *Flame, seconds float64) {
 	}
 }
 
+func TestFlameSetConfig(t *testing.T) {
+	t.Run("happy: a flame reports its config and accepts a live update", func(t *testing.T) {
+		f := Booster(3)
+		cfg := f.Config()
+		if cfg.Count != 5 {
+			t.Fatalf("booster count %d, want 5", cfg.Count)
+		}
+		cfg.Count = 1
+		cfg.MaxLife = 0.2
+		cfg.MinLife = 0.2
+		cfg.MaxDistance = 4
+		if err := f.SetConfig(cfg); err != nil {
+			t.Fatalf("SetConfig: %v", err)
+		}
+		got := f.Config()
+		if got.Count != 1 || got.MaxDistance != 4 || got.MaxLife != 0.2 {
+			t.Fatalf("flame kept %+v, want count=1 maxlife=0.2 maxdistance=4", got)
+		}
+	})
+	t.Run("unhappy: a bad config is rejected and a nil flame does not panic", func(t *testing.T) {
+		f := New(1)
+		before := f.Config()
+		bad := before
+		bad.Count = -1
+		if err := f.SetConfig(bad); err == nil {
+			t.Fatal("a negative count must be rejected")
+		}
+		if f.Config().Count != before.Count {
+			t.Fatal("a rejected set must leave the flame's config alone")
+		}
+		var ghost *Flame
+		if err := ghost.SetConfig(DefaultConfig()); err == nil {
+			t.Fatal("a nil flame must reject SetConfig")
+		}
+		if ghost.Config() != (particle.Config{}) {
+			t.Fatal("a nil flame has no config")
+		}
+	})
+}
+
 func avgPos(ps []particle.Particle) (x, y float64) {
 	if len(ps) == 0 {
 		return 0, 0

@@ -449,3 +449,107 @@ func TestArrivingOrbit(t *testing.T) {
 		ghost.Render()
 	})
 }
+
+// The compile-time pin: a Horizon plays as a screenplay component.
+var _ screenplay.Component = (*Horizon)(nil)
+
+func TestHorizon(t *testing.T) {
+	t.Run("happy: the surface is 5 rows at center and 1 row at the edges", func(t *testing.T) {
+		if HorizonTop(stageW, stageH, 0) != stageH-HorizonEdgeRows {
+			t.Fatalf("left edge top %d, want %d", HorizonTop(stageW, stageH, 0), stageH-HorizonEdgeRows)
+		}
+		if HorizonTop(stageW, stageH, stageW-1) != stageH-HorizonEdgeRows {
+			t.Fatalf("right edge top %d, want %d", HorizonTop(stageW, stageH, stageW-1), stageH-HorizonEdgeRows)
+		}
+		if HorizonTop(stageW, stageH, stageW/2) != stageH-HorizonCenterRows {
+			t.Fatalf("center top %d, want %d", HorizonTop(stageW, stageH, stageW/2), stageH-HorizonCenterRows)
+		}
+		h := NewHorizon()
+		h.Start(stageW, stageH)
+		defer h.Stop()
+		sp := h.Render()
+		edge := 0
+		for r := 0; r < stageH; r++ {
+			if !sp.At(r, 0).Transparent() {
+				edge++
+			}
+		}
+		if edge != HorizonEdgeRows {
+			t.Fatalf("left edge holds %d moon rows, want %d", edge, HorizonEdgeRows)
+		}
+		center := 0
+		for r := 0; r < stageH; r++ {
+			if !sp.At(r, stageW/2).Transparent() {
+				center++
+			}
+		}
+		if center != HorizonCenterRows {
+			t.Fatalf("center holds %d moon rows, want %d", center, HorizonCenterRows)
+		}
+	})
+	t.Run("happy: the horizon is a colored floor — background inks, no terrain glyphs in the way of fire", func(t *testing.T) {
+		h := NewHorizon()
+		h.Start(stageW, stageH)
+		defer h.Stop()
+		sp := h.Render()
+		foundBG := map[int]bool{}
+		for r := 0; r < stageH; r++ {
+			for c := 0; c < stageW; c++ {
+				cell := sp.At(r, c)
+				if cell.Transparent() {
+					continue
+				}
+				if r < stageH/2 {
+					t.Fatalf("horizon painted row %d — the surface must stay on the bottom half", r)
+				}
+				if cell.Ch != ' ' && cell.Ch != 0 {
+					t.Fatalf("horizon cell (%d,%d) wears glyph %q — the floor must be background so fire can sit on it", r, c, string(cell.Ch))
+				}
+				if cell.BG < 0 {
+					t.Fatalf("horizon cell (%d,%d) has no background", r, c)
+				}
+				foundBG[cell.BG] = true
+			}
+		}
+		if !foundBG[surfaceInk] {
+			t.Fatal("the horizon must show the sunlit moon body as a background color")
+		}
+		h.Update(3)
+		if opaqueCells(h.Render()) != opaqueCells(sp) {
+			t.Fatal("the horizon holds still — nothing on the surface moves")
+		}
+	})
+	t.Run("happy: fire painted on the horizon keeps the moon floor underneath", func(t *testing.T) {
+		h := NewHorizon()
+		h.Start(stageW, stageH)
+		defer h.Stop()
+		stage := h.Render()
+		top := HorizonTop(stageW, stageH, stageW/2)
+		floor := stage.At(top, stageW/2)
+		if floor.BG < 0 {
+			t.Fatal("the ridge must be a background color")
+		}
+		flame := sprite.New(1, 1)
+		flame.Set(0, 0, sprite.Cell{Ch: '⠁', FG: 88, BG: -1})
+		sprite.Blit(stage, stageW/2, top, flame)
+		got := stage.At(top, stageW/2)
+		if got.Ch != '⠁' {
+			t.Fatalf("fire must sit on the moon, got %q", string(got.Ch))
+		}
+		if got.BG != floor.BG {
+			t.Fatalf("moon floor %d must stay under the fire, got bg %d", floor.BG, got.BG)
+		}
+	})
+	t.Run("unhappy: a tiny stage and a nil horizon never panic", func(t *testing.T) {
+		h := NewHorizon()
+		h.Start(2, 1)
+		h.Update(1)
+		h.Render()
+		h.Stop()
+		var ghost *Horizon
+		ghost.Start(4, 2)
+		ghost.Update(1)
+		ghost.Render()
+		ghost.Stop()
+	})
+}

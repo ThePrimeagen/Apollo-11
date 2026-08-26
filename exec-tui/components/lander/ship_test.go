@@ -16,6 +16,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
@@ -417,6 +418,251 @@ func TestHoldShip(t *testing.T) {
 		var ghost *Ship
 		if ghost.Hold(hold) != nil {
 			t.Fatal("Hold must return the nil receiver")
+		}
+	})
+}
+
+func TestNorthShip(t *testing.T) {
+	t.Run("happy: North builds the size-4 north frame and aims fire straight down", func(t *testing.T) {
+		s := NewShip(20).North()
+		s.Start(screenW, screenH)
+		want := stripPlume(DefaultAtlas().MustFrame(sprite.Size4, sprite.N))
+		if s.Body.Width != want.Width || s.Body.Height != want.Height {
+			t.Fatalf("north body %dx%d, want %dx%d", s.Body.Width, s.Body.Height, want.Width, want.Height)
+		}
+		for r := 0; r < want.Height; r++ {
+			for c := 0; c < want.Width; c++ {
+				if got, wc := s.Body.At(r, c), want.At(r, c); got != wc {
+					t.Fatalf("north hull cell (%d,%d) %+v, want %+v", r, c, got, wc)
+				}
+			}
+		}
+		if s.Flame == nil || s.Flame.Eng == nil {
+			t.Fatal("a north ship must arm the booster")
+		}
+		d := s.Flame.Eng.Cfg.Direction
+		if math.Abs(d.X) > 1e-9 || math.Abs(d.Y-1) > 1e-9 {
+			t.Fatalf("direction %+v, want (0, 1) — fire out the bottom", d)
+		}
+	})
+	t.Run("unhappy: North on a nil ship is still nil", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.North() != nil {
+			t.Fatal("North must return the nil receiver")
+		}
+	})
+}
+
+func TestDropPath(t *testing.T) {
+	t.Run("happy: the drop starts fully above the stage and ends fully below it", func(t *testing.T) {
+		row, col := DropPath(screenW, screenH, 0, DropSeconds)
+		if row != -BodyRows {
+			t.Fatalf("t=0 row %d, want %d (fully off the top)", row, -BodyRows)
+		}
+		if col != (screenW-BodyCols)/2 {
+			t.Fatalf("t=0 col %d, want centered %d", col, (screenW-BodyCols)/2)
+		}
+		end, _ := DropPath(screenW, screenH, DropSeconds, DropSeconds)
+		if end != screenH {
+			t.Fatalf("t=DropSeconds row %d, want %d (fully off the bottom)", end, screenH)
+		}
+	})
+	t.Run("happy: the drop is monotonic downward and a Drop ship rides it", func(t *testing.T) {
+		prev := -BodyRows
+		for ti := 0; ti <= 100; ti++ {
+			tt := DropSeconds * float64(ti) / 100
+			row, _ := DropPath(screenW, screenH, tt, DropSeconds)
+			if row < prev {
+				t.Fatalf("t=%.2f row %d moved up (was %d)", tt, row, prev)
+			}
+			prev = row
+		}
+		s := NewShip(21).North().Drop(DropSeconds)
+		s.Start(screenW, screenH)
+		if opaqueCells(s.Render()) != 0 {
+			t.Fatal("at t=0 the falling craft must still be off the top")
+		}
+		warmShip(s, DropSeconds/2)
+		mid := s.Render()
+		if opaqueCells(mid) == 0 {
+			t.Fatal("mid-drop the hull must be on stage")
+		}
+		for r := 0; r < mid.Height; r++ {
+			for c := 0; c < mid.Width; c++ {
+				if mid.At(r, c).Ch == '▌' {
+					t.Fatal("a falling north craft must not wear the west-facing hull")
+				}
+			}
+		}
+		row, col := DropPath(screenW, screenH, s.Clock(), DropSeconds)
+		fire := 0
+		for r := row + BodyRows; r < mid.Height; r++ {
+			for c := col; c < col+BodyCols && c < mid.Width; c++ {
+				if c < 0 || r < 0 {
+					continue
+				}
+				if flameGlyph(mid.At(r, c).Ch) {
+					fire++
+				}
+			}
+		}
+		if fire == 0 {
+			t.Fatal("no fire under the hull — the plume must fire down")
+		}
+	})
+	t.Run("unhappy: negative time is the opening mark, and Drop on nil stays nil", func(t *testing.T) {
+		r0, c0 := DropPath(screenW, screenH, 0, DropSeconds)
+		row, col := DropPath(screenW, screenH, -3, DropSeconds)
+		if row != r0 || col != c0 {
+			t.Fatalf("t<0 at (%d,%d), want the t=0 mark (%d,%d)", row, col, r0, c0)
+		}
+		var ghost *Ship
+		if ghost.Drop(DropSeconds) != nil {
+			t.Fatal("Drop must return the nil receiver")
+		}
+	})
+}
+
+func TestLandPath(t *testing.T) {
+	t.Run("happy: the lander starts off the top and parks on the horizon pad", func(t *testing.T) {
+		pad := LandPadRow(screenH)
+		row, col := LandPath(screenW, screenH, 0, LandSeconds)
+		if row != -BodyRows {
+			t.Fatalf("t=0 row %d, want %d (fully off the top)", row, -BodyRows)
+		}
+		if col != (screenW-BodyCols)/2 {
+			t.Fatalf("t=0 col %d, want centered %d", col, (screenW-BodyCols)/2)
+		}
+		park, _ := LandPath(screenW, screenH, LandSeconds, LandSeconds)
+		if park != pad {
+			t.Fatalf("parked row %d, want pad %d", park, pad)
+		}
+		late, _ := LandPath(screenW, screenH, LandSeconds+8, LandSeconds)
+		if late != pad {
+			t.Fatalf("after touchdown row %d drifted, want pad %d", late, pad)
+		}
+		ridge := moon.HorizonTop(screenW, screenH, screenW/2)
+		if pad+BodyRows-1 != ridge {
+			t.Fatalf("feet at row %d, moon ridge at %d — the hull must sit one more square down, on the surface", pad+BodyRows-1, ridge)
+		}
+	})
+	t.Run("happy: a Land ship rides the path and stays put after the pad", func(t *testing.T) {
+		s := NewShip(22).North().Land(LandSeconds)
+		s.Start(screenW, screenH)
+		if opaqueCells(s.Render()) != 0 {
+			t.Fatal("at t=0 the landing craft must still be off the top")
+		}
+		warmShip(s, LandSeconds)
+		stage := s.Render()
+		pad := LandPadRow(screenH)
+		if opaqueCells(stage) == 0 {
+			t.Fatal("at touchdown the hull must sit on the pad")
+		}
+		want := stripPlume(DefaultAtlas().MustFrame(sprite.Size4, sprite.N))
+		for r := 0; r < want.Height; r++ {
+			for c := 0; c < want.Width; c++ {
+				b := want.At(r, c)
+				if b.Transparent() {
+					continue
+				}
+				if got := stage.At(pad+r, (screenW-BodyCols)/2+c); got.Ch != b.Ch {
+					t.Fatalf("landed hull cell (%d,%d) missing at pad: got %q want %q", r, c, string(got.Ch), string(b.Ch))
+				}
+			}
+		}
+	})
+	t.Run("unhappy: Land on a nil ship is still nil", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.Land(LandSeconds) != nil {
+			t.Fatal("Land must return the nil receiver")
+		}
+	})
+}
+
+func TestLandThrottle(t *testing.T) {
+	t.Run("happy: full until the last three seconds, then ¾, ½, ¼, off at the pad", func(t *testing.T) {
+		if got := LandThrottle(0, LandSeconds); got != 1 {
+			t.Fatalf("opening throttle %v, want full strength", got)
+		}
+		if got := LandThrottle(LandSeconds-LandThrottleLead-0.01, LandSeconds); got != 1 {
+			t.Fatalf("still approaching, throttle %v, want full", got)
+		}
+		step := LandThrottleLead / 3
+		if got := LandThrottle(LandSeconds-LandThrottleLead+step/2, LandSeconds); got != 0.75 {
+			t.Fatalf("first interval throttle %v, want 0.75", got)
+		}
+		if got := LandThrottle(LandSeconds-2*step+step/2, LandSeconds); got != 0.5 {
+			t.Fatalf("second interval throttle %v, want 0.5", got)
+		}
+		if got := LandThrottle(LandSeconds-step/2, LandSeconds); got != 0.25 {
+			t.Fatalf("third interval throttle %v, want 0.25", got)
+		}
+		if got := LandThrottle(LandSeconds, LandSeconds); got != 0 {
+			t.Fatalf("touchdown throttle %v, want off", got)
+		}
+	})
+	t.Run("happy: a landing ship scales count and distance, then cuts the fire on the pad", func(t *testing.T) {
+		s := NewShip(22).North().Land(LandSeconds)
+		s.Start(screenW, screenH)
+		base := s.Flame.Config()
+		if base.Count < 1 {
+			t.Fatal("a landing ship must arm a live booster")
+		}
+		warmShip(s, 0.5)
+		if got := s.Flame.Config().Count; got != base.Count {
+			t.Fatalf("still far from the pad, count %d, want full %d", got, base.Count)
+		}
+		warmShip(s, LandSeconds-LandThrottleLead/6-0.5)
+		got := s.Flame.Config()
+		if got.Count != int(math.Round(float64(base.Count)*0.25)) {
+			t.Fatalf("last interval count %d, want ¼ of %d", got.Count, base.Count)
+		}
+		if base.MaxDistance > 0 && got.MaxDistance > base.MaxDistance*0.25+1e-9 {
+			t.Fatalf("last interval max distance %v, want ¼ of %v", got.MaxDistance, base.MaxDistance)
+		}
+		warmShip(s, LandThrottleLead/6+0.5)
+		if s.Flame == nil {
+			t.Fatal("the flame engine stays attached; it just emits nothing")
+		}
+		if s.Flame.Config().Count != 0 {
+			t.Fatalf("on the pad count %d, want 0", s.Flame.Config().Count)
+		}
+		if n := len(s.Flame.Eng.Particles); n != 0 {
+			t.Fatalf("on the pad %d particles still live — the fire must cut off", n)
+		}
+		stage := s.Render()
+		for r := 0; r < stage.Height; r++ {
+			for c := 0; c < stage.Width; c++ {
+				switch stage.At(r, c).Ch {
+				case '⠁', '⠒', '⠶':
+					t.Fatalf("fire still painting at (%d,%d) after touchdown", r, c)
+				}
+			}
+		}
+	})
+	t.Run("unhappy: a fly-in or a drop never throttles, and time past the pad stays off", func(t *testing.T) {
+		if got := LandThrottle(-2, LandSeconds); got != 1 {
+			t.Fatalf("t<0 throttle %v, want full, not off", got)
+		}
+		if got := LandThrottle(LandSeconds+40, LandSeconds); got != 0 {
+			t.Fatalf("long after touchdown throttle %v, want off", got)
+		}
+		if got := LandThrottle(1, 0); got != 0 {
+			t.Fatalf("no landing duration throttle %v, want off", got)
+		}
+		west := NewShip(9).Parked()
+		west.Start(screenW, screenH)
+		want := west.Flame.Config().Count
+		warmShip(west, LandSeconds+1)
+		if west.Flame.Config().Count != want {
+			t.Fatalf("a westbound parked ship must not throttle, count %d want %d", west.Flame.Config().Count, want)
+		}
+		drop := NewShip(10).North().Drop(DropSeconds)
+		drop.Start(screenW, screenH)
+		dropWant := drop.Flame.Config().Count
+		warmShip(drop, DropSeconds/2)
+		if drop.Flame.Config().Count != dropWant {
+			t.Fatalf("a falling ship must not throttle, count %d want %d", drop.Flame.Config().Count, dropWant)
 		}
 	})
 }

@@ -40,6 +40,31 @@ func TestBlit(t *testing.T) {
 			t.Fatalf("transparent stamp cell erased the layer below: %+v", got)
 		}
 	})
+	t.Run("happy: a glyph with no background keeps the floor color underneath", func(t *testing.T) {
+		dst := New(3, 2)
+		dst.Set(0, 0, Cell{Ch: ' ', FG: -1, BG: 251})
+		src := New(1, 1)
+		src.Set(0, 0, Cell{Ch: '⠁', FG: 88, BG: -1})
+		Blit(dst, 0, 0, src)
+		got := dst.At(0, 0)
+		if got.Ch != '⠁' || got.FG != 88 {
+			t.Fatalf("fire glyph missing: %+v", got)
+		}
+		if got.BG != 251 {
+			t.Fatalf("moon floor must stay under the fire, bg=%d", got.BG)
+		}
+	})
+	t.Run("unhappy: a source that carries its own background replaces the floor", func(t *testing.T) {
+		dst := New(3, 2)
+		dst.Set(0, 0, Cell{Ch: ' ', FG: -1, BG: 251})
+		src := New(1, 1)
+		src.Set(0, 0, Cell{Ch: '█', FG: 226, BG: 220})
+		Blit(dst, 0, 0, src)
+		got := dst.At(0, 0)
+		if got.BG != 220 {
+			t.Fatalf("hot fire must paint its own bg, got %d", got.BG)
+		}
+	})
 	t.Run("unhappy: blits clip at every edge instead of wrapping", func(t *testing.T) {
 		dst := New(4, 3)
 		Blit(dst, -1, -1, blitStamp()) // only the stamp's (1,1) survives at (0,0)

@@ -512,3 +512,74 @@ func TestTunedStarfieldComponent(t *testing.T) {
 		}
 	})
 }
+
+func TestBrakeClock(t *testing.T) {
+	t.Run("happy: a 60% slowdown over 5s burns 3.5s of fly by the window, then crawls at 40%", func(t *testing.T) {
+		if got := BrakeClock(0, 0.6, 5); got != 0 {
+			t.Fatalf("t=0 fly clock %g, want 0", got)
+		}
+		// Average rate (1+0.4)/2 = 0.7 → 5*0.7 = 3.5.
+		if got := BrakeClock(5, 0.6, 5); got != 3.5 {
+			t.Fatalf("t=5 fly clock %g, want 3.5", got)
+		}
+		if got := BrakeClock(10, 0.6, 5); got != 5.5 {
+			t.Fatalf("t=10 fly clock %g, want 3.5+0.4*5 = 5.5", got)
+		}
+	})
+	t.Run("unhappy: a zero or negative brake is just wall time; a full stop eases to a halt", func(t *testing.T) {
+		if got := BrakeClock(4, 0, 5); got != 4 {
+			t.Fatalf("by=0 fly clock %g, want wall time 4", got)
+		}
+		if got := BrakeClock(-2, 0.6, 5); got != 0 {
+			t.Fatalf("t<0 fly clock %g, want 0", got)
+		}
+		if got := BrakeClock(5, 1, 5); got != 2.5 {
+			t.Fatalf("by=1 at the window fly clock %g, want 2.5 (triangle to a halt)", got)
+		}
+		if got := BrakeClock(3, 0.6, 0); got != 3 {
+			t.Fatalf("seconds<=0 fly clock %g, want wall time (no brake)", got)
+		}
+	})
+}
+
+func TestStarfieldSlow(t *testing.T) {
+	t.Run("happy: after 5s a 60% brake matches 3.5s of the same unbraked sky", func(t *testing.T) {
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(3.5)
+		want := spriteSnapshot(plain.Render())
+		braked := NewStarfield(Drift).Slow(0.6, 5)
+		braked.Start(stageW, stageH)
+		braked.Update(5)
+		if !snapshotsEqual(want, spriteSnapshot(braked.Render())) {
+			t.Fatal("a 60% slowdown over 5s must leave the sky where 3.5s of unbraked fly would")
+		}
+	})
+	t.Run("happy: past the window the sky keeps crawling at 40% speed", func(t *testing.T) {
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(5.5)
+		want := spriteSnapshot(plain.Render())
+		braked := NewStarfield(Drift).Slow(0.6, 5)
+		braked.Start(stageW, stageH)
+		braked.Update(10)
+		if !snapshotsEqual(want, spriteSnapshot(braked.Render())) {
+			t.Fatal("after the 5s window the braked sky must keep flying at 40% speed")
+		}
+	})
+	t.Run("unhappy: Slow on a nil sky is still nil", func(t *testing.T) {
+		var ghost *Starfield
+		if ghost.Slow(0.6, 5) != nil {
+			t.Fatal("Slow must return the nil receiver")
+		}
+	})
+	t.Run("unhappy: a still sky does not start moving just because it was asked to slow", func(t *testing.T) {
+		f := NewStarfield(Still).Slow(0.6, 5)
+		f.Start(stageW, stageH)
+		before := spriteSnapshot(f.Render())
+		f.Update(5)
+		if !snapshotsEqual(before, spriteSnapshot(f.Render())) {
+			t.Fatal("Slow must not un-park a still sky")
+		}
+	})
+}

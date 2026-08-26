@@ -103,7 +103,8 @@ func (s *Screen) PutCell(x, y int, ch rune, fg, bg int) {
 
 // Blit lays a sprite onto the screen with its top-left cell at (x, y).
 // Transparent sprite cells do not overwrite what is already there;
-// anything past an edge is clipped.
+// anything past an edge is clipped. A glyph that does not carry its
+// own background keeps the destination floor color.
 func (s *Screen) Blit(x, y int, sp sprite.Sprite) {
 	if s == nil {
 		return
@@ -114,9 +115,35 @@ func (s *Screen) Blit(x, y int, sp sprite.Sprite) {
 			if cell.Transparent() {
 				continue
 			}
-			s.PutCell(x+c, y+r, cell.Ch, cell.FG, cell.BG)
+			bg := cell.BG
+			if bg < 0 {
+				if under := s.Cell(x+c, y+r); isFloor(under) {
+					if n, ok := indexedBG(under); ok {
+						bg = n
+					}
+				}
+			}
+			s.PutCell(x+c, y+r, cell.Ch, cell.FG, bg)
 		}
 	}
+}
+
+func indexedBG(c *uv.Cell) (int, bool) {
+	if c == nil || c.Style.Bg == nil {
+		return -1, false
+	}
+	ic, ok := c.Style.Bg.(ansi.IndexedColor)
+	if !ok {
+		return -1, false
+	}
+	return int(ic), true
+}
+
+func isFloor(c *uv.Cell) bool {
+	if c == nil {
+		return false
+	}
+	return c.Content == "" || c.Content == " "
 }
 
 // Cell reads a cell back, or nil out of bounds.
