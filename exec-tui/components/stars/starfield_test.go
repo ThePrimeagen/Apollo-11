@@ -127,6 +127,33 @@ func TestStarfieldComponent(t *testing.T) {
 			t.Fatal("a still sky must never move")
 		}
 	})
+	t.Run("happy: Still() parks a tuned sky without losing its tuning", func(t *testing.T) {
+		t.Cleanup(ResetSky)
+		if err := UseSky(SkyConfig{Delay: []int{1, 1, 1, 1}, Density: []int{5, 5, 5, 90}}); err != nil {
+			t.Fatalf("UseSky: %v", err)
+		}
+		f := NewTunedStarfield().Still()
+		f.Start(stageW, stageH)
+		before := spriteSnapshot(f.Render())
+		if len(before) == 0 {
+			t.Fatal("test premise: a started sky must hold stars")
+		}
+		f.Update(3.0)
+		if !snapshotsEqual(before, spriteSnapshot(f.Render())) {
+			t.Fatal("a Still() sky must never move, whatever the tuned delays say")
+		}
+		moving := NewTunedStarfield()
+		moving.Start(stageW, stageH)
+		if !snapshotsEqual(before, spriteSnapshot(moving.Render())) {
+			t.Fatal("Still() must keep the tuned scatter — same homes, just parked")
+		}
+	})
+	t.Run("unhappy: Still() on a nil sky skips the cue", func(t *testing.T) {
+		var ghost *Starfield
+		if ghost.Still() != nil {
+			t.Fatal("a nil sky must stay nil")
+		}
+	})
 	t.Run("unhappy: dt<=0 holds the drift", func(t *testing.T) {
 		f := NewStarfield(Drift)
 		f.Start(stageW, stageH)

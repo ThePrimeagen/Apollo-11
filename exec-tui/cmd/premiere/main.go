@@ -1,4 +1,4 @@
-// premiere: the three-scene showcase for the screenplay component.
+// premiere: the four-scene showcase for the screenplay component.
 //
 // Scene 1, "arrival": three seconds of drifting sky, then the Apollo
 // craft slides in from the right wing over a starfield that translates
@@ -7,8 +7,12 @@
 // sky settles back into its own drift once the craft parks. Hull only,
 // cold engine. Scene 2, "dsky": the
 // parked craft stays, the right third of the sky wipes away one column
-// at a time (~500ms), and the DSKY docks in that space. Scene 3, "the
-// end": the height-5 banner card, centered under the same sky.
+// at a time (~500ms), and the DSKY docks in that space. Scene 3,
+// "descent orbit": the pixelated moon with a lone gold craft circling
+// it eastward over the top of a perfectly still sky — no line drawn,
+// the craft alone traces the path: where the craft was, and why it
+// flies sideways. Scene 4, "the end": the height-5 banner card,
+// centered under the same sky.
 //
 //	space     cut to the next scene
 //	q         quit
@@ -29,6 +33,7 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
 
@@ -44,9 +49,9 @@ const (
 	frameMs  = 1000.0 / 30
 )
 
-// premiere is the bill: arrival, then the DSKY dock, then the end
-// card. Each scene's cast of components is assembled when its curtain
-// rises, not before.
+// premiere is the bill: arrival, then the DSKY dock, then the descent
+// orbit around the moon, then the end card. Each scene's cast of
+// components is assembled when its curtain rises, not before.
 func premiere() *screenplay.Screenplay {
 	return screenplay.New(
 		screenplay.Entry{Name: "arrival", Scene: &screenplay.Ensemble{
@@ -63,6 +68,15 @@ func premiere() *screenplay.Screenplay {
 					stars.NewTunedStarfield().Dock(dsky.Width, dsky.WipeSeconds),
 					lander.NewShip(11).Dark().Parked(),
 					dsky.NewPanel(dsky.MonitorState()),
+				}
+			},
+		}},
+		screenplay.Entry{Name: "descent orbit", Scene: &screenplay.Ensemble{
+			Assemble: func() []screenplay.Component {
+				return []screenplay.Component{
+					stars.NewTunedStarfield().Still(),
+					moon.New(),
+					moon.NewOrbit(),
 				}
 			},
 		}},

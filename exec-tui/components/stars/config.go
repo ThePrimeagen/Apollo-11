@@ -11,8 +11,8 @@ const (
 	// LayerCount is the four star layers: dust, spark, mid, near.
 	LayerCount = 4
 	// MinDelay/MaxDelay bound a layer's ticks-per-cell in a sky config:
-	// 1 streaks every tick, 60 barely crawls.
-	MinDelay = 1
+	// 0 parks the layer still, 1 streaks every tick, 60 barely crawls.
+	MinDelay = 0
 	MaxDelay = 60
 	// MinDensity bounds a layer's stars per 1000 cells; MaxDensity is
 	// the same flood cap the catalog enforces.
@@ -21,7 +21,7 @@ const (
 
 var (
 	ErrLayerCount   = errors.New("stars: need 4 delays and 4 densities")
-	ErrDelayRange   = errors.New("stars: each delay must be 1..60")
+	ErrDelayRange   = errors.New("stars: each delay must be 0..60 (0 parks the layer)")
 	ErrDensityRange = errors.New("stars: each density must be 1..400")
 )
 

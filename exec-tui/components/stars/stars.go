@@ -34,7 +34,9 @@ func tint(kind, row, col int) int {
 }
 
 // Strategy is one fly style. Delay[kind] is ticks per cell of travel;
-// smaller means faster. The zero Strategy flies as DustRush.
+// smaller means faster, and 0 (or less) parks the layer where it
+// scattered — set every movement to zero and the sky simply holds.
+// The zero Strategy — no name, no delays — flies as DustRush.
 type Strategy struct {
 	Name  string
 	Delay [4]int
@@ -72,13 +74,13 @@ func (s Strategy) delays() [4]int {
 	if s.Name == Still.Name {
 		return [4]int{1, 1, 1, 1} // unused: Paint freezes tick
 	}
-	if s.Delay == [4]int{} {
+	if s.Name == "" && s.Delay == [4]int{} {
 		return DustRush.Delay
 	}
 	out := s.Delay
 	for i, d := range out {
-		if d < 1 {
-			out[i] = 1
+		if d < 0 {
+			out[i] = 0
 		}
 	}
 	return out
@@ -141,8 +143,10 @@ func (c *Catalog) Paint(tick int, s Strategy, put func(row, col int, ch rune, fg
 	}
 	delays := s.delays()
 	for _, st := range c.stars {
-		d := delays[st.kind]
-		col := wrap(st.col-tick/d, c.w)
+		col := st.col
+		if d := delays[st.kind]; d > 0 {
+			col = wrap(st.col-tick/d, c.w)
+		}
 		put(st.row, col, Glyphs[st.kind], st.fg)
 	}
 }

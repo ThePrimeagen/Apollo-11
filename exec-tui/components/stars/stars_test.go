@@ -304,15 +304,33 @@ func TestStrategies(t *testing.T) {
 			t.Fatal("the zero strategy must fly like dust-rush")
 		}
 	})
-	t.Run("unhappy: a zero delay on one layer is clamped to 1", func(t *testing.T) {
+	t.Run("happy: a zero delay parks its layer while the others fly", func(t *testing.T) {
 		s := Strategy{Name: "mixed", Delay: [4]int{0, 8, 8, 8}}
-		a, b := field(s, 0), field(s, 1)
+		a, b := field(s, 0), field(s, 40)
 		mid := a.Height / 2
-		if equalInts(glyphCols(a, mid, '·'), glyphCols(b, mid, '·')) {
-			t.Fatal("clamped delay 0 must fly every tick")
+		if !equalInts(glyphCols(a, mid, '·'), glyphCols(b, mid, '·')) {
+			t.Fatal("delay 0 must park the dust exactly where it scattered")
 		}
-		if !equalInts(glyphCols(a, mid, '✦'), glyphCols(b, mid, '✦')) {
-			t.Fatal("near with delay 8 must hold")
+		if equalInts(glyphCols(a, mid, '✦'), glyphCols(b, mid, '✦')) {
+			t.Fatal("near with delay 8 must still fly")
+		}
+	})
+	t.Run("happy: every movement at zero holds the whole sky — and it just works", func(t *testing.T) {
+		s := Strategy{Name: "tuned", Delay: [4]int{0, 0, 0, 0}}
+		a, b := field(s, 0), field(s, 80)
+		if a.Render() != b.Render() {
+			t.Fatal("all-zero movement must hold every star")
+		}
+		if !strings.ContainsRune(plain(a.Render()), '·') {
+			t.Fatal("a parked sky is a night sky, not an empty one")
+		}
+	})
+	t.Run("unhappy: a negative delay parks its layer too — never a crash, never a streak", func(t *testing.T) {
+		s := Strategy{Name: "odd", Delay: [4]int{-3, 8, 8, 8}}
+		a, b := field(s, 0), field(s, 40)
+		mid := a.Height / 2
+		if !equalInts(glyphCols(a, mid, '·'), glyphCols(b, mid, '·')) {
+			t.Fatal("a negative delay must park, not fly")
 		}
 	})
 }

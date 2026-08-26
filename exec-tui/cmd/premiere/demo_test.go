@@ -1,19 +1,23 @@
 package main
 
 // Demo harness tests, written first: the premiere plays a
-// three-scene bill on the shared screen. Scene one, "arrival": three
+// four-scene bill on the shared screen. Scene one, "arrival": three
 // seconds of drifting sky, then a starfield that translates with the
 // westbound craft as it slides in from the right wing — hull only, no
 // booster fire — then parks and bobbles at center stage. Space cuts to scene two, "dsky": the craft
 // parked, the right third of the sky wipes away one column at a time
 // (~500ms), and the DSKY docks in that space. Space cuts to scene
-// three, "the end": the height-5 banner card. Space on the final
+// three, "descent orbit": the pixelated moon with the lone gold craft
+// circling it eastward over the top — no line, the craft alone traces
+// the path — where the craft was, and why it flies sideways. Space
+// cuts to scene four, "the end": the height-5 banner card. Space on the final
 // scene holds; q and ctrl+c close the house. The view is the rendered
 // screen plus one status line, always exactly window-height lines.
 
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -21,6 +25,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 )
 
@@ -50,11 +55,42 @@ func hasStar(v string) bool {
 	return false
 }
 
+var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// markerCell locates the moon's gold marker in a rendered view, ANSI
+// stripped so escape bytes never shift the column count.
+func markerCell(v string) (row, col int, ok bool) {
+	for r, line := range strings.Split(ansiPat.ReplaceAllString(v, ""), "\n") {
+		for c, ch := range []rune(line) {
+			if ch == moon.MarkerGlyph {
+				return r, c, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+// skyColumns is the leftmost n columns of every view row, ANSI
+// stripped — on the orbit scene that strip is pure sky, west of the
+// ring, so it watches the stars alone.
+func skyColumns(v string, n int) string {
+	var b strings.Builder
+	for _, line := range strings.Split(ansiPat.ReplaceAllString(v, ""), "\n") {
+		rs := []rune(line)
+		if len(rs) > n {
+			rs = rs[:n]
+		}
+		b.WriteString(string(rs))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
 func TestPremiere(t *testing.T) {
-	t.Run("happy: the house opens on scene 1/3, arrival, under stars", func(t *testing.T) {
+	t.Run("happy: the house opens on scene 1/4, arrival, under stars", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"1/3", "arrival", "space", "quit"} {
+		for _, want := range []string{"1/4", "arrival", "space", "quit"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
@@ -117,13 +153,13 @@ func TestPremiere(t *testing.T) {
 			t.Fatal("a frame must schedule the next tick")
 		}
 	})
-	t.Run("happy: space cuts to scene 2/3 — DSKY docks after the wipe", func(t *testing.T) {
+	t.Run("happy: space cuts to scene 2/4 — DSKY docks after the wipe", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, 90)
 		m = press(m, space())
 		opening := m.View().Content
-		for _, want := range []string{"2/3", "dsky"} {
+		for _, want := range []string{"2/4", "dsky"} {
 			if !strings.Contains(opening, want) {
 				t.Fatalf("the dsky scene is missing %q", want)
 			}
@@ -144,16 +180,75 @@ func TestPremiere(t *testing.T) {
 		if strings.ContainsAny(v, "⠁⠒⠶▒") {
 			t.Fatal("the engine stays dark through the dsky scene")
 		}
+		if strings.ContainsRune(v, moon.MarkerGlyph) {
+			t.Fatal("the moon's craft does not appear until the next scene")
+		}
 		if !hasStar(v) {
 			t.Fatal("the left sky must keep drifting beside the dock")
 		}
 	})
-	t.Run("happy: space cuts to scene 3/3 — THE END, centered", func(t *testing.T) {
-		m := frames(newModel(0), 30)
+	t.Run("happy: space cuts to scene 3/4 — the moon and its descent path", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 30)
 		m = press(m, space())
 		m = press(m, space())
 		v := m.View().Content
-		for _, want := range []string{"3/3", "the end", "___"} {
+		for _, want := range []string{"3/4", "descent orbit"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("the orbit scene is missing %q", want)
+			}
+		}
+		if !strings.ContainsRune(v, '▓') {
+			t.Fatal("the moon must fill the middle of the stage")
+		}
+		if !strings.ContainsRune(v, moon.MarkerGlyph) {
+			t.Fatal("the gold craft must circle the moon")
+		}
+		if strings.Contains(v, "VERB") {
+			t.Fatal("the DSKY sits this scene out")
+		}
+		if strings.ContainsRune(v, '▌') {
+			t.Fatal("the craft sits this scene out — the marker is the story")
+		}
+		if !hasStar(v) {
+			t.Fatal("the orbit still plays under the stars")
+		}
+		r0, c0, ok := markerCell(v)
+		if !ok {
+			t.Fatal("no marker on the opening frame")
+		}
+		m = frames(m, 90) // three seconds: a quarter lap along the ring
+		r1, c1, ok := markerCell(m.View().Content)
+		if !ok {
+			t.Fatal("the marker left the stage")
+		}
+		if r0 == r1 && c0 == c1 {
+			t.Fatal("frames must fly the marker along the ring")
+		}
+	})
+	t.Run("happy: the orbit sky holds still — no stars move behind the moon", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 30)
+		m = press(m, space())
+		m = press(m, space())
+		before := skyColumns(m.View().Content, 12)
+		if !hasStar(before) {
+			t.Fatal("test premise: the strip west of the ring must hold stars")
+		}
+		m = frames(m, 90)
+		if got := skyColumns(m.View().Content, 12); got != before {
+			t.Fatal("the orbit scene's stars must hold perfectly still")
+		}
+	})
+	t.Run("happy: space cuts to scene 4/4 — THE END, centered", func(t *testing.T) {
+		m := frames(newModel(0), 30)
+		m = press(m, space())
+		m = press(m, space())
+		m = press(m, space())
+		v := m.View().Content
+		for _, want := range []string{"4/4", "the end", "___"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the end card is missing %q", want)
 			}
@@ -167,9 +262,13 @@ func TestPremiere(t *testing.T) {
 		if strings.Contains(v, "VERB") {
 			t.Fatal("the DSKY does not appear in the end card")
 		}
+		if strings.ContainsRune(v, moon.MarkerGlyph) {
+			t.Fatal("the moon sets before the end card")
+		}
 	})
 	t.Run("happy: the cut restarts the clock for the new scene's cast", func(t *testing.T) {
 		m := frames(newModel(0), 30)
+		m = press(m, space())
 		m = press(m, space())
 		m = press(m, space())
 		before := m.View().Content
@@ -182,9 +281,10 @@ func TestPremiere(t *testing.T) {
 		m := press(newModel(0), space())
 		m = press(m, space())
 		m = press(m, space())
+		m = press(m, space())
 		m = press(m, runeKey(' '))
 		v := m.View().Content
-		if !strings.Contains(v, "3/3") || !strings.Contains(v, "the end") {
+		if !strings.Contains(v, "4/4") || !strings.Contains(v, "the end") {
 			t.Fatal("extra spaces must hold on the final scene")
 		}
 	})

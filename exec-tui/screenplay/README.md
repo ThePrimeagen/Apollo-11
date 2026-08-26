@@ -2,7 +2,7 @@
 
 A screenplay is scenes in order; a scene is a cast of components playing
 over time. `space` cuts to the next scene. The premiere plays a
-three-scene bill:
+four-scene bill:
 
 - **Scene 1 — arrival.** Three seconds of drifting sky, then a starfield
   that translates with the craft as it comes in: every star shifts left
@@ -16,7 +16,15 @@ three-scene bill:
 - **Scene 2 — dsky.** The parked craft stays. Over ~500ms the right
   third of the sky blanks out one column at a time from the right edge,
   and the DSKY (V16 N68 on P63) docks in that space.
-- **Scene 3 — the end.** `THE END` in the height-5 terminal-fonts banner,
+- **Scene 3 — descent orbit.** The explainer: a pixelated moon at
+  center stage with a lone gold craft circling it eastward over the
+  top — no line drawn, the craft alone traces the path. The sky
+  behind it holds perfectly still (`NewTunedStarfield().Still()`) —
+  the craft is the only thing moving. This is where the craft was,
+  and why it flies sideways. All circle math runs in half-cell pixels
+  (a terminal cell is ~2× taller than wide), so the moon and the
+  orbit read round on a real terminal.
+- **Scene 4 — the end.** `THE END` in the height-5 terminal-fonts banner,
   centered under the same sky.
 
 ```bash
@@ -67,6 +75,15 @@ render order is cast order — later sprites land on top, transparent
 cells sparing whatever is beneath. There is no z-index: every scene
 decides ordering by how it lines up its cast.
 
+Shows compose. A `Bill` is one screenplay's worth of scenes — the
+composable unit — and `Compose(bills...)` flattens bills, in order,
+into one big screenplay, so the final product is every show's bill
+added together. `shows/moonshow` is the first packaged bill: scene
+one, the bare moon alone under a parked sky; scene two, a spaceship
+streaks in fast off the left wing, brakes onto its orbit, and circles
+the moon until the next cut (`go run ./cmd/moon` plays it; space past
+the last scene ends the show).
+
 The `Screen` is the shared render target: one Lip Gloss v2 canvas — a
 `uv.Cell` of content plus style per terminal cell — plus `Resize` /
 `Resized` bookkeeping. `Screen.PutCell` and `Screen.Blit` speak the
@@ -82,6 +99,7 @@ stops the old scene before starting the new.
 | `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe |
 | `components/lander` | `Ship` — atlas hull + optional booster plume + `FlightPath` choreography |
 | `components/dsky` | `Panel` — the DSKY docking on the right third, column-by-column |
+| `components/moon` | `Moon` — the pixelated disc alone, one reusable performer; `Orbit` — the lone gold craft circling it, cast over any moon |
 | `components/title` | `Title` — banner cards set in terminal-fonts |
 
 The `screenplay` package knows nothing about landers, stars, or fonts —
@@ -91,9 +109,10 @@ it speaks sprites and lip gloss cells only.
 
 Another adjusting scene, in the adjustflame mold: the whole starfield
 plays behind a panel of eight numbers — a fly **delay** (ticks per cell,
-lower is faster) and a **density** (stars per 1000 cells) for each of the
-four star layers (`·` dust, `˚` spark, `*` mid, `✦` near). The sky reacts
-live as you turn the knobs.
+lower is faster, 0 parks the layer still) and a **density** (stars per
+1000 cells) for each of the four star layers (`·` dust, `˚` spark, `*`
+mid, `✦` near). The sky reacts live as you turn the knobs — zero every
+delay and the whole sky holds.
 
 ```bash
 go run ./cmd/adjuststars/main               # edits components/stars/config.json
