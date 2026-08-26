@@ -10,8 +10,9 @@
 // at a time (~500ms), and the DSKY docks in that space. Scene 3,
 // "descent orbit": the pixelated moon under a wide dotted ring — the
 // descent path — and a lone gold marker riding the ring eastward over
-// the top: where the craft was, and why it flies sideways. Scene 4,
-// "the end": the height-5 banner card, centered under the same sky.
+// the top of a perfectly still sky: where the craft was, and why it
+// flies sideways. Scene 4, "the end": the height-5 banner card,
+// centered under the same sky.
 //
 //	space     cut to the next scene
 //	q         quit
@@ -73,7 +74,7 @@ func premiere() *screenplay.Screenplay {
 		screenplay.Entry{Name: "descent orbit", Scene: &screenplay.Ensemble{
 			Assemble: func() []screenplay.Component {
 				return []screenplay.Component{
-					stars.NewTunedStarfield(),
+					stars.NewTunedStarfield().Still(),
 					moon.New(),
 				}
 			},

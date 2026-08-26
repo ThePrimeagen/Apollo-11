@@ -1,9 +1,9 @@
 // moon: the descent-orbit scene as its own show. A pixelated moon
 // centered on stage, a wide dotted ring circling it — the descent
 // path — and a lone gold marker riding the ring eastward over the top
-// under the tuned starfield: where the lander was, and why it flies
-// sideways. The same scene plays third on the premiere bill; this
-// runs it solo, handy for tapes.
+// of a perfectly still tuned sky: where the lander was, and why it
+// flies sideways. The same scene plays third on the premiere bill;
+// this runs it solo, handy for tapes.
 //
 //	q         quit
 //
@@ -36,14 +36,15 @@ const (
 	frameMs  = 1000.0 / 30
 )
 
-// bill is the whole show: one scene, the descent orbit.
+// bill is the whole show: one scene, the descent orbit under a parked
+// sky — only the marker moves.
 func bill() *screenplay.Screenplay {
 	return screenplay.New(screenplay.Entry{
 		Name: "descent orbit",
 		Scene: &screenplay.Ensemble{
 			Assemble: func() []screenplay.Component {
 				return []screenplay.Component{
-					stars.NewTunedStarfield(),
+					stars.NewTunedStarfield().Still(),
 					moon.New(),
 				}
 			},

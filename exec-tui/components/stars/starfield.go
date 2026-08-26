@@ -24,6 +24,7 @@ type Starfield struct {
 	density   [4]int
 	cat       *Catalog
 	w, h      int
+	still     bool
 	dockMin   int
 	dockSec   float64
 	slideSec  float64
@@ -40,6 +41,17 @@ func NewStarfield(s Strategy) *Starfield {
 // when it starts, so a tuned config file just works in any scene.
 func NewTunedStarfield() *Starfield {
 	return &Starfield{Tuned: true}
+}
+
+// Still parks the sky: whatever the strategy or the tuned config say,
+// every star holds the home it scattered to — the second star scene,
+// the one that never moves. Call before Start. Nil-safe.
+func (f *Starfield) Still() *Starfield {
+	if f == nil {
+		return nil
+	}
+	f.still = true
+	return f
 }
 
 // Dock asks the sky to blank the right third of the stage — at least
@@ -151,6 +163,9 @@ func (f *Starfield) Start(w, h int) {
 		sky := ActiveSky()
 		f.fly = sky.FlyStrategy()
 		f.density = sky.DensityLayers()
+	}
+	if f.still {
+		f.fly = Still
 	}
 	f.cat = NewCatalog(w, h, f.density)
 }

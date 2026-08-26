@@ -18,10 +18,12 @@ four-scene bill:
   and the DSKY (V16 N68 on P63) docks in that space.
 - **Scene 3 — descent orbit.** The explainer: a pixelated moon at
   center stage under a wide dotted ring — the descent path — and a
-  lone gold marker rides that ring eastward over the top. This is
-  where the craft was, and why it flies sideways. All circle math
-  runs in half-cell pixels (a terminal cell is ~2× taller than wide),
-  so the moon and the ring read round on a real terminal.
+  lone gold marker rides that ring eastward over the top. The sky
+  behind it holds perfectly still (`NewTunedStarfield().Still()`) —
+  the marker is the only thing moving. This is where the craft was,
+  and why it flies sideways. All circle math runs in half-cell pixels
+  (a terminal cell is ~2× taller than wide), so the moon and the ring
+  read round on a real terminal.
 - **Scene 4 — the end.** `THE END` in the height-5 terminal-fonts banner,
   centered under the same sky.
 
@@ -98,9 +100,10 @@ it speaks sprites and lip gloss cells only.
 
 Another adjusting scene, in the adjustflame mold: the whole starfield
 plays behind a panel of eight numbers — a fly **delay** (ticks per cell,
-lower is faster) and a **density** (stars per 1000 cells) for each of the
-four star layers (`·` dust, `˚` spark, `*` mid, `✦` near). The sky reacts
-live as you turn the knobs.
+lower is faster, 0 parks the layer still) and a **density** (stars per
+1000 cells) for each of the four star layers (`·` dust, `˚` spark, `*`
+mid, `✦` near). The sky reacts live as you turn the knobs — zero every
+delay and the whole sky holds.
 
 ```bash
 go run ./cmd/adjuststars/main               # edits components/stars/config.json

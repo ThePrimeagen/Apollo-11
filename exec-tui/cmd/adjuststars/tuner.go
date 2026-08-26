@@ -21,9 +21,9 @@ const DefaultConfigPath = "components/stars/config.json"
 const (
 	// Rows is the eight tunable numbers: delay and density per layer.
 	Rows = 8
-	// MinDelay/MaxDelay bound a layer's ticks-per-cell: 1 streaks
-	// every tick, 30 barely crawls.
-	MinDelay = 1
+	// MinDelay/MaxDelay bound a layer's ticks-per-cell: 0 parks the
+	// layer still, 1 streaks every tick, 30 barely crawls.
+	MinDelay = 0
 	MaxDelay = 30
 	// MinDensity/MaxDensity bound a layer's stars per 1000 cells.
 	MinDensity = 1

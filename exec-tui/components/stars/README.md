@@ -38,7 +38,10 @@ is the per-layer frequency knob — stars per 1000 cells for dust, spark,
 mid, near. The zero value paints the stock sky (`DefaultDensity`,
 `{56, 33, 6, 4}`); larger numbers thicken a layer, capped at `MaxDensity`
 (400). Speed stays on `Strategy.Delay` — ticks per cell of travel, lower
-is faster.
+is faster, and **0 parks the layer**: set every movement to zero and the
+sky simply holds. `Starfield.Still()` is the same idea as a modifier —
+a second star scene that never moves, whatever the strategy or the
+tuned config say (the moon's descent orbit plays under it).
 
 ## The config
 
