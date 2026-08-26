@@ -82,8 +82,8 @@ added together. `shows/moonshow` is the first packaged bill: scene
 one, the bare moon alone under a parked sky; scene two, a spaceship
 streaks in fast off the left wing, brakes onto its orbit, and circles
 the moon until the next cut (`go run ./cmd/moon` plays it; space past
-the last scene ends the show). `shows/lunarcloseup` is the second: four scenes —
-the premiere's arrival as the opener (drifting stars, then the
+the last scene ends the show). `shows/lunarcloseup` is **2. Walkthrough**:
+four scenes — the premiere's arrival as the opener (drifting stars, then the
 zoomed-in lander slides in from the right), then the parked craft
 lights its booster while the stars slow by 60% over five seconds,
 then a north-facing fall from the top of the stage to the bottom,

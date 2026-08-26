@@ -1,14 +1,14 @@
-// Package lunarcloseup is the lunar lander close-up screenplay, a
-// composable four-scene bill. Scene one, "Lunar Lander Close-Up": a
-// copy of the premiere's arrival — three seconds of drifting sky,
-// then the zoomed-in Apollo craft slides in from the right, hull
-// only, cold engine. Scene two, "fire": the parked craft lights the
-// booster and the stars slow by 60% over five seconds. Scene three,
-// "fall": the north-facing lander, fire down, drops from the top of
-// the stage to the bottom. Scene four, "landing": a huge moon
-// horizon (five rows high in the middle, one row at the edges) and
-// the north-facing lander coming down onto it. After that there is
-// nothing left — the runner ends the show.
+// Package lunarcloseup is 2. Walkthrough, a composable four-scene
+// bill. Scene one, "Lunar Lander Close-Up": a copy of the premiere's
+// arrival — three seconds of drifting sky, then the zoomed-in Apollo
+// craft slides in from the right, hull only, cold engine. Scene two,
+// "fire": the parked craft lights the booster and the stars slow by
+// 60% over five seconds. Scene three, "fall": the north-facing
+// lander, fire down, drops from the top of the stage to the bottom.
+// Scene four, "landing": a huge moon horizon (five rows high in the
+// middle, one row at the edges) and the north-facing lander coming
+// down onto it. After that there is nothing left — the runner ends
+// the show.
 //
 // The bill is the composable unit: append it to other shows' bills
 // and hand the lot to screenplay.Compose for the one big screenplay.
