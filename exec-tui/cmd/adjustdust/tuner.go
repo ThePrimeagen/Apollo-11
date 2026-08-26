@@ -8,6 +8,7 @@ package adjustdust
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 )
@@ -46,7 +47,9 @@ var knobMeta = []struct {
 	lo    float64
 	hi    float64
 }{
-	{"count", 1, 1, 60},
+	// Count has no artificial rails: zero is a silent puff and the
+	// ceiling is whatever the terminal can hold.
+	{"count", 1, 0, math.Inf(1)},
 	{"period", 0.05, 0.05, 4},
 	{"min life", 0.05, 0.05, 5},
 	{"max life", 0.05, 0.05, 5},
