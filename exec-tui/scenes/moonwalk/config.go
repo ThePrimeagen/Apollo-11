@@ -40,7 +40,9 @@ func DefaultConfig() Config {
 		RunSpeed:     16,
 		JumpSeconds:  0.55,
 		SlideSeconds: 1.8,
-		FlagSeconds:  1.8,
+		// The hoist outlasts the slide on purpose: the flag is still
+		// climbing while he stands at the base, so the crossing reads.
+		FlagSeconds:  3.0,
 		PoleRows:     18,
 		PanCols:      24,
 		PanSeconds:   1.4,

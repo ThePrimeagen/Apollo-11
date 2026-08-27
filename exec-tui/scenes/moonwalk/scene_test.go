@@ -114,8 +114,10 @@ func TestChoreography(t *testing.T) {
 		if len(pole) == 0 {
 			t.Fatal("he never reaches the pole")
 		}
-		if got, want := pole[0].y, poleTopRow(cfg, th); got != want {
-			t.Fatalf("the grab starts at y %d, want the pole tip %d", got, want)
+		// One row above the tip: his fists close on the gold ball
+		// itself — the tippy top, unmistakably.
+		if got, want := pole[0].y, poleTopRow(cfg, th)-1; got != want {
+			t.Fatalf("the grab starts at y %d, want on the ball at %d", got, want)
 		}
 		wantX := poleCol(tw) - astro.GripCol
 		lastY := pole[0].y
@@ -147,6 +149,9 @@ func TestChoreography(t *testing.T) {
 		top1 := flagTopAt(cfg, tw, th, end)
 		if top1 >= top0 {
 			t.Fatalf("the flag must rise during the slide: top went %d -> %d", top0, top1)
+		}
+		if top1 <= poleTopRow(cfg, th)+1 {
+			t.Fatalf("the hoist must outlast the slide — still %d at slide end, the top is %d", top1, poleTopRow(cfg, th)+1)
 		}
 		_, _, y0 := timelineAt(cfg, tw, th, start)
 		_, _, y1 := timelineAt(cfg, tw, th, end)
