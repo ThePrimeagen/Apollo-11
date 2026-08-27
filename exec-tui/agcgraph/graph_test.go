@@ -90,8 +90,9 @@ func TestNoHeaderChromeAndLaneGeometry(t *testing.T) {
 	if !hasBlock(lines[0]) && !strings.Contains(lines[0], "│") {
 		t.Fatalf("top line must be lane graphics, got %q", lines[0])
 	}
-	// every lane row is exactly gutter+plot = 200 cells wide
-	for i := 0; i < 11; i++ {
+	// every lane row is exactly gutter+plot = 200 cells wide (rows 3 and 7
+	// are the blank separators between lanes)
+	for _, i := range []int{0, 1, 2, 4, 5, 6, 8, 9, 10} {
 		if w := len([]rune(lines[i])); w != 200 {
 			t.Fatalf("row %d is %d cells wide, want 200 (20 gutter + 180 plot)", i, w)
 		}

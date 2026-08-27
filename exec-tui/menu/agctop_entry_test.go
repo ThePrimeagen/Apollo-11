@@ -24,13 +24,14 @@ func TestCatalogCarriesTheCommandScreen(t *testing.T) {
 }
 
 func TestCommandScreenAppendsWithoutReordering(t *testing.T) {
-	// unhappy: the new entry must not disturb the existing selection order
-	// (the screenplay entries stay at the top of the list)
+	// unhappy: the new entries must not disturb the existing selection
+	// order (the screenplay entries stay at the top, and the command
+	// screen leads the EXECUTIVE tail)
 	c := Catalog()
 	if c[0].ID != "screenplay" || c[1].ID != "moon" || c[2].ID != "closeup" {
 		t.Fatalf("existing catalog head disturbed: %s, %s, %s", c[0].ID, c[1].ID, c[2].ID)
 	}
-	if c[len(c)-1].ID != "agctop" {
-		t.Fatalf("agctop must sit at the end of the catalog, got %s", c[len(c)-1].ID)
+	if c[len(c)-2].ID != "agctop" {
+		t.Fatalf("agctop must lead the EXECUTIVE tail, got %s", c[len(c)-2].ID)
 	}
 }

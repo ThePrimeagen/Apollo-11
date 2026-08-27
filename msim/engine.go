@@ -67,6 +67,11 @@ type Engine struct {
 	lastRan   map[string]Nanos
 	taskFires map[string]int
 	lastFired map[string]Nanos
+
+	// class-attributed busy time inside the current millisecond
+	msVac  Nanos
+	msCore Nanos
+	msOps  Nanos
 }
 
 // NewEngine builds a machine. With cfg.Interrupts the three hardware
@@ -186,6 +191,7 @@ func (e *Engine) tick() {
 			budget -= c
 			e.subTick += c
 			e.softwareNs += c
+			e.msOps += c
 			if a.remaining == 0 {
 				e.active = e.active[1:]
 			}
@@ -208,7 +214,11 @@ func (e *Engine) tick() {
 			Cores:   e.CoresHeld(),
 			VACs:    e.VACsHeld(),
 			Running: e.RunningJob(),
+			VacNs:   e.msVac,
+			CoreNs:  e.msCore,
+			OpsNs:   e.msOps,
 		})
+		e.msVac, e.msCore, e.msOps = 0, 0, 0
 	}
 	e.now += tickNs
 	e.subTick = 0

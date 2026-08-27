@@ -85,12 +85,18 @@ type Event struct {
 	Detail string
 }
 
-// Sample is the per-millisecond occupancy record.
+// Sample is the per-millisecond occupancy record. The three class fields
+// split that millisecond's software CPU by what the consumer held: a VAC
+// area (VacNs), a core set only (CoreNs), or nothing — the task/interrupt
+// layer (OpsNs). Theft belongs to no class.
 type Sample struct {
 	AtMs    int
 	Cores   int
 	VACs    int
 	Running string
+	VacNs   Nanos
+	CoreNs  Nanos
+	OpsNs   Nanos
 }
 
 // JobState is the scheduler-visible state of a named job.

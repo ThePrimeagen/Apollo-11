@@ -46,10 +46,17 @@ func TestClassBusySplitsAndSums(t *testing.T) {
 	if got := vac + core + ops; got != e.SoftwareBusyNs() {
 		t.Fatalf("class totals %d != software ledger %d — every busy nanosecond has a class", got, e.SoftwareBusyNs())
 	}
-	// the VAC job's first milliseconds must be attributed to the VAC lane
-	s0 := e.Samples()[0]
-	if s0.VacNs == 0 {
-		t.Fatalf("ms 0 has no VAC time while V was running: %+v", s0)
+	// the VAC job's work must show in the VAC lane within its first few
+	// milliseconds (ms 0 itself belongs to the t=0 interrupt costs)
+	early := false
+	for _, s := range e.Samples()[:5] {
+		if s.VacNs > 0 {
+			early = true
+			break
+		}
+	}
+	if !early {
+		t.Fatalf("no VAC time in the first 5 ms while V was running: %+v", e.Samples()[:5])
 	}
 }
 

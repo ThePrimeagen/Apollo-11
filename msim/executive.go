@@ -216,6 +216,11 @@ func (x *Executive) runFor(budget Nanos) Nanos {
 		consumed += c
 		x.e.subTick += c
 		x.e.softwareNs += c
+		if r.vacIdx >= 0 {
+			x.e.msVac += c
+		} else {
+			x.e.msCore += c
+		}
 		x.e.lastRan[r.name] = x.e.Now()
 		if r.rem > 0 {
 			return consumed // budget exhausted mid-instruction
