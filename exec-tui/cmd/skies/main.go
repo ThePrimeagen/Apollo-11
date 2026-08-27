@@ -1,12 +1,13 @@
 // skies: the portable Skies scene from scenes/skies. The house
 // opens on almost-pure light blue; the camera tilts up so the
 // darker blue and the generated clouds come into view, then the
-// very large bald eagle flies in with a shotgun in each talon.
+// American flag crossfades in as the floor and the very large bald
+// eagle flies in with a shotgun in each talon.
 //
-// Eleven live knobs retune the scene: sky rise, eagle delay, eagle
-// cross, eagle start / end, left/right shots, left/right rate, and
-// left/right aim. Play rebuilds from the current knobs; s saves them
-// to scenes/skies/config.json.
+// Thirteen live knobs retune the scene: sky rise, flag delay, flag
+// fade, eagle delay, eagle cross, eagle start / end, left/right
+// shots, left/right rate, and left/right aim. Play rebuilds from
+// the current knobs; s saves them to scenes/skies/config.json.
 //
 //	p / enter / space   play from the top
 //	j / k               select knob

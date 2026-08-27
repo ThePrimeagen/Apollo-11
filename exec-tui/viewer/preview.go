@@ -6,11 +6,13 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/astro"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/cloud"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/fire"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/rocket"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/shotgun"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/transition"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
@@ -136,6 +138,13 @@ func newCloudPreview() screenplay.Component {
 		sky.New().At(0.7),
 		cloud.New(7),
 	}}
+}
+
+func newTransitionPreview() screenplay.Component {
+	return transition.Between(
+		transition.Stack(sky.New().At(0.7), cloud.New(7)),
+		flag.New(0),
+	).Over(6)
 }
 
 func (s *stacked) Start(w, h int) {

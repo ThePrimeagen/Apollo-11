@@ -12,18 +12,22 @@ import (
 )
 
 const (
-	RiseSeconds   = 3.0
-	CrossSeconds  = 4.0
-	StartPoint    = 0.0
-	EndPoint      = 1.0
-	StockShots    = 3
-	StockRate     = 2.0
-	StockLeftAim  = sprite.W
-	StockRightAim = sprite.E
+	RiseSeconds      = 3.0
+	FlagDelaySeconds = 3.0
+	FlagFadeSeconds  = 2.0
+	CrossSeconds     = 4.0
+	StartPoint       = 0.0
+	EndPoint         = 1.0
+	StockShots       = 3
+	StockRate        = 2.0
+	StockLeftAim     = sprite.W
+	StockRightAim    = sprite.E
 )
 
 type Config struct {
 	RiseSeconds  float64        `json:"riseSeconds"`
+	FlagDelay    float64        `json:"flagDelay"`
+	FlagFade     float64        `json:"flagFade"`
 	EagleDelay   float64        `json:"eagleDelay"`
 	CrossSeconds float64        `json:"crossSeconds"`
 	EagleStart   float64        `json:"eagleStart"`
@@ -38,6 +42,8 @@ type Config struct {
 
 type fileJSON struct {
 	RiseSeconds  *float64        `json:"riseSeconds"`
+	FlagDelay    *float64        `json:"flagDelay"`
+	FlagFade     *float64        `json:"flagFade"`
 	EagleDelay   *float64        `json:"eagleDelay"`
 	CrossSeconds *float64        `json:"crossSeconds"`
 	EagleStart   *float64        `json:"eagleStart"`
@@ -54,6 +60,8 @@ type Knob int
 
 const (
 	KnobRise Knob = iota
+	KnobFlagDelay
+	KnobFlagFade
 	KnobDelay
 	KnobCross
 	KnobStart
@@ -71,6 +79,10 @@ func KnobLabel(k Knob) string {
 	switch k {
 	case KnobRise:
 		return "sky rise"
+	case KnobFlagDelay:
+		return "flag delay"
+	case KnobFlagFade:
+		return "flag fade"
 	case KnobDelay:
 		return "eagle delay"
 	case KnobCross:
@@ -98,7 +110,7 @@ func KnobLabel(k Knob) string {
 
 func KnobUnit(k Knob) string {
 	switch k {
-	case KnobRise, KnobDelay, KnobCross:
+	case KnobRise, KnobFlagDelay, KnobFlagFade, KnobDelay, KnobCross:
 		return "s"
 	default:
 		return ""
@@ -129,6 +141,10 @@ func (c Config) Value(k Knob) float64 {
 	switch k {
 	case KnobRise:
 		return c.RiseSeconds
+	case KnobFlagDelay:
+		return c.FlagDelay
+	case KnobFlagFade:
+		return c.FlagFade
 	case KnobDelay:
 		return c.EagleDelay
 	case KnobCross:
@@ -154,7 +170,7 @@ func (c Config) Value(k Knob) float64 {
 
 func (c Config) Display(k Knob) string {
 	switch k {
-	case KnobRise, KnobDelay, KnobCross, KnobStart, KnobEnd:
+	case KnobRise, KnobFlagDelay, KnobFlagFade, KnobDelay, KnobCross, KnobStart, KnobEnd:
 		return fmt.Sprintf("%7.3f%s", c.Value(k), KnobUnit(k))
 	case KnobLeftShots:
 		return fmt.Sprintf("%7d", c.LeftShots)
@@ -179,15 +195,17 @@ const (
 )
 
 var (
-	errRise  = errors.New("skies: sky rise must not be negative")
-	errDelay = errors.New("skies: eagle delay must not be negative")
-	errCross = errors.New("skies: eagle cross must be at least 50ms")
-	errStart = errors.New("skies: eagle start must sit inside the span")
-	errEnd   = errors.New("skies: eagle end must sit inside the span")
-	errPath  = errors.New("skies: eagle end must be at least one step past its start")
-	errShots = errors.New("skies: shell counts must not be negative")
-	errRate  = errors.New("skies: rates of fire must not be negative")
-	errAim   = errors.New("skies: aims must sit on the eight-point compass")
+	errRise      = errors.New("skies: sky rise must not be negative")
+	errFlagDelay = errors.New("skies: flag delay must not be negative")
+	errFlagFade  = errors.New("skies: flag fade must not be negative")
+	errDelay     = errors.New("skies: eagle delay must not be negative")
+	errCross     = errors.New("skies: eagle cross must be at least 50ms")
+	errStart     = errors.New("skies: eagle start must sit inside the span")
+	errEnd       = errors.New("skies: eagle end must sit inside the span")
+	errPath      = errors.New("skies: eagle end must be at least one step past its start")
+	errShots     = errors.New("skies: shell counts must not be negative")
+	errRate      = errors.New("skies: rates of fire must not be negative")
+	errAim       = errors.New("skies: aims must sit on the eight-point compass")
 
 	activeMu sync.Mutex
 	active   = DefaultConfig()
@@ -196,6 +214,8 @@ var (
 func DefaultConfig() Config {
 	return Config{
 		RiseSeconds:  RiseSeconds,
+		FlagDelay:    FlagDelaySeconds,
+		FlagFade:     FlagFadeSeconds,
 		EagleDelay:   2.0,
 		CrossSeconds: CrossSeconds,
 		EagleStart:   StartPoint,
@@ -234,6 +254,12 @@ func Reset() {
 func (c Config) Validate() error {
 	if c.RiseSeconds < 0 || math.IsNaN(c.RiseSeconds) || math.IsInf(c.RiseSeconds, 0) {
 		return errRise
+	}
+	if c.FlagDelay < 0 || math.IsNaN(c.FlagDelay) || math.IsInf(c.FlagDelay, 0) {
+		return errFlagDelay
+	}
+	if c.FlagFade < 0 || math.IsNaN(c.FlagFade) || math.IsInf(c.FlagFade, 0) {
+		return errFlagFade
 	}
 	if c.EagleDelay < 0 || math.IsNaN(c.EagleDelay) || math.IsInf(c.EagleDelay, 0) {
 		return errDelay
@@ -274,6 +300,12 @@ func Load(path string) (Config, error) {
 	c := DefaultConfig()
 	if f.RiseSeconds != nil {
 		c.RiseSeconds = *f.RiseSeconds
+	}
+	if f.FlagDelay != nil {
+		c.FlagDelay = *f.FlagDelay
+	}
+	if f.FlagFade != nil {
+		c.FlagFade = *f.FlagFade
 	}
 	if f.EagleDelay != nil {
 		c.EagleDelay = *f.EagleDelay
@@ -329,6 +361,8 @@ func (c Config) Save(path string) error {
 	c = c.snapped()
 	raw := []byte(fmt.Sprintf("{\n"+
 		"  \"riseSeconds\": %.3f,\n"+
+		"  \"flagDelay\": %.3f,\n"+
+		"  \"flagFade\": %.3f,\n"+
 		"  \"eagleDelay\": %.3f,\n"+
 		"  \"crossSeconds\": %.3f,\n"+
 		"  \"eagleStart\": %.3f,\n"+
@@ -340,7 +374,7 @@ func (c Config) Save(path string) error {
 		"  \"rightRate\": %.2f,\n"+
 		"  \"rightAim\": %q\n"+
 		"}\n",
-		c.RiseSeconds, c.EagleDelay, c.CrossSeconds, c.EagleStart, c.EagleEnd,
+		c.RiseSeconds, c.FlagDelay, c.FlagFade, c.EagleDelay, c.CrossSeconds, c.EagleStart, c.EagleEnd,
 		c.LeftShots, c.LeftRate, string(c.LeftAim), c.RightShots, c.RightRate, string(c.RightAim)))
 	return os.WriteFile(path, raw, 0o644)
 }
@@ -356,6 +390,8 @@ func snapRate(v float64) float64 {
 
 func (c Config) snapped() Config {
 	c.RiseSeconds = snap(c.RiseSeconds)
+	c.FlagDelay = snap(c.FlagDelay)
+	c.FlagFade = snap(c.FlagFade)
 	c.EagleDelay = snap(c.EagleDelay)
 	c.CrossSeconds = snap(c.CrossSeconds)
 	c.EagleStart = snap(c.EagleStart)
@@ -364,6 +400,12 @@ func (c Config) snapped() Config {
 	c.RightRate = snapRate(c.RightRate)
 	if c.RiseSeconds < 0 {
 		c.RiseSeconds = 0
+	}
+	if c.FlagDelay < 0 {
+		c.FlagDelay = 0
+	}
+	if c.FlagFade < 0 {
+		c.FlagFade = 0
 	}
 	if c.EagleDelay < 0 {
 		c.EagleDelay = 0
@@ -390,6 +432,10 @@ func (c *Config) set(k Knob, v float64) {
 	switch k {
 	case KnobRise:
 		c.RiseSeconds = v
+	case KnobFlagDelay:
+		c.FlagDelay = v
+	case KnobFlagFade:
+		c.FlagFade = v
 	case KnobDelay:
 		c.EagleDelay = v
 	case KnobCross:

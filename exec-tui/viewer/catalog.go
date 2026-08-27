@@ -66,6 +66,7 @@ func Catalog() []Item {
 		{ID: "cloud", Title: "CLOUD", Kind: KindComponent, Path: adjustcloud.DefaultConfigPath, Program: "./cmd/adjustcloud/main", spawn: func() screenplay.Component { return newCloudPreview() }},
 		{ID: "lander", Title: "LANDER", Kind: KindComponent, Path: filepath.Join(lander.FindArtDir(), "lm.json"), spawn: func() screenplay.Component { return lander.NewShip(11) }},
 		{ID: "flag", Title: "FLAG", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return flag.New(4) }},
+		{ID: "transition", Title: "TRANSITION", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newTransitionPreview() }},
 		{ID: "eagle", Title: "EAGLE", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return eagle.New() }},
 		{ID: "moon", Title: "MOON", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return moon.New() }},
 		{ID: "dsky", Title: "DSKY", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return dsky.NewPanel(dsky.MonitorState()) }},

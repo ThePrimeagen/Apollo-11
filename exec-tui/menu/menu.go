@@ -49,7 +49,7 @@ func Catalog() []Entry {
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the flag fades in from black, then the giant eagle crosses, a shotgun blasting in each talon — nine live knobs", Pkg: "./cmd/america"},
 		{ID: "moonwalk", Section: "Scenes", Title: "Moonwalk", Desc: "the astronaut climbs three crates, rides the flagpole down as the flag goes up, then boards the LM — eleven live knobs", Pkg: "./cmd/astronaut"},
-		{ID: "skies", Section: "Scenes", Title: "Skies", Desc: "blue sky tilts up into clouds, then the eagle flies in and the talon shotguns fire — eleven live knobs", Pkg: "./cmd/skies"},
+		{ID: "skies", Section: "Scenes", Title: "Skies", Desc: "blue sky tilts up into clouds, then the flag crossfades in as the floor and the eagle flies in with talon shotguns — thirteen live knobs", Pkg: "./cmd/skies"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "sky-config", Section: "CONFIG", Title: "SKY CONFIG", Desc: "tune the blue sky gradient — angle, light ink, dark ink", Pkg: "./cmd/adjustsky/main"},
