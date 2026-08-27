@@ -1,11 +1,13 @@
 // Package shotgun is the Doom pump gun as a scene component: a
 // stock-and-barrel sprite on the eight-point compass the gunfire blast
-// already speaks. Start builds every heading for a w×h stage; Aim
-// points the barrel; Fire pulls the trigger so the muzzle flame leaps
-// from this heading's barrel tip; Update burns the blast; Render
-// paints the aimed gun with whatever flame is still in the air. W is
-// the horizontal mirror of E, S the vertical mirror of N. A fresh
-// Start rises idle, aimed east — the Doom side-on stock shot.
+// already speaks. The art is one 2D side-on asset — the east stock
+// shot — spun in the plane of the screen around the Y-axis coming out
+// of it. Start builds every heading for a w×h stage and arms the
+// shipped gunfire config; Aim points the barrel; Fire pulls the
+// trigger so the muzzle flame leaps from this heading's barrel tip
+// along that heading only; Update burns the blast; Render paints the
+// aimed gun with whatever flame is still in the air. A fresh Start
+// rises idle, aimed east — the Doom side-on stock shot.
 package shotgun
 
 import (
@@ -96,6 +98,9 @@ func (g *Gun) Start(w, h int) {
 			g.frames[heading] = sp
 		}
 	}
+	if c, err := gunfire.LoadBlast(gunfire.FindConfig()); err == nil {
+		_ = gunfire.UseBlast(c)
+	}
 	g.Blast = gunfire.NewBlast(g.seed)
 	g.Blast.Start(w, h)
 }
@@ -133,7 +138,7 @@ func (g *Gun) Fire() bool {
 	if err := gunfire.UseBlast(c); err != nil {
 		return false
 	}
-	return g.Blast.Fire()
+	return g.Blast.FireAt(g.heading)
 }
 
 // muzzleOf is the opaque cell furthest along heading h — the barrel tip.

@@ -172,11 +172,13 @@ func TestRotateGrid(t *testing.T) {
 			"....",
 		}
 		got := rotateGrid(in, 90)
+		// Canvas-centre spin: the 3-pixel bar is left-of-centre, so
+		// after +90° it stands on the left, one row down from the top.
 		want := []string{
-			"B...",
-			"B...",
-			"B...",
 			"....",
+			"B...",
+			"B...",
+			"B...",
 		}
 		if strings.Join(got, "\n") != strings.Join(want, "\n") {
 			t.Fatalf("90° CCW:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

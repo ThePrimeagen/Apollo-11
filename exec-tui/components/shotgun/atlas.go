@@ -72,30 +72,17 @@ func compileGrid(rows []string) (sprite.Sprite, error) {
 	return sp, nil
 }
 
-// BuildAtlas compiles the three hand-drawn headings and derives the
-// other five with FlipH / FlipV, the same compass the lander uses.
+// BuildAtlas compiles the one 2D east gun and spins it onto every
+// compass heading around the Y-axis coming out of the screen.
 func BuildAtlas() (*sprite.Atlas, error) {
 	a := &sprite.Atlas{Palette: append([]sprite.PaletteEntry(nil), Palette...)}
-	east, err := compileGrid(grids[sprite.E])
-	if err != nil {
-		return nil, fmt.Errorf("shotgun: E: %w", err)
+	for _, heading := range sprite.Headings {
+		sp, err := compileGrid(dup(rotateGrid(east, headingDeg(heading))...))
+		if err != nil {
+			return nil, fmt.Errorf("shotgun: %s: %w", heading, err)
+		}
+		a.SetFrame(Size, heading, sp)
 	}
-	north, err := compileGrid(grids[sprite.N])
-	if err != nil {
-		return nil, fmt.Errorf("shotgun: N: %w", err)
-	}
-	ne, err := compileGrid(grids[sprite.NE])
-	if err != nil {
-		return nil, fmt.Errorf("shotgun: NE: %w", err)
-	}
-	a.SetFrame(Size, sprite.E, east)
-	a.SetFrame(Size, sprite.W, sprite.FlipH(east))
-	a.SetFrame(Size, sprite.N, north)
-	a.SetFrame(Size, sprite.S, sprite.FlipV(north))
-	a.SetFrame(Size, sprite.NE, ne)
-	a.SetFrame(Size, sprite.NW, sprite.FlipH(ne))
-	a.SetFrame(Size, sprite.SE, sprite.FlipV(ne))
-	a.SetFrame(Size, sprite.SW, sprite.FlipH(sprite.FlipV(ne)))
 	return a, nil
 }
 
