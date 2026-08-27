@@ -85,8 +85,9 @@ var (
 	active   = DefaultConfig()
 )
 
-// DefaultConfig is the scene's stock timing: the slow fade, the eagle
-// entering the moment the fade lands, the twelve-second crossing.
+// DefaultConfig is the scene's stock timing: the fast two-second
+// fade, the eagle entering the moment the fade lands, the
+// four-second crossing.
 func DefaultConfig() Config {
 	return Config{
 		FadeSeconds:  FadeSeconds,

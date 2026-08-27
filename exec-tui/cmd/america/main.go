@@ -1,6 +1,6 @@
 // america: the portable America scene from scenes/america. The house
 // opens on pure black; the full-screened American flag fades in
-// slowly, and once it is fully in, the very large bald eagle crosses
+// fast, and once it is fully in, the very large bald eagle crosses
 // the stage right to left with the flag flying beneath it. After the
 // flyover the flag flies alone.
 //

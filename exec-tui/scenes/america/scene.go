@@ -1,10 +1,12 @@
 // Package america is the portable patriot scene. The curtain rises on
-// pure black; the full-screened American flag fades in slowly — every
+// pure black; the full-screened American flag fades in fast — every
 // cell of the stage walking its own ramp from black to the finished
 // red, white and blue — and once the fade lands, the very large bald
 // eagle enters off the right wing and crosses the whole stage
 // leftward, the flag still flying beneath it. After the flyover the
-// flag flies alone, and the scene holds there until the cut.
+// flag flies alone, and the scene holds there until the cut. The
+// stock show is quick — the whole beat lands inside six seconds —
+// and the knobs stay live for anyone who wants it slower.
 //
 // Three live knobs retune it, the same way the landing scene tunes:
 // FadeSeconds (the flag's fade-in), EagleDelay (when the eagle
@@ -22,14 +24,14 @@ import (
 )
 
 const (
-	// FadeSeconds is the stock fade-in from black. Slow on purpose:
-	// the reveal is the scene.
-	FadeSeconds = 8.0
+	// FadeSeconds is the stock fade-in from black. Fast on purpose:
+	// two seconds from black to full color.
+	FadeSeconds = 2.0
 
 	// CrossSeconds is the stock flyover, off one wing of the stage
-	// and off the other. The stock delay starts it the moment the
-	// fade lands.
-	CrossSeconds = 12.0
+	// and off the other in four seconds. The stock delay starts it
+	// the moment the fade lands.
+	CrossSeconds = 4.0
 )
 
 // Show is the America scene as a live scene: Cfg is the three knobs
