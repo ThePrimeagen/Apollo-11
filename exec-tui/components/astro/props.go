@@ -57,7 +57,7 @@ func init() {
 		//  01234567890123456789
 		"..HHH...............",
 		"..HH........H.......",
-		"...H....W...H.......",
+		"...H...WW...H.......",
 		"..HHHHWWWHHHH.......",
 		".HVVVVVVVVVVVVVVVH..",
 		".HHHHHHHHHHHHHHHHH..",
