@@ -5,13 +5,13 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
-// The Doom flame palette on the xterm cube. The flame is painted by
-// density and age: a cell's glyph thickens with how many specks share
-// it, and its color is the age of its freshest speck — bright yellow
-// at birth, cooling through orange and red down to a maroon ember as
-// the tongue dies. The core climbs the config's concentration ladder
-// from an orange fringe dot to a white-hot block on a bright yellow
-// floor, and it outshines the flame wherever they meet.
+// Every compass direction burns its own colors. A flame cell's glyph
+// thickens with how many specks share it, and its color walks that
+// DIRECTION's five-stop ramp by the age of the cell's freshest
+// speck — stop one at birth, stop five as the tongue dies. The shared
+// core climbs the config's concentration ladder from an orange fringe
+// dot to a white-hot block on a bright yellow floor, and it outshines
+// any flame it touches.
 const (
 	fringeGlyph, fringeFG = '·', 214
 	edgeGlyph, edgeFG     = '*', 220
@@ -19,17 +19,11 @@ const (
 	coreGlyph             = '█'
 	coreFG, coreBG        = 231, 220
 
-	flameYellowFG = 226 // birth
-	flameOrangeFG = 208 // two tenths burnt
-	flameRedFG    = 196 // four tenths
-	flameEmberFG  = 160 // six tenths
-	flameMaroonFG = 124 // eight tenths to the end
-
-	// age fractions where a tongue cools into its next color
-	orangeFrac = 0.2
-	redFrac    = 0.4
-	emberFrac  = 0.6
-	maroonFrac = 0.8
+	// age fractions where a tongue cools into its next color stop
+	stop2Frac = 0.2
+	stop3Frac = 0.4
+	stop4Frac = 0.6
+	stop5Frac = 0.8
 
 	// how many specks a flame cell needs to thicken its glyph
 	shadeMediumAt = 2 // ▒
@@ -61,19 +55,26 @@ func eachLive(e *particle.Engine, visit func(particle.Particle)) {
 	}
 }
 
-// paint lays the burn onto one cols×rows stage, back to front: the
-// flame first, then the white-hot core over it — the heart outshines
-// the tongues.
-func paint(c BlastConfig, cols, rows int, core, flame *particle.Engine) sprite.Sprite {
+// paint lays the burn onto one cols×rows stage, back to front: every
+// compass direction's flame in its own colors, then the white-hot
+// core over them all — the heart outshines the tongues. flames align
+// with sprite.Headings; nil slots are quiet.
+func paint(c BlastConfig, cols, rows int, core *particle.Engine, flames []*particle.Engine) sprite.Sprite {
 	sp := sprite.New(cols, rows)
-	paintFlame(sp, flame)
+	for i, flame := range flames {
+		if i >= len(sprite.Headings) {
+			break
+		}
+		paintFlame(sp, flame, c.ShotAt(sprite.Headings[i]).Colors)
+	}
 	paintCore(sp, c, core)
 	return sp
 }
 
-// paintFlame thickens each cell's glyph with density and colors it by
-// the age of its freshest speck — the hottest wins.
-func paintFlame(sp sprite.Sprite, flame *particle.Engine) {
+// paintFlame thickens each cell's glyph with density and colors it
+// from the shot's ramp by the age of its freshest speck — the hottest
+// wins.
+func paintFlame(sp sprite.Sprite, flame *particle.Engine, ramp [5]int) {
 	counts := map[particle.Cell]int{}
 	freshest := map[particle.Cell]float64{}
 	eachLive(flame, func(p particle.Particle) {
@@ -87,7 +88,7 @@ func paintFlame(sp sprite.Sprite, flame *particle.Engine) {
 	for cell, n := range counts {
 		sp.Set(cell.Row, cell.Col, sprite.Cell{
 			Ch: flameGlyph(n),
-			FG: flameColor(freshest[cell]),
+			FG: ramp[stopAt(freshest[cell])],
 			BG: -1,
 		})
 	}
@@ -108,20 +109,20 @@ func flameGlyph(n int) rune {
 	}
 }
 
-// flameColor is the cooling ramp: yellow at birth, orange, red,
-// ember, then maroon as the tongue burns down.
-func flameColor(f float64) int {
+// stopAt is which of the five ramp stops a tongue this far burnt
+// wears: stop one at birth, stop five nearly out.
+func stopAt(f float64) int {
 	switch {
-	case f < orangeFrac:
-		return flameYellowFG
-	case f < redFrac:
-		return flameOrangeFG
-	case f < emberFrac:
-		return flameRedFG
-	case f < maroonFrac:
-		return flameEmberFG
+	case f < stop2Frac:
+		return 0
+	case f < stop3Frac:
+		return 1
+	case f < stop4Frac:
+		return 2
+	case f < stop5Frac:
+		return 3
 	default:
-		return flameMaroonFG
+		return 4
 	}
 }
 

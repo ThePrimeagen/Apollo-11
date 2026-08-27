@@ -1,16 +1,19 @@
 package gunfire
 
-// Tests written FIRST. Blast is the one-shot muzzle flame: Start
-// builds two quiet engines (the white-hot core and the red flame) and
-// holds fire; Fire is the trigger — both burst at the muzzle now, and
-// Doom's second flash frame follows on a short fuse: one dimmer
-// re-pulse, a fraction of the first. Update flies the flame and
-// re-reads the active blast so the tuner retunes it live; Done
-// reports the burnt-out flame. There is no period clock anywhere: no
-// trigger, no fire.
+// Tests written FIRST. Blast is the one-shot muzzle flame on an
+// eight-point compass: one shared white-hot core and one flame engine
+// per direction, each burning its own tune. Start builds all nine
+// quiet; Fire is the trigger — the core and the ACTIVE heading's
+// flame burst at the muzzle now, the other seven hold, and Doom's
+// second flash frame follows the fired heading on a short fuse.
+// Update flies every direction's flame and re-reads the active blast
+// so the tuner retunes it live; Done reports a blast with nothing
+// burning anywhere. No period clock: no trigger, no fire.
 
 import (
 	"testing"
+
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
 // settle runs the blast n frames of dt without any new trigger.
@@ -21,17 +24,36 @@ func settle(b *Blast, n int, dt float64) {
 }
 
 func live(b *Blast) int {
-	return len(b.Core.Particles) + len(b.Flame.Particles)
+	n := len(b.Core.Particles)
+	for _, e := range b.Flames {
+		n += len(e.Particles)
+	}
+	return n
+}
+
+// aimActive points the active blast at h.
+func aimActive(t *testing.T, h sprite.Heading) {
+	t.Helper()
+	c := ActiveBlast()
+	c.Heading = h
+	if err := UseBlast(c); err != nil {
+		t.Fatalf("aim %s: %v", h, err)
+	}
 }
 
 func TestHoldFire(t *testing.T) {
-	t.Run("happy: Start builds the engines but the stage stays clear until the trigger", func(t *testing.T) {
+	t.Run("happy: Start builds the core and all eight flames, every one holding fire", func(t *testing.T) {
 		t.Cleanup(ResetBlast)
 		ResetBlast()
 		b := NewBlast(7)
 		b.Start(80, 24)
-		if b.Core == nil || b.Flame == nil {
-			t.Fatal("Start must build both engines")
+		if b.Core == nil {
+			t.Fatal("Start must build the core")
+		}
+		for i, h := range sprite.Headings {
+			if b.Flames[i] == nil || b.FlameAt(h) == nil {
+				t.Fatalf("Start must build the %s flame", h)
+			}
 		}
 		settle(b, 60, 1.0/30)
 		if n := live(b); n != 0 {
@@ -54,7 +76,7 @@ func TestHoldFire(t *testing.T) {
 }
 
 func TestFire(t *testing.T) {
-	t.Run("happy: the trigger bursts the core and the flame at the muzzle now", func(t *testing.T) {
+	t.Run("happy: the trigger bursts the core and only the active heading's flame", func(t *testing.T) {
 		t.Cleanup(ResetBlast)
 		ResetBlast()
 		c := ActiveBlast()
@@ -66,37 +88,69 @@ func TestFire(t *testing.T) {
 		if got := len(b.Core.Particles); got != c.Core.Count {
 			t.Fatalf("core burst %d, want %d", got, c.Core.Count)
 		}
-		if got := len(b.Flame.Particles); got != c.Flame.Count {
-			t.Fatalf("flame burst %d, want %d", got, c.Flame.Count)
+		if got := len(b.FlameAt(sprite.N).Particles); got != c.ShotAt(sprite.N).Count {
+			t.Fatalf("the N flame burst %d, want %d", got, c.ShotAt(sprite.N).Count)
+		}
+		for _, h := range sprite.Headings[1:] {
+			if got := len(b.FlameAt(h).Particles); got != 0 {
+				t.Fatalf("the %s flame burst %d specks — only the aimed direction fires", h, got)
+			}
 		}
 	})
-	t.Run("happy: Doom's second frame — a dimmer re-pulse follows on the fuse, once", func(t *testing.T) {
+	t.Run("happy: re-aim and fire again — two directions burn at once, each its own shot", func(t *testing.T) {
 		t.Cleanup(ResetBlast)
 		c := DefaultBlast()
-		c.PulseDelay = 0.1
-		c.PulseFrac = 0.5
-		c.Flame.Count = 40
-		c.Core.Count = 20
-		c.Flame.MinLife, c.Flame.MaxLife = 5, 5 // nothing dies during the check
-		c.Core.MinLife, c.Core.MaxLife = 5, 5
-		c.Core.MaxDistance, c.Flame.MaxDistance = 0, 0
+		c.PulseFrac = 0 // one frame per squeeze keeps the counting plain
+		east := c.ShotAt(sprite.E)
+		east.Count = 33
+		c.SetShot(sprite.E, east)
 		if err := UseBlast(c); err != nil {
 			t.Fatalf("UseBlast: %v", err)
 		}
 		b := NewBlast(7)
 		b.Start(80, 24)
-		b.Fire()
-		first := live(b)
+		b.Fire() // north
+		aimActive(t, sprite.E)
+		b.Update(1.0 / 30)
+		b.Fire() // east
+		if got := len(b.FlameAt(sprite.E).Particles); got != 33 {
+			t.Fatalf("the E flame burst %d, want its own tuned 33", got)
+		}
+		if got := len(b.FlameAt(sprite.N).Particles); got == 0 {
+			t.Fatal("the earlier N flame must still be burning")
+		}
+	})
+	t.Run("happy: Doom's second frame re-pulses the heading that fired, even after a re-aim", func(t *testing.T) {
+		t.Cleanup(ResetBlast)
+		c := DefaultBlast()
+		c.PulseDelay = 0.1
+		c.PulseFrac = 0.5
+		core := c.Core
+		core.MaxDistance = 0
+		core.MinLife, core.MaxLife = 5, 5
+		c.Core = core
+		north := c.ShotAt(sprite.N)
+		north.Count = 40
+		north.MinLife, north.MaxLife = 5, 5
+		north.MaxDistance = 0
+		c.SetShot(sprite.N, north)
+		if err := UseBlast(c); err != nil {
+			t.Fatalf("UseBlast: %v", err)
+		}
+		b := NewBlast(7)
+		b.Start(80, 24)
+		b.Fire() // north, fuse lit
+		aimActive(t, sprite.S)
 		b.Update(0.05)
-		if live(b) != first {
-			t.Fatalf("the fuse is only half burnt and the count moved %d -> %d", first, live(b))
+		if got := len(b.FlameAt(sprite.N).Particles); got != 40 {
+			t.Fatalf("the fuse is only half burnt and the N flame moved to %d", got)
 		}
 		b.Update(0.06)
-		if got := len(b.Flame.Particles); got != 60 {
-			t.Fatalf("the re-pulse must add half the flame again: %d, want 60", got)
+		if got := len(b.FlameAt(sprite.N).Particles); got != 60 {
+			t.Fatalf("the re-pulse must add half the N flame again: %d, want 60", got)
 		}
-		if got := len(b.Core.Particles); got != 30 {
-			t.Fatalf("the re-pulse must add half the core again: %d, want 30", got)
+		if got := len(b.FlameAt(sprite.S).Particles); got != 0 {
+			t.Fatalf("the re-pulse followed the re-aim to S (%d specks) — it belongs to the fired heading", got)
 		}
 		after := live(b)
 		b.Update(0.2)
@@ -111,9 +165,14 @@ func TestFire(t *testing.T) {
 			"zero frac":  func(c *BlastConfig) { c.PulseFrac = 0 },
 		} {
 			c := DefaultBlast()
-			c.Flame.MinLife, c.Flame.MaxLife = 5, 5 // nothing dies during the check
-			c.Core.MinLife, c.Core.MaxLife = 5, 5
-			c.Core.MaxDistance, c.Flame.MaxDistance = 0, 0
+			core := c.Core
+			core.MinLife, core.MaxLife = 5, 5 // nothing dies during the check
+			core.MaxDistance = 0
+			c.Core = core
+			north := c.ShotAt(sprite.N)
+			north.MinLife, north.MaxLife = 5, 5
+			north.MaxDistance = 0
+			c.SetShot(sprite.N, north)
 			mod(&c)
 			if err := UseBlast(c); err != nil {
 				t.Fatalf("%s UseBlast: %v", name, err)
@@ -126,18 +185,6 @@ func TestFire(t *testing.T) {
 			if live(b) != first {
 				t.Fatalf("%s must mean one pulse only, %d -> %d", name, first, live(b))
 			}
-		}
-	})
-	t.Run("happy: a second trigger stacks a second flame", func(t *testing.T) {
-		t.Cleanup(ResetBlast)
-		ResetBlast()
-		c := ActiveBlast()
-		b := NewBlast(7)
-		b.Start(80, 24)
-		b.Fire()
-		b.Fire()
-		if got := len(b.Flame.Particles); got != 2*c.Flame.Count {
-			t.Fatalf("two squeezes hold %d flame specks, want %d", got, 2*c.Flame.Count)
 		}
 	})
 	t.Run("unhappy: dt <= 0 burns no fuse and moves nothing", func(t *testing.T) {
@@ -157,7 +204,7 @@ func TestFire(t *testing.T) {
 			t.Fatalf("dt<=0 changed the population %d -> %d", n, live(b))
 		}
 	})
-	t.Run("unhappy: a nil blast skips every cue", func(t *testing.T) {
+	t.Run("unhappy: a nil blast skips every cue and FlameAt hands back nothing", func(t *testing.T) {
 		var ghost *Blast
 		ghost.Start(10, 10)
 		if ghost.Fire() {
@@ -169,26 +216,36 @@ func TestFire(t *testing.T) {
 		if ghost.Done() {
 			t.Fatal("a nil blast is never done")
 		}
+		if ghost.FlameAt(sprite.N) != nil {
+			t.Fatal("a nil blast holds no flames")
+		}
+		b := NewBlast(7)
+		b.Start(80, 24)
+		if b.FlameAt("NNE") != nil {
+			t.Fatal("a heading off the compass holds no flame")
+		}
 	})
 }
 
 func TestDone(t *testing.T) {
-	t.Run("happy: idle is not done, burning is not done, burnt out is done, re-fire rearms", func(t *testing.T) {
+	t.Run("happy: idle is not done, burning is not done, burnt out everywhere is done, re-fire rearms", func(t *testing.T) {
 		t.Cleanup(ResetBlast)
 		ResetBlast()
 		b := NewBlast(7)
 		b.Start(80, 24)
 		if b.Done() {
-			t.Fatal("an untriggered flame has not performed — not done")
+			t.Fatal("an untriggered blast has not performed — not done")
 		}
 		b.Fire()
-		b.Update(0.05)
+		aimActive(t, sprite.E)
+		b.Update(1.0 / 30)
+		b.Fire()
 		if b.Done() {
-			t.Fatal("the flame is mid-air — not done")
+			t.Fatal("two directions are mid-air — not done")
 		}
 		settle(b, 160, 1.0/30) // > 5s: past every life and the pulse fuse
 		if !b.Done() {
-			t.Fatalf("the flame must burn out and report done, %d still live", live(b))
+			t.Fatalf("the blast must burn out and report done, %d still live", live(b))
 		}
 		b.Fire()
 		if b.Done() {
@@ -211,26 +268,28 @@ func TestDone(t *testing.T) {
 		}
 		b.Start(80, 24)
 		if b.Done() {
-			t.Fatal("a fresh Start rises idle, the old flame forgotten")
+			t.Fatal("a fresh Start rises idle, the old shot forgotten")
 		}
 	})
 }
 
 func TestRetune(t *testing.T) {
-	t.Run("happy: UseBlast mid-burn retunes the next flame live", func(t *testing.T) {
+	t.Run("happy: UseBlast mid-burn retunes the next volley live, direction by direction", func(t *testing.T) {
 		t.Cleanup(ResetBlast)
 		ResetBlast()
 		b := NewBlast(7)
 		b.Start(80, 24)
 		c := ActiveBlast()
-		c.Flame.Count = 3
+		north := c.ShotAt(sprite.N)
+		north.Count = 3
+		c.SetShot(sprite.N, north)
 		if err := UseBlast(c); err != nil {
 			t.Fatalf("UseBlast: %v", err)
 		}
 		b.Update(1.0 / 30)
 		b.Fire()
-		if got := len(b.Flame.Particles); got != 3 {
-			t.Fatalf("the next flame must wear the new count, got %d want 3", got)
+		if got := len(b.FlameAt(sprite.N).Particles); got != 3 {
+			t.Fatalf("the next N volley must wear the new count, got %d want 3", got)
 		}
 	})
 	t.Run("unhappy: a rejected retune leaves the blast on the old numbers", func(t *testing.T) {
@@ -245,8 +304,8 @@ func TestRetune(t *testing.T) {
 		}
 		b.Update(1.0 / 30)
 		b.Fire()
-		if got := len(b.Flame.Particles); got != DefaultBlast().Flame.Count {
-			t.Fatalf("a rejected retune must keep the stock flame, got %d", got)
+		if got := len(b.FlameAt(sprite.N).Particles); got != DefaultBlast().ShotAt(sprite.N).Count {
+			t.Fatalf("a rejected retune must keep the stock volley, got %d", got)
 		}
 	})
 }
