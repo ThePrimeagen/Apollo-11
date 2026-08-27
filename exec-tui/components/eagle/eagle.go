@@ -5,8 +5,11 @@
 // the stage and flies across to exit off the left over CrossSeconds,
 // gliding on a shallow swoop with a gentle bob. Delay holds it off
 // stage first, so a scene can finish its own beat — a fade, a title —
-// before the flyover. The flight clock rides across restarts, so a
-// resize never replays the crossing.
+// before the flyover. Path retunes where the flight begins and ends,
+// as fractions of the full off-right-to-off-left span, so the bird
+// can open already on stage or cut the flight short of the far wing.
+// The flight clock rides across restarts, so a resize never replays
+// the crossing.
 package eagle
 
 import (
@@ -192,16 +195,18 @@ func Art() sprite.Sprite {
 type Eagle struct {
 	delay  float64
 	cross  float64
+	pathA  float64
+	pathB  float64
 	clock  float64
 	body   sprite.Sprite
 	w, h   int
 	staged bool
 }
 
-// New binds an eagle that flies the default crossing with no delay.
-// Nothing is built until Start.
+// New binds an eagle that flies the default crossing with no delay,
+// over the whole span. Nothing is built until Start.
 func New() *Eagle {
-	return &Eagle{cross: DefaultCrossSeconds}
+	return &Eagle{cross: DefaultCrossSeconds, pathB: 1}
 }
 
 // Delay holds the eagle off stage for the first seconds of the scene.
@@ -224,6 +229,21 @@ func (e *Eagle) Cross(seconds float64) *Eagle {
 	}
 	if seconds > 0 {
 		e.cross = seconds
+	}
+	return e
+}
+
+// Path sets where the flight begins and ends, as fractions of the
+// full off-right-to-off-left span: 0 is off the right wing, 1 is off
+// the left. The stock flight is the whole span. A backwards, empty,
+// out-of-range or unreal path keeps the stock flight. Call before
+// Start. Nil-safe.
+func (e *Eagle) Path(start, end float64) *Eagle {
+	if e == nil {
+		return nil
+	}
+	if start >= 0 && end <= 1 && end > start {
+		e.pathA, e.pathB = start, end
 	}
 	return e
 }
@@ -263,8 +283,9 @@ func (e *Eagle) Render() sprite.Sprite {
 	if p >= 1 {
 		return stage
 	}
+	q := e.pathA + p*(e.pathB-e.pathA)
 	span := float64(e.w + BodyCols)
-	x := e.w - int(p*span)
+	x := e.w - int(q*span)
 	row := (e.h-BodyRows)/2 +
 		int(math.Round(DipRows*math.Sin(p*math.Pi))) +
 		int(math.Round(BobAmp*math.Sin(2*math.Pi*BobHz*t)))

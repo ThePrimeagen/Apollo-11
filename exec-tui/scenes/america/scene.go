@@ -8,13 +8,16 @@
 // stock show is quick — the whole beat lands inside six seconds —
 // and the knobs stay live for anyone who wants it slower.
 //
-// Three live knobs retune it, the same way the landing scene tunes:
+// Five live knobs retune it, the same way the landing scene tunes:
 // FadeSeconds (the flag's fade-in), EagleDelay (when the eagle
-// enters, measured from t=0), and CrossSeconds (how long the crossing
-// takes — the eagle's speed). The runner nudges them 50ms at a time
-// and s saves them to scenes/america/config.json. Both performers are
-// reusable components on their own: components/flag and
-// components/eagle carry all of this as plain constructor knobs.
+// enters, measured from t=0), CrossSeconds (how long the crossing
+// takes — the eagle's speed), and EagleStart / EagleEnd (where the
+// flight begins and ends, as fractions of the full
+// off-right-to-off-left span). The runner nudges the time knobs 50ms
+// and the path knobs 0.05 of the span at a time, and s saves them to
+// scenes/america/config.json. Both performers are reusable components
+// on their own: components/flag and components/eagle carry all of
+// this as plain constructor knobs.
 package america
 
 import (
@@ -32,9 +35,15 @@ const (
 	// and off the other in four seconds. The stock delay starts it
 	// the moment the fade lands.
 	CrossSeconds = 4.0
+
+	// StartPoint and EndPoint are the stock flight path, as
+	// fractions of the full off-right-to-off-left span: the eagle
+	// enters off the right wing and exits off the left.
+	StartPoint = 0.0
+	EndPoint   = 1.0
 )
 
-// Show is the America scene as a live scene: Cfg is the three knobs
+// Show is the America scene as a live scene: Cfg is the five knobs
 // Assemble reads on each Start, so Play (Stop then Start) rebuilds
 // the fade and the flyover from whatever they hold now.
 type Show struct {
@@ -53,7 +62,8 @@ func New() *Show {
 func (s *Show) assemble() []screenplay.Component {
 	return []screenplay.Component{
 		flag.New(s.Cfg.FadeSeconds),
-		eagle.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds),
+		eagle.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
+			Path(s.Cfg.EagleStart, s.Cfg.EagleEnd),
 	}
 }
 
