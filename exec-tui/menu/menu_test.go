@@ -407,8 +407,8 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
-			"landing", "america",
-			"flame", "stars-config", "editor", "particle", "dust-config",
+			"landing", "gunfire", "america",
+			"flame", "stars-config", "editor", "particle", "dust-config", "gunfire-config",
 			"legacy", "timeline",
 		}
 		if len(c) != len(want) {
@@ -422,18 +422,20 @@ func TestCatalog(t *testing.T) {
 	})
 	t.Run("happy: entries group under their category headers in order", func(t *testing.T) {
 		wantSections := map[string]string{
-			"screenplay":   "Screenplays",
-			"moon":         "Screenplays",
-			"closeup":      "Screenplays",
-			"landing":      "Scenes",
-			"america":      "Scenes",
-			"flame":        "CONFIG",
-			"stars-config": "CONFIG",
-			"editor":       "CONFIG",
-			"particle":     "CONFIG",
-			"dust-config":  "CONFIG",
-			"legacy":       "LEGACY TUIS",
-			"timeline":     "LEGACY TUIS",
+			"screenplay":     "Screenplays",
+			"moon":           "Screenplays",
+			"closeup":        "Screenplays",
+			"landing":        "Scenes",
+			"gunfire":        "Scenes",
+			"america":        "Scenes",
+			"flame":          "CONFIG",
+			"stars-config":   "CONFIG",
+			"editor":         "CONFIG",
+			"particle":       "CONFIG",
+			"dust-config":    "CONFIG",
+			"gunfire-config": "CONFIG",
+			"legacy":         "LEGACY TUIS",
+			"timeline":       "LEGACY TUIS",
 		}
 		seen := map[string]bool{}
 		last := ""
@@ -472,13 +474,35 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("fourth entry must be Landing under Scenes → ./cmd/landing, got %+v", c[3])
 		}
 	})
-	t.Run("happy: Scenes lists America right after the landing", func(t *testing.T) {
+	t.Run("happy: Scenes lists the one-shot gunfire after the landing, and CONFIG lists its tuner", func(t *testing.T) {
 		c := Catalog()
 		if len(c) < 5 {
-			t.Fatal("catalog must hold the America scene after the landing")
+			t.Fatal("catalog must hold the gunfire scene after the landing")
 		}
-		if c[4].ID != "america" || c[4].Title != "America" || c[4].Section != "Scenes" || c[4].Pkg != "./cmd/america" {
-			t.Fatalf("fifth entry must be America under Scenes → ./cmd/america, got %+v", c[4])
+		if c[4].ID != "gunfire" || c[4].Title != "Gunfire" || c[4].Section != "Scenes" || c[4].Pkg != "./cmd/gunfire" {
+			t.Fatalf("fifth entry must be Gunfire under Scenes → ./cmd/gunfire, got %+v", c[4])
+		}
+		found := false
+		for _, e := range c {
+			if e.ID != "gunfire-config" {
+				continue
+			}
+			found = true
+			if e.Title != "GUNFIRE CONFIG" || e.Section != "CONFIG" || e.Pkg != "./cmd/adjustgunfire/main" {
+				t.Fatalf("the gunfire tuner must be GUNFIRE CONFIG under CONFIG → ./cmd/adjustgunfire/main, got %+v", e)
+			}
+		}
+		if !found {
+			t.Fatal("CONFIG must list the gunfire tuner")
+		}
+	})
+	t.Run("happy: Scenes lists America right after the gunfire", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 6 {
+			t.Fatal("catalog must hold the America scene after the gunfire")
+		}
+		if c[5].ID != "america" || c[5].Title != "America" || c[5].Section != "Scenes" || c[5].Pkg != "./cmd/america" {
+			t.Fatalf("sixth entry must be America under Scenes → ./cmd/america, got %+v", c[5])
 		}
 	})
 	t.Run("unhappy: America is a scene, not a screenplay, and never doubles up", func(t *testing.T) {

@@ -64,6 +64,16 @@ var Greys = func() []int {
 	return out
 }()
 
+// SystemColors is xterm 0-15: the base ANSI colors and their brights.
+// With the greys and the cube they complete all 256 xterm colors.
+var SystemColors = func() []int {
+	out := make([]int, 16)
+	for i := range out {
+		out[i] = i
+	}
+	return out
+}()
+
 // CubeReds is the 6 red-axis slices of the 6×6×6 color cube (indexes 16-231).
 const cubeSide = 6
 
@@ -225,6 +235,12 @@ func (m *Model) closePicker(apply bool) {
 		if m.PickerCube {
 			fg = cubeColor(m.CubeRed, m.PickerIdx)
 		}
+		if m.PickerSystem {
+			fg = SystemColors[0]
+			if m.PickerIdx >= 0 && m.PickerIdx < len(SystemColors) {
+				fg = SystemColors[m.PickerIdx]
+			}
+		}
 		m.applyPickedColor(fg)
 	}
 	m.PickerOpen = false
@@ -236,6 +252,10 @@ func (m *Model) movePicker(r rune) {
 	if m.PickerCube {
 		max = 35
 		cols = 6
+	}
+	if m.PickerSystem {
+		max = len(SystemColors) - 1
+		cols = 8
 	}
 	switch r {
 	case 'h':
@@ -261,15 +281,24 @@ func (m *Model) movePicker(r rune) {
 			m.CubeRed--
 		}
 		m.PickerCube = true
+		m.PickerSystem = false
 	case ']':
 		if m.CubeRed < 5 {
 			m.CubeRed++
 		}
 		m.PickerCube = true
+		m.PickerSystem = false
 	case 'g':
 		m.PickerCube = false
+		m.PickerSystem = false
 		if m.PickerIdx > 23 {
 			m.PickerIdx = 23
+		}
+	case 's':
+		m.PickerCube = false
+		m.PickerSystem = true
+		if m.PickerIdx > len(SystemColors)-1 {
+			m.PickerIdx = len(SystemColors) - 1
 		}
 	}
 }
