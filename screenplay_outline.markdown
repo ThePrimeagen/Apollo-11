@@ -122,6 +122,13 @@ VACs — the boundary FINDVAC always hits the VAC wall. The gaps, in order of im
 4. Minor: HIGATJOB sleep ~8 s (real: ≤22 s[^code-higat]), LRH gate 80 ms (real
    ~95 ms[^code-lrh95]).
 
+A millisecond-per-tick, instruction-level rebuild addressing all four gaps —
+the display pipeline included — lives in [`msim/`](msim/README.md): its two
+generated timelines ([baseline](msim/timelines/p63-baseline.md), [with the
+1668 monitor](msim/timelines/p63-monitor-1668.md)) reproduce the two P63
+1202s at the flight offsets, with all eight core sets held and a VAC still
+free at the failing request, and no 1201 anywhere in P63.
+
 ## Sources
 
 [^cherry-table]: Cherry, *Exegesis of the 1201 and 1202 Alarms* (MIT, 4 Aug 1969), Table of Jobs and Priorities, [pp. 11–12](https://www.ibiblio.org/apollo/Documents/CherryApollo11Exegesis.pdf#page=11).

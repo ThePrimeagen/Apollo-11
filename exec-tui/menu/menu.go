@@ -45,6 +45,7 @@ func Catalog() []Entry {
 		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
 		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
+		{ID: "viewer", Section: "Scenes", Title: "Component Viewer", Desc: "cycle every component, particle and scene — e edits, closing resumes", Pkg: "./cmd/viewer"},
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the full-screen flag fades in from black, then the giant eagle crosses — five live knobs: fade, delay, cross, start, end", Pkg: "./cmd/america"},
 		{ID: "moonwalk", Section: "Scenes", Title: "Moonwalk", Desc: "the astronaut climbs three crates, rides the flagpole down as the flag goes up, then boards the LM — eleven live knobs", Pkg: "./cmd/astronaut"},
@@ -56,6 +57,8 @@ func Catalog() []Entry {
 		{ID: "gunfire-config", Section: "Particles", Title: "GUNFIRE CONFIG", Desc: "tune the Doom muzzle flame — all eight headings play at once, like flame", Pkg: "./cmd/adjustgunfire/main"},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
+		{ID: "agctop", Section: "EXECUTIVE", Title: "COMMAND SCREEN", Desc: "live msim processes — VAC jobs, coreset jobs, no-priority ops; d/1/r switches", Pkg: "./cmd/agctop"},
+		{ID: "agcgraph", Section: "EXECUTIVE", Title: "GRAPHS", Desc: "a 2.5 s still of the CPU under the switches — lanes + per-job legend; d/1/r re-simulate", Pkg: "./cmd/agcgraph"},
 	}
 }
 

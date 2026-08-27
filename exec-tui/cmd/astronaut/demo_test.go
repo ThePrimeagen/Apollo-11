@@ -8,13 +8,19 @@ package main
 // the window above a compact knob footer.
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
+	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
+
+var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripAnsi(s string) string { return ansiPat.ReplaceAllString(s, "") }
 
 const (
 	tw = 84
@@ -121,8 +127,98 @@ func TestMoonwalkTuner(t *testing.T) {
 		if got != want {
 			t.Fatalf("saved %+v, want %+v", got, want)
 		}
-		if !strings.Contains(strings.ToLower(m.View().Content), "saved") {
-			t.Fatal("the footer must confirm the save")
+		banner, _ := termfont.Lines(5, "SAVED")
+		if !strings.Contains(stripAnsi(m.View().Content), banner[0]) {
+			t.Fatal("the view must confirm the save with the banner")
+		}
+	})
+	t.Run("happy: s raises a five-row SAVED banner, top centered", func(t *testing.T) {
+		m := newTestModel(t, 0)
+		m.path = t.TempDir() + "/config.json"
+		mm, cmd := m.Update(runeKey('s'))
+		m = mm.(model)
+		if cmd == nil {
+			t.Fatal("the save must arm the banner's three-second curtain")
+		}
+		banner, err := termfont.Lines(5, "SAVED")
+		if err != nil {
+			t.Fatalf("termfont: %v", err)
+		}
+		v := m.View().Content
+		lines := strings.Split(v, "\n")
+		firstAt := -1
+		for i, row := range banner {
+			found := -1
+			for li, l := range lines {
+				if strings.Contains(stripAnsi(l), row) {
+					found = li
+					break
+				}
+			}
+			if found < 0 {
+				t.Fatalf("banner row %d %q missing from the view:\n%s", i, row, v)
+			}
+			if firstAt < 0 {
+				firstAt = found
+			}
+			if want := firstAt + i; found != want {
+				t.Fatalf("banner row %d sits on line %d, want %d — the rows must stack", i, found, want)
+			}
+		}
+		if firstAt > 4 {
+			t.Fatalf("the banner must ride the top of the stage, first row on line %d", firstAt)
+		}
+		plain := stripAnsi(lines[firstAt])
+		lead := len(plain) - len(strings.TrimLeft(plain, " "))
+		wantLead := (tw - len(banner[0])) / 2
+		if lead < wantLead-2 || lead > wantLead+2 {
+			t.Fatalf("the banner must center: %d leading cells, want about %d", lead, wantLead)
+		}
+	})
+	t.Run("happy: the banner falls after its three seconds", func(t *testing.T) {
+		m := newTestModel(t, 0)
+		m.path = t.TempDir() + "/config.json"
+		m = press(m, runeKey('s'))
+		id := m.toastID
+		mm, _ := m.Update(saveToastClearMsg{id: id})
+		m = mm.(model)
+		banner, _ := termfont.Lines(5, "SAVED")
+		if strings.Contains(stripAnsi(m.View().Content), banner[0]) {
+			t.Fatal("the banner must clear when its curtain falls")
+		}
+	})
+	t.Run("unhappy: a stale curtain never wipes a fresh banner", func(t *testing.T) {
+		m := newTestModel(t, 0)
+		m.path = t.TempDir() + "/config.json"
+		m = press(m, runeKey('s'))
+		stale := m.toastID
+		m = press(m, runeKey('s'))
+		mm, _ := m.Update(saveToastClearMsg{id: stale})
+		m = mm.(model)
+		banner, _ := termfont.Lines(5, "SAVED")
+		if !strings.Contains(stripAnsi(m.View().Content), banner[0]) {
+			t.Fatal("an old curtain must not clear the newer banner")
+		}
+	})
+	t.Run("unhappy: a failed save raises ERR and names the failure", func(t *testing.T) {
+		m := newTestModel(t, 0)
+		m.path = t.TempDir() + "/no/such/dir/config.json"
+		m = press(m, runeKey('s'))
+		banner, _ := termfont.Lines(5, "ERR")
+		v := m.View().Content
+		if !strings.Contains(stripAnsi(v), banner[0]) {
+			t.Fatalf("a failed save must raise the ERR banner:\n%s", v)
+		}
+		if !strings.Contains(strings.ToLower(v), "save failed") {
+			t.Fatal("the footer must name the failure")
+		}
+	})
+	t.Run("happy: the s-save hint survives a save", func(t *testing.T) {
+		m := newTestModel(t, 0)
+		m.path = t.TempDir() + "/config.json"
+		m = press(m, runeKey('s'))
+		if !strings.Contains(m.View().Content, "s save") {
+			t.Fatal("the footer must keep teaching s save after a save")
 		}
 	})
 	t.Run("happy: space replays from the top", func(t *testing.T) {

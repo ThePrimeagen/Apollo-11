@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/particle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
@@ -193,6 +195,49 @@ func ResetBlast() {
 
 // ActiveBlast is the blast settings now in effect.
 func ActiveBlast() BlastConfig { return activeBlast }
+
+// FindConfig locates the shipped components/gunfire/config.json — the
+// same file the tuner saves and the shotgun fires.
+func FindConfig() string {
+	const file = "config.json"
+	if _, src, _, ok := runtime.Caller(0); ok {
+		cand := filepath.Join(filepath.Dir(src), file)
+		if _, err := os.Stat(cand); err == nil {
+			return cand
+		}
+	}
+	seen := map[string]bool{}
+	var cands []string
+	add := func(p string) {
+		if p == "" || seen[p] {
+			return
+		}
+		seen[p] = true
+		cands = append(cands, p)
+	}
+	addFrom := func(start string) {
+		dir := start
+		for i := 0; i < 8; i++ {
+			add(filepath.Join(dir, file))
+			add(filepath.Join(dir, "gunfire", file))
+			add(filepath.Join(dir, "components", "gunfire", file))
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				return
+			}
+			dir = parent
+		}
+	}
+	if wd, err := os.Getwd(); err == nil {
+		addFrom(wd)
+	}
+	for _, p := range cands {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return filepath.Join("components", "gunfire", file)
+}
 
 // nominal box for validating engine knobs without a real stage.
 const (
