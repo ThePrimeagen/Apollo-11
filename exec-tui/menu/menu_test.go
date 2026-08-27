@@ -115,6 +115,7 @@ func TestMenuSections(t *testing.T) {
 			{"Screenplays", "MAIN"},
 			{"Scenes", "Landing"},
 			{"CONFIG", "FLAME CONFIG"},
+			{"Particles", "PARTICLE CONFIG"},
 			{"LEGACY TUIS", "LEGACY EXEC"},
 		}
 		prev := -1
@@ -403,12 +404,13 @@ func TestLocateModule(t *testing.T) {
 }
 
 func TestCatalog(t *testing.T) {
-	t.Run("happy: the catalog runs screenplays, scenes, config, legacy", func(t *testing.T) {
+	t.Run("happy: the catalog runs screenplays, scenes, config, particles, legacy", func(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
-			"landing", "gunfire", "america",
-			"flame", "stars-config", "editor", "particle", "dust-config", "gunfire-config",
+			"landing", "america",
+			"flame", "stars-config", "editor",
+			"particle", "dust-config", "gunfire-config",
 			"legacy", "timeline",
 		}
 		if len(c) != len(want) {
@@ -426,14 +428,13 @@ func TestCatalog(t *testing.T) {
 			"moon":           "Screenplays",
 			"closeup":        "Screenplays",
 			"landing":        "Scenes",
-			"gunfire":        "Scenes",
 			"america":        "Scenes",
 			"flame":          "CONFIG",
 			"stars-config":   "CONFIG",
 			"editor":         "CONFIG",
-			"particle":       "CONFIG",
-			"dust-config":    "CONFIG",
-			"gunfire-config": "CONFIG",
+			"particle":       "Particles",
+			"dust-config":    "Particles",
+			"gunfire-config": "Particles",
 			"legacy":         "LEGACY TUIS",
 			"timeline":       "LEGACY TUIS",
 		}
@@ -474,35 +475,53 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("fourth entry must be Landing under Scenes → ./cmd/landing, got %+v", c[3])
 		}
 	})
-	t.Run("happy: Scenes lists the one-shot gunfire after the landing, and CONFIG lists its tuner", func(t *testing.T) {
+	t.Run("happy: Particles lists the nyan trail, dust-off, and gunfire tuners", func(t *testing.T) {
 		c := Catalog()
-		if len(c) < 5 {
-			t.Fatal("catalog must hold the gunfire scene after the landing")
+		want := []struct {
+			id, title, pkg string
+		}{
+			{"particle", "PARTICLE CONFIG", "./cmd/adjustparticle/main"},
+			{"dust-config", "DUSTOFF CONFIG", "./cmd/adjustdust/main"},
+			{"gunfire-config", "GUNFIRE CONFIG", "./cmd/adjustgunfire/main"},
 		}
-		if c[4].ID != "gunfire" || c[4].Title != "Gunfire" || c[4].Section != "Scenes" || c[4].Pkg != "./cmd/gunfire" {
-			t.Fatalf("fifth entry must be Gunfire under Scenes → ./cmd/gunfire, got %+v", c[4])
-		}
-		found := false
+		got := make([]Entry, 0, 3)
 		for _, e := range c {
-			if e.ID != "gunfire-config" {
-				continue
-			}
-			found = true
-			if e.Title != "GUNFIRE CONFIG" || e.Section != "CONFIG" || e.Pkg != "./cmd/adjustgunfire/main" {
-				t.Fatalf("the gunfire tuner must be GUNFIRE CONFIG under CONFIG → ./cmd/adjustgunfire/main, got %+v", e)
+			if e.Section == "Particles" {
+				got = append(got, e)
 			}
 		}
-		if !found {
-			t.Fatal("CONFIG must list the gunfire tuner")
+		if len(got) != len(want) {
+			t.Fatalf("Particles must list %d editable particle components, got %d: %+v", len(want), len(got), got)
+		}
+		for i, w := range want {
+			if got[i].ID != w.id || got[i].Title != w.title || got[i].Pkg != w.pkg || got[i].Section != "Particles" {
+				t.Fatalf("Particles entry %d must be %s (%s) → %s, got %+v", i, w.title, w.id, w.pkg, got[i])
+			}
 		}
 	})
-	t.Run("happy: Scenes lists America right after the gunfire", func(t *testing.T) {
+	t.Run("happy: Scenes lists America right after the landing", func(t *testing.T) {
 		c := Catalog()
-		if len(c) < 6 {
-			t.Fatal("catalog must hold the America scene after the gunfire")
+		if len(c) < 5 {
+			t.Fatal("catalog must hold the America scene after the landing")
 		}
-		if c[5].ID != "america" || c[5].Title != "America" || c[5].Section != "Scenes" || c[5].Pkg != "./cmd/america" {
-			t.Fatalf("sixth entry must be America under Scenes → ./cmd/america, got %+v", c[5])
+		if c[4].ID != "america" || c[4].Title != "America" || c[4].Section != "Scenes" || c[4].Pkg != "./cmd/america" {
+			t.Fatalf("fifth entry must be America under Scenes → ./cmd/america, got %+v", c[4])
+		}
+	})
+	t.Run("unhappy: gunfire is not a scene and the one-shot demo stays off the launcher", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.ID == "gunfire" {
+				t.Fatalf("gunfire is a particle component, not a scene — the demo must not be listed, found %+v", e)
+			}
+			if e.Title == "Gunfire" && e.Section == "Scenes" {
+				t.Fatalf("Scenes must not list Gunfire, found %+v", e)
+			}
+			if e.ID == "gunfire-config" && e.Section == "CONFIG" {
+				t.Fatalf("the gunfire tuner belongs under Particles, not CONFIG, found %+v", e)
+			}
+			if (e.ID == "particle" || e.ID == "dust-config") && e.Section == "CONFIG" {
+				t.Fatalf("particle tuners belong under Particles, not CONFIG, found %+v", e)
+			}
 		}
 	})
 	t.Run("unhappy: America is a scene, not a screenplay, and never doubles up", func(t *testing.T) {
@@ -547,7 +566,7 @@ func TestCatalog(t *testing.T) {
 				t.Fatalf("the DEMO section is gone — scenes replaced the demos, found %+v", e)
 			}
 			switch e.ID {
-			case "lander", "stars", "nyan", "dustoff", "dsky", "button":
+			case "lander", "stars", "nyan", "dustoff", "dsky", "button", "gunfire":
 				t.Fatalf("demo %q must not be listed, found %+v", e.ID, e)
 			}
 		}
