@@ -1,21 +1,21 @@
 // Package gunfire is the one-shot Doom muzzle flame on an eight-point
 // compass: the red flame that comes out when the shotgun goes off,
 // tunable direction by direction. One squeeze and the flame leaps
-// from the muzzle along the aimed heading — a white-hot heart wrapped
-// in tongues that cool through that direction's own five-stop color
-// ramp as they rise, slow, and die. Doom's flash is two sprite
+// from the muzzle along every heading at once — a white-hot heart
+// wrapped in tongues that cool through that direction's own five-stop
+// color ramp as they rise, slow, and die. Doom's flash is two sprite
 // frames, so a dimmer second pulse follows the first on a short fuse.
 // There is no period clock anywhere: the blast holds fire until Fire,
 // burns out, and leaves the stage exactly as it found it.
 //
 // Every number is data. BlastConfig carries the muzzle, the heading
-// the next squeeze fires (N, NE, E, SE, S, SW, W, NW — the same
-// compass the lander atlas speaks), the two-frame pulse, the core
-// brightness ladder, the shared white-hot core, and one Shot per
-// direction — the full engine-knob Layer plus its color ramp. The
-// knobs live in this component's config file and become the active
-// blast via UseBlast, so the tuner and the demo stay on the same
-// values.
+// the shared core aims (N, NE, E, SE, S, SW, W, NW — the same compass
+// the lander atlas speaks), the two-frame pulse, the core brightness
+// ladder, the shared white-hot core, and one Shot per direction — the
+// full engine-knob Layer plus its color ramp. The knobs live in this
+// component's config file and become the active blast via UseBlast, so
+// the tuner and the demo stay on the same values. The tuner plays all
+// eight headings at once, the way the flame config does.
 package gunfire
 
 import (
@@ -64,14 +64,15 @@ type Shot struct {
 }
 
 // BlastConfig is the JSON that tunes the shot: where the muzzle sits
-// (fractions of the stage), the compass heading the next squeeze
-// fires, Doom's two-frame pulse (the dimmer re-burst that follows the
-// first on a short fuse), the concentration ladder that decides how
-// bright a core cell burns, the shared core, and the eight shots.
+// (fractions of the stage), the compass heading the shared core aims,
+// Doom's two-frame pulse (the dimmer re-burst that follows the first
+// on a short fuse), the concentration ladder that decides how bright
+// a core cell burns, the shared core, and the eight shots. Fire
+// bursts every shot at once.
 type BlastConfig struct {
 	MuzzleX    float64        `json:"muzzleX"`    // muzzle, as a fraction of stage width
 	MuzzleY    float64        `json:"muzzleY"`    // muzzle, as a fraction of stage height
-	Heading    sprite.Heading `json:"heading"`    // the compass point the next squeeze fires
+	Heading    sprite.Heading `json:"heading"`    // the compass point the shared core aims
 	PulseDelay float64        `json:"pulseDelay"` // seconds between Doom's two flash frames; 0 = one frame
 	PulseFrac  float64        `json:"pulseFrac"`  // second frame size, as a fraction of the first; 0 = one frame
 	EdgeAt     int            `json:"edgeAt"`     // core concentration that earns the star
@@ -95,10 +96,10 @@ type BlastConfig struct {
 // ember.
 var DoomRamp = [5]int{226, 208, 196, 160, 124}
 
-// DefaultBlast is the stock Doom shotgun flame: the muzzle low at
-// center screen like the gun in first person, aimed north — straight
-// up — with every direction carrying the same tuned flame and the
-// Doom red ramp, ready to be pulled apart shot by shot.
+// DefaultBlast is the stock Doom shotgun flame: the muzzle at center
+// screen so every heading has room to leap, with every direction
+// carrying the same tuned flame and the Doom red ramp, ready to be
+// pulled apart shot by shot. One squeeze fires the whole rose.
 func DefaultBlast() BlastConfig {
 	shot := Shot{
 		Layer:  Layer{Count: 140, MinLife: 0.14, MaxLife: 0.62, MinSpeed: 16, MaxSpeed: 36, Spread: 0.24, Nozzle: 2.4, Lift: 46, Drag: 3},
@@ -106,22 +107,22 @@ func DefaultBlast() BlastConfig {
 	}
 	return BlastConfig{
 		MuzzleX:    0.5,
-		MuzzleY:    0.85,
+		MuzzleY:    0.5,
 		Heading:    sprite.N,
 		PulseDelay: 0.11,
 		PulseFrac:  0.6,
 		EdgeAt:     2,
 		MidAt:      4,
 		CoreAt:     7,
-		Core: Layer{Count: 80, MinLife: 0.04, MaxLife: 0.12, MinSpeed: 8, MaxSpeed: 20, Spread: 0.55, Nozzle: 3, MaxDistance: 4},
-		N:    shot,
-		NE:   shot,
-		E:    shot,
-		SE:   shot,
-		S:    shot,
-		SW:   shot,
-		W:    shot,
-		NW:   shot,
+		Core:       Layer{Count: 80, MinLife: 0.04, MaxLife: 0.12, MinSpeed: 8, MaxSpeed: 20, Spread: 0.55, Nozzle: 3, MaxDistance: 4},
+		N:          shot,
+		NE:         shot,
+		E:          shot,
+		SE:         shot,
+		S:          shot,
+		SW:         shot,
+		W:          shot,
+		NW:         shot,
 	}
 }
 

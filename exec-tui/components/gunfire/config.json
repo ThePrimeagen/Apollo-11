@@ -1,6 +1,6 @@
 {
   "muzzleX": 0.5,
-  "muzzleY": 0.85,
+  "muzzleY": 0.5,
   "heading": "N",
   "pulseDelay": 0.11,
   "pulseFrac": 0.6,

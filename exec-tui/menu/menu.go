@@ -52,7 +52,7 @@ func Catalog() []Entry {
 		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish ASCII editor over the assets/ folder (C-p files, C-e glyphs)"},
 		{ID: "particle", Section: "Particles", Title: "PARTICLE CONFIG", Desc: "tune the nyan rainbow trail (bands, life, spawn)", Pkg: "./cmd/adjustparticle/main"},
 		{ID: "dust-config", Section: "Particles", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},
-		{ID: "gunfire-config", Section: "Particles", Title: "GUNFIRE CONFIG", Desc: "tune the Doom muzzle flame per compass direction — knobs and colors for all eight", Pkg: "./cmd/adjustgunfire/main"},
+		{ID: "gunfire-config", Section: "Particles", Title: "GUNFIRE CONFIG", Desc: "tune the Doom muzzle flame — all eight headings play at once, like flame", Pkg: "./cmd/adjustgunfire/main"},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
 	}

@@ -1,21 +1,16 @@
 // gunfire: the one-shot Doom muzzle-flame demo — the red flame that
 // comes out when the shotgun goes off. An empty stage and the trigger
 // on the space bar: one squeeze and the flame leaps from the muzzle
-// at low center screen, a white-hot heart wrapped in tongues that
-// cool bright yellow through orange and red to a maroon ember, with
-// Doom's dimmer second flash frame pulsing a beat later — then the
-// stage goes dark again, because a gunshot is a trigger, not a clock.
-// The aim walks the eight-point compass: left/h and right/l step the
-// muzzle through N, NE, E, SE, S, SW, W, NW — the status line reads
-// the heading out — and every direction fires its own tuned shot,
-// colors included, straight from the config. Lift stays world-up, so
-// a sideways or downward shot still curls its tongues skyward. The
-// demo auto-fires once shortly after boot so tapes show the flame,
-// and it reads the same JSON the gunfire tuner saves.
+// at center screen along every heading at once, a white-hot heart
+// wrapped in tongues that cool bright yellow through orange and red
+// to a maroon ember, with Doom's dimmer second flash frame pulsing a
+// beat later — then the stage goes dark again, because a gunshot is a
+// trigger, not a clock. The whole rose fires together, the way the
+// flame config plays all eight courses at once. The demo auto-fires
+// once shortly after boot so tapes show the flame, and it reads the
+// same JSON the gunfire tuner saves.
 //
 //	space, f      fire
-//	left/h        step the compass counterclockwise
-//	right/l       step it clockwise
 //	q             quit
 //
 //	go run ./cmd/gunfire
@@ -33,7 +28,6 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
@@ -137,32 +131,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "space", " ", "f":
 			m.blast.Fire()
 			return m, nil
-		case "left", "h":
-			stepAim(-1)
-			return m, nil
-		case "right", "l":
-			stepAim(1)
-			return m, nil
 		}
 	}
 	return m, nil
-}
-
-// stepAim walks the active blast's heading delta steps around the
-// compass — clockwise for positive deltas, wrapping at the ends — and
-// puts it in effect: the very next volley flies the new way.
-func stepAim(delta int) {
-	c := gunfire.ActiveBlast()
-	idx := 0
-	for i, h := range sprite.Headings {
-		if h == c.Heading {
-			idx = i
-			break
-		}
-	}
-	n := len(sprite.Headings)
-	c.Heading = sprite.Headings[((idx+delta)%n+n)%n]
-	_ = gunfire.UseBlast(c)
 }
 
 func (m model) View() tea.View {
@@ -172,7 +143,7 @@ func (m model) View() tea.View {
 	for len(stage) < h {
 		stage = append(stage, "")
 	}
-	status := fmt.Sprintf(" gunfire   space fire   ←/→ aim %s   q quit", gunfire.ActiveBlast().Heading)
+	status := " gunfire   space fire   q quit"
 	dim := "\x1b[38;5;240m"
 	reset := "\x1b[0m"
 	body := strings.Join(stage, "\n") + "\n" + dim + pad(status, w) + reset

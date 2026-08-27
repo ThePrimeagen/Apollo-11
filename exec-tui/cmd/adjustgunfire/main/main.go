@@ -1,9 +1,10 @@
 // adjustgunfire reads the gunfire blast-config JSON, tunes the
-// one-shot Doom-shotgun blast live — the blast re-firing over the
-// stage behind a paged panel of every knob — and writes the file back
-// on save. tab flips pages (aim, flash, pellets, sparks, smoke), j/k
-// select, h/l change, [/] take bigger steps, f fires now, s saves and
-// quits, q quits.
+// one-shot Doom-shotgun blast live — every heading firing at once as
+// a compass rose beside a paged panel of every knob, the way the
+// flame config plays all eight courses — and writes the file back on
+// save. tab flips pages (aim, core, then each heading), j/k select,
+// h/l change, [/] take bigger steps, f fires now, s saves and quits,
+// q quits.
 //
 //	go run ./cmd/adjustgunfire/main
 //	go run ./cmd/adjustgunfire/main -seconds 15
