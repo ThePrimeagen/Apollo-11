@@ -5,10 +5,13 @@ import (
 )
 
 const (
-	// RunFPS is the stride rate of the three-frame run cycle.
-	RunFPS = 10.0
-	// PoleFPS is the shimmy rate of the two-grip pole slide.
-	PoleFPS = 6.0
+	// RunFPS is the stride rate of the three-frame run cycle — quick
+	// enough to read as a sprint, not a jog.
+	RunFPS = 12.0
+	// PoleFPS is the wobble rate of the locked-grip pole slide. The
+	// two frames differ by one hip pixel, so this is texture, not a
+	// hand-over-hand climb.
+	PoleFPS = 4.0
 )
 
 // RunPoses is the stride order the run cycle plays.

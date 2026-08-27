@@ -44,7 +44,7 @@ const (
 	leapSec  = 0.8
 	leapPeak = 2
 	// slideSec rides the pole down; standSec holds the bow.
-	slideSec = 1.5
+	slideSec = 1.2
 	standSec = 1.8
 	// grabAbove is how many rows above his standing head he grabs on.
 	grabAbove = 5
