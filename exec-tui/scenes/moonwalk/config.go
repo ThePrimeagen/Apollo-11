@@ -189,7 +189,9 @@ func (c *Config) Nudge(k Knob, dir int) {
 	case KnobExitSpeed:
 		c.ExitSpeed = nudgeFloat(c.ExitSpeed, 1, dir, 4, 60)
 	case KnobPanCols:
-		c.PanCols = nudgeInt(c.PanCols, dir, 0, 80)
+		// No ceiling — pan as far as you like; the floor just keeps
+		// the camera from walking backwards.
+		c.PanCols = nudgeInt(c.PanCols, dir, 0, math.MaxInt)
 	case KnobPanSeconds:
 		c.PanSeconds = nudgeFloat(c.PanSeconds, 0.05, dir, 0.2, 5)
 	}

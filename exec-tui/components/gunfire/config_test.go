@@ -30,8 +30,8 @@ func TestDefaultBlast(t *testing.T) {
 		if err := c.Validate(); err != nil {
 			t.Fatalf("the stock blast must validate: %v", err)
 		}
-		if c.Heading != sprite.N {
-			t.Fatalf("the stock flame leaps straight up — heading %q, want N", c.Heading)
+		if c.MuzzleX != 0.5 || c.MuzzleY != 0.5 {
+			t.Fatalf("the stock muzzle sits at center so every heading has room, got %.2f,%.2f", c.MuzzleX, c.MuzzleY)
 		}
 		red := [5]int{226, 208, 196, 160, 124}
 		for _, h := range sprite.Headings {

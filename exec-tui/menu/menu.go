@@ -1,9 +1,10 @@
 // Package menu is the exec-tui launcher: a scrollable list of every lab
 // and configurator in the repo, grouped by category — the screenplays,
-// the portable scenes, the configurators, and the legacy TUIs. j/k (or
-// arrows) move over entries (headers are never selectable), enter runs
-// the highlighted program, q quits. Running exec-tui with no arguments
-// opens this menu instead of the sim — the sim is the LEGACY EXEC entry.
+// the portable scenes, the configurators, the particle tuners, and the
+// legacy TUIs. j/k (or arrows) move over entries (headers are never
+// selectable), enter runs the highlighted program, q quits. Running
+// exec-tui with no arguments opens this menu instead of the sim — the
+// sim is the LEGACY EXEC entry.
 package menu
 
 import (
@@ -35,7 +36,8 @@ type Entry struct {
 
 // Catalog lists every runnable program by category: the screenplays
 // (MAIN, 01. Moon Orbit, then 02. Walkthrough), then the portable
-// scenes, then the config editors, then the legacy TUIs.
+// scenes, then the config editors, then the particle tuners, then the
+// legacy TUIs.
 // Everything this module owns launches out of its own cmd/ folder;
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
@@ -45,14 +47,14 @@ func Catalog() []Entry {
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
 		{ID: "viewer", Section: "Scenes", Title: "Component Viewer", Desc: "cycle every component, particle and scene — e edits, closing resumes", Pkg: "./cmd/viewer"},
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
-		{ID: "gunfire", Section: "Scenes", Title: "Gunfire", Desc: "one-shot Doom muzzle flame — space fires, arrows step the eight-point aim", Pkg: "./cmd/gunfire"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the full-screen flag fades in from black, then the giant eagle crosses — nudge fade / delay / cross 50ms at a time", Pkg: "./cmd/america"},
+		{ID: "moonwalk", Section: "Scenes", Title: "Moonwalk", Desc: "the astronaut climbs three crates, rides the flagpole down as the flag goes up, then boards the LM — eleven live knobs", Pkg: "./cmd/astronaut"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish ASCII editor over the assets/ folder (C-p files, C-e glyphs)"},
-		{ID: "particle", Section: "CONFIG", Title: "PARTICLE CONFIG", Desc: "tune the nyan rainbow trail (bands, life, spawn)", Pkg: "./cmd/adjustparticle/main"},
-		{ID: "dust-config", Section: "CONFIG", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},
-		{ID: "gunfire-config", Section: "CONFIG", Title: "GUNFIRE CONFIG", Desc: "tune the Doom muzzle flame per compass direction — knobs and colors for all eight", Pkg: "./cmd/adjustgunfire/main"},
+		{ID: "particle", Section: "Particles", Title: "PARTICLE CONFIG", Desc: "tune the nyan rainbow trail (bands, life, spawn)", Pkg: "./cmd/adjustparticle/main"},
+		{ID: "dust-config", Section: "Particles", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},
+		{ID: "gunfire-config", Section: "Particles", Title: "GUNFIRE CONFIG", Desc: "tune the Doom muzzle flame — all eight headings play at once, like flame", Pkg: "./cmd/adjustgunfire/main"},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
 	}
