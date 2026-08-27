@@ -1,12 +1,14 @@
 package gunfire
 
-// Tests written FIRST. BlastConfig is the JSON that tunes the shotgun
-// blast: where the muzzle sits and where it aims, the smoke fuse and
-// its climb, the flash brightness ladder, and one engine-knob Layer
-// each for the flash, the seven pellets, the sparks, and the smoke.
-// UseBlast puts a config in effect for every blast reading it, the
-// same way the dust puff works, so the tuner and the demo stay on the
-// same values.
+// Tests written FIRST. BlastConfig is the JSON that tunes the Doom
+// muzzle flame: where the muzzle sits and aims (straight up by
+// default, the way the flash leaps off the shotgun in first person),
+// the two-frame pulse (Doom's flash is a bright sprite then a dimmer
+// one), the core brightness ladder, and one engine-knob Layer each
+// for the white-hot core and the red flame — the flame carrying lift
+// (hot gas rises) and drag (the eruption dies down). UseBlast puts a
+// config in effect for every blast reading it, the same way the dust
+// puff works, so the tuner and the demo stay on the same values.
 
 import (
 	"encoding/json"
@@ -21,16 +23,22 @@ import (
 )
 
 func TestDefaultBlast(t *testing.T) {
-	t.Run("happy: the stock blast validates and fires the Doom seven", func(t *testing.T) {
+	t.Run("happy: the stock flame validates and carries the Doom signature", func(t *testing.T) {
 		c := DefaultBlast()
 		if err := c.Validate(); err != nil {
-			t.Fatalf("the stock blast must validate: %v", err)
+			t.Fatalf("the stock flame must validate: %v", err)
 		}
-		if c.Pellets.Count != 7 {
-			t.Fatalf("the shotgun fires 7 pellets, not %d — that is the Doom number", c.Pellets.Count)
+		if c.Flame.Lift <= 0 || c.Flame.Drag <= 0 {
+			t.Fatalf("the flame must rise and die down — lift %v drag %v", c.Flame.Lift, c.Flame.Drag)
+		}
+		if c.PulseDelay <= 0 || c.PulseFrac <= 0 {
+			t.Fatalf("Doom's flash is two frames — pulse delay %v frac %v", c.PulseDelay, c.PulseFrac)
+		}
+		if c.AngleDeg != 90 {
+			t.Fatalf("the stock flame leaps straight up like the first-person flash, aim %v", c.AngleDeg)
 		}
 	})
-	t.Run("happy: the stock blast is the active blast at boot", func(t *testing.T) {
+	t.Run("happy: the stock flame is the active blast at boot", func(t *testing.T) {
 		t.Cleanup(ResetBlast)
 		ResetBlast()
 		if ActiveBlast() != DefaultBlast() {
@@ -38,10 +46,8 @@ func TestDefaultBlast(t *testing.T) {
 		}
 	})
 	t.Run("unhappy: every layer is a one-shot — no period anywhere", func(t *testing.T) {
-		fl, pe, sp, sm := DefaultBlast().Engines(120, 60)
-		for name, cfg := range map[string]particle.Config{
-			"flash": fl, "pellets": pe, "sparks": sp, "smoke": sm,
-		} {
+		core, flame := DefaultBlast().Engines(120, 60)
+		for name, cfg := range map[string]particle.Config{"core": core, "flame": flame} {
 			if cfg.Period != 0 {
 				t.Fatalf("%s layer auto-emits every %vs — a gunshot is a trigger, not a clock", name, cfg.Period)
 			}
@@ -52,10 +58,10 @@ func TestDefaultBlast(t *testing.T) {
 func TestValidate(t *testing.T) {
 	t.Run("happy: extreme but legal settings pass", func(t *testing.T) {
 		c := DefaultBlast()
-		c.AngleDeg = -80
+		c.AngleDeg = -90
 		c.MuzzleX, c.MuzzleY = 0, 1
-		c.SmokeDelay = 0
-		c.SmokeRiseDeg = 89
+		c.PulseDelay = 0
+		c.PulseFrac = 1
 		c.EdgeAt, c.MidAt, c.CoreAt = 1, 2, 3
 		if err := c.Validate(); err != nil {
 			t.Fatalf("legal extremes must pass: %v", err)
@@ -73,32 +79,36 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("got %v, want ErrMuzzle", err)
 		}
 	})
-	t.Run("unhappy: an aim past the rails is rejected", func(t *testing.T) {
+	t.Run("unhappy: an aim past straight up or straight down is rejected", func(t *testing.T) {
 		c := DefaultBlast()
-		c.AngleDeg = 81
+		c.AngleDeg = 91
+		if err := c.Validate(); !errors.Is(err, ErrAngle) {
+			t.Fatalf("got %v, want ErrAngle", err)
+		}
+		c.AngleDeg = -91
 		if err := c.Validate(); !errors.Is(err, ErrAngle) {
 			t.Fatalf("got %v, want ErrAngle", err)
 		}
 	})
-	t.Run("unhappy: a negative smoke fuse is rejected", func(t *testing.T) {
+	t.Run("unhappy: a negative pulse delay is rejected", func(t *testing.T) {
 		c := DefaultBlast()
-		c.SmokeDelay = -0.1
+		c.PulseDelay = -0.1
 		if err := c.Validate(); !errors.Is(err, ErrDelay) {
 			t.Fatalf("got %v, want ErrDelay", err)
 		}
 	})
-	t.Run("unhappy: a smoke rise outside 0..89 is rejected", func(t *testing.T) {
+	t.Run("unhappy: a pulse fraction outside 0..1 is rejected", func(t *testing.T) {
 		c := DefaultBlast()
-		c.SmokeRiseDeg = 90
-		if err := c.Validate(); !errors.Is(err, ErrRise) {
-			t.Fatalf("got %v, want ErrRise", err)
+		c.PulseFrac = 1.1
+		if err := c.Validate(); !errors.Is(err, ErrPulse) {
+			t.Fatalf("got %v, want ErrPulse", err)
 		}
-		c.SmokeRiseDeg = -1
-		if err := c.Validate(); !errors.Is(err, ErrRise) {
-			t.Fatalf("got %v, want ErrRise", err)
+		c.PulseFrac = -0.1
+		if err := c.Validate(); !errors.Is(err, ErrPulse) {
+			t.Fatalf("got %v, want ErrPulse", err)
 		}
 	})
-	t.Run("unhappy: a folded flash ladder is rejected", func(t *testing.T) {
+	t.Run("unhappy: a folded core ladder is rejected", func(t *testing.T) {
 		c := DefaultBlast()
 		c.MidAt = c.EdgeAt
 		if err := c.Validate(); !errors.Is(err, ErrLadder) {
@@ -117,22 +127,27 @@ func TestValidate(t *testing.T) {
 	})
 	t.Run("unhappy: a broken layer is rejected and named", func(t *testing.T) {
 		c := DefaultBlast()
-		c.Pellets.Count = -1
+		c.Flame.Count = -1
 		err := c.Validate()
 		if !errors.Is(err, particle.ErrCount) {
 			t.Fatalf("got %v, want the engine's ErrCount", err)
 		}
-		if !strings.Contains(err.Error(), "pellets") {
-			t.Fatalf("the error must name the pellets layer, got %q", err)
+		if !strings.Contains(err.Error(), "flame") {
+			t.Fatalf("the error must name the flame layer, got %q", err)
 		}
 		c = DefaultBlast()
-		c.Smoke.MinLife, c.Smoke.MaxLife = 2, 1
+		c.Core.MinLife, c.Core.MaxLife = 2, 1
 		err = c.Validate()
 		if !errors.Is(err, particle.ErrLife) {
 			t.Fatalf("got %v, want the engine's ErrLife", err)
 		}
-		if !strings.Contains(err.Error(), "smoke") {
-			t.Fatalf("the error must name the smoke layer, got %q", err)
+		if !strings.Contains(err.Error(), "core") {
+			t.Fatalf("the error must name the core layer, got %q", err)
+		}
+		c = DefaultBlast()
+		c.Flame.Drag = -2
+		if err := c.Validate(); !errors.Is(err, particle.ErrDrag) {
+			t.Fatalf("got %v, want the engine's ErrDrag", err)
 		}
 	})
 }
@@ -141,8 +156,8 @@ func TestUseActive(t *testing.T) {
 	t.Run("happy: UseBlast puts the settings in effect and ResetBlast restores stock", func(t *testing.T) {
 		t.Cleanup(ResetBlast)
 		c := DefaultBlast()
-		c.AngleDeg = 12
-		c.Sparks.Count = 40
+		c.AngleDeg = 45
+		c.Flame.Count = 200
 		if err := UseBlast(c); err != nil {
 			t.Fatalf("UseBlast: %v", err)
 		}
@@ -151,7 +166,7 @@ func TestUseActive(t *testing.T) {
 		}
 		ResetBlast()
 		if ActiveBlast() != DefaultBlast() {
-			t.Fatal("ResetBlast must restore the stock blast")
+			t.Fatal("ResetBlast must restore the stock flame")
 		}
 	})
 	t.Run("unhappy: an invalid blast is rejected and the active one holds", func(t *testing.T) {
@@ -169,13 +184,13 @@ func TestUseActive(t *testing.T) {
 }
 
 func TestEngines(t *testing.T) {
-	t.Run("happy: flash, pellets, and sparks share the muzzle and the aim", func(t *testing.T) {
+	t.Run("happy: core and flame share the muzzle and the aim", func(t *testing.T) {
 		c := DefaultBlast()
 		c.MuzzleX, c.MuzzleY = 0.25, 0.5
 		c.AngleDeg = 0
-		fl, pe, sp, _ := c.Engines(100, 60)
+		core, flame := c.Engines(100, 60)
 		muzzle := particle.Vec2{X: 25, Y: 30}
-		for name, cfg := range map[string]particle.Config{"flash": fl, "pellets": pe, "sparks": sp} {
+		for name, cfg := range map[string]particle.Config{"core": core, "flame": flame} {
 			if cfg.Origin != muzzle {
 				t.Fatalf("%s spawns at %+v, want the muzzle %+v", name, cfg.Origin, muzzle)
 			}
@@ -185,73 +200,50 @@ func TestEngines(t *testing.T) {
 			if cfg.Width != 100 || cfg.Height != 60 {
 				t.Fatalf("%s lives in %vx%v, want the 100x60 stage", name, cfg.Width, cfg.Height)
 			}
-		}
-	})
-	t.Run("happy: a tilted aim climbs and the smoke climbs harder", func(t *testing.T) {
-		c := DefaultBlast()
-		c.AngleDeg = 30
-		c.SmokeRiseDeg = 30
-		fl, _, _, sm := c.Engines(100, 60)
-		s, cos := math.Sincos(30 * math.Pi / 180)
-		if math.Abs(fl.Direction.X-cos) > 1e-9 || math.Abs(fl.Direction.Y+s) > 1e-9 {
-			t.Fatalf("a 30° aim must head (%v, %v), got %+v", cos, -s, fl.Direction)
-		}
-		s2, c2 := math.Sincos(60 * math.Pi / 180)
-		if math.Abs(sm.Direction.X-c2) > 1e-9 || math.Abs(sm.Direction.Y+s2) > 1e-9 {
-			t.Fatalf("smoke must climb aim+rise=60°, got %+v", sm.Direction)
-		}
-	})
-	t.Run("happy: the smoke curls with the cartoon wind, the rest fly straight", func(t *testing.T) {
-		fl, pe, sp, sm := DefaultBlast().Engines(100, 60)
-		if sm.Mode != particle.ModeSwirl || !sm.SwirlUp {
-			t.Fatalf("smoke must swirl upward, got mode %v up %v", sm.Mode, sm.SwirlUp)
-		}
-		for name, cfg := range map[string]particle.Config{"flash": fl, "pellets": pe, "sparks": sp} {
 			if cfg.Mode != particle.ModeStraight {
 				t.Fatalf("%s must fly straight, got mode %v", name, cfg.Mode)
 			}
 		}
 	})
-	t.Run("happy: each layer carries its own knobs onto its engine", func(t *testing.T) {
+	t.Run("happy: the stock aim leaps straight up", func(t *testing.T) {
+		_, flame := DefaultBlast().Engines(100, 60)
+		if math.Abs(flame.Direction.X) > 1e-9 || math.Abs(flame.Direction.Y+1) > 1e-9 {
+			t.Fatalf("a 90° aim must head (0, -1), got %+v", flame.Direction)
+		}
+	})
+	t.Run("happy: each layer carries its own knobs, lift and drag included", func(t *testing.T) {
 		c := DefaultBlast()
-		c.Flash.MaxDistance = 9
-		c.Pellets.Spread = 0.03
-		c.Sparks.Nozzle = 1.5
-		c.Smoke.Count = 21
-		fl, pe, sp, sm := c.Engines(100, 60)
-		if fl.Count != c.Flash.Count || fl.MaxDistance != 9 {
-			t.Fatalf("flash engine %+v must carry the flash layer %+v", fl, c.Flash)
+		c.Core.MaxDistance = 9
+		c.Flame.Lift = 77
+		c.Flame.Drag = 4.5
+		c.Flame.Count = 111
+		core, flame := c.Engines(100, 60)
+		if core.Count != c.Core.Count || core.MaxDistance != 9 {
+			t.Fatalf("core engine %+v must carry the core layer %+v", core, c.Core)
 		}
-		if pe.Count != 7 || pe.Spread != 0.03 {
-			t.Fatalf("pellet engine %+v must carry the pellet layer %+v", pe, c.Pellets)
-		}
-		if sp.Nozzle != 1.5 || sp.MinLife != c.Sparks.MinLife {
-			t.Fatalf("spark engine %+v must carry the spark layer %+v", sp, c.Sparks)
-		}
-		if sm.Count != 21 || sm.MaxLife != c.Smoke.MaxLife {
-			t.Fatalf("smoke engine %+v must carry the smoke layer %+v", sm, c.Smoke)
+		if flame.Count != 111 || flame.Lift != 77 || flame.Drag != 4.5 {
+			t.Fatalf("flame engine %+v must carry the flame layer %+v", flame, c.Flame)
 		}
 	})
 	t.Run("unhappy: a muzzle on the edge clamps inside any stage", func(t *testing.T) {
 		c := DefaultBlast()
 		c.MuzzleX, c.MuzzleY = 1, 1
-		fl, _, _, _ := c.Engines(3, 2)
-		cfg := fl
-		if cfg.Origin.X > cfg.Width || cfg.Origin.Y > cfg.Height || cfg.Origin.X < 0 || cfg.Origin.Y < 0 {
-			t.Fatalf("origin %+v fell off a %vx%v stage", cfg.Origin, cfg.Width, cfg.Height)
+		core, _ := c.Engines(3, 2)
+		if core.Origin.X > core.Width || core.Origin.Y > core.Height || core.Origin.X < 0 || core.Origin.Y < 0 {
+			t.Fatalf("origin %+v fell off a %vx%v stage", core.Origin, core.Width, core.Height)
 		}
-		if err := cfg.Validate(); err != nil {
+		if err := core.Validate(); err != nil {
 			t.Fatalf("an edge muzzle must still validate: %v", err)
 		}
 	})
 }
 
 func TestLoadSave(t *testing.T) {
-	t.Run("happy: a blast survives the round trip and the JSON names all four layers", func(t *testing.T) {
+	t.Run("happy: a blast survives the round trip and the JSON names both layers", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "blast.json")
 		c := DefaultBlast()
-		c.AngleDeg = 8
-		c.Flash.Count = 120
+		c.AngleDeg = 60
+		c.Flame.Lift = 44
 		if err := c.Save(path); err != nil {
 			t.Fatalf("Save: %v", err)
 		}
@@ -270,9 +262,18 @@ func TestLoadSave(t *testing.T) {
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			t.Fatalf("saved JSON must parse: %v", err)
 		}
-		for _, key := range []string{"flash", "pellets", "sparks", "smoke", "angleDeg", "muzzleX"} {
+		for _, key := range []string{"core", "flame", "angleDeg", "muzzleX", "pulseDelay", "pulseFrac"} {
 			if _, ok := doc[key]; !ok {
 				t.Fatalf("saved JSON is missing %q", key)
+			}
+		}
+		var flameDoc map[string]json.RawMessage
+		if err := json.Unmarshal(doc["flame"], &flameDoc); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"lift", "drag"} {
+			if _, ok := flameDoc[key]; !ok {
+				t.Fatalf("the flame layer JSON is missing %q", key)
 			}
 		}
 	})

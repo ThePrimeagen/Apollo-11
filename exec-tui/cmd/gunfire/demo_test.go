@@ -1,17 +1,18 @@
 package main
 
-// Demo harness tests, written first: gunfire is the one-shot shotgun
-// demo — a bare stage, a stub of a barrel at the muzzle, and the
-// trigger on the space bar (f works too). One squeeze blooms the
-// white-hot flash, throws the Doom seven pellets and a fan of sparks,
-// and curls gunsmoke out on a short fuse — then the stage goes quiet
-// again, because a gunshot is a trigger, not a clock. The demo
-// auto-fires once shortly after boot so tapes show the shot, and it
-// reads the same JSON the gunfire tuner saves.
+// Demo harness tests, written first: gunfire is the one-shot Doom
+// muzzle-flame demo — an empty stage and the trigger on the space bar
+// (f works too). One squeeze and the red flame leaps up from the
+// muzzle: a white-hot heart, tongues cooling yellow through orange to
+// red, and Doom's second flash frame pulsing a beat later — then the
+// stage goes dark again, because a gunshot is a trigger, not a clock.
+// The demo auto-fires once shortly after boot so tapes show the
+// flame, and it reads the same JSON the gunfire tuner saves.
 
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -19,6 +20,10 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
 )
+
+var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripAnsi(s string) string { return ansiPat.ReplaceAllString(s, "") }
 
 func frames(m model, n int) model {
 	for i := 0; i < n; i++ {
@@ -38,7 +43,7 @@ func space() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeySpace, Text: 
 func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
 
 func TestGunfireDemo(t *testing.T) {
-	t.Run("happy: the curtain rises on a quiet stage — a barrel, a status line, no blast", func(t *testing.T) {
+	t.Run("happy: the curtain rises on a dark, empty stage — just the status line", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		m := newModel(0)
@@ -46,16 +51,14 @@ func TestGunfireDemo(t *testing.T) {
 		if !strings.Contains(v, "gunfire") || !strings.Contains(v, "space fire") {
 			t.Fatal("the status line must name the demo and the trigger")
 		}
-		if !strings.Contains(v, "━") {
-			t.Fatal("the stage must show the barrel at the muzzle")
-		}
-		for _, glyph := range []string{"█", "▓", "•", "░"} {
-			if strings.Contains(v, glyph) {
-				t.Fatalf("an untriggered stage shows %q — the one-shot must hold fire", glyph)
+		rows := strings.Split(stripAnsi(v), "\n")
+		for i, row := range rows[:len(rows)-1] {
+			if strings.TrimSpace(row) != "" {
+				t.Fatalf("an untriggered stage must be empty, row %d shows %q", i, row)
 			}
 		}
 	})
-	t.Run("happy: space pulls the trigger and the flash blooms white-hot at the muzzle", func(t *testing.T) {
+	t.Run("happy: space pulls the trigger and the flame blooms white-hot at the muzzle", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		m := newModel(0)
@@ -76,18 +79,18 @@ func TestGunfireDemo(t *testing.T) {
 			t.Fatal("f must fire too")
 		}
 	})
-	t.Run("happy: the demo auto-fires once for tapes, then the stage goes quiet again", func(t *testing.T) {
+	t.Run("happy: the demo auto-fires once for tapes, then the stage goes dark again", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		m := newModel(0)
 		idle := m.View().Content
 		m = frames(m, 15) // 0.5s: past the 0.4s auto-fire
-		if len(m.blast.Pellets.Particles) == 0 {
-			t.Fatal("0.5s in, the auto-shot's pellets must be flying")
+		if len(m.blast.Flame.Particles) == 0 {
+			t.Fatal("0.5s in, the auto-shot's flame must be burning")
 		}
-		m = frames(m, 165) // 6s total: every life and the smoke fuse long spent
+		m = frames(m, 165) // 6s total: every life and the pulse fuse long spent
 		if got := m.View().Content; got != idle {
-			t.Fatal("a played-out one-shot must leave the stage exactly as it found it")
+			t.Fatal("a burnt-out one-shot must leave the stage exactly as it found it")
 		}
 	})
 	t.Run("happy: -seconds brings the curtain down on time", func(t *testing.T) {

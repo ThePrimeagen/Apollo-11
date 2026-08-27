@@ -1,12 +1,12 @@
 package gunfire
 
-// Tests written FIRST. The painter is the Doom muzzle palette on the
-// xterm cube. The flash climbs a concentration ladder from an orange
-// fringe dot to a white-hot core block. Pellets are pale tracer heads
-// dragging a dim straw trail one unit behind. Sparks cool through the
-// fire ramp — yellow, orange, red — as they age. Smoke is computed
-// braille in grays that dim with age, thickening to a shade block
-// where it piles up. Layers stack smoke → sparks → pellets → flash.
+// Tests written FIRST. The painter is the Doom flame palette on the
+// xterm cube. The flame is painted by density and age: a cell's glyph
+// thickens with how many specks share it (░ ▒ ▓ █) and its color is
+// the age of its freshest speck — bright yellow at birth, through
+// orange and red, down to a maroon ember as the flame dies. The core
+// climbs the config's concentration ladder from an orange fringe dot
+// to a white-hot block. The core outshines the flame where they meet.
 
 import (
 	"testing"
@@ -41,7 +41,7 @@ func stack(n int, x, y float64) *particle.Engine {
 	return rig(ps...)
 }
 
-func TestFlashLadder(t *testing.T) {
+func TestCoreLadder(t *testing.T) {
 	c := DefaultBlast()
 	c.EdgeAt, c.MidAt, c.CoreAt = 2, 4, 7
 	t.Run("happy: concentration climbs fringe dot, edge star, mid shade, white-hot core", func(t *testing.T) {
@@ -58,133 +58,83 @@ func TestFlashLadder(t *testing.T) {
 			{7, '█', 231, 220},
 			{12, '█', 231, 220},
 		} {
-			got := paint(c, 10, 5, stack(tc.n, 3.2, 4.3), nil, nil, nil).At(2, 3)
+			got := paint(c, 10, 5, stack(tc.n, 3.2, 4.3), nil).At(2, 3)
 			if got.Ch != tc.want || got.FG != tc.fg || got.BG != tc.bg {
-				t.Fatalf("%d flash specks painted %q fg=%d bg=%d, want %q fg=%d bg=%d",
+				t.Fatalf("%d core specks painted %q fg=%d bg=%d, want %q fg=%d bg=%d",
 					tc.n, got.Ch, got.FG, got.BG, tc.want, tc.fg, tc.bg)
 			}
 		}
 	})
-	t.Run("unhappy: dead flash specks and empty engines paint nothing", func(t *testing.T) {
+	t.Run("unhappy: dead core specks and empty engines paint nothing", func(t *testing.T) {
 		dead := at(3.2, 4.3)
 		dead.Life = 0
-		sp := paint(c, 10, 5, rig(dead), rig(), nil, nil)
+		sp := paint(c, 10, 5, rig(dead), rig())
 		for r := 0; r < sp.Height; r++ {
 			for col := 0; col < sp.Width; col++ {
 				if !sp.At(r, col).Transparent() {
-					t.Fatalf("cell (%d,%d) painted %q for a dead flash", r, col, sp.At(r, col).Ch)
+					t.Fatalf("cell (%d,%d) painted %q for a dead core", r, col, sp.At(r, col).Ch)
 				}
 			}
 		}
 	})
 }
 
-func TestPellets(t *testing.T) {
-	t.Run("happy: a flying pellet paints a pale head dragging a dim trail one unit behind", func(t *testing.T) {
-		p := aged(10.5, 8.3, 0.1, 0.5)
-		p.Vel = particle.Vec2{X: 60, Y: 0}
-		sp := paint(DefaultBlast(), 20, 10, nil, rig(p), nil, nil)
-		head := sp.At(4, 10)
-		if head.Ch != '•' || head.FG != 230 {
-			t.Fatalf("head painted %q fg=%d, want '•' fg=230", head.Ch, head.FG)
-		}
-		trail := sp.At(4, 9)
-		if trail.Ch != '·' || trail.FG != 178 {
-			t.Fatalf("trail painted %q fg=%d, want '·' fg=178", trail.Ch, trail.FG)
-		}
-	})
-	t.Run("unhappy: a newborn pellet shows no trail poking out of the muzzle", func(t *testing.T) {
-		p := aged(10.5, 8.3, 0, 0.5)
-		p.Vel = particle.Vec2{X: 60, Y: 0}
-		sp := paint(DefaultBlast(), 20, 10, nil, rig(p), nil, nil)
-		if got := sp.At(4, 10).Ch; got != '•' {
-			t.Fatalf("the newborn head must still paint, got %q", got)
-		}
-		if !sp.At(4, 9).Transparent() {
-			t.Fatalf("a newborn pellet dragged a trail %q behind the muzzle", sp.At(4, 9).Ch)
-		}
-	})
-}
-
-func TestSparks(t *testing.T) {
-	t.Run("happy: sparks cool yellow, orange, then ember red as they age", func(t *testing.T) {
+func TestFlameRamp(t *testing.T) {
+	t.Run("happy: a flame cell cools yellow, orange, red, ember, maroon as it ages", func(t *testing.T) {
 		for _, tc := range []struct {
 			age, life float64
-			want      rune
 			fg        int
 		}{
-			{0.1, 0.9, '*', 226}, // a tenth in: yellow
-			{1, 1, '+', 208},     // half spent: orange
-			{4, 1, '·', 160},     // nearly out: ember red
+			{0.1, 0.9, 226}, // a tenth burnt: bright yellow
+			{3, 7, 208},     // three tenths: orange
+			{1, 1, 196},     // half burnt: red
+			{7, 3, 160},     // seven tenths: ember
+			{9, 1, 124},     // nearly out: maroon
 		} {
-			sp := paint(DefaultBlast(), 10, 5, nil, nil, rig(aged(3.2, 4.3, tc.age, tc.life)), nil)
+			sp := paint(DefaultBlast(), 10, 5, nil, rig(aged(3.2, 4.3, tc.age, tc.life)))
 			got := sp.At(2, 3)
-			if got.Ch != tc.want || got.FG != tc.fg {
-				t.Fatalf("a spark %v/%v old painted %q fg=%d, want %q fg=%d",
-					tc.age, tc.life, got.Ch, got.FG, tc.want, tc.fg)
+			if got.Ch != '░' || got.FG != tc.fg {
+				t.Fatalf("a flame speck %v/%v burnt painted %q fg=%d, want '░' fg=%d",
+					tc.age, tc.life, got.Ch, got.FG, tc.fg)
 			}
 		}
 	})
-	t.Run("unhappy: specks off the stage are clipped, never a panic", func(t *testing.T) {
-		sp := paint(DefaultBlast(), 4, 2, nil, nil, rig(at(50, 50), at(-1, -1)), nil)
-		for r := 0; r < sp.Height; r++ {
-			for col := 0; col < sp.Width; col++ {
-				if !sp.At(r, col).Transparent() {
-					t.Fatalf("cell (%d,%d) painted from an off-stage spark", r, col)
-				}
-			}
-		}
-	})
-}
-
-func TestSmoke(t *testing.T) {
-	t.Run("happy: thin smoke wears computed braille dots that dim with age", func(t *testing.T) {
+	t.Run("happy: a flame cell thickens with density — shades up to a full block", func(t *testing.T) {
 		for _, tc := range []struct {
-			x, y float64
+			n    int
 			want rune
 		}{
-			{3.1, 4.1, '⠁'}, // top-left dot
-			{3.6, 4.6, '⠐'}, // second row, right column
-			{3.9, 5.9, '⢀'}, // bottom-right dot
+			{1, '░'},
+			{2, '▒'},
+			{3, '▒'},
+			{4, '▓'},
+			{5, '▓'},
+			{6, '█'},
+			{9, '█'},
 		} {
-			sp := paint(DefaultBlast(), 10, 5, nil, nil, nil, rig(at(tc.x, tc.y)))
-			got := sp.At(2, 3)
-			if got.Ch != tc.want || got.FG != 250 {
-				t.Fatalf("young smoke at (%v,%v) painted %q fg=%d, want %q fg=250",
-					tc.x, tc.y, got.Ch, got.FG, tc.want)
+			got := paint(DefaultBlast(), 10, 5, nil, stack(tc.n, 3.2, 4.3)).At(2, 3)
+			if got.Ch != tc.want || got.FG != 226 {
+				t.Fatalf("%d fresh flame specks painted %q fg=%d, want %q fg=226",
+					tc.n, got.Ch, got.FG, tc.want)
 			}
 		}
-		mid := paint(DefaultBlast(), 10, 5, nil, nil, nil, rig(aged(3.1, 4.1, 1, 1))).At(2, 3)
-		if mid.FG != 245 {
-			t.Fatalf("half-spent smoke wears fg=%d, want 245", mid.FG)
-		}
-		old := paint(DefaultBlast(), 10, 5, nil, nil, nil, rig(aged(3.1, 4.1, 8, 1))).At(2, 3)
-		if old.FG != 240 {
-			t.Fatalf("dying smoke wears fg=%d, want 240", old.FG)
+	})
+	t.Run("happy: the freshest speck colors the cell — the hottest wins", func(t *testing.T) {
+		young := aged(3.2, 4.2, 0.1, 0.9)
+		old := aged(3.4, 4.4, 9, 1)
+		got := paint(DefaultBlast(), 10, 5, nil, rig(young, old)).At(2, 3)
+		if got.Ch != '▒' || got.FG != 226 {
+			t.Fatalf("a young and an old speck painted %q fg=%d, want '▒' fg=226", got.Ch, got.FG)
 		}
 	})
-	t.Run("happy: two specks merge dots and three thicken into a shade block", func(t *testing.T) {
-		merged := paint(DefaultBlast(), 10, 5, nil, nil, nil, rig(at(3.1, 4.1), at(3.9, 5.9))).At(2, 3)
-		if merged.Ch != '⢁' {
-			t.Fatalf("two specks merged into %q, want %q", merged.Ch, '⢁')
-		}
-		thick := paint(DefaultBlast(), 10, 5, nil, nil, nil, stack(3, 3.2, 4.3)).At(2, 3)
-		if thick.Ch != '░' || thick.FG != 245 {
-			t.Fatalf("three specks painted %q fg=%d, want '░' fg=245", thick.Ch, thick.FG)
-		}
-	})
-	t.Run("unhappy: dead smoke and nil engines paint nothing", func(t *testing.T) {
-		dead := at(3.1, 4.1)
+	t.Run("unhappy: dead flame specks paint nothing and off-stage specks are clipped", func(t *testing.T) {
+		dead := at(3.2, 4.3)
 		dead.Life = 0
-		sp := paint(DefaultBlast(), 10, 5, nil, nil, nil, rig(dead))
-		if !sp.At(2, 3).Transparent() {
-			t.Fatalf("a dead smoke speck painted %q", sp.At(2, 3).Ch)
-		}
-		sp = paint(DefaultBlast(), 10, 5, nil, nil, nil, nil)
+		sp := paint(DefaultBlast(), 4, 2, nil, rig(dead, at(50, 50), at(-1, -1)))
 		for r := 0; r < sp.Height; r++ {
 			for col := 0; col < sp.Width; col++ {
 				if !sp.At(r, col).Transparent() {
-					t.Fatalf("an all-nil paint marked cell (%d,%d)", r, col)
+					t.Fatalf("cell (%d,%d) painted %q from a dead or off-stage speck", r, col, sp.At(r, col).Ch)
 				}
 			}
 		}
@@ -192,23 +142,22 @@ func TestSmoke(t *testing.T) {
 }
 
 func TestZOrder(t *testing.T) {
-	t.Run("happy: the flash outshines smoke and sparks sharing its cell", func(t *testing.T) {
-		flash := rig(at(3.2, 4.2))
-		sparks := rig(at(3.3, 4.3))
-		smoke := rig(at(3.4, 4.4))
-		got := paint(DefaultBlast(), 10, 5, flash, nil, sparks, smoke).At(2, 3)
+	t.Run("happy: the white-hot core outshines the flame sharing its cell", func(t *testing.T) {
+		core := rig(at(3.2, 4.2))
+		flame := rig(at(3.3, 4.3))
+		got := paint(DefaultBlast(), 10, 5, core, flame).At(2, 3)
 		if got.Ch != '·' || got.FG != 214 {
-			t.Fatalf("the shared cell wears %q fg=%d, want the flash fringe '·' fg=214", got.Ch, got.FG)
+			t.Fatalf("the shared cell wears %q fg=%d, want the core fringe '·' fg=214", got.Ch, got.FG)
 		}
 	})
-	t.Run("unhappy: an empty layer never masks the layers beneath", func(t *testing.T) {
-		smoke := rig(at(3.1, 4.1))
-		got := paint(DefaultBlast(), 10, 5, rig(), rig(), rig(), smoke).At(2, 3)
-		if got.Ch != '⠁' {
-			t.Fatalf("empty upper layers must let the smoke through, got %q", got.Ch)
+	t.Run("unhappy: an empty core never masks the flame beneath", func(t *testing.T) {
+		flame := rig(at(3.1, 4.1))
+		got := paint(DefaultBlast(), 10, 5, rig(), flame).At(2, 3)
+		if got.Ch != '░' || got.FG != 226 {
+			t.Fatalf("an empty core must let the flame through, got %q fg=%d", got.Ch, got.FG)
 		}
-		if sp := paint(DefaultBlast(), 10, 5, rig(), rig(), rig(), rig()); !sp.At(2, 3).Transparent() {
-			t.Fatal("four empty layers must paint nothing")
+		if sp := paint(DefaultBlast(), 10, 5, nil, nil); !sp.At(2, 3).Transparent() {
+			t.Fatal("two empty layers must paint nothing")
 		}
 	})
 }
