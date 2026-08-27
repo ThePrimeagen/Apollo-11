@@ -1,6 +1,8 @@
 package gunfire
 
 import (
+	"errors"
+
 	"github.com/theprimeagen/apollo-11/exec-tui/components/particle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
@@ -12,14 +14,18 @@ import (
 // trigger — the core and every heading's flame burst now, the way
 // the flame tuner plays all eight courses at once, and the fuse to
 // Doom's second flash frame is lit against the whole rose; Update
-// flies every direction and re-reads the active blast each frame so
-// an in-process tuner retunes it live; Render paints the whole burn
+// flies every direction and re-reads its tune each frame so an
+// in-process tuner retunes it live; Render paints the whole burn
 // onto one stage-sized sprite; Done reports a blast with nothing
-// left burning anywhere. A fresh Start rises idle.
+// left burning anywhere. A fresh Start rises idle. A blast follows
+// the package-wide active blast until Use pins it to its own tune —
+// then this blast burns that tune alone, so one gun's shot never
+// retunes another's.
 type Blast struct {
 	Core   *particle.Engine
 	Flames [8]*particle.Engine // one per compass point, sprite.Headings order
 
+	cfg   *BlastConfig // the pinned tune; nil follows the package active
 	seed  int64
 	w, h  int
 	fired bool
@@ -32,6 +38,31 @@ type Blast struct {
 // Start.
 func NewBlast(seed int64) *Blast {
 	return &Blast{seed: seed}
+}
+
+// Use pins this blast to its own tune: Start, the triggers, Update
+// and Render read c instead of the package-wide active blast, so one
+// gun's shot never retunes another's. A bad tune is rejected and the
+// blast keeps what it had; a nil blast refuses quietly.
+func (b *Blast) Use(c BlastConfig) error {
+	if b == nil {
+		return errors.New("gunfire: no blast to tune")
+	}
+	if err := c.Validate(); err != nil {
+		return err
+	}
+	b.cfg = &c
+	return nil
+}
+
+// Config is the tune this blast burns: the pinned one, or the
+// package-wide active blast when nothing is pinned. Nil blasts hand
+// back the package active too.
+func (b *Blast) Config() BlastConfig {
+	if b == nil || b.cfg == nil {
+		return ActiveBlast()
+	}
+	return *b.cfg
 }
 
 // headingIndex is h's slot in sprite.Headings, or -1 off the compass.
@@ -65,7 +96,7 @@ func (b *Blast) Start(w, h int) {
 	}
 	b.w, b.h = w, h
 	uw, uh := b.units()
-	core, flames := ActiveBlast().Engines(uw, uh)
+	core, flames := b.Config().Engines(uw, uh)
 	b.Core = particle.New(b.seed, core)
 	for i := range flames {
 		b.Flames[i] = particle.New(b.seed+1+int64(i), flames[i])
@@ -83,7 +114,7 @@ func (b *Blast) sync() {
 		return
 	}
 	uw, uh := b.units()
-	core, flames := ActiveBlast().Engines(uw, uh)
+	core, flames := b.Config().Engines(uw, uh)
 	b.Core.Cfg = core
 	for i := range b.Flames {
 		if b.Flames[i] != nil {
@@ -104,7 +135,7 @@ func (b *Blast) Fire() bool {
 		return false
 	}
 	b.sync()
-	c := ActiveBlast()
+	c := b.Config()
 	b.aimed = -1
 	b.Core.Burst()
 	for i := range b.Flames {
@@ -120,8 +151,8 @@ func (b *Blast) Fire() bool {
 }
 
 // FireAt is the shotgun trigger: the core and only heading h's flame
-// burst now, using that heading's shot from the active config. Headings
-// off the compass and a blast with no stage are refused.
+// burst now, using that heading's shot from this blast's tune.
+// Headings off the compass and a blast with no stage are refused.
 func (b *Blast) FireAt(h sprite.Heading) bool {
 	if b == nil || b.Core == nil {
 		return false
@@ -131,7 +162,7 @@ func (b *Blast) FireAt(h sprite.Heading) bool {
 		return false
 	}
 	b.sync()
-	c := ActiveBlast()
+	c := b.Config()
 	b.aimed = i
 	b.Core.Burst()
 	if b.Flames[i] != nil {
@@ -166,7 +197,7 @@ func (b *Blast) pulse(frac float64) {
 	}
 }
 
-// Update pulls the active blast onto every engine, burns the whole
+// Update pulls this blast's tune onto every engine, burns the whole
 // compass dt seconds, and burns the fuse — when it runs out, the
 // second frame pulses once against every heading. dt <= 0 holds
 // everything, fuse included.
@@ -175,7 +206,7 @@ func (b *Blast) Update(dt float64) {
 		return
 	}
 	uw, uh := b.units()
-	core, flames := ActiveBlast().Engines(uw, uh)
+	core, flames := b.Config().Engines(uw, uh)
 	b.Core.Cfg = core
 	b.Core.Update(dt)
 	for i := range b.Flames {
@@ -186,7 +217,7 @@ func (b *Blast) Update(dt float64) {
 		b.fuse -= dt
 		if b.fuse <= 0 {
 			b.armed = false
-			b.pulse(ActiveBlast().PulseFrac)
+			b.pulse(b.Config().PulseFrac)
 		}
 	}
 }
@@ -216,7 +247,7 @@ func (b *Blast) Render() sprite.Sprite {
 	if b == nil || b.Core == nil || b.w < 1 || b.h < 1 {
 		return sprite.Sprite{}
 	}
-	return paint(ActiveBlast(), b.w, b.h, b.Core, b.Flames[:])
+	return paint(b.Config(), b.w, b.h, b.Core, b.Flames[:])
 }
 
 // Stop drops every engine; a fresh Start rebuilds them idle.

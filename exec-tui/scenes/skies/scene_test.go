@@ -108,12 +108,21 @@ func leftmost(cells [][2]int) int {
 	return l
 }
 
+// gunCells collects the cells wearing the shotgun's own inks — the
+// metals and furniture nothing else on this stage wears: the receiver
+// steel 245, the magazine-tube steel 243 that runs the gun's whole
+// length, the guard steel 240, the pump wood 130, and the two brass
+// masses 178. The eagle owns 94/58/238/250, the clouds 250-255, the
+// sky its blues; the gun's brass alone no longer spans the weapon —
+// it is two tight 2x2 masses by design — so the detector reads the
+// full metal signature instead.
 func gunCells(scr *screenplay.Screen) [][2]int {
+	gun := map[int]bool{130: true, 178: true, 240: true, 243: true, 245: true}
 	var out [][2]int
 	for y := 0; y < stageH; y++ {
 		for x := 0; x < stageW; x++ {
 			fg, bg := inkAt(scr, x, y)
-			if fg == 178 || bg == 178 {
+			if gun[fg] || gun[bg] {
 				out = append(out, [2]int{y, x})
 			}
 		}
@@ -484,9 +493,14 @@ func TestSkiesArmedEagle(t *testing.T) {
 		if len(north) == 0 {
 			t.Fatal("re-aiming the mounted gun must still paint it")
 		}
+		// The stock wears eagle-shared wood and the bright barrel
+		// cloud-shared steel, so the detected metals cannot span the
+		// gun's full stock-to-muzzle length; the turn still has to
+		// show: aimed north, the gun stands taller and narrower than
+		// the same gun aimed east.
 		nw, nh := bbox(north)
-		if nh <= nw {
-			t.Fatalf("a north left gun should read taller than wide, got %dx%d", nw, nh)
+		if nh <= eh || nw >= ew {
+			t.Fatalf("a north left gun must stand taller and narrower than east: N %dx%d vs E %dx%d", nw, nh, ew, eh)
 		}
 		sc.Stop()
 		cfg.LeftOn = false

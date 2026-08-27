@@ -2,12 +2,19 @@
 // stock-and-barrel sprite on the eight-point compass the gunfire blast
 // already speaks. The art is one 2D side-on asset — the east stock
 // shot — spun in the plane of the screen around the Y-axis coming out
-// of it. Start builds every heading for a w×h stage and arms the
-// shipped gunfire config; Aim points the barrel; Fire pulls the
-// trigger so the muzzle flame leaps from this heading's barrel tip
-// along that heading only; Update burns the blast; Render paints the
-// aimed gun with whatever flame is still in the air. A fresh Start
-// rises idle, aimed east — the Doom side-on stock shot.
+// of it, in square-pixel space so the gun keeps its on-screen length
+// whichever way it points. The gun always faces up: the left half of
+// the compass (W, NW, SW) mirrors the right half (E, NE, SE) instead
+// of spinning past vertical, so the sights never face the floor.
+// Start builds every heading for a w×h stage and pins the shipped
+// gunfire config onto this gun's own blast; Aim points the barrel;
+// Fire pulls the trigger once — one shot from this gun's barrel tip
+// along its heading only, on its own blast, never the package-wide
+// active blast — and FireFrom is the same trigger for a gun a scene
+// mounts anywhere. Nothing fires on its own clock: the caller decides
+// exactly how often a shotgun fires. Update burns the blast; Render
+// paints the aimed gun with whatever flame is still in the air. A
+// fresh Start rises idle, aimed east — the Doom side-on stock shot.
 package shotgun
 
 import (
@@ -81,7 +88,9 @@ func (g *Gun) Step(delta int) sprite.Heading {
 	return g.heading
 }
 
-// Start builds every heading and a quiet blast for a w×h stage.
+// Start builds every heading and a quiet blast for a w×h stage. The
+// shipped gunfire config is pinned onto this gun's own blast — the
+// package-wide active blast belongs to the tuner and is left alone.
 func (g *Gun) Start(w, h int) {
 	if g == nil {
 		return
@@ -98,10 +107,10 @@ func (g *Gun) Start(w, h int) {
 			g.frames[heading] = sp
 		}
 	}
-	if c, err := gunfire.LoadBlast(gunfire.FindConfig()); err == nil {
-		_ = gunfire.UseBlast(c)
-	}
 	g.Blast = gunfire.NewBlast(g.seed)
+	if c, err := gunfire.LoadBlast(gunfire.FindConfig()); err == nil {
+		_ = g.Blast.Use(c)
+	}
 	g.Blast.Start(w, h)
 }
 
@@ -113,32 +122,54 @@ func (g *Gun) Update(dt float64) {
 	g.Blast.Update(dt)
 }
 
-// Fire pulls the trigger: the active blast is aimed along this gun's
-// heading, the muzzle sits on the barrel tip, and the flame bursts.
-// The trigger needs a stage — before Start it is refused.
+// Fire pulls the trigger once: one shot from this gun's own blast,
+// aimed along its heading, the muzzle on the barrel tip of the gun as
+// Render paints it — centered on the stage. Nothing fires on its own
+// clock and the package-wide active blast is never touched, so the
+// caller decides exactly how often a shotgun fires. The trigger needs
+// a stage — before Start it is refused.
 func (g *Gun) Fire() bool {
-	if g == nil || g.Blast == nil || g.frames == nil {
+	if g == nil || g.frames == nil {
+		return false
+	}
+	body := g.frames[g.heading]
+	return g.FireFrom((g.w-body.Width)/2, (g.h-body.Height)/2)
+}
+
+// FireFrom pulls the trigger once for a mounted gun: the scene has
+// blitted this gun's frame with its top-left at stage cell (left,
+// top), and one shot bursts from that mount's barrel tip on this
+// gun's own blast. A barrel poking off the stage fires from the edge.
+// The trigger needs a stage — before Start it is refused.
+func (g *Gun) FireFrom(left, top int) bool {
+	if g == nil || g.Blast == nil || g.frames == nil || g.w < 1 || g.h < 1 {
 		return false
 	}
 	body := g.frames[g.heading]
 	if body.Width < 1 || body.Height < 1 {
 		return false
 	}
-	c := gunfire.ActiveBlast()
+	c := g.Blast.Config()
 	c.Heading = g.heading
 	mx, my := Muzzle(body, g.heading)
-	left := (g.w - body.Width) / 2
-	top := (g.h - body.Height) / 2
-	if g.w > 0 {
-		c.MuzzleX = (float64(left+mx) + 0.5) / float64(g.w)
-	}
-	if g.h > 0 {
-		c.MuzzleY = (float64(top+my) + 0.5) / float64(g.h)
-	}
-	if err := gunfire.UseBlast(c); err != nil {
+	c.MuzzleX = clampFrac((float64(left+mx) + 0.5) / float64(g.w))
+	c.MuzzleY = clampFrac((float64(top+my) + 0.5) / float64(g.h))
+	if err := g.Blast.Use(c); err != nil {
 		return false
 	}
 	return g.Blast.FireAt(g.heading)
+}
+
+// clampFrac pins a stage fraction inside 0..1 — a barrel poking off
+// the stage still fires from the edge.
+func clampFrac(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
 
 // Muzzle is the barrel tip of a gun sprite aimed along h: the opaque

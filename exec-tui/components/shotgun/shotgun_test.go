@@ -4,18 +4,29 @@ package shotgun
 // component, aimed on the same eight-point compass the gunfire blast
 // already speaks. It is one 2D side-on asset — the east stock shot —
 // spun in the plane of the screen around the Y-axis coming out of it
-// (east 0°, then counterclockwise: NE 45°, N 90°, …). That is not a
-// 3D rotation: there is no separate rear/top/three-quarter drawing,
-// and W is not FlipH(E). Start builds every heading for a w×h stage;
-// Aim points the barrel; Fire pulls the trigger so the muzzle flame
-// leaps from this heading's barrel tip using the shipped gunfire
-// config (components/gunfire/config.json) for that heading only —
-// never the whole eight-way rose. Update burns the blast; Render
-// paints the aimed gun with whatever flame is still in the air.
-// Before Start and after Stop the stage is empty; a heading off the
-// compass is refused; the trigger needs a stage.
+// (east 0°, then counterclockwise: NE 45°, N 90°, …). The spin
+// happens in square-pixel space — a terminal cell is two stacked
+// square pixels — so the gun is the same length on screen whichever
+// way it points: upright is never twice as long as side-on. And the
+// gun always faces up: the left half of the compass (W, NW, SW) is
+// the right half (E, NE, SE) mirrored left-right, never a spin past
+// vertical that would hang the sights toward the floor. Start builds
+// every heading for a w×h stage; Aim points the barrel; Fire pulls
+// the trigger so the muzzle flame leaps from this heading's barrel
+// tip using the shipped gunfire config
+// (components/gunfire/config.json) for that heading only — never the
+// whole eight-way rose. The firing is tied to this gun: Start pins
+// the shipped config onto the gun's own blast, and Fire (or FireFrom,
+// for a gun a scene mounts anywhere) is one shot per call on that
+// blast alone — the package-wide active blast belongs to the tuner
+// and is never touched, and nothing ever fires on its own clock, so
+// the caller controls exactly how often a shotgun fires. Update burns
+// the blast; Render paints the aimed gun with whatever flame is still
+// in the air. Before Start and after Stop the stage is empty; a
+// heading off the compass is refused; the trigger needs a stage.
 
 import (
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -78,6 +89,116 @@ func sameSprite(a, b sprite.Sprite) bool {
 	for r := 0; r < a.Height; r++ {
 		for c := 0; c < a.Width; c++ {
 			if a.At(r, c) != b.At(r, c) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// cellPixels reads one half-block cell as its two stacked square
+// pixels — the colors the terminal actually shows, top then bottom.
+func cellPixels(c sprite.Cell) (top, bot int) {
+	if c.Transparent() {
+		return -1, -1
+	}
+	switch c.Ch {
+	case '▀':
+		return c.FG, c.BG
+	case '▄':
+		return c.BG, c.FG
+	}
+	return c.FG, c.FG
+}
+
+// visualLength is the gun's on-screen span in square-pixel units —
+// the distance from the muzzle to the opaque cell farthest from it,
+// with a cell one unit wide and two units tall. An empty sprite has
+// no length.
+func visualLength(sp sprite.Sprite, h sprite.Heading) float64 {
+	mx, my := Muzzle(sp, h)
+	best := 0.0
+	found := false
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			if sp.At(r, c).Transparent() {
+				continue
+			}
+			found = true
+			if d := math.Hypot(float64(c-mx), 2*float64(r-my)); d > best {
+				best = d
+			}
+		}
+	}
+	if !found {
+		return 0
+	}
+	return best
+}
+
+// goldColor is the brass palette entry the bead and the trigger wear.
+const goldColor = 178
+
+// framePixels expands a frame into its square-pixel colors, two rows
+// per cell, -1 for empty sky.
+func framePixels(sp sprite.Sprite) [][]int {
+	px := make([][]int, sp.Height*2)
+	for r := range px {
+		px[r] = make([]int, sp.Width)
+		for c := range px[r] {
+			px[r][c] = -1
+		}
+	}
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			top, bot := cellPixels(sp.At(r, c))
+			px[2*r][c] = top
+			px[2*r+1][c] = bot
+		}
+	}
+	return px
+}
+
+// goldCount is how many square pixels of brass a frame shows.
+func goldCount(sp sprite.Sprite) int {
+	n := 0
+	for _, row := range framePixels(sp) {
+		for _, col := range row {
+			if col == goldColor {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// touchesGold reports whether the gold pixel at (r,c) has a gold
+// 4-neighbour — brass travels in masses, never crumbs.
+func touchesGold(px [][]int, r, c int) bool {
+	for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+		rr, cc := r+d[0], c+d[1]
+		if rr < 0 || rr >= len(px) || cc < 0 || cc >= len(px[rr]) {
+			continue
+		}
+		if px[rr][cc] == goldColor {
+			return true
+		}
+	}
+	return false
+}
+
+// samePicture compares two frames the way the screen shows them: cell
+// by cell as stacked square pixels, so a ▀ and a ▄ that paint the
+// same two colors are equal even when the cell structs differ.
+func samePicture(a, b sprite.Sprite) bool {
+	if a.Width != b.Width || a.Height != b.Height {
+		return false
+	}
+	for r := 0; r < a.Height; r++ {
+		for c := 0; c < a.Width; c++ {
+			at, ab := cellPixels(a.At(r, c))
+			bt, bb := cellPixels(b.At(r, c))
+			if at != bt || ab != bb {
 				return false
 			}
 		}
@@ -217,7 +338,7 @@ func TestRotateGrid(t *testing.T) {
 }
 
 func TestEightDirections(t *testing.T) {
-	t.Run("happy: the eight compass frames are the same 2D gun spun in the screen plane", func(t *testing.T) {
+	t.Run("happy: the gun always faces up — W, NW and SW mirror E, NE and SE left-right", func(t *testing.T) {
 		g := New()
 		g.Start(stageW, stageH)
 		seen := map[string]sprite.Heading{}
@@ -229,18 +350,29 @@ func TestEightDirections(t *testing.T) {
 			}
 			seen[key] = h
 		}
-		east := g.Frame(sprite.E)
-		if sameSprite(g.Frame(sprite.W), sprite.FlipH(east)) {
-			t.Fatal("W must not be FlipH(E) — that is a 3D card-flip, not an in-plane spin")
+		mirrors := []struct{ left, right sprite.Heading }{
+			{sprite.W, sprite.E},
+			{sprite.NW, sprite.NE},
+			{sprite.SW, sprite.SE},
 		}
-		if !sameSprite(g.Frame(sprite.W), sprite.FlipH(sprite.FlipV(east))) {
-			t.Fatal("W must be E spun 180° around the axis coming out of the screen (FlipH+FlipV)")
+		for _, m := range mirrors {
+			if !samePicture(g.Frame(m.left), sprite.FlipH(g.Frame(m.right))) {
+				t.Fatalf("%s must be FlipH(%s) so the sights stay up on the left half of the compass", m.left, m.right)
+			}
 		}
-		if !sameSprite(g.Frame(sprite.S), sprite.FlipH(sprite.FlipV(g.Frame(sprite.N)))) {
+		if !samePicture(g.Frame(sprite.S), sprite.FlipH(sprite.FlipV(g.Frame(sprite.N)))) {
 			t.Fatal("S must be N spun 180° around the axis coming out of the screen")
 		}
 	})
-	t.Run("happy: an east barrel is a long side-on gun, north is that same gun stood on its stock", func(t *testing.T) {
+	t.Run("unhappy: W is never the 180° spin — that would hang the gun upside down", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		east := g.Frame(sprite.E)
+		if samePicture(g.Frame(sprite.W), sprite.FlipH(sprite.FlipV(east))) {
+			t.Fatal("W must not be E spun 180° (FlipH+FlipV) — the sights would face the floor")
+		}
+	})
+	t.Run("happy: on screen the upright gun matches the side-on gun — a cell is two square pixels tall", func(t *testing.T) {
 		g := New()
 		g.Start(stageW, stageH)
 		minC, minR, maxC, maxR, n := bounds(g.Frame(sprite.E))
@@ -251,18 +383,71 @@ func TestEightDirections(t *testing.T) {
 		if ew <= eh {
 			t.Fatalf("east shotgun should be wider than tall, got %dx%d", ew, eh)
 		}
-		minC, minR, maxC, maxR, n = bounds(g.Frame(sprite.N))
-		if n == 0 {
-			t.Fatal("north gun is empty")
+		// Visual units: a cell is one unit wide and two units tall.
+		eLen, eThick := ew, 2*eh
+		for _, h := range []sprite.Heading{sprite.N, sprite.S} {
+			minC, minR, maxC, maxR, n = bounds(g.Frame(h))
+			if n == 0 {
+				t.Fatalf("%s gun is empty", h)
+			}
+			w, cells := maxC-minC+1, maxR-minR+1
+			if cells <= w {
+				t.Fatalf("%s shotgun should be taller than wide, got %dx%d", h, w, cells)
+			}
+			vLen, vThick := 2*cells, w
+			if diff := vLen - eLen; diff < -3 || diff > 3 {
+				t.Fatalf("%s gun runs %d units on screen, east runs %d — an upright gun must not stretch", h, vLen, eLen)
+			}
+			if diff := vThick - eThick; diff < -3 || diff > 3 {
+				t.Fatalf("%s gun is %d units thick on screen, east is %d", h, vThick, eThick)
+			}
 		}
-		nw, nh := maxC-minC+1, maxR-minR+1
-		if nh <= nw {
-			t.Fatalf("north shotgun should be taller than wide, got %dx%d", nw, nh)
+	})
+	t.Run("happy: every heading keeps the gun's on-screen length, muzzle to stock butt", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		east := visualLength(g.Frame(sprite.E), sprite.E)
+		if east <= 0 {
+			t.Fatal("east gun is empty")
 		}
-		// Same 2D pixels: a 90° spin swaps the bounding box, it does
-		// not redraw a skinny 3D rear view.
-		if nw > ew {
-			t.Fatalf("north must be east stood up, not a wider 3D drawing: N %dx%d vs E %dx%d", nw, nh, ew, eh)
+		for _, h := range sprite.Headings {
+			got := visualLength(g.Frame(h), h)
+			if got <= 0 {
+				t.Fatalf("%s gun is empty", h)
+			}
+			if diff := got - east; diff < -4 || diff > 4 {
+				t.Fatalf("%s gun runs %.1f units muzzle to stock on screen, east runs %.1f — the gun must not stretch when it turns", h, got, east)
+			}
+		}
+	})
+	t.Run("happy: every heading carries the cardinal gold mass — the bead and trigger never flicker", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		want := goldCount(g.Frame(sprite.E))
+		if want < 4 {
+			t.Fatalf("east gun carries %d gold pixels — the bead and the trigger must both be drawn", want)
+		}
+		for _, h := range sprite.Headings {
+			if got := goldCount(g.Frame(h)); got != want {
+				t.Fatalf("%s carries %d gold pixels, east carries %d — a rotating gun must not flicker its brass", h, got, want)
+			}
+		}
+	})
+	t.Run("unhappy: no heading strands an orphan gold speck", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		for _, h := range sprite.Headings {
+			px := framePixels(g.Frame(h))
+			for r := range px {
+				for c := range px[r] {
+					if px[r][c] != goldColor {
+						continue
+					}
+					if !touchesGold(px, r, c) {
+						t.Fatalf("%s has a lone gold speck at pixel (%d,%d) — brass travels in masses, never crumbs", h, r, c)
+					}
+				}
+			}
 		}
 	})
 	t.Run("unhappy: a heading off the compass has no frame", func(t *testing.T) {
@@ -365,7 +550,7 @@ func TestFire(t *testing.T) {
 			t.Fatalf("a fired gun must still paint the shotgun, got %d cells", n)
 		}
 	})
-	t.Run("happy: Start loads components/gunfire/config.json so a prior UseBlast does not stick", func(t *testing.T) {
+	t.Run("happy: Start arms this gun with the shipped config and leaves the tuner's active blast alone", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		weird := gunfire.DefaultBlast()
 		shot := weird.ShotAt(sprite.E)
@@ -383,11 +568,77 @@ func TestFire(t *testing.T) {
 		if !strings.HasSuffix(filepath.ToSlash(gunfire.FindConfig()), "components/gunfire/config.json") {
 			t.Fatalf("FindConfig = %q, want …/components/gunfire/config.json", gunfire.FindConfig())
 		}
-		if gunfire.ActiveBlast().ShotAt(sprite.E).Count != shipped.ShotAt(sprite.E).Count {
-			t.Fatalf("Start must arm the shipped gunfire config, E count %d want %d", gunfire.ActiveBlast().ShotAt(sprite.E).Count, shipped.ShotAt(sprite.E).Count)
+		if got := g.Blast.Config().ShotAt(sprite.E).Count; got != shipped.ShotAt(sprite.E).Count {
+			t.Fatalf("this gun's blast counts %d on E, want the shipped %d — a prior UseBlast must not stick to the gun", got, shipped.ShotAt(sprite.E).Count)
 		}
-		if gunfire.ActiveBlast().ShotAt(sprite.E).Count == 7 {
-			t.Fatal("Start must not leave a prior 7-count UseBlast in effect")
+		if got := gunfire.ActiveBlast().ShotAt(sprite.E).Count; got != 7 {
+			t.Fatalf("the package active blast counts %d on E after Start, want the tuner's 7 — arming a gun must not retune the world", got)
+		}
+	})
+	t.Run("happy: Fire is one shot from this gun alone — the package active blast is never touched", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		before := gunfire.ActiveBlast()
+		g := New()
+		g.Start(stageW, stageH)
+		_ = g.Aim(sprite.NE)
+		if !g.Fire() {
+			t.Fatal("Fire after Start must pull the trigger")
+		}
+		if gunfire.ActiveBlast() != before {
+			t.Fatal("Fire must burn this gun's own blast, not retune the package active")
+		}
+		body := g.Frame(sprite.NE)
+		mx, my := Muzzle(body, sprite.NE)
+		left := (stageW - body.Width) / 2
+		top := (stageH - body.Height) / 2
+		c := g.Blast.Config()
+		if c.Heading != sprite.NE {
+			t.Fatalf("the gun's own blast aims %q, want NE", c.Heading)
+		}
+		wantX := (float64(left+mx) + 0.5) / float64(stageW)
+		wantY := (float64(top+my) + 0.5) / float64(stageH)
+		if math.Abs(c.MuzzleX-wantX) > 1e-9 || math.Abs(c.MuzzleY-wantY) > 1e-9 {
+			t.Fatalf("the gun's own muzzle is (%v,%v), want the barrel tip (%v,%v)", c.MuzzleX, c.MuzzleY, wantX, wantY)
+		}
+	})
+	t.Run("happy: one Fire is one shot — it burns out and stays out until the next trigger", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		g := New()
+		g.Start(stageW, stageH)
+		if !g.Fire() {
+			t.Fatal("Fire after Start must pull the trigger")
+		}
+		for i := 0; i < 150; i++ { // five seconds: past every life and the pulse fuse
+			g.Update(1.0 / 30)
+		}
+		if n := liveBlast(g); n != 0 {
+			t.Fatalf("one shot must burn out, %d particles still in the air", n)
+		}
+		for i := 0; i < 30; i++ {
+			g.Update(1.0 / 30)
+		}
+		if n := liveBlast(g); n != 0 {
+			t.Fatalf("a spent gun re-fired on its own: %d particles — cadence belongs to the caller", n)
+		}
+		if !g.Fire() {
+			t.Fatal("the next trigger must fire the next shot")
+		}
+		if liveBlast(g) == 0 {
+			t.Fatal("the next shot must put flame back in the air")
+		}
+	})
+	t.Run("unhappy: Update alone never pulls the trigger", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		g := New()
+		g.Start(stageW, stageH)
+		for i := 0; i < 90; i++ {
+			g.Update(1.0 / 30)
+		}
+		if n := liveBlast(g); n != 0 {
+			t.Fatalf("three untriggered seconds spawned %d particles", n)
 		}
 	})
 	t.Run("unhappy: the trigger needs a stage — Fire before Start is refused", func(t *testing.T) {
@@ -399,6 +650,74 @@ func TestFire(t *testing.T) {
 		g.Update(1.0 / 30)
 		if liveBlast(g) != 0 {
 			t.Fatalf("a pre-Start trigger must not fire later, found %d particles", liveBlast(g))
+		}
+	})
+}
+
+// TestFireFrom: the trigger for a mounted gun. A scene blits the gun
+// anywhere; FireFrom throws one shot from that mount's barrel tip on
+// this gun's own blast. One call is one shot — cadence belongs to the
+// caller — and no trigger ever touches the package active blast, so
+// two mounted guns never clobber each other.
+func TestFireFrom(t *testing.T) {
+	t.Run("happy: FireFrom fires one shot from the mounted barrel tip, and two guns never clobber each other", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		shipped, err := gunfire.LoadBlast(gunfire.FindConfig())
+		if err != nil {
+			t.Fatalf("the shotgun must use the shipped gunfire config: %v", err)
+		}
+		a := New()
+		a.Start(stageW, stageH)
+		_ = a.Aim(sprite.NE)
+		b := New()
+		b.Start(stageW, stageH)
+		_ = b.Aim(sprite.SW)
+		if !a.FireFrom(2, 3) {
+			t.Fatal("FireFrom must pull the trigger on a started gun")
+		}
+		if !b.FireFrom(30, 9) {
+			t.Fatal("FireFrom must pull the trigger on the second gun")
+		}
+		if got := len(a.Blast.FlameAt(sprite.NE).Particles); got != shipped.ShotAt(sprite.NE).Count {
+			t.Fatalf("gun A burst %d on NE, want the shipped %d", got, shipped.ShotAt(sprite.NE).Count)
+		}
+		if got := len(b.Blast.FlameAt(sprite.SW).Particles); got != shipped.ShotAt(sprite.SW).Count {
+			t.Fatalf("gun B burst %d on SW, want the shipped %d", got, shipped.ShotAt(sprite.SW).Count)
+		}
+		if n := len(a.Blast.FlameAt(sprite.SW).Particles); n != 0 {
+			t.Fatalf("gun B's trigger leaked %d particles into gun A", n)
+		}
+		ca, cb := a.Blast.Config(), b.Blast.Config()
+		if ca.Heading != sprite.NE || cb.Heading != sprite.SW {
+			t.Fatalf("each gun keeps its own aim, got A %q B %q", ca.Heading, cb.Heading)
+		}
+		bodyA := a.Frame(sprite.NE)
+		mxA, myA := Muzzle(bodyA, sprite.NE)
+		wantX := (float64(2+mxA) + 0.5) / float64(stageW)
+		wantY := (float64(3+myA) + 0.5) / float64(stageH)
+		if math.Abs(ca.MuzzleX-wantX) > 1e-9 || math.Abs(ca.MuzzleY-wantY) > 1e-9 {
+			t.Fatalf("gun A's muzzle is (%v,%v), want its own mount's (%v,%v) — gun B must not drag it around", ca.MuzzleX, ca.MuzzleY, wantX, wantY)
+		}
+	})
+	t.Run("unhappy: a mount off the stage still fires from the edge, and an unstarted or nil gun is refused", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		g := New()
+		if g.FireFrom(0, 0) {
+			t.Fatal("FireFrom before Start must be refused")
+		}
+		g.Start(stageW, stageH)
+		if !g.FireFrom(-200, -200) {
+			t.Fatal("a barrel poking off the stage still fires — from the edge")
+		}
+		c := g.Blast.Config()
+		if c.MuzzleX != 0 || c.MuzzleY != 0 {
+			t.Fatalf("a far off-stage mount fires from the stage edge (0,0), got (%v,%v)", c.MuzzleX, c.MuzzleY)
+		}
+		var ng *Gun
+		if ng.FireFrom(1, 1) {
+			t.Fatal("a nil gun must refuse the trigger")
 		}
 	})
 }
