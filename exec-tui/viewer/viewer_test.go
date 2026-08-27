@@ -19,6 +19,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustarmed"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustcloud"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustdust"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
@@ -84,6 +85,7 @@ func TestCatalog(t *testing.T) {
 			"flag":       KindComponent,
 			"transition": KindComponent,
 			"eagle":      KindComponent,
+			"armed":      KindComponent,
 			"moon":       KindComponent,
 			"dsky":       KindComponent,
 			"title":      KindComponent,
@@ -338,6 +340,7 @@ func TestEdit(t *testing.T) {
 		}{
 			{"sky", adjustsky.DefaultConfigPath, "./cmd/adjustsky/main"},
 			{"cloud", adjustcloud.DefaultConfigPath, "./cmd/adjustcloud/main"},
+			{"armed", adjustarmed.DefaultConfigPath, "./cmd/adjustarmed/main"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindComponent, tc.id)), 80, 24)

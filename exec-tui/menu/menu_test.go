@@ -409,7 +409,7 @@ func TestCatalog(t *testing.T) {
 		want := []string{
 			"screenplay", "moon", "closeup",
 			"viewer", "landing", "america", "moonwalk", "skies",
-			"flame", "stars-config", "sky-config", "editor",
+			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config",
 			"legacy", "timeline",
 			"agctop", "agcgraph",
@@ -436,6 +436,7 @@ func TestCatalog(t *testing.T) {
 			"flame":          "CONFIG",
 			"stars-config":   "CONFIG",
 			"sky-config":     "CONFIG",
+			"armed-config":   "CONFIG",
 			"editor":         "CONFIG",
 			"particle":       "Particles",
 			"dust-config":    "Particles",
@@ -491,7 +492,7 @@ func TestCatalog(t *testing.T) {
 		if seen != 1 {
 			t.Fatalf("the component viewer must be listed exactly once, saw %d", seen)
 		}
-		for _, id := range []string{"shotgun", "stars", "sky", "cloud", "flag", "eagle", "lander"} {
+		for _, id := range []string{"shotgun", "stars", "sky", "cloud", "flag", "eagle", "armed", "lander"} {
 			for _, e := range c {
 				if e.ID == id {
 					t.Fatalf("component %q must live inside the viewer, not as its own runner entry", id)

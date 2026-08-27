@@ -53,6 +53,7 @@ func Catalog() []Entry {
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "sky-config", Section: "CONFIG", Title: "SKY CONFIG", Desc: "tune the blue sky gradient — angle, light ink, dark ink", Pkg: "./cmd/adjustsky/main"},
+		{ID: "armed-config", Section: "CONFIG", Title: "ARMED EAGLE", Desc: "tune the composite eagle — flight path plus talon shotgun count, rate, and aim", Pkg: "./cmd/adjustarmed/main"},
 		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish ASCII editor over the assets/ folder (C-p files, C-e glyphs)"},
 		{ID: "particle", Section: "Particles", Title: "PARTICLE CONFIG", Desc: "tune the nyan rainbow trail (bands, life, spawn)", Pkg: "./cmd/adjustparticle/main"},
 		{ID: "dust-config", Section: "Particles", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},

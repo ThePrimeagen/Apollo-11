@@ -34,8 +34,8 @@ func TestConfig(t *testing.T) {
 		if c.LeftAim != sprite.W || c.RightAim != sprite.E {
 			t.Fatalf("aims %s/%s, want W/E", c.LeftAim, c.RightAim)
 		}
-		if KnobCount != 11 {
-			t.Fatalf("KnobCount %d, want 11", KnobCount)
+		if KnobCount != 10 {
+			t.Fatalf("KnobCount %d, want 10", KnobCount)
 		}
 	})
 	t.Run("happy: Display and labels cover every knob", func(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustarmed"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustcloud"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustdust"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
@@ -91,6 +92,13 @@ func launchParticle(program, path string, opts []tea.ProgramOption) error {
 		return err
 	case "./cmd/adjustcloud/main":
 		m, err := adjustcloud.Open(path, 0)
+		if err != nil {
+			return err
+		}
+		_, err = termreset.Run(m, opts...)
+		return err
+	case "./cmd/adjustarmed/main":
+		m, err := adjustarmed.Open(path, 0)
 		if err != nil {
 			return err
 		}

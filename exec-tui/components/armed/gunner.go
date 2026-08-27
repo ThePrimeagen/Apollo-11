@@ -1,4 +1,4 @@
-package skies
+package armed
 
 import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
@@ -7,24 +7,25 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
-// gunner is one talon's armament: a shotgun painted on the claw,
-// riding the eagle, firing after the bird is on stage at `rate`
-// shots per second until `shots` shells are spent. The first shell
-// waits one interval so the eagle flies in, then shoots.
+// gunner is one talon's armament inside the composite: a shotgun
+// painted on the claw, riding the eagle. Rate > 0 fires after the
+// bird is on stage at that shots/sec (first shell waits one
+// interval). Rate == 0 spaces shells evenly along the flight.
 type gunner struct {
 	bird  *eagle.Eagle
 	gun   *shotgun.Gun
 	aim   sprite.Heading
 	shots int
 	rate  float64
+	even  bool
 	talon [2]int
 	fired int
 	air   float64
 	w, h  int
 }
 
-func newGunner(bird *eagle.Eagle, talon [2]int, h sprite.Heading, shots int, rate float64) *gunner {
-	return &gunner{bird: bird, gun: shotgun.New(), aim: h, shots: shots, rate: rate, talon: talon}
+func newGunner(bird *eagle.Eagle, talon [2]int, h sprite.Heading, shots int, rate float64, even bool) *gunner {
+	return &gunner{bird: bird, gun: shotgun.New(), aim: h, shots: shots, rate: rate, even: even, talon: talon}
 }
 
 func (g *gunner) Start(w, h int) {
@@ -50,11 +51,21 @@ func (g *gunner) Update(dt float64) {
 		return
 	}
 	g.gun.Update(dt)
-	if g.shots < 1 || g.rate <= 0 {
+	if g.shots < 1 {
 		return
 	}
-	_, flying := g.bird.Progress()
+	p, flying := g.bird.Progress()
 	if !flying {
+		return
+	}
+	if g.even {
+		for g.fired < g.shots && p >= (float64(g.fired)+0.5)/float64(g.shots) {
+			g.fire()
+			g.fired++
+		}
+		return
+	}
+	if g.rate <= 0 {
 		return
 	}
 	g.air += dt

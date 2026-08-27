@@ -3,6 +3,7 @@ package viewer
 import (
 	"path/filepath"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustarmed"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustcloud"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustdust"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
@@ -10,6 +11,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustparticle"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/armed"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/astro"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
@@ -68,6 +70,7 @@ func Catalog() []Item {
 		{ID: "flag", Title: "FLAG", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return flag.New(4) }},
 		{ID: "transition", Title: "TRANSITION", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newTransitionPreview() }},
 		{ID: "eagle", Title: "EAGLE", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return eagle.New() }},
+		{ID: "armed", Title: "ARMED EAGLE", Kind: KindComponent, Path: adjustarmed.DefaultConfigPath, Program: "./cmd/adjustarmed/main", spawn: func() screenplay.Component { return armed.New() }},
 		{ID: "moon", Title: "MOON", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return moon.New() }},
 		{ID: "dsky", Title: "DSKY", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return dsky.NewPanel(dsky.MonitorState()) }},
 		{ID: "title", Title: "TITLE", Kind: KindComponent, Path: assets, spawn: mustTitle},

@@ -134,7 +134,7 @@ func TestArmedRateFire(t *testing.T) {
 	})
 	t.Run("unhappy: zero shells or a zero rate is a silent flyover — mounted guns, no flame", func(t *testing.T) {
 		a := New().Delay(0.2).Cross(2).
-			LeftGun(sprite.W, 0, 4).RightGun(sprite.E, 3, 0)
+			LeftGun(sprite.W, 0, 4).RightGun(sprite.E, 0, 0)
 		a.Start(stageW, stageH)
 		defer a.Stop()
 		_ = a.Render()
@@ -168,7 +168,7 @@ func TestArmedProgressFire(t *testing.T) {
 	t.Cleanup(Reset)
 	t.Run("happy: rate zero spaces shells evenly along the crossing", func(t *testing.T) {
 		a := New().Delay(0.2).Cross(2).
-			LeftGun(sprite.W, 2, 0).RightGun(sprite.E, 2, 0)
+			LeftEven(sprite.W, 2).RightEven(sprite.E, 2)
 		a.Start(stageW, stageH)
 		defer a.Stop()
 		_ = a.Render()
@@ -183,7 +183,7 @@ func TestArmedProgressFire(t *testing.T) {
 	})
 	t.Run("unhappy: a nil Armed never panics", func(t *testing.T) {
 		var a *Armed
-		a.Delay(1).Cross(1).Path(0, 1).LeftGun(sprite.W, 1, 1).RightGun(sprite.E, 1, 1)
+		a.Delay(1).Cross(1).Path(0, 1).LeftGun(sprite.W, 1, 1).RightEven(sprite.E, 1)
 		a.Start(8, 8)
 		a.Update(1)
 		_ = a.Render()

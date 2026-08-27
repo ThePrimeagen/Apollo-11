@@ -7,12 +7,12 @@
 // fires — after the bird is on stage, each gun on its own shot count
 // and rate of fire. Every performer is a reusable component:
 // components/sky, components/cloud, components/flag,
-// components/transition, components/eagle, components/shotgun.
+// components/transition, components/armed.
 package skies
 
 import (
+	"github.com/theprimeagen/apollo-11/exec-tui/components/armed"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/cloud"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/transition"
@@ -34,9 +34,6 @@ func New() *Show {
 }
 
 func (s *Show) assemble() []screenplay.Component {
-	bird := eagle.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
-		Path(s.Cfg.EagleStart, s.Cfg.EagleEnd)
-	talons := eagle.Talons()
 	floor := transition.Between(
 		transition.Stack(
 			sky.New().Rise(s.Cfg.RiseSeconds),
@@ -46,9 +43,10 @@ func (s *Show) assemble() []screenplay.Component {
 	).Delay(s.Cfg.FlagDelay).Over(s.Cfg.FlagFade)
 	return []screenplay.Component{
 		floor,
-		bird,
-		newGunner(bird, talons[0], s.Cfg.LeftAim, s.Cfg.LeftShots, s.Cfg.LeftRate),
-		newGunner(bird, talons[1], s.Cfg.RightAim, s.Cfg.RightShots, s.Cfg.RightRate),
+		armed.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
+			Path(s.Cfg.EagleStart, s.Cfg.EagleEnd).
+			LeftGun(s.Cfg.LeftAim, s.Cfg.LeftShots, s.Cfg.LeftRate).
+			RightGun(s.Cfg.RightAim, s.Cfg.RightShots, s.Cfg.RightRate),
 	}
 }
 

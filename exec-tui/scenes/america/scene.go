@@ -21,13 +21,13 @@
 // knobs 50ms, the path knobs 0.05 of the span, the shots one shell,
 // the aims one compass point at a time, and s saves them to
 // scenes/america/config.json. Every performer is a reusable component
-// on its own: components/flag, components/eagle, components/shotgun
-// and components/gunfire carry all of this as plain constructor
+// on its own: components/flag and components/armed (eagle + shotgun
+// + gunfire as one performer) carry all of this as plain constructor
 // knobs.
 package america
 
 import (
-	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/armed"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
@@ -77,14 +77,12 @@ func New() *Show {
 }
 
 func (s *Show) assemble() []screenplay.Component {
-	bird := eagle.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
-		Path(s.Cfg.EagleStart, s.Cfg.EagleEnd)
-	talons := eagle.Talons()
 	return []screenplay.Component{
 		flag.New(s.Cfg.FadeSeconds),
-		bird,
-		newGunner(bird, talons[0], s.Cfg.LeftAim, s.Cfg.LeftShots),
-		newGunner(bird, talons[1], s.Cfg.RightAim, s.Cfg.RightShots),
+		armed.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
+			Path(s.Cfg.EagleStart, s.Cfg.EagleEnd).
+			LeftEven(s.Cfg.LeftAim, s.Cfg.LeftShots).
+			RightEven(s.Cfg.RightAim, s.Cfg.RightShots),
 	}
 }
 
