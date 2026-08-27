@@ -24,9 +24,9 @@ func pixelColor(px rune) (int, error) {
 	return -1, fmt.Errorf("shotgun: unknown pixel letter %q", string(px))
 }
 
-// compileGrid folds a pixel grid of palette letters into half-block
-// terminal cells. Pair-duplicated rows compile to solid █ so the
-// compass mirrors stay honest.
+// compileGrid folds a square-pixel grid of palette letters into
+// half-block terminal cells: two stacked pixels per cell, ▀/▄ where
+// the halves differ and █ where they match.
 func compileGrid(rows []string) (sprite.Sprite, error) {
 	if len(rows) == 0 {
 		return sprite.Sprite{}, fmt.Errorf("shotgun: empty pixel grid")
@@ -72,12 +72,14 @@ func compileGrid(rows []string) (sprite.Sprite, error) {
 	return sp, nil
 }
 
-// BuildAtlas compiles the one 2D east gun and spins it onto every
-// compass heading around the Y-axis coming out of the screen.
+// BuildAtlas compiles the one 2D east gun onto every compass heading:
+// the right half of the compass spins it in square-pixel space around
+// the Y-axis coming out of the screen, the left half mirrors the
+// right so the sights always face up.
 func BuildAtlas() (*sprite.Atlas, error) {
 	a := &sprite.Atlas{Palette: append([]sprite.PaletteEntry(nil), Palette...)}
 	for _, heading := range sprite.Headings {
-		sp, err := compileGrid(dup(rotateGrid(east, headingDeg(heading))...))
+		sp, err := compileGrid(padEven(headingGrid(heading)))
 		if err != nil {
 			return nil, fmt.Errorf("shotgun: %s: %w", heading, err)
 		}

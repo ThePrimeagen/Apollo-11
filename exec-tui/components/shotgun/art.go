@@ -2,6 +2,7 @@ package shotgun
 
 import (
 	"math"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
@@ -10,8 +11,8 @@ import (
 // Size is the atlas slot the eight shotgun frames live in.
 const Size = sprite.Size1
 
-// Palette is the gun's materials. fg == bg so a pixel compiles to a
-// solid block — the 2D spin duplicates each unique row so a cell is █.
+// Palette is the gun's materials. fg == bg so a pixel is one solid
+// color whether it lands in a cell's top half, bottom half, or both.
 var Palette = []sprite.PaletteEntry{
 	{ID: ".", Name: "empty", FG: -1, BG: -1},
 	{ID: "W", Name: "wood", FG: 94, BG: 94},
@@ -23,9 +24,11 @@ var Palette = []sprite.PaletteEntry{
 }
 
 // east is the one 2D asset: a side-on stock-and-barrel gun pointing
-// +X. Every other heading is this grid spun in the screen plane
-// around the Y-axis coming out of it (east 0°, counterclockwise).
-// Every row is 32 pixels.
+// +X, drawn one art row per terminal cell. Every row is 32 pixels.
+// The right half of the compass is this grid spun in the screen plane
+// around the Y-axis coming out of it (east 0°, counterclockwise); the
+// left half (W, NW, SW) mirrors the right half so the sights always
+// face up.
 var east = []string{
 	"................................",
 	"........SSSSBBBBBBBBBBBBBBBBBB..",
@@ -37,6 +40,10 @@ var east = []string{
 	"................................",
 }
 
+// dup doubles every row: a terminal cell is two stacked square
+// pixels, so one cell-height art row becomes two square-pixel rows.
+// The spin happens in this square-pixel space — that is what keeps
+// the gun the same length on screen whichever way it points.
 func dup(rows ...string) []string {
 	out := make([]string, 0, len(rows)*2)
 	for _, row := range rows {
@@ -46,8 +53,10 @@ func dup(rows ...string) []string {
 }
 
 // headingDeg is the counterclockwise angle, in degrees, that spins
-// the east gun onto heading h around the Y-axis coming out of the
-// screen. Headings off the compass are east (0°).
+// the east gun onto a right-half heading around the Y-axis coming out
+// of the screen. The left half of the compass is never spun — it is
+// mirrored — so those headings (and anything off the compass) are
+// east (0°).
 func headingDeg(h sprite.Heading) float64 {
 	switch h {
 	case sprite.E:
@@ -56,18 +65,51 @@ func headingDeg(h sprite.Heading) float64 {
 		return 45
 	case sprite.N:
 		return 90
-	case sprite.NW:
-		return 135
-	case sprite.W:
-		return 180
-	case sprite.SW:
-		return 225
 	case sprite.S:
 		return 270
 	case sprite.SE:
 		return 315
 	}
 	return 0
+}
+
+// headingGrid is the square-pixel grid for one compass heading: E,
+// NE, N, SE and S are the east gun spun in the screen plane; W, NW
+// and SW are the E, NE and SE grids mirrored left-right, because a
+// spin past vertical would hang the gun upside down and the sights
+// must always face up.
+func headingGrid(h sprite.Heading) []string {
+	switch h {
+	case sprite.W:
+		return mirrorGrid(headingGrid(sprite.E))
+	case sprite.NW:
+		return mirrorGrid(headingGrid(sprite.NE))
+	case sprite.SW:
+		return mirrorGrid(headingGrid(sprite.SE))
+	}
+	return rotateGrid(dup(east...), headingDeg(h))
+}
+
+// mirrorGrid flips a pixel grid left-right.
+func mirrorGrid(rows []string) []string {
+	out := make([]string, len(rows))
+	for i, row := range rows {
+		r := []rune(row)
+		for a, b := 0, len(r)-1; a < b; a, b = a+1, b-1 {
+			r[a], r[b] = r[b], r[a]
+		}
+		out[i] = string(r)
+	}
+	return out
+}
+
+// padEven tops an odd-height grid up with one transparent row so the
+// half-block compile always has a bottom pixel to pair with.
+func padEven(rows []string) []string {
+	if len(rows) == 0 || len(rows)%2 == 0 {
+		return rows
+	}
+	return append(rows, strings.Repeat(".", utf8.RuneCountInString(rows[0])))
 }
 
 // rotateGrid spins a 2D pixel grid counterclockwise by deg degrees

@@ -2,12 +2,16 @@
 // stock-and-barrel sprite on the eight-point compass the gunfire blast
 // already speaks. The art is one 2D side-on asset — the east stock
 // shot — spun in the plane of the screen around the Y-axis coming out
-// of it. Start builds every heading for a w×h stage and arms the
-// shipped gunfire config; Aim points the barrel; Fire pulls the
-// trigger so the muzzle flame leaps from this heading's barrel tip
-// along that heading only; Update burns the blast; Render paints the
-// aimed gun with whatever flame is still in the air. A fresh Start
-// rises idle, aimed east — the Doom side-on stock shot.
+// of it, in square-pixel space so the gun keeps its on-screen length
+// whichever way it points. The gun always faces up: the left half of
+// the compass (W, NW, SW) mirrors the right half (E, NE, SE) instead
+// of spinning past vertical, so the sights never face the floor.
+// Start builds every heading for a w×h stage and arms the shipped
+// gunfire config; Aim points the barrel; Fire pulls the trigger so
+// the muzzle flame leaps from this heading's barrel tip along that
+// heading only; Update burns the blast; Render paints the aimed gun
+// with whatever flame is still in the air. A fresh Start rises idle,
+// aimed east — the Doom side-on stock shot.
 package shotgun
 
 import (
