@@ -80,6 +80,50 @@ func TestSkiesDemoRise(t *testing.T) {
 			t.Fatal("after the rise the dark zenith must be on stage")
 		}
 	})
+	t.Run("happy: then the eagle's brown ink is on stage", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		// delay 2s + a quarter of the 4s crossing
+		m = frames(m, int((2.0+1.0)*30)+5)
+		v := m.View().Content
+		if !strings.Contains(v, "8;5;94m") {
+			t.Fatal("a quarter into the crossing the eagle's brown ink must be on stage")
+		}
+		if !strings.Contains(v, "▄") && !strings.Contains(v, "▀") {
+			t.Fatal("the eagle's half-block silhouette must be on stage")
+		}
+	})
+	t.Run("unhappy: before the delay the eagle is off stage", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 20) // ~0.66s, well before the 2s delay
+		v := m.View().Content
+		if strings.Contains(v, "8;5;94m") {
+			t.Fatal("the eagle must wait for its delay")
+		}
+	})
+	t.Run("happy: after the bird flies in the talon guns fire", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		// delay 2s + first shell at 1/rate (0.5s) + a couple of frames
+		m = frames(m, int((2.0+0.6)*30)+5)
+		v := m.View().Content
+		if !strings.Contains(v, "8;5;178m") {
+			t.Fatal("the shotgun gold must ride the talons")
+		}
+		if !strings.Contains(v, "8;5;226m") && !strings.Contains(v, "8;5;208m") && !strings.Contains(v, "8;5;196m") {
+			t.Fatal("past 1/rate of air time a muzzle blast must be on stage")
+		}
+	})
+	t.Run("unhappy: before the bird flies the guns have not fired", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 20)
+		v := m.View().Content
+		if strings.Contains(v, "8;5;226m") || strings.Contains(v, "8;5;208m") || strings.Contains(v, "8;5;196m") {
+			t.Fatal("muzzle flame must wait for the bird")
+		}
+	})
 }
 
 func TestSkiesDemoHouseRules(t *testing.T) {
