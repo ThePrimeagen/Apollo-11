@@ -163,6 +163,22 @@ Measured against the flight record:
   instructions with internal operand fetches.
 - LANDISP runs in task context per P70-P71.agc; its 3 ms is an estimate of
   the tape-meter conversions.
+- **LRVJOB placement**: the [Outline]'s cycle map says "mid-cycle"; this sim
+  arms the velocity read at boundary−500 ms so its five samples finish as
+  READACCS integrates them (the mirror of LRH's 50-ms-prior design). The
+  end-of-cycle straddle is part of the 1202 core-wall mechanism.
+- **1/GYRO cadence**: the [Outline] lists "~1/s"; structurally the spawn
+  site (1/PIPA) runs once per SERVICER pass, i.e. every 2 s during descent,
+  and the sim follows the structure (7 ms per pass, half the outline's
+  duty).
+- **MAKEPLAY priority**: the [Outline] table notes the display job
+  "self-raises to 33"; the sim keeps GODSPRS1's entry priority (user+1 =
+  21) and does not model the mid-display PRIOCHNG. Both sit between
+  SERVICER (20) and MONDO (30) on the sides that matter for the leak.
+- **LR conversion size**: the locked-minus-prelock delta is ~76 ms/cycle
+  (~3.8%), the upper half of the tested 30-80 ms band; [Eyles]' margin
+  step reads ~2% (~40 ms). The overall pass total stays pinned to Cherry's
+  band either way.
 
 ## Source tensions the sim had to arbitrate
 
