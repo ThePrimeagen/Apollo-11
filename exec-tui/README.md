@@ -16,7 +16,7 @@ assets/       every lunar atlas in one folder: lm-1.json … lm-4.json + lm.json
 components/   everything a scene puts together
   sprite/     the pixel model: Sprite = width × height cells (rune + fg/bg)
   particle/   the particle engine
-  gunfire/    the one-shot Doom-shotgun blast — owns its config.json
+  gunfire/    the one-shot Doom muzzle flame — owns its config.json
   fire/       flame, booster, compass — owns its config.json
   stars/      the four-layer starfield — owns its config.json
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component
@@ -38,7 +38,7 @@ cmd/          every runnable: editors, demos, tuners
   preview/    atlas / fire / rocket previews and tapes
   editor/     the vim-ish ASCII editor — point it at any folder of atlases
               (default assets/); C-p quick-opens across its files
-  gunfire/    the one-shot shotgun demo (space fires)
+  gunfire/    the one-shot muzzle-flame demo (space fires)
   adjustflame/  tunes components/fire/config.json
   adjuststars/  tunes components/stars/config.json
   adjustgunfire/  tunes components/gunfire/config.json

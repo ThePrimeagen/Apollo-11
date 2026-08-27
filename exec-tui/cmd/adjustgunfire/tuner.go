@@ -1,11 +1,12 @@
-// Package adjustgunfire is the shotgun-blast tuner: the live one-shot
-// blast playing behind a paged panel of every blast knob. Five pages
-// of eight knobs each — aim (angle, muzzle, smoke fuse and rise, the
-// flash ladder), then one page per layer: flash, pellets, sparks,
-// smoke. tab flips pages, j/k pick a knob, h/l turn it, [/] take
+// Package adjustgunfire is the muzzle-flame tuner: the live one-shot
+// flame burning behind a paged panel of every blast knob. Three
+// pages — aim (angle, muzzle, the two-frame pulse, the core
+// brightness ladder) and one page per layer: core and flame, each
+// carrying count, life, speed, spread, nozzle, max distance, lift,
+// and drag. tab flips pages, j/k pick a knob, h/l turn it, [/] take
 // bigger steps, f pulls the trigger now, and the tool re-fires on its
-// own so the blast is always in the air. s saves the gunfire
-// component's config and quits.
+// own so the flame is always burning. s saves the gunfire component's
+// config and quits.
 package adjustgunfire
 
 import (
@@ -19,21 +20,16 @@ import (
 // JSON lives with the component it tunes, relative to the module root.
 const DefaultConfigPath = "components/gunfire/config.json"
 
-const (
-	nPages       = 5
-	knobsPerPage = 8
-)
+const nPages = 3
 
 // The pages, in tab order.
 const (
 	pageAim = iota
-	pageFlash
-	pagePellets
-	pageSparks
-	pageSmoke
+	pageCore
+	pageFlame
 )
 
-var pageNames = [nPages]string{"aim", "flash", "pellets", "sparks", "smoke"}
+var pageNames = [nPages]string{"aim", "core", "flame"}
 
 // meta is one knob's rails: label, step, floor, ceiling.
 type meta struct {
@@ -43,14 +39,14 @@ type meta struct {
 	hi    float64
 }
 
-// aimMeta is the aim page: where the gun points and sits, the smoke
-// fuse and climb, and the flash brightness ladder.
-var aimMeta = [knobsPerPage]meta{
-	{"angle", 1, -80, 80},
+// aimMeta is the aim page: where the flame leaps from and toward, the
+// two-frame pulse, and the core brightness ladder.
+var aimMeta = []meta{
+	{"angle", 1, -90, 90},
 	{"muzzle x", 0.01, 0, 1},
 	{"muzzle y", 0.01, 0, 1},
-	{"smoke delay", 0.01, 0, 2},
-	{"smoke rise", 1, 0, 89},
+	{"pulse delay", 0.01, 0, 1},
+	{"pulse frac", 0.05, 0, 1},
 	{"edge at", 1, 1, 30},
 	{"mid at", 1, 2, 40},
 	{"core at", 1, 3, 60},
@@ -58,7 +54,7 @@ var aimMeta = [knobsPerPage]meta{
 
 // layerMeta is every layer page. Count has no artificial ceiling —
 // zero is a silent layer and the top is whatever the terminal holds.
-var layerMeta = [knobsPerPage]meta{
+var layerMeta = []meta{
 	{"count", 1, 0, math.Inf(1)},
 	{"min life", 0.01, 0.01, 6},
 	{"max life", 0.01, 0.01, 6},
@@ -67,10 +63,12 @@ var layerMeta = [knobsPerPage]meta{
 	{"spread", 0.02, 0, 1.2},
 	{"nozzle", 0.2, 0, 24},
 	{"max dist", 0.5, 0, 80},
+	{"lift", 1, 0, 200},
+	{"drag", 0.1, 0, 12},
 }
 
 // pageMeta is the knob table of one page.
-func pageMeta(page int) [knobsPerPage]meta {
+func pageMeta(page int) []meta {
 	if page == pageAim {
 		return aimMeta
 	}
@@ -92,24 +90,24 @@ func NewTuner() *Tuner {
 // layer is the Layer the current page edits, or nil on the aim page.
 func (t *Tuner) layer() *gunfire.Layer {
 	switch t.Page {
-	case pageFlash:
-		return &t.Blast.Flash
-	case pagePellets:
-		return &t.Blast.Pellets
-	case pageSparks:
-		return &t.Blast.Sparks
-	case pageSmoke:
-		return &t.Blast.Smoke
+	case pageCore:
+		return &t.Blast.Core
+	case pageFlame:
+		return &t.Blast.Flame
 	}
 	return nil
 }
 
-// Flip turns delta pages, wrapping around the five.
+// Flip turns delta pages, wrapping around the three; the cursor
+// clamps into the new page's rows.
 func (t *Tuner) Flip(delta int) {
 	if t == nil {
 		return
 	}
 	t.Page = ((t.Page+delta)%nPages + nPages) % nPages
+	if last := len(pageMeta(t.Page)) - 1; t.Cursor > last {
+		t.Cursor = last
+	}
 }
 
 // Move slides the cursor delta rows, clamped to the page's knobs.
@@ -121,14 +119,14 @@ func (t *Tuner) Move(delta int) {
 	if t.Cursor < 0 {
 		t.Cursor = 0
 	}
-	if t.Cursor >= knobsPerPage {
-		t.Cursor = knobsPerPage - 1
+	if last := len(pageMeta(t.Page)) - 1; t.Cursor > last {
+		t.Cursor = last
 	}
 }
 
 // Nudge changes the selected number by steps (usually ±1 or ±10).
 func (t *Tuner) Nudge(steps int) {
-	if t == nil || t.Cursor < 0 || t.Cursor >= knobsPerPage {
+	if t == nil || t.Cursor < 0 || t.Cursor >= len(pageMeta(t.Page)) {
 		return
 	}
 	m := pageMeta(t.Page)[t.Cursor]
@@ -164,6 +162,10 @@ func (t *Tuner) get(cursor int) float64 {
 			return l.Nozzle
 		case 7:
 			return l.MaxDistance
+		case 8:
+			return l.Lift
+		case 9:
+			return l.Drag
 		}
 		return 0
 	}
@@ -176,9 +178,9 @@ func (t *Tuner) get(cursor int) float64 {
 	case 2:
 		return c.MuzzleY
 	case 3:
-		return c.SmokeDelay
+		return c.PulseDelay
 	case 4:
-		return c.SmokeRiseDeg
+		return c.PulseFrac
 	case 5:
 		return float64(c.EdgeAt)
 	case 6:
@@ -209,6 +211,10 @@ func (t *Tuner) set(cursor int, v float64) {
 			l.Nozzle = v
 		case 7:
 			l.MaxDistance = v
+		case 8:
+			l.Lift = v
+		case 9:
+			l.Drag = v
 		}
 		return
 	}
@@ -220,9 +226,9 @@ func (t *Tuner) set(cursor int, v float64) {
 	case 2:
 		t.Blast.MuzzleY = v
 	case 3:
-		t.Blast.SmokeDelay = v
+		t.Blast.PulseDelay = v
 	case 4:
-		t.Blast.SmokeRiseDeg = v
+		t.Blast.PulseFrac = v
 	case 5:
 		t.Blast.EdgeAt = int(v + 0.5)
 	case 6:
@@ -235,9 +241,7 @@ func (t *Tuner) set(cursor int, v float64) {
 // fixRanges keeps every layer's min/max pairs ordered by swapping,
 // never folding.
 func (t *Tuner) fixRanges() {
-	for _, l := range []*gunfire.Layer{
-		&t.Blast.Flash, &t.Blast.Pellets, &t.Blast.Sparks, &t.Blast.Smoke,
-	} {
+	for _, l := range []*gunfire.Layer{&t.Blast.Core, &t.Blast.Flame} {
 		if l.MinLife > l.MaxLife {
 			l.MinLife, l.MaxLife = l.MaxLife, l.MinLife
 		}
@@ -247,7 +251,7 @@ func (t *Tuner) fixRanges() {
 	}
 }
 
-// fixLadder keeps the flash ladder climbing: the core always needs
+// fixLadder keeps the core ladder climbing: the core always needs
 // more concentration than the mid, the mid more than the edge.
 func (t *Tuner) fixLadder() {
 	if t.Blast.EdgeAt < 1 {
@@ -264,16 +268,16 @@ func (t *Tuner) fixLadder() {
 func formatKnob(page, cursor int, v float64) string {
 	if page == pageAim {
 		switch cursor {
-		case 0, 4, 5, 6, 7: // angle, rise, ladder
+		case 0, 5, 6, 7: // angle, ladder
 			return fmt.Sprintf("%5.0f", v)
-		default: // muzzle fractions, smoke delay
+		default: // muzzle fractions, pulse delay and frac
 			return fmt.Sprintf("%5.2f", v)
 		}
 	}
 	switch cursor {
-	case 0: // count
+	case 0, 8: // count, lift
 		return fmt.Sprintf("%5.0f", v)
-	case 1, 2, 5: // lives, spread
+	case 1, 2, 5, 9: // lives, spread, drag
 		return fmt.Sprintf("%5.2f", v)
 	default: // speeds, nozzle, max dist
 		return fmt.Sprintf("%5.1f", v)

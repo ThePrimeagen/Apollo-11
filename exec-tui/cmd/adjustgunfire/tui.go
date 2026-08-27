@@ -171,7 +171,7 @@ func (m Model) View() tea.View {
 	m.play.Render(m.screen)
 	m.panel()
 	if m.note != "" {
-		putText(m.screen, 0, 3+knobsPerPage, m.note+" ", 203)
+		putText(m.screen, 0, 3+len(pageMeta(m.tuner.Page)), m.note+" ", 203)
 	}
 	_, h := m.screen.Size()
 	rows := strings.Split(m.screen.Render(), "\n")
@@ -195,7 +195,7 @@ func (m Model) panel() {
 		x += len([]rune(label))
 	}
 	knobs := pageMeta(m.tuner.Page)
-	for i := 0; i < knobsPerPage; i++ {
+	for i := range knobs {
 		marker, fg := "  ", 250
 		if i == m.tuner.Cursor {
 			marker, fg = "> ", 214

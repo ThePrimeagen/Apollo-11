@@ -1,12 +1,12 @@
-// gunfire: the one-shot shotgun demo, tuned to read like the Doom
-// shotgun. A bare stage, a stub of a barrel at the muzzle, and the
-// trigger on the space bar: one squeeze blooms the white-hot flash,
-// throws the classic seven pellets in a tight fan, sprays sparks that
-// cool yellow → orange → ember, and a beat later curls gray gunsmoke
-// up out of the barrel — then the stage goes quiet again, because a
-// gunshot is a trigger, not a clock. The demo auto-fires once shortly
-// after boot so tapes show the shot, and it reads the same JSON the
-// gunfire tuner saves.
+// gunfire: the one-shot Doom muzzle-flame demo — the red flame that
+// comes out when the shotgun goes off. An empty stage and the trigger
+// on the space bar: one squeeze and the flame leaps up from the
+// muzzle at low center screen, a white-hot heart wrapped in tongues
+// that cool bright yellow through orange and red to a maroon ember,
+// with Doom's dimmer second flash frame pulsing a beat later — then
+// the stage goes dark again, because a gunshot is a trigger, not a
+// clock. The demo auto-fires once shortly after boot so tapes show
+// the flame, and it reads the same JSON the gunfire tuner saves.
 //
 //	space, f  fire
 //	q         quit
@@ -26,7 +26,6 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/particle"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
@@ -137,7 +136,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() tea.View {
 	m.play.Render(m.screen)
-	m.barrel()
 	w, h := m.screen.Size()
 	stage := strings.Split(m.screen.Render(), "\n")
 	for len(stage) < h {
@@ -150,18 +148,6 @@ func (m model) View() tea.View {
 	v := tea.NewView(body)
 	v.AltScreen = true
 	return v
-}
-
-// barrel draws the two-cell gun stub whose mouth is the blast's
-// muzzle, so the shot visibly leaves something.
-func (m model) barrel() {
-	c := gunfire.ActiveBlast()
-	w, h := m.screen.Size()
-	uw := float64(w)*particle.CellWidthUnits - 0.01
-	uh := float64(h)*particle.CellHeightUnits - 0.01
-	cell := particle.CellOf(c.MuzzleX*uw, c.MuzzleY*uh)
-	m.screen.PutCell(cell.Col-2, cell.Row, '━', 245, -1)
-	m.screen.PutCell(cell.Col-1, cell.Row, '━', 250, -1)
 }
 
 func pad(s string, w int) string {
