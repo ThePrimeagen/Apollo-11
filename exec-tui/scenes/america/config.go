@@ -14,37 +14,36 @@ import (
 // Config is the live knobs on the scene: how long the flag takes to
 // fade in from black, when the eagle enters, how long its crossing
 // takes — the eagle's speed — where the flight starts and ends as
-// fractions of the full off-right-to-off-left span, and the talon
-// shotguns: how many shells the gun in each talon fires across one
-// crossing, and which of the eight compass points each barrel aims.
-// The standalone runner nudges the time knobs 50ms, the path knobs
-// 0.05 of the span, the shot counts one shell, and the aims one
-// compass point at a time; Play rebuilds the scene from whatever they
-// hold. s writes this JSON next to the scene.
+// fractions of the full off-right-to-off-left span, and the one
+// talon shotgun: how many shells the gun fires across one crossing,
+// and which of the eight compass points the barrel aims. The
+// standalone runner nudges the time knobs 50ms, the path knobs 0.05
+// of the span, the shot count one shell, and the aim one compass
+// point at a time; Play rebuilds the scene from whatever they hold.
+// s writes this JSON next to the scene.
 type Config struct {
 	FadeSeconds  float64        `json:"fadeSeconds"`
 	EagleDelay   float64        `json:"eagleDelay"`
 	CrossSeconds float64        `json:"crossSeconds"`
 	EagleStart   float64        `json:"eagleStart"`
 	EagleEnd     float64        `json:"eagleEnd"`
-	LeftShots    int            `json:"leftShots"`
-	LeftAim      sprite.Heading `json:"leftAim"`
-	RightShots   int            `json:"rightShots"`
-	RightAim     sprite.Heading `json:"rightAim"`
+	Shots        int            `json:"shots"`
+	Aim          sprite.Heading `json:"aim"`
 }
 
 // fileJSON is the on-disk shape. Every key is a pointer so a file
-// missing one keeps that knob at stock.
+// missing one keeps that knob at stock. leftShots / leftAim are the
+// old two-gun names: a leftover file still loads the leading talon.
 type fileJSON struct {
 	FadeSeconds  *float64        `json:"fadeSeconds"`
 	EagleDelay   *float64        `json:"eagleDelay"`
 	CrossSeconds *float64        `json:"crossSeconds"`
 	EagleStart   *float64        `json:"eagleStart"`
 	EagleEnd     *float64        `json:"eagleEnd"`
+	Shots        *int            `json:"shots"`
+	Aim          *sprite.Heading `json:"aim"`
 	LeftShots    *int            `json:"leftShots"`
 	LeftAim      *sprite.Heading `json:"leftAim"`
-	RightShots   *int            `json:"rightShots"`
-	RightAim     *sprite.Heading `json:"rightAim"`
 }
 
 // Knob is which knob the cursor is on.
@@ -56,10 +55,8 @@ const (
 	KnobCross
 	KnobStart
 	KnobEnd
-	KnobLeftShots
-	KnobLeftAim
-	KnobRightShots
-	KnobRightAim
+	KnobShots
+	KnobAim
 	KnobCount
 )
 
@@ -76,14 +73,10 @@ func KnobLabel(k Knob) string {
 		return "eagle start"
 	case KnobEnd:
 		return "eagle end"
-	case KnobLeftShots:
-		return "left shots"
-	case KnobLeftAim:
-		return "left aim"
-	case KnobRightShots:
-		return "right shots"
-	case KnobRightAim:
-		return "right aim"
+	case KnobShots:
+		return "shots"
+	case KnobAim:
+		return "aim"
 	default:
 		return ""
 	}
@@ -110,21 +103,8 @@ func headingIdx(h sprite.Heading) int {
 	return -1
 }
 
-// aimAt is the heading the selected aim knob holds. Non-aim knobs
-// have no heading.
-func (c Config) aimAt(k Knob) sprite.Heading {
-	switch k {
-	case KnobLeftAim:
-		return c.LeftAim
-	case KnobRightAim:
-		return c.RightAim
-	default:
-		return ""
-	}
-}
-
 // Value is the selected knob's current setting: seconds, a span
-// fraction, a shell count, or an aim's slot on the compass.
+// fraction, a shell count, or the aim's slot on the compass.
 func (c Config) Value(k Knob) float64 {
 	switch k {
 	case KnobFade:
@@ -137,12 +117,10 @@ func (c Config) Value(k Knob) float64 {
 		return c.EagleStart
 	case KnobEnd:
 		return c.EagleEnd
-	case KnobLeftShots:
-		return float64(c.LeftShots)
-	case KnobRightShots:
-		return float64(c.RightShots)
-	case KnobLeftAim, KnobRightAim:
-		return float64(headingIdx(c.aimAt(k)))
+	case KnobShots:
+		return float64(c.Shots)
+	case KnobAim:
+		return float64(headingIdx(c.Aim))
 	default:
 		return 0
 	}
@@ -150,17 +128,15 @@ func (c Config) Value(k Knob) float64 {
 
 // Display is knob k's panel reading, seven columns wide: seconds for
 // the time knobs, a bare fraction for the path knobs, a shell count
-// for the shots, a compass point for the aims.
+// for the shots, a compass point for the aim.
 func (c Config) Display(k Knob) string {
 	switch k {
 	case KnobFade, KnobDelay, KnobCross, KnobStart, KnobEnd:
 		return fmt.Sprintf("%7.3f%s", c.Value(k), KnobUnit(k))
-	case KnobLeftShots:
-		return fmt.Sprintf("%7d", c.LeftShots)
-	case KnobRightShots:
-		return fmt.Sprintf("%7d", c.RightShots)
-	case KnobLeftAim, KnobRightAim:
-		return fmt.Sprintf("%7s", string(c.aimAt(k)))
+	case KnobShots:
+		return fmt.Sprintf("%7d", c.Shots)
+	case KnobAim:
+		return fmt.Sprintf("%7s", string(c.Aim))
 	default:
 		return ""
 	}
@@ -186,8 +162,8 @@ var (
 	errStart = errors.New("america: eagle start must sit inside the span")
 	errEnd   = errors.New("america: eagle end must sit inside the span")
 	errPath  = errors.New("america: eagle end must be at least one step past its start")
-	errShots = errors.New("america: shell counts must not be negative")
-	errAim   = errors.New("america: aims must sit on the eight-point compass")
+	errShots = errors.New("america: shell count must not be negative")
+	errAim   = errors.New("america: aim must sit on the eight-point compass")
 
 	activeMu sync.Mutex
 	active   = DefaultConfig()
@@ -196,8 +172,8 @@ var (
 // DefaultConfig is the scene's stock tune: the fast two-second fade,
 // the eagle entering the moment the fade lands, the four-second
 // crossing, the flight spanning off one wing and off the other, and
-// three shells per talon — the leading barrel raking ahead of the
-// flight, the trailing one covering the rear.
+// three shells from the one leading-talon gun — the barrel raking
+// ahead of the flight.
 func DefaultConfig() Config {
 	return Config{
 		FadeSeconds:  FadeSeconds,
@@ -205,10 +181,8 @@ func DefaultConfig() Config {
 		CrossSeconds: CrossSeconds,
 		EagleStart:   StartPoint,
 		EagleEnd:     EndPoint,
-		LeftShots:    StockShots,
-		LeftAim:      StockLeftAim,
-		RightShots:   StockShots,
-		RightAim:     StockRightAim,
+		Shots:        StockShots,
+		Aim:          StockAim,
 	}
 }
 
@@ -262,10 +236,10 @@ func (c Config) Validate() error {
 	if c.EagleEnd-c.EagleStart < StepPoint-1e-9 {
 		return errPath
 	}
-	if c.LeftShots < 0 || c.RightShots < 0 {
+	if c.Shots < 0 {
 		return errShots
 	}
-	if headingIdx(c.LeftAim) < 0 || headingIdx(c.RightAim) < 0 {
+	if headingIdx(c.Aim) < 0 {
 		return errAim
 	}
 	return nil
@@ -297,17 +271,15 @@ func Load(path string) (Config, error) {
 	if f.EagleEnd != nil {
 		c.EagleEnd = *f.EagleEnd
 	}
-	if f.LeftShots != nil {
-		c.LeftShots = *f.LeftShots
+	if f.Shots != nil {
+		c.Shots = *f.Shots
+	} else if f.LeftShots != nil {
+		c.Shots = *f.LeftShots
 	}
-	if f.LeftAim != nil {
-		c.LeftAim = *f.LeftAim
-	}
-	if f.RightShots != nil {
-		c.RightShots = *f.RightShots
-	}
-	if f.RightAim != nil {
-		c.RightAim = *f.RightAim
+	if f.Aim != nil {
+		c.Aim = *f.Aim
+	} else if f.LeftAim != nil {
+		c.Aim = *f.LeftAim
 	}
 	if err := c.Validate(); err != nil {
 		return Config{}, err
@@ -341,13 +313,11 @@ func (c Config) Save(path string) error {
 		"  \"crossSeconds\": %.3f,\n"+
 		"  \"eagleStart\": %.3f,\n"+
 		"  \"eagleEnd\": %.3f,\n"+
-		"  \"leftShots\": %d,\n"+
-		"  \"leftAim\": %q,\n"+
-		"  \"rightShots\": %d,\n"+
-		"  \"rightAim\": %q\n"+
+		"  \"shots\": %d,\n"+
+		"  \"aim\": %q\n"+
 		"}\n",
 		c.FadeSeconds, c.EagleDelay, c.CrossSeconds, c.EagleStart, c.EagleEnd,
-		c.LeftShots, string(c.LeftAim), c.RightShots, string(c.RightAim)))
+		c.Shots, string(c.Aim)))
 	return os.WriteFile(path, raw, 0o644)
 }
 
@@ -407,24 +377,18 @@ func step(k Knob) float64 {
 // Nudge walks the selected knob by dir steps of its grid. The fade
 // and the delay will not go negative; the crossing will not go below
 // one step; the path knobs stay inside the span and never catch each
-// other; the shell counts stop at zero; the aims walk the compass and
-// wrap at the ends. A bad cursor is a no-op.
+// other; the shell count stops at zero; the aim walks the compass and
+// wraps at the ends. A bad cursor is a no-op.
 func (c *Config) Nudge(k Knob, dir int) {
 	if c == nil || dir == 0 || k < 0 || k >= KnobCount {
 		return
 	}
 	switch k {
-	case KnobLeftShots:
-		c.LeftShots = flooredShells(c.LeftShots + dir)
+	case KnobShots:
+		c.Shots = flooredShells(c.Shots + dir)
 		return
-	case KnobRightShots:
-		c.RightShots = flooredShells(c.RightShots + dir)
-		return
-	case KnobLeftAim:
-		c.LeftAim = walkedAim(c.LeftAim, dir)
-		return
-	case KnobRightAim:
-		c.RightAim = walkedAim(c.RightAim, dir)
+	case KnobAim:
+		c.Aim = walkedAim(c.Aim, dir)
 		return
 	}
 	v := snap(c.Value(k) + step(k)*float64(dir))
