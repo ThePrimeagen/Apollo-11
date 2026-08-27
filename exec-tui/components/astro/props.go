@@ -36,18 +36,18 @@ func init() {
 	grids[PropBlock] = []string{
 		//  01234567
 		"DDDDDDDD",
-		"DVHHHHVD",
+		"DWHHHHWD",
 		"DHHWWHHD",
 		"DHWWWWHD",
 		"DHWWWWHD",
 		"DHHWWHHD",
-		"DVHHHHVD",
+		"DWHHHHWD",
 		"DDDDDDDD",
 	}
 	grids[PropFlag] = []string{
 		//  0123456789
 		"BBBBRRRRRR",
-		"BBBBWWWWWW",
+		"BWBBWWWWWW",
 		"BBBBRRRRRR",
 		"WWWWWWWWWW",
 		"RRRRRRRRRR",
@@ -56,14 +56,14 @@ func init() {
 	grids[PropRover] = []string{
 		//  01234567890123456789
 		"..HHH...............",
-		"...H........H.......",
-		"...H..WWW...H.......",
+		"..HH........H.......",
+		"...H....W...H.......",
 		"..HHHHWWWHHHH.......",
 		".HVVVVVVVVVVVVVVVH..",
-		".HVVVVVVVVVVVVVVVH..",
-		"..DDDD........DDDD..",
+		".HHHHHHHHHHHHHHHHH..",
+		"...DD..........DD...",
 		"..DHHD........DHHD..",
 		"..DHHD........DHHD..",
-		"..DDDD........DDDD..",
+		"...DD..........DD...",
 	}
 }
