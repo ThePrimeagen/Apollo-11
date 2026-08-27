@@ -12,8 +12,8 @@ import (
 // through MONBUSY immediately.
 
 func TestMonitorRespawnsAtOneHertz(t *testing.T) {
-	// happy: keyed once, MONDO copies appear every 1.000 s, each NOVAC,
-	// each holding a core set only briefly
+	// happy: keyed once, the ENTR's CHARIN paints the first frame and the
+	// MONREQ chain then spawns a NOVAC MONDO every 1.000 s (MONDEL)
 	e := NewEngine(Config{})
 	StartMonitor(e, 0)
 	e.RunMS(5_500)
@@ -23,8 +23,8 @@ func TestMonitorRespawnsAtOneHertz(t *testing.T) {
 			spawns++
 		}
 	}
-	if spawns != 6 { // t=0,1,2,3,4,5 s
-		t.Fatalf("MONDO spawned %d times in 5.5 s, want 6 — MONREQ re-arms every 1.00 s", spawns)
+	if spawns != 5 { // t=1,2,3,4,5 s — the first refresh is ENTR+MONDEL
+		t.Fatalf("MONDO spawned %d times in 5.5 s, want 5 — MONREQ re-arms every 1.00 s", spawns)
 	}
 	if v := e.VACsHeld(); v != 0 {
 		t.Fatalf("VACs held = %d, want 0 — MONDO is NOVAC", v)
@@ -107,6 +107,37 @@ func TestStaticDisplayJobIsNovacAtUserPrioPlusOne(t *testing.T) {
 	}
 	if c := e.CoresHeld(); c != 0 {
 		t.Fatalf("cores = %d, want 0 after the static display ends", c)
+	}
+}
+
+func TestStaticDisplayBlocksBehindTheMonitor(t *testing.T) {
+	// unhappy (the swing factor): while a monitor verb owns the DSKY, the
+	// guidance pass's static display request cannot paste — it sleeps
+	// holding its core set (ENDIDLE/NVSBWAIT; PINBALL L3159-L3168), and the
+	// NEXT pass's display request wakes-and-kills the sleeper
+	e := NewEngine(Config{})
+	StartMonitor(e, 0)
+	e.RunMS(100) // the monitor owns the display
+	SpawnDisplayJob(e, DisplayStatic, 20)
+	e.RunMS(500)
+	if st := e.JobState("MAKEPLAY"); st != JobSleeping {
+		t.Fatalf("MAKEPLAY state = %v, want sleeping — blocked behind the monitor's DSKY", st)
+	}
+	if c := e.CoresHeld(); c != 1 {
+		t.Fatalf("cores = %d, want 1 — the blocked display holds its core set", c)
+	}
+	// the next pass's request kills the sleeper and takes its place
+	SpawnDisplayJob(e, DisplayStatic, 20)
+	e.RunMS(500)
+	if c := e.CoresHeld(); c != 1 {
+		t.Fatalf("cores = %d, want 1 — one sleeper at a time (wake-and-kill)", c)
+	}
+	// without the monitor, the same request pastes and ends
+	StopMonitor(e)
+	SpawnDisplayJob(e, DisplayStatic, 20) // kills the sleeper, runs clean
+	e.RunMS(500)
+	if c := e.CoresHeld(); c != 0 {
+		t.Fatalf("cores = %d, want 0 — with the DSKY free the display ends", c)
 	}
 }
 

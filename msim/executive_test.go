@@ -103,10 +103,13 @@ func TestFindvacWithFreeVACButNoCoreRaises1202(t *testing.T) {
 //
 // EXECUTIVE.agc: the running job always occupies core set 0 (CHANJOB swaps,
 // L251-L318); allocation scans slots upward taking the first free (NOVAC2,
-// L183-L191); SETLOC sets NEWJOB only for a STRICTLY greater priority
-// (L224-L234, BZMF ENDFIND); EJSCAN walks slots 1..7 ascending and a tie
-// keeps the earlier find (EJ1, L492-L499). Together: an equal-priority copy
-// parked in a higher slot starves — Eyles' "uncompleted SERVICER stubs".
+// L183-L191). The comparisons at SETLOC (L224-L234) and EJ1 (L492-L499) are
+// on the FULL PRIORITY WORD — and VACFOUND stores the VAC-area address into
+// its low nine bits (L170-L174). Two equal-priority FINDVAC jobs therefore
+// never compare equal: the copy holding the higher-addressed VAC wins both
+// the preemption test and the scan. A NOVAC pair of equal priority carries
+// identical words (FAKEPRET is a constant) and never preempts itself.
+// This word order is the engine of Eyles' "uncompleted SERVICER stubs".
 
 func TestHigherPriorityPreemptsAtBoundary(t *testing.T) {
 	// happy: HIGH(30) spawned mid-LOW(20) takes over at the next boundary,
@@ -130,23 +133,24 @@ func TestHigherPriorityPreemptsAtBoundary(t *testing.T) {
 	if c := e.CoresHeld(); c != 2 {
 		t.Fatalf("cores held = %d, want 2 — preempted LOW keeps its core set", c)
 	}
-	e.RunMS(3) // HIGH done at 6 ms, LOW resumes
+	e.RunMS(2) // HIGH done at 6 ms, LOW resumes its last instruction (6-8 ms)
 	if got := e.RunningJob(); got != "LOW" {
 		t.Fatalf("after HIGH ends running %q, want LOW resumed", got)
 	}
 }
 
-func TestEqualPriorityNeverPreempts(t *testing.T) {
-	// unhappy: an equal-priority job must wait for the runner to finish —
-	// SETLOC's test is strictly-greater (BZMF falls through on zero)
+func TestEqualPriorityNovacNeverPreempts(t *testing.T) {
+	// unhappy: two equal-priority NOVAC jobs carry identical Executive words
+	// (priority + the FAKEPRET constant) — SETLOC's strictly-greater test
+	// (BZMF falls through on zero) means the second must wait
 	e := NewEngine(Config{})
-	e.Spawn(job("FIRST", 20, true, 10))
+	e.Spawn(job("FIRST", 20, false, 10))
 	e.ScheduleTask(2*Millisecond, "SP", 0, func(en *Engine) {
-		en.Spawn(job("SECOND", 20, true, 10))
+		en.Spawn(job("SECOND", 20, false, 10))
 	})
 	e.RunMS(9)
 	if got := e.RunningJob(); got != "FIRST" {
-		t.Fatalf("at 9 ms running %q, want FIRST — a tie must not preempt", got)
+		t.Fatalf("at 9 ms running %q, want FIRST — an identical word must not preempt", got)
 	}
 	e.RunMS(3) // FIRST ends at 10 ms
 	if got := e.RunningJob(); got != "SECOND" {
@@ -154,25 +158,21 @@ func TestEqualPriorityNeverPreempts(t *testing.T) {
 	}
 }
 
-func TestTieGoesToLowerSlotAndStubStarves(t *testing.T) {
-	// unhappy (the leak in miniature): OLD(20) is running with WAITER(20)
-	// queued in a lower slot than where OLD will park. A prio-21 blip preempts
-	// OLD; when the blip ends, EJSCAN finds WAITER first (lower slot) and OLD
-	// starves — parked, holding core set + VAC, forever.
+func TestNewerVACWordPreemptsAndStarvesTheOld(t *testing.T) {
+	// unhappy (the leak in miniature): OLD(20, FINDVAC) holds VAC area 0.
+	// NEWER(20, FINDVAC) is allocated VAC area 1 — its PRIORITY word is
+	// numerically larger, so it preempts OLD at the next DANZIG boundary,
+	// and OLD starves parked (holding core set + VAC) while any newer copy
+	// lives. That is one leaked pair — Eyles' uncompleted stub.
 	e := NewEngine(Config{})
-	// OLD occupies slot 0 (runner); WAITER lands slot 1; BLIP lands slot 2.
 	e.Spawn(JobSpec{Name: "OLD", Prio: 20, VAC: true, Script: endlessScript(40 * Millisecond)})
-	e.ScheduleTask(1*Millisecond, "SP1", 0, func(en *Engine) {
-		en.Spawn(JobSpec{Name: "WAITER", Prio: 20, VAC: true, Script: endlessScript(40 * Millisecond)})
-	})
-	e.ScheduleTask(6*Millisecond, "SP2", 0, func(en *Engine) {
-		en.Spawn(job("BLIP", 21, false, 2)) // gyro-like: brief, prio 21
+	e.ScheduleTask(6*Millisecond, "SP1", 0, func(en *Engine) {
+		en.Spawn(JobSpec{Name: "NEWER", Prio: 20, VAC: true, Script: endlessScript(40 * Millisecond)})
 	})
 	e.RunMS(20)
-	// BLIP preempted OLD at its 10 ms boundary, OLD swapped into slot 2;
-	// BLIP ended at ~12 ms; EJSCAN slots 1..7: WAITER (slot 1) wins the tie.
-	if got := e.RunningJob(); got != "WAITER" {
-		t.Fatalf("running %q, want WAITER — tie must go to the lower slot", got)
+	// NEWER spawned at 6 ms preempted OLD at OLD's 10 ms boundary.
+	if got := e.RunningJob(); got != "NEWER" {
+		t.Fatalf("running %q, want NEWER — the higher VAC address wins the word", got)
 	}
 	if st := e.JobState("OLD"); st != JobParked {
 		t.Fatalf("OLD state = %v, want parked — the starved stub", st)
@@ -180,11 +180,13 @@ func TestTieGoesToLowerSlotAndStubStarves(t *testing.T) {
 	if c, v := e.CoresHeld(), e.VACsHeld(); c != 2 || v != 2 {
 		t.Fatalf("cores=%d vacs=%d, want 2/2 — the stub still holds its pair", c, v)
 	}
-	// run long: OLD must STILL be starved (WAITER endless, ties never flip)
-	e.RunMS(30)
+	// run long: OLD stays starved while NEWER lives (its word always wins)
+	e.RunMS(20)
 	if st := e.JobState("OLD"); st != JobParked {
-		t.Fatalf("OLD state after 50 ms = %v, want still parked", st)
+		t.Fatalf("OLD state at 40 ms = %v, want still parked", st)
 	}
+	// NEWER's endless script outlives the window; kill the machine here.
+	// The stub only ever frees at a software restart — which is the point.
 }
 
 // ---------- JOBSLEEP / JOBWAKE ----------

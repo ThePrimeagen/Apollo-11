@@ -72,7 +72,8 @@ func TestServicerPrelockExcludesRadarSections(t *testing.T) {
 
 func TestServicerSectionOrder(t *testing.T) {
 	// happy: sections appear in execution order — average-G before guidance,
-	// guidance before FINDCDUW, FINDCDUW before throttle, DISPEXIT last
+	// then GDUMP1's order: TC THROTTLE, then CALL FINDCDUW -2 (LUNAR_LANDING_
+	// GUIDANCE_EQUATIONS.agc L822-L827), DISPEXIT last
 	s, err := ServicerScript(P63Locked)
 	if err != nil {
 		t.Fatalf("ServicerScript: %v", err)
@@ -83,7 +84,7 @@ func TestServicerSectionOrder(t *testing.T) {
 			first[in.Section] = i
 		}
 	}
-	order := []string{"MUNRVG", "GUIDANCE", "FINDCDUW", "THROTTLE", "DISPEXIT"}
+	order := []string{"MUNRVG", "GUIDANCE", "THROTTLE", "FINDCDUW", "DISPEXIT"}
 	prev := -1
 	for _, sec := range order {
 		at, ok := first[sec]
