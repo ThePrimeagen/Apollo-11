@@ -53,7 +53,7 @@ func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
 		m := sized(New(Catalog(), ""), 100, 40)
 		v := stripAnsi(m.View().Content)
-		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "FLAME", "STARS", "LEGACY"} {
+		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "America", "FLAME", "STARS", "LEGACY"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("menu missing %q:\n%s", want, v)
 			}
@@ -407,7 +407,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
-			"landing", "gunfire",
+			"landing", "gunfire", "america",
 			"flame", "stars-config", "editor", "particle", "dust-config", "gunfire-config",
 			"legacy", "timeline",
 		}
@@ -427,6 +427,7 @@ func TestCatalog(t *testing.T) {
 			"closeup":        "Screenplays",
 			"landing":        "Scenes",
 			"gunfire":        "Scenes",
+			"america":        "Scenes",
 			"flame":          "CONFIG",
 			"stars-config":   "CONFIG",
 			"editor":         "CONFIG",
@@ -493,6 +494,30 @@ func TestCatalog(t *testing.T) {
 		}
 		if !found {
 			t.Fatal("CONFIG must list the gunfire tuner")
+		}
+	})
+	t.Run("happy: Scenes lists America right after the gunfire", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 6 {
+			t.Fatal("catalog must hold the America scene after the gunfire")
+		}
+		if c[5].ID != "america" || c[5].Title != "America" || c[5].Section != "Scenes" || c[5].Pkg != "./cmd/america" {
+			t.Fatalf("sixth entry must be America under Scenes → ./cmd/america, got %+v", c[5])
+		}
+	})
+	t.Run("unhappy: America is a scene, not a screenplay, and never doubles up", func(t *testing.T) {
+		seen := 0
+		for _, e := range Catalog() {
+			if e.ID != "america" {
+				continue
+			}
+			seen++
+			if e.Section == "Screenplays" {
+				t.Fatalf("America must sit under Scenes, found %+v", e)
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("America must be listed exactly once, saw %d", seen)
 		}
 	})
 	t.Run("unhappy: old MAIN PROGRAM / SCREENPLAY / MOON SCREENPLAY / LUNAR LANDER CLOSE-UP labels are gone", func(t *testing.T) {
