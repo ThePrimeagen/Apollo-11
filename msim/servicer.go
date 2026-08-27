@@ -321,12 +321,14 @@ func servicerP63(locked bool) Script {
 	s = append(s, bas("FINDCDUW", "FETCH-CDUD", fCDUW, 143, 400))
 	s = append(s, sec("FINDCDUW", fCDUW, `
 		RTB:175 NORMUNIT:177 STORE:178 VLOAD:178 RTB:180 NORMUNIT:181
-		RTB:180 EXIT:183`)...)
+		RTB:180 EXIT:193`)...)
 	s = append(s,
 		bas("FINDCDUW", "QUICTRIG-SIN", fCDUW, 182, 2600),
 		bas("FINDCDUW", "QUICTRIG-COS", fCDUW, 182, 2600),
 		bas("FINDCDUW", "QUICTRIG-TRIM", fCDUW, 182, 2600),
 	)
+	// MXV:189 is the *SMNB* call operand — the SM↔NB transform charged as
+	// the matrix op it dispatches
 	s = append(s, sec("FINDCDUW", fCDUW, `
 		STORE:183 VLOAD:183 BOVB:185 UNIT:185 BOV:187 CALL:187 MXV:189 EXIT:193`)...)
 	s = append(s, bas("FINDCDUW", "FLTRSUB-Y", fCDUW, 195, 700))

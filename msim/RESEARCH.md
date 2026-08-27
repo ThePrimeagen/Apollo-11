@@ -163,3 +163,37 @@ Measured against the flight record:
   instructions with internal operand fetches.
 - LANDISP runs in task context per P70-P71.agc; its 3 ms is an estimate of
   the tape-meter conversions.
+
+## Source tensions the sim had to arbitrate
+
+Two independent validation passes audited the artifacts and the mechanics;
+these are the places where the 1969 sources disagree with each other and
+what the sim chose:
+
+- **Keying instants.** The first keystroke lands at PDI+303.3 and the ENTR
+  at +306 — consistent with [Cherry]'s "+304" if his event log stamps the
+  start of typing. The alarm GETs are pinned to Cherry's offsets
+  (+316/+358 → 102:38:21 / 102:39:03); SP-4029 stamps 102:38:22 /
+  102:39:02 — the two sources disagree at the ±1 s level and no choice
+  matches both simultaneously.
+- **Monitor-to-alarm gap.** [Tillman] says "in each case after 12 seconds
+  of a monitor verb"; Cherry's own event offsets give ~10-12 s. The sim
+  lands at 10.0 s and 11.0 s.
+- **Third-use duration.** Cherry's log (+374 keyed, +380 KEY REL) gives
+  6 s, which the sim reproduces; Tillman's prose says "9 or 10 seconds".
+  Either duration stays clean here (three boundaries, at most seven cores
+  at the worst instant).
+- **The no-monitor demand.** The [Outline]'s phase table characterizes
+  locked-P63-no-monitor as ~102% ("leaking slowly"); the flight record
+  shows no alarms in that configuration for minutes. The sim resolves the
+  tension through the theft sweep: 13.7% average (Grumman's measured
+  region) with 15.0% peaks — 97.7% average demand, ~98% in the worst 2 s
+  window, and zero leak until the monitor's load arrives.
+- **EJSCAN tie direction.** EJ1's compare is ones'-complement: equal
+  magnitudes sum to minus zero and CCS on -0 proceeds with the search,
+  keeping the EARLIER find. Only identical words (equal-priority NOVAC
+  jobs) can tie; FINDVAC words always differ by VAC address.
+- **Strip sampling.** The occupancy strips sample each second's final
+  millisecond; boundary transients (READACCS + LRH straddle + a fresh
+  SERVICER) can exceed the strip maxima between samples, which is why the
+  accounting section's peak line is the authoritative peak.

@@ -2,6 +2,10 @@
 
 Window: t=0 is GET 102:37:55 (PDI+290 s), 100000 ms simulated, 100 µs per tick.
 
+Each row samples the machine at the END of its labeled second
+(t+0.999); sub-second transients between samples can exceed the
+strip's maxima — the accounting section reports the true peaks.
+
 ```text
   t(s)  GET        cores 0-8    vacs 0-5   running at sample
      0  102:37:55  |#.......| 1/8  |#....| 1/5  SERVICER

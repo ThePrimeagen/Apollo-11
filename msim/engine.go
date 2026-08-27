@@ -262,8 +262,9 @@ func (e *Engine) IdleNs() Nanos       { return e.idleNs }
 // shaft/trunnion angle geometry (worst near 90/270 deg), so it wanders
 // between Grumman's measured floor and the theoretical ceiling, dwelling at
 // the floor while the geometry sits far from the worst-case angles. A
-// flat-bottomed triangle with a period coprime to the 2 s guidance cycle;
-// period, phase and dwell are the run's free parameters (msim/RESEARCH.md).
+// flat-bottomed triangle spanning seven guidance cycles, its floor dwell
+// pinned over the keying cycles; period, phase and dwell are the run's
+// free parameters (msim/RESEARCH.md).
 func theftAtMs(ms Nanos) Nanos {
 	const period = 14_000
 	const dwell = 1_100 // ms at the floor on each side of the trough

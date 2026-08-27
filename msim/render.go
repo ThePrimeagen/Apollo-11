@@ -37,6 +37,9 @@ func RenderTimeline(res *Result, title string) string {
 	// --- occupancy strip
 	durSec := res.DurationMS / 1000
 	if durSec > 0 && len(res.Samples) > 0 {
+		b.WriteString("Each row samples the machine at the END of its labeled second\n")
+		b.WriteString("(t+0.999); sub-second transients between samples can exceed the\n")
+		b.WriteString("strip's maxima — the accounting section reports the true peaks.\n\n")
 		b.WriteString("```text\n")
 		b.WriteString("  t(s)  GET        cores 0-8    vacs 0-5   running at sample\n")
 		for s := 0; s < durSec; s++ {
@@ -64,6 +67,16 @@ func RenderTimeline(res *Result, title string) string {
 		text string
 	}
 	var lines []line
+	// alarms first so a co-stamped RESTART prints after the ALARM it cures
+	for _, a := range res.Alarms {
+		code := "1202 NO CORE SETS"
+		if a.Code == 1201 {
+			code = "1201 NO VAC AREAS"
+		}
+		lines = append(lines, line{a.At, fmt.Sprintf(
+			"ALARM    %s — request %q denied; cores %d/8, vacs %d/5 at the request",
+			code, a.Requester, a.CoresHeld, a.VACsHeld)})
+	}
 	for _, ev := range res.Events {
 		switch ev.Kind {
 		case "key":
@@ -73,15 +86,6 @@ func RenderTimeline(res *Result, title string) string {
 		case "restart":
 			lines = append(lines, line{ev.At, "RESTART  software restart — " + ev.Detail})
 		}
-	}
-	for _, a := range res.Alarms {
-		code := "1202 NO CORE SETS"
-		if a.Code == 1201 {
-			code = "1201 NO VAC AREAS"
-		}
-		lines = append(lines, line{a.At, fmt.Sprintf(
-			"ALARM    %s — request %q denied; cores %d/8, vacs %d/5 at the request",
-			code, a.Requester, a.CoresHeld, a.VACsHeld)})
 	}
 	sort.SliceStable(lines, func(i, j int) bool { return lines[i].at < lines[j].at })
 	if len(lines) > 0 {

@@ -146,8 +146,11 @@ func (x *Executive) postIfGreater(slot int) {
 }
 
 // select_ is EJSCAN + CHANJOB: find the highest active PRIORITY WORD in
-// slots 1..7 (an exactly-equal word takes the later find — the EJ2 branch
-// on CCS +0), swap it into slot 0.
+// slots 1..7 and swap it into slot 0. An exactly-equal word keeps the
+// EARLIER find: EJ1's ones'-complement compare of equal magnitudes yields
+// minus zero, and CCS on -0 takes the fourth branch — "PROCEED WITH SEARCH"
+// (EXECUTIVE.agc L492-L499). Only identical words can tie (equal-priority
+// NOVAC jobs); FINDVAC words always differ by their VAC address.
 func (x *Executive) select_() {
 	best := -1
 	for i := 1; i < len(x.slots); i++ {
@@ -155,7 +158,7 @@ func (x *Executive) select_() {
 		if s == nil || s.dormant {
 			continue
 		}
-		if best < 0 || s.word() >= x.slots[best].word() {
+		if best < 0 || s.word() > x.slots[best].word() {
 			best = i
 		}
 	}

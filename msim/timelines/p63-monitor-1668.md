@@ -2,6 +2,10 @@
 
 Window: t=0 is GET 102:37:55 (PDI+290 s), 100000 ms simulated, 100 µs per tick.
 
+Each row samples the machine at the END of its labeled second
+(t+0.999); sub-second transients between samples can exceed the
+strip's maxima — the accounting section reports the true peaks.
+
 ```text
   t(s)  GET        cores 0-8    vacs 0-5   running at sample
      0  102:37:55  |#.......| 1/8  |#....| 1/5  SERVICER
@@ -117,8 +121,8 @@ Window: t=0 is GET 102:37:55 (PDI+290 s), 100000 ms simulated, 100 µs per tick.
   t=  15.535s  GET 102:38:10  key      8 (first)
   t=  15.985s  GET 102:38:10  key      ENTR (first)
   t=  15.985s  GET 102:38:10  crew     V16N68 ENTR — DELTAH monitor up (first)
-  t=  26.000s  GET 102:38:21  RESTART  software restart — flush: all core sets, all VACs, the waitlist
   t=  26.000s  GET 102:38:21  ALARM    1202 NO CORE SETS — request "SERVICER" denied; cores 8/8, vacs 4/5 at the request
+  t=  26.000s  GET 102:38:21  RESTART  software restart — flush: all core sets, all VACs, the waitlist
   t=  47.085s  GET 102:38:42  key      VERB (V57)
   t=  47.385s  GET 102:38:42  key      5 (V57)
   t=  47.685s  GET 102:38:42  key      7 (V57)
@@ -132,8 +136,8 @@ Window: t=0 is GET 102:37:55 (PDI+290 s), 100000 ms simulated, 100 µs per tick.
   t=  56.535s  GET 102:38:51  key      8 (second)
   t=  56.985s  GET 102:38:51  key      ENTR (second)
   t=  56.985s  GET 102:38:51  crew     V16N68 ENTR — DELTAH monitor up (second)
-  t=  68.000s  GET 102:39:03  RESTART  software restart — flush: all core sets, all VACs, the waitlist
   t=  68.000s  GET 102:39:03  ALARM    1202 NO CORE SETS — request "SERVICER" denied; cores 8/8, vacs 4/5 at the request
+  t=  68.000s  GET 102:39:03  RESTART  software restart — flush: all core sets, all VACs, the waitlist
   t=  81.285s  GET 102:39:16  key      VERB (third)
   t=  81.735s  GET 102:39:16  key      1 (third)
   t=  82.185s  GET 102:39:17  key      6 (third)
