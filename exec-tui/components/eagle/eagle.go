@@ -267,6 +267,61 @@ func (e *Eagle) Update(dt float64) {
 	e.clock += dt
 }
 
+// place is the flight this instant: the body's top-left stage cell,
+// swoop and bob included, and whether the bird is between its points.
+func (e *Eagle) place() (x, y int, on bool) {
+	if e == nil || !e.staged || e.w < 1 || e.h < 1 || e.cross <= 0 {
+		return 0, 0, false
+	}
+	t := e.clock - e.delay
+	if t < 0 {
+		return 0, 0, false
+	}
+	p := t / e.cross
+	if p >= 1 {
+		return 0, 0, false
+	}
+	q := e.pathA + p*(e.pathB-e.pathA)
+	span := float64(e.w + BodyCols)
+	x = e.w - int(q*span)
+	y = (e.h-BodyRows)/2 +
+		int(math.Round(DipRows*math.Sin(p*math.Pi))) +
+		int(math.Round(BobAmp*math.Sin(2*math.Pi*BobHz*t)))
+	return x, y, true
+}
+
+// At is the body's top-left stage cell this instant and whether the
+// flight currently has the bird on its way — the mount point for
+// whatever a scene hangs on the bird. Nil, unstarted, waiting and
+// finished birds are off.
+func (e *Eagle) At() (x, y int, on bool) {
+	return e.place()
+}
+
+// Progress is how far along its path the flight is, 0 at the start
+// point to 1 at the end, and whether the bird is mid-flight. Nil,
+// unstarted, waiting and finished birds do not fly.
+func (e *Eagle) Progress() (p float64, flying bool) {
+	if e == nil || !e.staged || e.cross <= 0 {
+		return 0, false
+	}
+	t := e.clock - e.delay
+	if t < 0 {
+		return 0, false
+	}
+	p = t / e.cross
+	if p >= 1 {
+		return 1, false
+	}
+	return p, true
+}
+
+// Talons are the two claw clusters' cell offsets on the body canvas,
+// leading claw first — where a scene mounts what the eagle carries.
+func Talons() [2][2]int {
+	return [2][2]int{{10, 14}, {18, 14}}
+}
+
 // Render lays the eagle at its instant of the crossing on a
 // stage-sized sprite. Before the delay, after the crossing, before
 // Start and after Stop the sky is clear.
@@ -275,21 +330,11 @@ func (e *Eagle) Render() sprite.Sprite {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(e.w, e.h)
-	t := e.clock - e.delay
-	if t < 0 || e.cross <= 0 {
+	x, y, on := e.place()
+	if !on {
 		return stage
 	}
-	p := t / e.cross
-	if p >= 1 {
-		return stage
-	}
-	q := e.pathA + p*(e.pathB-e.pathA)
-	span := float64(e.w + BodyCols)
-	x := e.w - int(q*span)
-	row := (e.h-BodyRows)/2 +
-		int(math.Round(DipRows*math.Sin(p*math.Pi))) +
-		int(math.Round(BobAmp*math.Sin(2*math.Pi*BobHz*t)))
-	sprite.Blit(stage, x, row, e.body)
+	sprite.Blit(stage, x, y, e.body)
 	return stage
 }
 

@@ -4,12 +4,16 @@
 // the stage right to left with the flag flying beneath it. After the
 // flyover the flag flies alone.
 //
-// Five live knobs retune the scene, the same way the landing runner
-// tunes: flag fade, eagle delay, eagle cross (the eagle's speed), and
+// Nine live knobs retune the scene, the same way the landing runner
+// tunes: flag fade, eagle delay, eagle cross (the eagle's speed),
 // eagle start / eagle end (where the flight begins and ends, as
-// fractions of the full off-right-to-off-left span). The time knobs
-// step 50ms, the path knobs 0.05 of the span. Play rebuilds from the
-// current knobs; s saves them to scenes/america/config.json.
+// fractions of the full off-right-to-off-left span), left/right
+// shots (how many shells each talon's shotgun fires across one
+// crossing) and left/right aim (which of the eight compass points
+// each barrel faces). The time knobs step 50ms, the path knobs 0.05
+// of the span, the shots one shell, the aims one compass point with
+// wrap. Play rebuilds from the current knobs; s saves them to
+// scenes/america/config.json.
 //
 //	p / enter / space   play from the top
 //	j / k               select knob
@@ -204,7 +208,7 @@ func (m model) status(w int) []string {
 		if i == m.cursor {
 			marker, color = "> ", hot
 		}
-		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %7.3f%s", marker, america.KnobLabel(i), m.show.Cfg.Value(i), america.KnobUnit(i)), w)+reset)
+		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %s", marker, america.KnobLabel(i), m.show.Cfg.Display(i)), w)+reset)
 	}
 	return rows
 }

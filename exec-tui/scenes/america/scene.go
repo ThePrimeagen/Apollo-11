@@ -3,26 +3,33 @@
 // cell of the stage walking its own ramp from black to the finished
 // red, white and blue — and once the fade lands, the very large bald
 // eagle enters off the right wing and crosses the whole stage
-// leftward, the flag still flying beneath it. After the flyover the
-// flag flies alone, and the scene holds there until the cut. The
-// stock show is quick — the whole beat lands inside six seconds —
-// and the knobs stay live for anyone who wants it slower.
+// leftward, the flag still flying beneath it, a shotgun component
+// painted onto each talon firing the gunfire particle blast on its
+// own schedule. After the flyover the flag flies alone, and the scene
+// holds there until the cut. The stock show is quick — the whole beat
+// lands inside six seconds — and the knobs stay live for anyone who
+// wants it slower or louder.
 //
-// Five live knobs retune it, the same way the landing scene tunes:
+// Nine live knobs retune it, the same way the landing scene tunes:
 // FadeSeconds (the flag's fade-in), EagleDelay (when the eagle
 // enters, measured from t=0), CrossSeconds (how long the crossing
-// takes — the eagle's speed), and EagleStart / EagleEnd (where the
-// flight begins and ends, as fractions of the full
-// off-right-to-off-left span). The runner nudges the time knobs 50ms
-// and the path knobs 0.05 of the span at a time, and s saves them to
-// scenes/america/config.json. Both performers are reusable components
-// on their own: components/flag and components/eagle carry all of
-// this as plain constructor knobs.
+// takes — the eagle's speed), EagleStart / EagleEnd (where the flight
+// begins and ends, as fractions of the full off-right-to-off-left
+// span), LeftShots / RightShots (how many shells each talon's gun
+// fires across one crossing), and LeftAim / RightAim (which of the
+// eight compass points each barrel faces). The runner nudges the time
+// knobs 50ms, the path knobs 0.05 of the span, the shots one shell,
+// the aims one compass point at a time, and s saves them to
+// scenes/america/config.json. Every performer is a reusable component
+// on its own: components/flag, components/eagle, components/shotgun
+// and components/gunfire carry all of this as plain constructor
+// knobs.
 package america
 
 import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -41,11 +48,21 @@ const (
 	// enters off the right wing and exits off the left.
 	StartPoint = 0.0
 	EndPoint   = 1.0
+
+	// StockShots is how many shells each talon's shotgun fires
+	// across one crossing.
+	StockShots = 3
+
+	// StockLeftAim and StockRightAim are the barrels' stock compass
+	// points: the leading talon rakes ahead-and-down, the trailing
+	// one behind-and-down.
+	StockLeftAim  = sprite.SW
+	StockRightAim = sprite.SE
 )
 
-// Show is the America scene as a live scene: Cfg is the five knobs
+// Show is the America scene as a live scene: Cfg is the nine knobs
 // Assemble reads on each Start, so Play (Stop then Start) rebuilds
-// the fade and the flyover from whatever they hold now.
+// the fade, the flyover and the guns from whatever they hold now.
 type Show struct {
 	Cfg Config
 	screenplay.Ensemble
@@ -60,10 +77,14 @@ func New() *Show {
 }
 
 func (s *Show) assemble() []screenplay.Component {
+	bird := eagle.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
+		Path(s.Cfg.EagleStart, s.Cfg.EagleEnd)
+	talons := eagle.Talons()
 	return []screenplay.Component{
 		flag.New(s.Cfg.FadeSeconds),
-		eagle.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
-			Path(s.Cfg.EagleStart, s.Cfg.EagleEnd),
+		bird,
+		newGunner(bird, talons[0], s.Cfg.LeftAim, s.Cfg.LeftShots),
+		newGunner(bird, talons[1], s.Cfg.RightAim, s.Cfg.RightShots),
 	}
 }
 
