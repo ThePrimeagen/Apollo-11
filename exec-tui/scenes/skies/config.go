@@ -22,6 +22,8 @@ const (
 	StockRate        = 2.0
 	StockLeftAim     = sprite.W
 	StockRightAim    = sprite.E
+	StockLeftOn      = true
+	StockRightOn     = true
 )
 
 type Config struct {
@@ -32,9 +34,11 @@ type Config struct {
 	CrossSeconds float64        `json:"crossSeconds"`
 	EagleStart   float64        `json:"eagleStart"`
 	EagleEnd     float64        `json:"eagleEnd"`
+	LeftOn       bool           `json:"leftOn"`
 	LeftShots    int            `json:"leftShots"`
 	LeftRate     float64        `json:"leftRate"`
 	LeftAim      sprite.Heading `json:"leftAim"`
+	RightOn      bool           `json:"rightOn"`
 	RightShots   int            `json:"rightShots"`
 	RightRate    float64        `json:"rightRate"`
 	RightAim     sprite.Heading `json:"rightAim"`
@@ -48,9 +52,11 @@ type fileJSON struct {
 	CrossSeconds *float64        `json:"crossSeconds"`
 	EagleStart   *float64        `json:"eagleStart"`
 	EagleEnd     *float64        `json:"eagleEnd"`
+	LeftOn       *bool           `json:"leftOn"`
 	LeftShots    *int            `json:"leftShots"`
 	LeftRate     *float64        `json:"leftRate"`
 	LeftAim      *sprite.Heading `json:"leftAim"`
+	RightOn      *bool           `json:"rightOn"`
 	RightShots   *int            `json:"rightShots"`
 	RightRate    *float64        `json:"rightRate"`
 	RightAim     *sprite.Heading `json:"rightAim"`
@@ -66,9 +72,11 @@ const (
 	KnobCross
 	KnobStart
 	KnobEnd
+	KnobLeftOn
 	KnobLeftShots
 	KnobLeftRate
 	KnobLeftAim
+	KnobRightOn
 	KnobRightShots
 	KnobRightRate
 	KnobRightAim
@@ -91,12 +99,16 @@ func KnobLabel(k Knob) string {
 		return "eagle start"
 	case KnobEnd:
 		return "eagle end"
+	case KnobLeftOn:
+		return "left on"
 	case KnobLeftShots:
 		return "left shots"
 	case KnobLeftRate:
 		return "left rate"
 	case KnobLeftAim:
 		return "left aim"
+	case KnobRightOn:
+		return "right on"
 	case KnobRightShots:
 		return "right shots"
 	case KnobRightRate:
@@ -153,6 +165,10 @@ func (c Config) Value(k Knob) float64 {
 		return c.EagleStart
 	case KnobEnd:
 		return c.EagleEnd
+	case KnobLeftOn:
+		return onOffValue(c.LeftOn)
+	case KnobRightOn:
+		return onOffValue(c.RightOn)
 	case KnobLeftShots:
 		return float64(c.LeftShots)
 	case KnobRightShots:
@@ -172,6 +188,10 @@ func (c Config) Display(k Knob) string {
 	switch k {
 	case KnobRise, KnobFlagDelay, KnobFlagFade, KnobDelay, KnobCross, KnobStart, KnobEnd:
 		return fmt.Sprintf("%7.3f%s", c.Value(k), KnobUnit(k))
+	case KnobLeftOn:
+		return fmt.Sprintf("%7s", onOffWord(c.LeftOn))
+	case KnobRightOn:
+		return fmt.Sprintf("%7s", onOffWord(c.RightOn))
 	case KnobLeftShots:
 		return fmt.Sprintf("%7d", c.LeftShots)
 	case KnobRightShots:
@@ -220,9 +240,11 @@ func DefaultConfig() Config {
 		CrossSeconds: CrossSeconds,
 		EagleStart:   StartPoint,
 		EagleEnd:     EndPoint,
+		LeftOn:       StockLeftOn,
 		LeftShots:    StockShots,
 		LeftRate:     StockRate,
 		LeftAim:      StockLeftAim,
+		RightOn:      StockRightOn,
 		RightShots:   StockShots,
 		RightRate:    StockRate,
 		RightAim:     StockRightAim,
@@ -319,6 +341,9 @@ func Load(path string) (Config, error) {
 	if f.EagleEnd != nil {
 		c.EagleEnd = *f.EagleEnd
 	}
+	if f.LeftOn != nil {
+		c.LeftOn = *f.LeftOn
+	}
 	if f.LeftShots != nil {
 		c.LeftShots = *f.LeftShots
 	}
@@ -327,6 +352,9 @@ func Load(path string) (Config, error) {
 	}
 	if f.LeftAim != nil {
 		c.LeftAim = *f.LeftAim
+	}
+	if f.RightOn != nil {
+		c.RightOn = *f.RightOn
 	}
 	if f.RightShots != nil {
 		c.RightShots = *f.RightShots
@@ -367,15 +395,17 @@ func (c Config) Save(path string) error {
 		"  \"crossSeconds\": %.3f,\n"+
 		"  \"eagleStart\": %.3f,\n"+
 		"  \"eagleEnd\": %.3f,\n"+
+		"  \"leftOn\": %t,\n"+
 		"  \"leftShots\": %d,\n"+
 		"  \"leftRate\": %.2f,\n"+
 		"  \"leftAim\": %q,\n"+
+		"  \"rightOn\": %t,\n"+
 		"  \"rightShots\": %d,\n"+
 		"  \"rightRate\": %.2f,\n"+
 		"  \"rightAim\": %q\n"+
 		"}\n",
 		c.RiseSeconds, c.FlagDelay, c.FlagFade, c.EagleDelay, c.CrossSeconds, c.EagleStart, c.EagleEnd,
-		c.LeftShots, c.LeftRate, string(c.LeftAim), c.RightShots, c.RightRate, string(c.RightAim)))
+		c.LeftOn, c.LeftShots, c.LeftRate, string(c.LeftAim), c.RightOn, c.RightShots, c.RightRate, string(c.RightAim)))
 	return os.WriteFile(path, raw, 0o644)
 }
 
@@ -461,6 +491,12 @@ func (c *Config) Nudge(k Knob, dir int) {
 		return
 	}
 	switch k {
+	case KnobLeftOn:
+		c.LeftOn = dir > 0
+		return
+	case KnobRightOn:
+		c.RightOn = dir > 0
+		return
 	case KnobLeftShots:
 		c.LeftShots = flooredShells(c.LeftShots + dir)
 		return
@@ -532,4 +568,18 @@ func walkedAim(h sprite.Heading, dir int) sprite.Heading {
 		}
 	}
 	return sprite.Headings[((idx+dir)%n+n)%n]
+}
+
+func onOffValue(on bool) float64 {
+	if on {
+		return 1
+	}
+	return 0
+}
+
+func onOffWord(on bool) string {
+	if on {
+		return "on"
+	}
+	return "off"
 }

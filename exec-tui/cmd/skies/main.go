@@ -4,9 +4,9 @@
 // American flag crossfades in as the floor and the very large bald
 // eagle flies in with a shotgun in each talon.
 //
-// Thirteen live knobs retune the scene: sky rise, flag delay, flag
+// Fifteen live knobs retune the scene: sky rise, flag delay, flag
 // fade, eagle delay, eagle cross, eagle start / end, left/right
-// shots, left/right rate, and left/right aim. Play rebuilds from
+// on, left/right shots, left/right rate, and left/right aim. Play rebuilds from
 // the current knobs; s saves them to scenes/skies/config.json.
 //
 //	p / enter / space   play from the top
@@ -39,7 +39,7 @@ import (
 
 const (
 	defaultW   = 72
-	defaultH   = 28
+	defaultH   = 30
 	minW       = 10
 	minH       = 4
 	frameMs    = 1000.0 / 30

@@ -6,9 +6,11 @@
   "crossSeconds": 4.000,
   "eagleStart": 0.000,
   "eagleEnd": 1.000,
+  "leftOn": true,
   "leftShots": 3,
   "leftRate": 2.00,
   "leftAim": "W",
+  "rightOn": true,
   "rightShots": 3,
   "rightRate": 2.00,
   "rightAim": "E"

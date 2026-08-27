@@ -6,7 +6,8 @@ package skies
 // the American flag crossfades in as the new floor — background
 // coloring, so the eagle and the talon shotguns sit on top. The
 // bird flies in from the right to its end point and each gun fires
-// on its own shot count and rate of fire. Every performer is a
+// on its own shot count and rate of fire — unless that talon is
+// switched off, in which case the gun is gone. Every performer is a
 // reusable component: components/sky, components/cloud,
 // components/flag, components/transition, components/eagle,
 // components/shotgun.
@@ -20,6 +21,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sky"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -331,6 +333,29 @@ func TestSkiesScene(t *testing.T) {
 	})
 }
 
+func bbox(cells [][2]int) (w, h int) {
+	if len(cells) == 0 {
+		return 0, 0
+	}
+	minR, maxR := cells[0][0], cells[0][0]
+	minC, maxC := cells[0][1], cells[0][1]
+	for _, rc := range cells {
+		if rc[0] < minR {
+			minR = rc[0]
+		}
+		if rc[0] > maxR {
+			maxR = rc[0]
+		}
+		if rc[1] < minC {
+			minC = rc[1]
+		}
+		if rc[1] > maxC {
+			maxC = rc[1]
+		}
+	}
+	return maxC - minC + 1, maxR - minR + 1
+}
+
 func TestSkiesArmedEagle(t *testing.T) {
 	t.Cleanup(Reset)
 	fast := func(leftShots, rightShots int, leftRate, rightRate float64) Config {
@@ -421,6 +446,101 @@ func TestSkiesArmedEagle(t *testing.T) {
 		tick(sc, 1.0)
 		if got := gunCells(paint(sc)); len(got) != 0 {
 			t.Fatalf("before the delay %d gun cells are on stage — the guns wait with the bird", len(got))
+		}
+	})
+	t.Run("happy: each shotgun mounts and aims on its own", func(t *testing.T) {
+		t.Cleanup(Reset)
+		cfg := fast(0, 0, 0, 0)
+		cfg.LeftOn = true
+		cfg.RightOn = false
+		cfg.LeftAim = sprite.E
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.2+0.5)
+		east := gunCells(paint(sc))
+		if len(east) == 0 {
+			t.Fatal("a mounted left gun must still paint when the right talon is empty")
+		}
+		ew, eh := bbox(east)
+		if ew <= eh {
+			t.Fatalf("an east left gun should read wider than tall, got %dx%d", ew, eh)
+		}
+		sc.Stop()
+		cfg.LeftAim = sprite.N
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc = New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.2+0.5)
+		north := gunCells(paint(sc))
+		if len(north) == 0 {
+			t.Fatal("re-aiming the mounted gun must still paint it")
+		}
+		nw, nh := bbox(north)
+		if nh <= nw {
+			t.Fatalf("a north left gun should read taller than wide, got %dx%d", nw, nh)
+		}
+		sc.Stop()
+		cfg.LeftOn = false
+		cfg.RightOn = true
+		cfg.RightAim = sprite.E
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc = New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.2+0.5)
+		right := gunCells(paint(sc))
+		if len(right) == 0 {
+			t.Fatal("turning the left gun off must leave the right gun on its talon")
+		}
+		rw, rh := bbox(right)
+		if rw <= rh {
+			t.Fatalf("an east right gun should read wider than tall, got %dx%d", rw, rh)
+		}
+	})
+	t.Run("unhappy: both guns off is a bare eagle — no gold, no flame, aim is invisible", func(t *testing.T) {
+		t.Cleanup(Reset)
+		cfg := fast(3, 3, 4, 4)
+		cfg.LeftOn = false
+		cfg.RightOn = false
+		cfg.LeftAim = sprite.N
+		cfg.RightAim = sprite.S
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		at := 0.0
+		sawEagle := false
+		for target := 0.4; target <= 2.4; target += 0.4 {
+			tick(sc, target-at)
+			at = target
+			scr := paint(sc)
+			if got := gunCells(scr); len(got) != 0 {
+				t.Fatalf("at %.1fs an unmounted pair painted %d gun cells", target, len(got))
+			}
+			if got := blastCells(scr); len(got) != 0 {
+				t.Fatalf("at %.1fs an unmounted pair threw %d flame cells", target, len(got))
+			}
+			if len(eagleCells(scr)) > 0 {
+				sawEagle = true
+			}
+		}
+		if !sawEagle {
+			t.Fatal("the bird must still cross when both talons are empty")
 		}
 	})
 }
