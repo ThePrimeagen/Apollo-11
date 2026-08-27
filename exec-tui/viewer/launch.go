@@ -8,10 +8,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustcloud"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustdust"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustgunfire"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustparticle"
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
@@ -32,6 +34,9 @@ func Launch(ed Edit) error {
 	opts := colorOpts()
 	switch ed.Kind {
 	case KindComponent:
+		if ed.Program != "" {
+			return launchParticle(ed.Program, path, opts)
+		}
 		m, err := editor.Open(path)
 		if err != nil {
 			return err
@@ -72,6 +77,20 @@ func launchParticle(program, path string, opts []tea.ProgramOption) error {
 		return err
 	case "./cmd/adjustparticle/main":
 		m, err := adjustparticle.Open(path, 0)
+		if err != nil {
+			return err
+		}
+		_, err = termreset.Run(m, opts...)
+		return err
+	case "./cmd/adjustsky/main":
+		m, err := adjustsky.Open(path, 0)
+		if err != nil {
+			return err
+		}
+		_, err = termreset.Run(m, opts...)
+		return err
+	case "./cmd/adjustcloud/main":
+		m, err := adjustcloud.Open(path, 0)
 		if err != nil {
 			return err
 		}

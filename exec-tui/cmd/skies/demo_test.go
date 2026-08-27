@@ -1,0 +1,204 @@
+package main
+
+// Demo harness tests, written first: cmd/skies runs the Skies scene
+// standalone. The house opens on almost-pure light blue with the
+// Skies marquee and the knob panel; the camera tilts up so the
+// darker blue and the clouds come into view, then the eagle flies
+// in. j/k select a knob, h/l nudge it, s saves, p replays.
+
+import (
+	"fmt"
+	"math"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
+)
+
+var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func frames(m model, n int) model {
+	for i := 0; i < n; i++ {
+		mm, _ := m.Update(frameMsg{})
+		m = mm.(model)
+	}
+	return m
+}
+
+func press(m model, msg tea.Msg) model {
+	mm, _ := m.Update(msg)
+	return mm.(model)
+}
+
+func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
+
+func riseFrames() int { return int(skies.RiseSeconds*30) + 15 }
+
+func TestSkiesDemoOpens(t *testing.T) {
+	t.Cleanup(skies.Reset)
+	t.Run("happy: the house opens on light blue with the Skies marquee", func(t *testing.T) {
+		m := newModel(0)
+		v := m.View().Content
+		for _, want := range []string{"Skies", "replay", "quit"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("the opening view is missing %q", want)
+			}
+		}
+		if !strings.Contains(v, "48;5;153m") {
+			t.Fatal("the stage must open painted light blue — the horizon shot")
+		}
+		if strings.Contains(v, "48;5;17m") {
+			t.Fatal("no dark zenith yet — the camera tilts up first")
+		}
+	})
+	t.Run("unhappy: unknown keys neither replay nor quit", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		mm, cmd := m.Update(runeKey('z'))
+		if cmd != nil {
+			t.Fatal("an unknown key must do nothing")
+		}
+		m = mm.(model)
+		if !strings.Contains(m.View().Content, "48;5;153m") {
+			t.Fatal("an unknown key must not rewind the show")
+		}
+	})
+}
+
+func TestSkiesDemoRise(t *testing.T) {
+	t.Cleanup(skies.Reset)
+	t.Run("happy: after the rise the darker blue is on stage", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, riseFrames())
+		v := m.View().Content
+		if !strings.Contains(v, "48;5;17m") {
+			t.Fatal("after the rise the dark zenith must be on stage")
+		}
+	})
+}
+
+func TestSkiesDemoHouseRules(t *testing.T) {
+	t.Run("happy: Init schedules the first frame and each frame the next", func(t *testing.T) {
+		m := newModel(0)
+		if m.Init() == nil {
+			t.Fatal("Init must start the clock")
+		}
+		_, cmd := m.Update(frameMsg{})
+		if cmd == nil {
+			t.Fatal("a frame must schedule the next tick")
+		}
+	})
+	t.Run("happy: -seconds brings the curtain down on time", func(t *testing.T) {
+		m := newModel(0.05)
+		mm, cmd := m.Update(frameMsg{})
+		m = mm.(model)
+		if _, ok := cmd().(tea.QuitMsg); ok {
+			t.Fatal("one frame is 0.033s — too early for a 0.05s curtain")
+		}
+		_, cmd = m.Update(frameMsg{})
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Fatal("two frames pass 0.05s — the curtain must fall")
+		}
+	})
+	t.Run("happy: the view fills the window exactly", func(t *testing.T) {
+		m := newModel(0)
+		mm, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 20})
+		m = mm.(model)
+		if got := len(strings.Split(m.View().Content, "\n")); got != 20 {
+			t.Fatalf("view has %d lines for a 20-line window", got)
+		}
+	})
+	t.Run("unhappy: q and ctrl+c close the house from any point", func(t *testing.T) {
+		for _, msg := range []tea.Msg{
+			runeKey('q'),
+			tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl},
+		} {
+			m := newModel(0)
+			_ = m.View()
+			m = frames(m, 10)
+			_, cmd := m.Update(msg)
+			if cmd == nil {
+				t.Fatalf("%v must quit", msg)
+			}
+			if _, ok := cmd().(tea.QuitMsg); !ok {
+				t.Fatalf("%v must issue tea.Quit", msg)
+			}
+		}
+	})
+}
+
+func TestSkiesDemoKnobs(t *testing.T) {
+	t.Cleanup(skies.Reset)
+	t.Run("happy: the panel opens on the stock knobs", func(t *testing.T) {
+		v := ansiPat.ReplaceAllString(newModel(0).View().Content, "")
+		for _, want := range []string{
+			"sky rise", "eagle delay", "eagle cross", "eagle start", "eagle end",
+			"left shots", "left rate", "left aim", "right shots", "right rate", "right aim",
+			fmt.Sprintf("%7.3f", skies.RiseSeconds),
+			fmt.Sprintf("%7d", skies.StockShots),
+			fmt.Sprintf("%7.2f/s", skies.StockRate),
+		} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("the knob panel is missing %q:\n%s", want, v)
+			}
+		}
+		marked := false
+		for _, line := range strings.Split(v, "\n") {
+			if strings.Contains(line, ">") && strings.Contains(line, "sky rise") {
+				marked = true
+			}
+		}
+		if !marked {
+			t.Fatal("the cursor must open on the sky rise knob")
+		}
+	})
+	t.Run("happy: j and k walk the cursor over the eleven knobs with wrap", func(t *testing.T) {
+		m := newModel(0)
+		m = press(m, runeKey('j'))
+		if m.cursor != skies.KnobDelay {
+			t.Fatalf("j must land on eagle delay, got %d", m.cursor)
+		}
+		m = press(m, runeKey('k'))
+		m = press(m, runeKey('k'))
+		if m.cursor != skies.KnobRightAim {
+			t.Fatalf("k from the top must wrap to the right aim, got %d", m.cursor)
+		}
+	})
+	t.Run("happy: h and l nudge the selected knob one step at a time", func(t *testing.T) {
+		m := newModel(0)
+		m = press(m, runeKey('l'))
+		if got := m.show.Cfg.RiseSeconds; math.Abs(got-(skies.RiseSeconds+skies.StepSeconds)) > 1e-9 {
+			t.Fatalf("l must add 50ms to the rise, got %v", got)
+		}
+	})
+	t.Run("happy: s saves the knobs to the config path", func(t *testing.T) {
+		t.Cleanup(skies.Reset)
+		m := newModel(0)
+		m.path = filepath.Join(t.TempDir(), "skies.json")
+		m = press(m, runeKey('l'))
+		m = press(m, runeKey('s'))
+		if m.note != "saved" {
+			t.Fatalf("note %q, want saved", m.note)
+		}
+		got, err := skies.Load(m.path)
+		if err != nil {
+			t.Fatalf("the saved file must load: %v", err)
+		}
+		if math.Abs(got.RiseSeconds-(skies.RiseSeconds+skies.StepSeconds)) > 1e-9 {
+			t.Fatalf("saved rise %v, want the nudged %v", got.RiseSeconds, skies.RiseSeconds+skies.StepSeconds)
+		}
+	})
+	t.Run("unhappy: s without a config path says so instead of writing", func(t *testing.T) {
+		m := newModel(0)
+		m.path = ""
+		m = press(m, runeKey('s'))
+		if m.note != "no config path" {
+			t.Fatalf("note %q, want no config path", m.note)
+		}
+	})
+}

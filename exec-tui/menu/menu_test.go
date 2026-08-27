@@ -53,7 +53,7 @@ func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
 		m := sized(New(Catalog(), ""), 100, 40)
 		v := stripAnsi(m.View().Content)
-		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "America", "FLAME", "STARS", "LEGACY"} {
+		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "America", "Skies", "FLAME", "STARS", "LEGACY"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("menu missing %q:\n%s", want, v)
 			}
@@ -408,9 +408,9 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
-			"viewer", "landing", "america", "moonwalk",
-			"flame", "stars-config", "editor",
-			"particle", "dust-config", "gunfire-config",
+			"viewer", "landing", "america", "moonwalk", "skies",
+			"flame", "stars-config", "sky-config", "editor",
+			"particle", "dust-config", "gunfire-config", "cloud-config",
 			"legacy", "timeline",
 			"agctop", "agcgraph",
 		}
@@ -432,12 +432,15 @@ func TestCatalog(t *testing.T) {
 			"landing":        "Scenes",
 			"america":        "Scenes",
 			"moonwalk":       "Scenes",
+			"skies":          "Scenes",
 			"flame":          "CONFIG",
 			"stars-config":   "CONFIG",
+			"sky-config":     "CONFIG",
 			"editor":         "CONFIG",
 			"particle":       "Particles",
 			"dust-config":    "Particles",
 			"gunfire-config": "Particles",
+			"cloud-config":   "Particles",
 			"legacy":         "LEGACY TUIS",
 			"timeline":       "LEGACY TUIS",
 			"agctop":         "EXECUTIVE",
@@ -488,7 +491,7 @@ func TestCatalog(t *testing.T) {
 		if seen != 1 {
 			t.Fatalf("the component viewer must be listed exactly once, saw %d", seen)
 		}
-		for _, id := range []string{"shotgun", "stars", "flag", "eagle", "lander"} {
+		for _, id := range []string{"shotgun", "stars", "sky", "cloud", "flag", "eagle", "lander"} {
 			for _, e := range c {
 				if e.ID == id {
 					t.Fatalf("component %q must live inside the viewer, not as its own runner entry", id)
@@ -513,6 +516,7 @@ func TestCatalog(t *testing.T) {
 			{"particle", "PARTICLE CONFIG", "./cmd/adjustparticle/main"},
 			{"dust-config", "DUSTOFF CONFIG", "./cmd/adjustdust/main"},
 			{"gunfire-config", "GUNFIRE CONFIG", "./cmd/adjustgunfire/main"},
+			{"cloud-config", "CLOUD CONFIG", "./cmd/adjustcloud/main"},
 		}
 		got := make([]Entry, 0, 3)
 		for _, e := range c {
@@ -591,6 +595,30 @@ func TestCatalog(t *testing.T) {
 		}
 		if seen != 1 {
 			t.Fatalf("the Moonwalk must be listed exactly once, saw %d", seen)
+		}
+	})
+	t.Run("happy: Scenes lists Skies right after the Moonwalk", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 8 {
+			t.Fatal("catalog must hold the Skies scene after the Moonwalk")
+		}
+		if c[7].ID != "skies" || c[7].Title != "Skies" || c[7].Section != "Scenes" || c[7].Pkg != "./cmd/skies" {
+			t.Fatalf("eighth entry must be Skies under Scenes → ./cmd/skies, got %+v", c[7])
+		}
+	})
+	t.Run("unhappy: Skies is a scene, not a screenplay, and never doubles up", func(t *testing.T) {
+		seen := 0
+		for _, e := range Catalog() {
+			if e.ID != "skies" {
+				continue
+			}
+			seen++
+			if e.Section != "Scenes" {
+				t.Fatalf("Skies must sit under Scenes, found %+v", e)
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("Skies must be listed exactly once, saw %d", seen)
 		}
 	})
 	t.Run("unhappy: old MAIN PROGRAM / SCREENPLAY / MOON SCREENPLAY / LUNAR LANDER CLOSE-UP labels are gone", func(t *testing.T) {

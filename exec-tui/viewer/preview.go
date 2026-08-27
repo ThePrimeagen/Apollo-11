@@ -4,10 +4,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/astro"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/cloud"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/fire"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/rocket"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/shotgun"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
@@ -117,6 +119,58 @@ func newRocketPreview() screenplay.Component {
 	return &centered{
 		draw: r.View,
 		tick: r.Update,
+	}
+}
+
+func newSkyPreview() screenplay.Component {
+	return sky.New().Rise(8)
+}
+
+type stacked struct {
+	layers []screenplay.Component
+	w, h   int
+}
+
+func newCloudPreview() screenplay.Component {
+	return &stacked{layers: []screenplay.Component{
+		sky.New().At(0.7),
+		cloud.New(7),
+	}}
+}
+
+func (s *stacked) Start(w, h int) {
+	s.w, s.h = w, h
+	for _, l := range s.layers {
+		if l != nil {
+			l.Start(w, h)
+		}
+	}
+}
+
+func (s *stacked) Update(dt float64) {
+	for _, l := range s.layers {
+		if l != nil {
+			l.Update(dt)
+		}
+	}
+}
+
+func (s *stacked) Render() sprite.Sprite {
+	stage := sprite.New(s.w, s.h)
+	for _, l := range s.layers {
+		if l == nil {
+			continue
+		}
+		sprite.Blit(stage, 0, 0, l.Render())
+	}
+	return stage
+}
+
+func (s *stacked) Stop() {
+	for _, l := range s.layers {
+		if l != nil {
+			l.Stop()
+		}
 	}
 }
 
