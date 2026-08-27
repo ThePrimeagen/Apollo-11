@@ -524,6 +524,7 @@ func TestSkiesArmedEagle(t *testing.T) {
 		defer sc.Stop()
 		_ = paint(sc)
 		at := 0.0
+		sawEagle := false
 		for target := 0.4; target <= 2.4; target += 0.4 {
 			tick(sc, target-at)
 			at = target
@@ -534,8 +535,11 @@ func TestSkiesArmedEagle(t *testing.T) {
 			if got := blastCells(scr); len(got) != 0 {
 				t.Fatalf("at %.1fs an unmounted pair threw %d flame cells", target, len(got))
 			}
+			if len(eagleCells(scr)) > 0 {
+				sawEagle = true
+			}
 		}
-		if len(eagleCells(paint(sc))) == 0 {
+		if !sawEagle {
 			t.Fatal("the bird must still cross when both talons are empty")
 		}
 	})

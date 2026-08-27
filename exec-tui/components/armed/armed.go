@@ -1,7 +1,7 @@
 // Package armed is the composite eagle: the bird, a shotgun on each
 // talon, and the gunfire particle blast, as one scene component.
 // Delay / Cross / Path retune the flight; LeftGun / RightGun retune
-// each talon. Rate > 0 fires after the bird is on stage at that
+// each talon. UnmountLeft / UnmountRight empty a talon. Rate > 0 fires after the bird is on stage at that
 // shots/sec; rate 0 spaces shells evenly along the crossing. New
 // reads the Active knobs so a tuner and any scene share the same
 // file. The flight clock rides across restarts, so a resize never
@@ -94,6 +94,24 @@ func (a *Armed) RightEven(aim sprite.Heading, shots int) *Armed {
 		return nil
 	}
 	a.right = newGunner(a.bird, eagle.Talons()[1], aim, shots, 0, true)
+	return a
+}
+
+// UnmountLeft empties the leading talon. Nil-safe.
+func (a *Armed) UnmountLeft() *Armed {
+	if a == nil {
+		return nil
+	}
+	a.left = nil
+	return a
+}
+
+// UnmountRight empties the trailing talon. Nil-safe.
+func (a *Armed) UnmountRight() *Armed {
+	if a == nil {
+		return nil
+	}
+	a.right = nil
 	return a
 }
 
