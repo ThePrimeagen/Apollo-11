@@ -112,6 +112,22 @@ func (e *Engine) ScheduleTask(at Nanos, name string, cost Nanos, fire func(*Engi
 	e.tasks = append(e.tasks, &wtask{at: at, seq: e.taskSeq, name: name, cost: cost, fire: fire})
 }
 
+// CancelTasks removes pending waitlist entries by name — the DESCENT
+// switch pulling a chain's future dispatches. Unknown names are a no-op.
+func (e *Engine) CancelTasks(names ...string) {
+	drop := map[string]bool{}
+	for _, n := range names {
+		drop[n] = true
+	}
+	kept := e.tasks[:0]
+	for _, t := range e.tasks {
+		if !drop[t.name] {
+			kept = append(kept, t)
+		}
+	}
+	e.tasks = kept
+}
+
 // ScheduleHardware enters an event that is NOT on the waitlist — a crew
 // keystroke, a radar gate — and therefore survives a software restart.
 func (e *Engine) ScheduleHardware(at Nanos, name string, cost Nanos, fire func(*Engine)) {

@@ -101,6 +101,7 @@ func (l *Live) SetDescent(on bool) {
 	}
 	if !on {
 		l.d.stopped = true
+		l.d.e.CancelTasks("READACCS", "R10,R11", "LRHTASK", "LRVTASK")
 		return
 	}
 	l.d.stopped = false
