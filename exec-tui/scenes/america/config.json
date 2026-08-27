@@ -4,6 +4,10 @@
   "crossSeconds": 4.000,
   "eagleStart": 0.000,
   "eagleEnd": 1.000,
-  "shots": 3,
-  "aim": "W"
+  "leftOn": true,
+  "leftShots": 3,
+  "leftAim": "W",
+  "rightOn": false,
+  "rightShots": 3,
+  "rightAim": "E"
 }
