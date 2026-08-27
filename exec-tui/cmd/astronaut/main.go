@@ -1,20 +1,21 @@
-// astronaut: the moonwalk loop. An original NES-styled astronaut —
-// big helmet, gold visor, life-support pack — runs in from the left
-// on the classic three-frame stride, hops a joy jump, runs on, leaps
-// onto the flagpole, slides down it on the two alternating grips, and
-// stands at the base before the loop restarts.
+// astronaut: the moonwalk tuner. Plays the scenes/moonwalk show — the
+// crate climb, the pole-top landing, the American flag rising as he
+// slides, and the closing camera pan to the lunar rover — with every
+// scene knob adjustable live.
 //
+//	j / k               select a knob
+//	h / l               nudge it down / up
+//	s                   save knobs to scenes/moonwalk/config.json
 //	space / enter / p   replay from the top
 //	q / ctrl+c          quit
 //
 //	go run ./cmd/astronaut
-//	go run ./cmd/astronaut -seconds 12
+//	go run ./cmd/astronaut -seconds 20
 package main
 
 import (
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 	"time"
@@ -24,140 +25,27 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/astro"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
+	"github.com/theprimeagen/apollo-11/exec-tui/menu"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 const (
-	defaultW   = 72
-	defaultH   = 26
+	defaultW   = 84
+	defaultH   = 30
 	frameMs    = 1000.0 / 30
-	statusRows = 1
-
-	// runSpeed is ground speed in cells per second.
-	runSpeed = 16.0
-	// hopDX/hopSec/hopPeak shape the joy hop mid-route.
-	hopDX   = 10
-	hopSec  = 0.7
-	hopPeak = 4
-	// leapDX/leapSec/leapPeak shape the leap onto the pole.
-	leapDX   = 12
-	leapSec  = 0.8
-	leapPeak = 2
-	// slideSec rides the pole down; standSec holds the bow.
-	slideSec = 1.2
-	standSec = 1.8
-	// grabAbove is how many rows above his standing head he grabs on.
-	grabAbove = 5
-	// clockEps soaks float noise off modulo-rebuilt clocks.
-	clockEps = 1e-7
+	footerRows = 4
 )
-
-// floorRow is the ground line's stage row.
-func floorRow(stageH int) int { return stageH - 2 }
-
-// groundedY is the sprite top row that parks the boots on the floor.
-func groundedY(stageH int) int { return floorRow(stageH) - astro.Rows }
-
-// poleCol is the flagpole's stage column.
-func poleCol(stageW int) int { return stageW - 14 }
-
-// route is one loop of choreography, precomputed for a stage size:
-// where each leg of the run starts and lands, and how long it takes.
-type route struct {
-	grounded, grabY        int
-	x0, x1, x2, x3, grabX  int
-	d1, d3                 float64
-	hopAt, leapAt, slideAt float64
-	standAt, cycle         float64
-}
-
-func routeFor(stageW, stageH int) route {
-	r := route{grounded: groundedY(stageH)}
-	r.grabY = r.grounded - grabAbove
-	r.grabX = poleCol(stageW) - astro.GripCol
-	r.x0 = -astro.Cols
-	r.x1 = stageW / 4
-	r.x2 = r.x1 + hopDX
-	r.x3 = r.grabX - leapDX
-	r.d1 = runFor(r.x1 - r.x0)
-	r.d3 = runFor(r.x3 - r.x2)
-	r.hopAt = r.d1
-	r.leapAt = r.hopAt + hopSec + r.d3
-	r.slideAt = r.leapAt + leapSec
-	r.standAt = r.slideAt + slideSec
-	r.cycle = r.standAt + standSec
-	return r
-}
-
-// runFor is how long a ground sprint over cells takes; a degenerate
-// stage still gets a beat so the piecewise clock never divides by zero.
-func runFor(cells int) float64 {
-	d := float64(cells) / runSpeed
-	if d < 0.05 {
-		return 0.05
-	}
-	return d
-}
-
-// cycleSeconds is how long one full loop of the route takes.
-func cycleSeconds(stageW, stageH int) float64 { return routeFor(stageW, stageH).cycle }
-
-// runPose is the stride playing at t on the shared run clock, so the
-// step never skips across route segments.
-func runPose(t float64) sprite.Heading {
-	return astro.RunPoses[int(t*astro.RunFPS+clockEps)%len(astro.RunPoses)]
-}
-
-// arc is a parabolic lift: 0 at p=0 and p=1, peak in the middle.
-func arc(peak int, p float64) int {
-	return int(math.Round(float64(peak) * 4 * p * (1 - p)))
-}
-
-func lerp(a, b int, p float64) int {
-	return a + int(math.Round(p*float64(b-a)))
-}
-
-// timelineAt is the whole choreography as a pure function of time:
-// which pose plays and where its sprite's top-left sits on the stage.
-// Time wraps at the cycle, so the loop plays forever; time before the
-// curtain clamps to the opening stride.
-func timelineAt(stageW, stageH int, t float64) (pose sprite.Heading, x, y int) {
-	r := routeFor(stageW, stageH)
-	if t < 0 {
-		t = 0
-	}
-	t = math.Mod(t, r.cycle)
-	if t < 0 {
-		t += r.cycle
-	}
-	switch {
-	case t < r.hopAt: // run in from the left wing
-		p := t / r.d1
-		return runPose(t), lerp(r.x0, r.x1, p), r.grounded
-	case t < r.hopAt+hopSec: // the joy hop
-		p := (t - r.hopAt) / hopSec
-		return astro.PoseJump, lerp(r.x1, r.x2, p), r.grounded - arc(hopPeak, p)
-	case t < r.leapAt: // run on toward the pole
-		p := (t - r.hopAt - hopSec) / r.d3
-		return runPose(t), lerp(r.x2, r.x3, p), r.grounded
-	case t < r.slideAt: // leap up onto the pole
-		p := (t - r.leapAt) / leapSec
-		y := lerp(r.grounded, r.grabY, p) - arc(leapPeak, p)
-		return astro.PoseJump, lerp(r.x3, r.grabX, p), y
-	case t < r.standAt: // slide down, hands swapping grips
-		p := (t - r.slideAt) / slideSec
-		grip := astro.PolePoses[int((t-r.slideAt)*astro.PoleFPS+clockEps)%len(astro.PolePoses)]
-		return grip, r.grabX, lerp(r.grabY, r.grounded, p)
-	default: // stand at the base until the loop restarts
-		return astro.PoseStand, r.grabX, r.grounded
-	}
-}
 
 type model struct {
 	w, h    int
 	clock   float64
 	seconds float64
 	atlas   *sprite.Atlas
+	cfg     moonwalk.Config
+	knob    moonwalk.Knob
+	path    string
+	note    string
 }
 
 func newModel(seconds float64) (model, error) {
@@ -165,7 +53,19 @@ func newModel(seconds float64) (model, error) {
 	if err != nil {
 		return model{}, err
 	}
-	return model{w: defaultW, h: defaultH, seconds: seconds, atlas: atlas}, nil
+	path := menu.Resolve(moonwalk.DefaultConfigPath)
+	cfg, err := moonwalk.LoadOrDefault(path)
+	if err != nil {
+		return model{}, err
+	}
+	return model{
+		w:       defaultW,
+		h:       defaultH,
+		seconds: seconds,
+		atlas:   atlas,
+		cfg:     cfg,
+		path:    path,
+	}, nil
 }
 
 type frameMsg struct{}
@@ -178,6 +78,15 @@ func tick() tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd { return tick() }
+
+func (m model) save() model {
+	if err := m.cfg.Save(m.path); err != nil {
+		m.note = "save failed: " + err.Error()
+		return m
+	}
+	m.note = "saved " + m.path
+	return m
+}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -197,40 +106,67 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case " ", "space", "enter", "p":
 			m.clock = 0
 			return m, nil
+		case "j", "down":
+			m.knob = (m.knob + 1) % moonwalk.KnobCount
+			return m, nil
+		case "k", "up":
+			m.knob = (m.knob - 1 + moonwalk.KnobCount) % moonwalk.KnobCount
+			return m, nil
+		case "l", "right":
+			m.cfg.Nudge(m.knob, 1)
+			return m, nil
+		case "h", "left":
+			m.cfg.Nudge(m.knob, -1)
+			return m, nil
+		case "s":
+			return m.save(), nil
 		}
 	}
 	return m, nil
 }
 
-// paintScene lays the still life: a sparse starfield, the ground line
-// with a dust of regolith under it, and the flagpole with its gold
-// ball finial.
-func paintScene(stage sprite.Sprite) {
-	fr := floorRow(stage.Height)
-	for i := 0; i < stage.Width/6; i++ {
-		col := (i*23 + 7) % stage.Width
-		row := (i*13 + 3) % maxInt(1, fr-3)
-		stage.Set(row, col, sprite.Cell{Ch: '·', FG: 240, BG: -1})
+// knobCell is one footer entry: a marker, the knob's name, and its
+// value — ints plain, floats to two places.
+func (m model) knobCell(k moonwalk.Knob) string {
+	mark := "  "
+	if k == m.knob {
+		mark = "> "
 	}
-	for c := 0; c < stage.Width; c++ {
-		stage.Set(fr, c, sprite.Cell{Ch: '▀', FG: 245, BG: -1})
-		if (c*7+fr)%13 == 0 {
-			stage.Set(fr+1, c, sprite.Cell{Ch: '·', FG: 240, BG: -1})
-		}
+	v := m.cfg.Value(k)
+	val := fmt.Sprintf("%.2f", v)
+	if k == moonwalk.KnobPoleRows || k == moonwalk.KnobPanCols || k == moonwalk.KnobBoxStart {
+		val = fmt.Sprintf("%d", int(v))
 	}
-	pc := poleCol(stage.Width)
-	top := groundedY(stage.Height) - grabAbove
-	for row := top; row < fr; row++ {
-		stage.Set(row, pc, sprite.Cell{Ch: '│', FG: 250, BG: -1})
-	}
-	stage.Set(top-1, pc, sprite.Cell{Ch: '●', FG: 220, BG: -1})
+	return fmt.Sprintf("%s%-10s %6s", mark, k.String(), val)
 }
 
-func maxInt(a, b int) int {
-	if a > b {
-		return a
+func (m model) footer(w int) []string {
+	dim := "\x1b[38;5;240m"
+	hot := "\x1b[38;5;214m"
+	reset := "\x1b[0m"
+	help := "moonwalk  j/k knob  h/l nudge  s save  space replay  q quit"
+	if m.note != "" {
+		help = "moonwalk  " + m.note
 	}
-	return b
+	lines := []string{dim + clip(help, w) + reset}
+	for row := 0; row < 3; row++ {
+		var cells []string
+		for i := 0; i < 4; i++ {
+			k := moonwalk.Knob(row*4 + i)
+			if k >= moonwalk.KnobCount {
+				break
+			}
+			cell := m.knobCell(k)
+			if k == m.knob {
+				cell = hot + cell + reset
+			} else {
+				cell = dim + cell + reset
+			}
+			cells = append(cells, cell)
+		}
+		lines = append(lines, clipANSI(strings.Join(cells, " "), w))
+	}
+	return lines
 }
 
 func (m model) View() tea.View {
@@ -241,16 +177,13 @@ func (m model) View() tea.View {
 	if h < 1 {
 		h = defaultH
 	}
-	stageH := maxInt(1, h-statusRows)
-	stage := sprite.New(w, stageH)
-	paintScene(stage)
-	pose, x, y := timelineAt(w, stageH, m.clock)
-	if sp, ok := m.atlas.Frame(astro.Size, pose); ok {
-		sprite.Blit(stage, x, y, sp)
+	stageH := h - footerRows
+	if stageH < 1 {
+		stageH = 1
 	}
+	stage := moonwalk.Frame(m.cfg, m.atlas, w, stageH, m.clock)
 	lines := strings.Split(sprite.Render(stage), "\n")
-	status := "\x1b[38;5;240m" + clip("astronaut  the moonwalk loop  space replay  q quit", w) + "\x1b[0m"
-	lines = append(lines, status)
+	lines = append(lines, m.footer(w)...)
 	for len(lines) < h {
 		lines = append(lines, "")
 	}
@@ -268,6 +201,32 @@ func clip(s string, w int) string {
 		return string(r[:w])
 	}
 	return s
+}
+
+// clipANSI trims a styled line to w visible cells, keeping escape
+// sequences intact and closing with a reset.
+func clipANSI(s string, w int) string {
+	var b strings.Builder
+	visible := 0
+	rs := []rune(s)
+	for i := 0; i < len(rs); i++ {
+		if rs[i] == 0x1b {
+			for i < len(rs) {
+				b.WriteRune(rs[i])
+				if rs[i] == 'm' {
+					break
+				}
+				i++
+			}
+			continue
+		}
+		if visible >= w {
+			break
+		}
+		b.WriteRune(rs[i])
+		visible++
+	}
+	return b.String() + "\x1b[0m"
 }
 
 func forcedColorProfile() (colorprofile.Profile, bool) {
