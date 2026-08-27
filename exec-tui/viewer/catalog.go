@@ -20,6 +20,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/nyan"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/shotgun"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
@@ -73,6 +74,8 @@ func Catalog() []Item {
 		{ID: "armed", Title: "ARMED EAGLE", Kind: KindComponent, Path: adjustarmed.DefaultConfigPath, Program: "./cmd/adjustarmed/main", spawn: func() screenplay.Component { return armed.New() }},
 		{ID: "moon", Title: "MOON", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return moon.New() }},
 		{ID: "dsky", Title: "DSKY", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return dsky.NewPanel(dsky.MonitorState()) }},
+		{ID: "coresets", Title: "CORE SETS", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewCoreSets()) }},
+		{ID: "vacs", Title: "VAC AREAS", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewVACs()) }},
 		{ID: "title", Title: "TITLE", Kind: KindComponent, Path: assets, spawn: mustTitle},
 		{ID: "astronaut", Title: "ASTRONAUT", Kind: KindComponent, Path: astro.FindAtlas(), spawn: func() screenplay.Component { return newAstroRun() }},
 		{ID: "rocket", Title: "ROCKET", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newRocketPreview() }},

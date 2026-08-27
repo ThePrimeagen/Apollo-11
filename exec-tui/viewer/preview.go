@@ -8,6 +8,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/fire"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/rocket"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/shotgun"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sky"
@@ -77,6 +78,150 @@ func (b *burstingBlast) Update(dt float64) {
 		b.clock -= 1.6
 		b.Fire()
 	}
+}
+
+// poolStepSeconds is the beat between steps of the pool demo walk.
+const poolStepSeconds = 0.55
+
+// poolHint names the play button while a pool demo sits idle.
+const poolHint = "space plays: add 3 · drop 3 · add 4 · drop 4 · fill to the alarm · drain"
+
+// poolStep is one beat of the walk: add the job, or drop it by name.
+type poolStep struct {
+	add bool
+	job pools.Job
+}
+
+// poolScript is the whole lifecycle the play button walks: add three
+// jobs, drop those three, add four, drop those four, then fill every
+// slot to raise the pool's alarm and drain it back to empty. Each job
+// wears the ink its lanes wear on the legacy sim and the graphs.
+func poolScript(capacity int) []poolStep {
+	trio := []pools.Job{
+		{Name: "SERVICER", Prio: 20, Ink: 83},
+		{Name: "CHARIN", Prio: 30, Ink: 213},
+		{Name: "MONITOR", Prio: 26, Ink: 220},
+	}
+	quad := []pools.Job{
+		{Name: "RR READ", Prio: 32, Ink: 87},
+		{Name: "LR READ", Prio: 32, Ink: 75},
+		{Name: "GYRO COMP", Prio: 22, Ink: 255},
+		{Name: "DAP", Prio: 31, Ink: 214},
+	}
+	roster := append(append([]pools.Job{}, trio...), quad...)
+	roster = append(roster, pools.Job{Name: "SELFCHK", Prio: 1, Ink: 245})
+	if capacity > len(roster) {
+		capacity = len(roster)
+	}
+	var script []poolStep
+	for _, j := range trio {
+		script = append(script, poolStep{add: true, job: j})
+	}
+	for _, j := range trio {
+		script = append(script, poolStep{job: j})
+	}
+	for _, j := range quad {
+		script = append(script, poolStep{add: true, job: j})
+	}
+	for _, j := range quad {
+		script = append(script, poolStep{job: j})
+	}
+	for _, j := range roster[:capacity] {
+		script = append(script, poolStep{add: true, job: j})
+	}
+	for _, j := range roster[:capacity] {
+		script = append(script, poolStep{job: j})
+	}
+	return script
+}
+
+// poolDemo wraps a pool view for the viewer: space (the viewer's
+// trigger key) plays the scripted lifecycle one step per
+// poolStepSeconds, and the bottom row hints the button while idle and
+// the current action while playing. Firing mid-walk is refused.
+type poolDemo struct {
+	view    *pools.View
+	script  []poolStep
+	playing bool
+	step    int
+	clock   float64
+	last    string
+	lastInk int
+}
+
+func newPoolDemo(v *pools.View) *poolDemo {
+	return &poolDemo{view: v, script: poolScript(v.Cap())}
+}
+
+func (d *poolDemo) Start(w, h int) { d.view.Start(w, h) }
+func (d *poolDemo) Stop()          { d.view.Stop() }
+
+// Fire starts the walk from the top; a walk already playing keeps its
+// place and refuses the trigger.
+func (d *poolDemo) Fire() bool {
+	if d.playing || len(d.script) == 0 {
+		return false
+	}
+	d.playing = true
+	d.step = 0
+	d.clock = 0
+	d.run()
+	return true
+}
+
+// run performs the next script step and retires the walk on the last,
+// so the trigger goes live again.
+func (d *poolDemo) run() {
+	if d.step >= len(d.script) {
+		d.playing = false
+		return
+	}
+	st := d.script[d.step]
+	d.step++
+	if st.add {
+		d.view.Add(st.job)
+		d.last = "+ " + st.job.Name
+		d.lastInk = st.job.Ink
+	} else {
+		d.view.Remove(st.job.Name)
+		d.last = "- " + st.job.Name
+		d.lastInk = pools.DimInk
+	}
+	if d.step >= len(d.script) {
+		d.playing = false
+	}
+}
+
+func (d *poolDemo) Update(dt float64) {
+	d.view.Update(dt)
+	if !d.playing || dt <= 0 {
+		return
+	}
+	d.clock += dt
+	for d.clock >= poolStepSeconds && d.playing {
+		d.clock -= poolStepSeconds
+		d.run()
+	}
+}
+
+func (d *poolDemo) Render() sprite.Sprite {
+	stage := d.view.Render()
+	if stage.Width < 1 || stage.Height < 1 {
+		return stage
+	}
+	text, ink := poolHint, pools.DimInk
+	if d.playing {
+		text, ink = d.last, d.lastInk
+	}
+	col := 1
+	for _, ch := range text {
+		if col >= stage.Width {
+			break
+		}
+		stage.Set(stage.Height-1, col, sprite.Cell{Ch: ch, FG: ink, BG: -1})
+		col++
+	}
+	return stage
 }
 
 type centered struct {
