@@ -330,11 +330,11 @@ func (a *Atlas) Marshal() ([]byte, error) {
 		}
 		key := fmt.Sprintf("%d", sz)
 		doc.Frames[key] = map[string]frameDoc{}
-		for _, h := range Headings {
-			sp, ok := byH[h]
-			if !ok {
-				continue
-			}
+		// FrameNames covers every frame present — compass headings
+		// first, then pose-named frames — so animation atlases are
+		// never silently thinned to the compass eight on save.
+		for _, h := range a.FrameNames(sz) {
+			sp := byH[h]
 			doc.Frames[key][string(h)] = frameDoc{
 				Glyphs: sp.GlyphRows(),
 				FG:     a.maskRows(sp, true),

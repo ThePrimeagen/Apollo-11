@@ -123,13 +123,11 @@ func (m *Model) snapToExistingFrame() {
 		return
 	}
 	for _, sz := range sprite.Sizes {
-		for _, h := range sprite.Headings {
-			if _, ok := m.Atlas.Frame(sz, h); ok {
-				m.Size = sz
-				m.Heading = h
-				m.clampCursor()
-				return
-			}
+		if names := m.Atlas.FrameNames(sz); len(names) > 0 {
+			m.Size = sz
+			m.Heading = names[0]
+			m.clampCursor()
+			return
 		}
 	}
 }
