@@ -54,10 +54,10 @@ const (
 	StockShots = 3
 
 	// StockLeftAim and StockRightAim are the barrels' stock compass
-	// points: the leading talon rakes ahead-and-down, the trailing
-	// one behind-and-down.
-	StockLeftAim  = sprite.SW
-	StockRightAim = sprite.SE
+	// points — the clean side-on frames: the leading talon rakes
+	// ahead of the flight, the trailing one covers the rear.
+	StockLeftAim  = sprite.W
+	StockRightAim = sprite.E
 )
 
 // Show is the America scene as a live scene: Cfg is the nine knobs

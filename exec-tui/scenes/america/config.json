@@ -5,7 +5,7 @@
   "eagleStart": 0.000,
   "eagleEnd": 1.000,
   "leftShots": 3,
-  "leftAim": "SW",
+  "leftAim": "W",
   "rightShots": 3,
-  "rightAim": "SE"
+  "rightAim": "E"
 }

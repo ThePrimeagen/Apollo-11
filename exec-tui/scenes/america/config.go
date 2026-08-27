@@ -196,8 +196,8 @@ var (
 // DefaultConfig is the scene's stock tune: the fast two-second fade,
 // the eagle entering the moment the fade lands, the four-second
 // crossing, the flight spanning off one wing and off the other, and
-// three shells per talon — the leading barrel raking ahead-and-down,
-// the trailing one behind-and-down.
+// three shells per talon — the leading barrel raking ahead of the
+// flight, the trailing one covering the rear.
 func DefaultConfig() Config {
 	return Config{
 		FadeSeconds:  FadeSeconds,
