@@ -458,12 +458,13 @@ func TestEdit(t *testing.T) {
 // pool views wrapped in a play-button demo. Space (the viewer's
 // trigger key) starts a scripted walk of the whole lifecycle — add
 // three jobs, drop those three, add four, drop those four, then fill
-// every slot to raise the pool's program alarm and drain it back to
-// empty — one step every poolStepSeconds, each job wearing its own
-// ink so the colors read against the other graphs. The bottom row
-// carries the hint while idle and the current action while playing.
-// Firing mid-walk is refused; when the walk ends the trigger is live
-// again.
+// every slot to raise the pool's program alarm, hold the full pool on
+// stage for poolAlarmHoldBeats so the chip can be read, and drain it
+// back to empty — one step every poolStepSeconds, each job wearing
+// its own ink so the colors read against the other graphs. The bottom
+// row carries the hint while idle and the current action while
+// playing. Firing mid-walk is refused; when the walk ends the trigger
+// is live again.
 
 func spawnDemo(t *testing.T, id string) *poolDemo {
 	t.Helper()
@@ -561,6 +562,13 @@ func TestPoolDemo(t *testing.T) {
 		if !demoText(sp, "→ 1202") {
 			t.Fatal("a full core set pool must raise the 1202 chip")
 		}
+		playSteps(d, poolAlarmHoldBeats)
+		if !d.view.Full() || !d.playing {
+			t.Fatalf("the alarm must hold the full pool on stage, busy %d playing %v", d.view.Busy(), d.playing)
+		}
+		if !demoText(d.Render(), "→ 1202") {
+			t.Fatal("the chip must stay up through the hold")
+		}
 		playSteps(d, 8)
 		if d.view.Busy() != 0 || d.playing {
 			t.Fatalf("the drain act must empty the pool and end the walk, busy %d playing %v", d.view.Busy(), d.playing)
@@ -593,6 +601,10 @@ func TestPoolDemo(t *testing.T) {
 		}
 		if demoText(sp, "1202") {
 			t.Fatal("the VAC pool never raises the core sets' 1202")
+		}
+		playSteps(d, poolAlarmHoldBeats)
+		if !d.view.Full() || !demoText(d.Render(), "→ 1201") {
+			t.Fatalf("the alarm must hold all five VACs on stage, busy %d", d.view.Busy())
 		}
 		playSteps(d, 5)
 		if d.view.Busy() != 0 || d.playing {
