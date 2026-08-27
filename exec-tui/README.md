@@ -16,7 +16,7 @@ assets/       every lunar atlas in one folder: lm-1.json … lm-4.json + lm.json
 components/   everything a scene puts together
   sprite/     the pixel model: Sprite = width × height cells (rune + fg/bg)
   particle/   the particle engine
-  gunfire/    the one-shot Doom muzzle flame — owns its config.json
+  gunfire/    the one-shot Doom muzzle flame, tuned per compass direction — owns its config.json
   fire/       flame, booster, compass — owns its config.json
   stars/      the four-layer starfield — owns its config.json
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component

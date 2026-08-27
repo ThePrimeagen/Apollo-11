@@ -1,15 +1,15 @@
 package adjustgunfire
 
-// Tests written FIRST: adjustgunfire is the muzzle-flame tuner — the
-// live one-shot flame burning behind a paged panel of every blast
-// knob. Three pages: aim (angle, muzzle, the two-frame pulse, the
-// core brightness ladder — eight knobs) and one page per layer — core
-// and flame — each carrying count, life, speed, spread, nozzle, max
-// distance, lift, and drag (ten knobs). tab flips pages, j/k pick a
-// knob, h/l turn it, [/] take bigger steps, f pulls the trigger now,
-// and the tool re-fires on its own so the flame is always burning.
-// s saves the gunfire component's config and quits. Every change
-// goes live via UseBlast.
+// Tests written FIRST: adjustgunfire is the muzzle-flame tuner on the
+// eight-point compass — the live one-shot flame burning behind a
+// paged panel of every blast knob. Ten pages: aim (heading, muzzle,
+// the two-frame pulse, the core brightness ladder — eight knobs), the
+// shared core (ten engine knobs), then one page per direction — N,
+// NE, E, SE, S, SW, W, NW — each carrying the ten engine knobs plus
+// the five color stops its flame cools through. tab flips pages, j/k
+// pick a knob, h/l turn it, [/] take bigger steps, f pulls the
+// trigger now, and the tool re-fires on its own. s saves the gunfire
+// component's config and quits. Every change goes live via UseBlast.
 
 import (
 	"os"
@@ -21,14 +21,14 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
 func TestTuner(t *testing.T) {
 	t.Run("happy: NewTuner seeds every knob from the active blast, opening on the aim page", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		c := gunfire.DefaultBlast()
-		c.AngleDeg = 45
-		c.Flame.Count = 50
+		c.Heading = sprite.SE
 		if err := gunfire.UseBlast(c); err != nil {
 			t.Fatalf("UseBlast: %v", err)
 		}
@@ -40,17 +40,15 @@ func TestTuner(t *testing.T) {
 			t.Fatalf("tuner must open on the aim page's first knob, got page %d cursor %d", tu.Page, tu.Cursor)
 		}
 	})
-	t.Run("happy: Flip walks the three pages, wraps both ways, and clamps the cursor", func(t *testing.T) {
+	t.Run("happy: Flip walks aim, core, and the eight directions, wrapping and clamping the cursor", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		tu := NewTuner()
-		tu.Flip(1)
-		if tu.Page != 1 {
-			t.Fatalf("flip landed on page %d, want core", tu.Page)
-		}
-		tu.Flip(1)
-		if tu.Page != 2 {
-			t.Fatalf("flip landed on page %d, want flame", tu.Page)
+		for i := 1; i < nPages; i++ {
+			tu.Flip(1)
+			if tu.Page != i {
+				t.Fatalf("flip %d landed on page %d", i, tu.Page)
+			}
 		}
 		tu.Flip(1)
 		if tu.Page != 0 {
@@ -58,24 +56,32 @@ func TestTuner(t *testing.T) {
 		}
 		tu.Flip(-1)
 		if tu.Page != nPages-1 {
-			t.Fatalf("flipping back from aim must wrap to flame, got %d", tu.Page)
+			t.Fatalf("flipping back from aim must wrap to NW, got %d", tu.Page)
 		}
-		tu.Move(99) // drag, the flame page's tenth row
-		if tu.Cursor != 9 {
-			t.Fatalf("cursor %d, want the flame page's last knob 9", tu.Cursor)
+		tu.Move(99) // the NW page's last knob: color 5
+		if tu.Cursor != 14 {
+			t.Fatalf("cursor %d, want a direction page's last knob 14", tu.Cursor)
 		}
-		tu.Flip(1) // aim has only eight rows
-		if tu.Cursor > 7 {
-			t.Fatalf("flipping to a shorter page must clamp the cursor, got %d", tu.Cursor)
+		tu.Flip(2) // wraps to core, which has only ten rows
+		if tu.Page != 1 || tu.Cursor > 9 {
+			t.Fatalf("flipping to a shorter page must clamp the cursor, page %d cursor %d", tu.Page, tu.Cursor)
 		}
 	})
-	t.Run("happy: Nudge turns the knob under the cursor on whichever page is open", func(t *testing.T) {
+	t.Run("happy: the heading knob steps the compass and Nudge turns whichever page is open", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		tu := NewTuner()
-		tu.Nudge(-1) // aim page, angle: stock 90 comes down
-		if tu.Blast.AngleDeg != gunfire.DefaultBlast().AngleDeg-1 {
-			t.Fatalf("angle %v after a nudge, want %v", tu.Blast.AngleDeg, gunfire.DefaultBlast().AngleDeg-1)
+		tu.Nudge(1) // aim page, heading: N -> NE
+		if tu.Blast.Heading != sprite.NE {
+			t.Fatalf("heading %s after a nudge, want NE", tu.Blast.Heading)
+		}
+		tu.Nudge(99)
+		if tu.Blast.Heading != sprite.NW {
+			t.Fatalf("heading %s, want clamped at the compass end NW", tu.Blast.Heading)
+		}
+		tu.Nudge(-99)
+		if tu.Blast.Heading != sprite.N {
+			t.Fatalf("heading %s, want clamped back at N", tu.Blast.Heading)
 		}
 		tu.Flip(1) // core page, count
 		before := tu.Blast.Core.Count
@@ -83,68 +89,70 @@ func TestTuner(t *testing.T) {
 		if tu.Blast.Core.Count != before+2 {
 			t.Fatalf("core count %d, want %d", tu.Blast.Core.Count, before+2)
 		}
-		tu.Flip(1) // flame page
+		tu.Flip(3) // the E page
 		tu.Move(8) // lift
-		lift := tu.Blast.Flame.Lift
+		lift := tu.Blast.ShotAt(sprite.E).Lift
 		tu.Nudge(1)
-		if tu.Blast.Flame.Lift != lift+1 {
-			t.Fatalf("flame lift %v, want %v", tu.Blast.Flame.Lift, lift+1)
+		if got := tu.Blast.ShotAt(sprite.E).Lift; got != lift+1 {
+			t.Fatalf("E lift %v, want %v", got, lift+1)
 		}
-		tu.Move(1) // drag
-		drag := tu.Blast.Flame.Drag
-		tu.Nudge(1)
-		if tu.Blast.Flame.Drag <= drag {
-			t.Fatalf("flame drag %v must climb above %v", tu.Blast.Flame.Drag, drag)
+		if tu.Blast.ShotAt(sprite.N).Lift != lift {
+			t.Fatal("turning the E page must leave N alone")
 		}
 	})
-	t.Run("happy: counts have a hard zero floor and no ceiling", func(t *testing.T) {
+	t.Run("happy: the five color stops turn one at a time and rail on the xterm cube", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		tu := NewTuner()
-		tu.Flip(2) // flame count
-		start := tu.Blast.Flame.Count
+		tu.Flip(2)  // the N page
+		tu.Move(10) // color 1
+		tu.Nudge(1)
+		if got := tu.Blast.ShotAt(sprite.N).Colors[0]; got != 227 {
+			t.Fatalf("color 1 turned to %d, want 227", got)
+		}
+		tu.Move(4) // color 5
+		tu.Nudge(-99999)
+		if got := tu.Blast.ShotAt(sprite.N).Colors[4]; got != 1 {
+			t.Fatalf("color 5 %d, want the cube floor 1", got)
+		}
+		tu.Nudge(99999)
+		if got := tu.Blast.ShotAt(sprite.N).Colors[4]; got != 255 {
+			t.Fatalf("color 5 %d, want the cube ceiling 255", got)
+		}
+		if tu.Blast.ShotAt(sprite.NE).Colors == tu.Blast.ShotAt(sprite.N).Colors {
+			t.Fatal("turning N's colors must leave NE's ramp alone")
+		}
+		if err := gunfire.UseBlast(tu.Blast); err != nil {
+			t.Fatalf("the railed ramp must still be a valid blast: %v", err)
+		}
+	})
+	t.Run("happy: counts floor at zero with no ceiling, ranges swap, the ladder never folds", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		tu := NewTuner()
+		tu.Flip(5) // the SE page, count
+		start := tu.Blast.ShotAt(sprite.SE).Count
 		tu.Nudge(100000)
-		if got := tu.Blast.Flame.Count; got != start+100000 {
+		if got := tu.Blast.ShotAt(sprite.SE).Count; got != start+100000 {
 			t.Fatalf("count %d after +100000, want %d — no artificial ceiling", got, start+100000)
 		}
 		tu.Nudge(-999999)
-		if tu.Blast.Flame.Count != 0 {
-			t.Fatalf("count %d, want a hard stop at zero", tu.Blast.Flame.Count)
+		if tu.Blast.ShotAt(sprite.SE).Count != 0 {
+			t.Fatalf("count %d, want a hard stop at zero", tu.Blast.ShotAt(sprite.SE).Count)
 		}
-		if err := gunfire.UseBlast(tu.Blast); err != nil {
-			t.Fatalf("a silent flame must still be a valid blast: %v", err)
-		}
-	})
-	t.Run("happy: reversed ranges swap and the core ladder never folds", func(t *testing.T) {
-		t.Cleanup(gunfire.ResetBlast)
-		gunfire.ResetBlast()
-		tu := NewTuner()
-		tu.Flip(2) // flame page
 		tu.Move(3) // min speed
 		tu.Nudge(999)
-		if tu.Blast.Flame.MinSpeed > tu.Blast.Flame.MaxSpeed {
-			t.Fatalf("speeds %v..%v must swap, never fold", tu.Blast.Flame.MinSpeed, tu.Blast.Flame.MaxSpeed)
+		if s := tu.Blast.ShotAt(sprite.SE); s.MinSpeed > s.MaxSpeed {
+			t.Fatalf("speeds %v..%v must swap, never fold", s.MinSpeed, s.MaxSpeed)
 		}
 		tu = NewTuner()
-		tu.Flip(1) // core page
-		tu.Move(2) // max life
-		tu.Nudge(-999)
-		if tu.Blast.Core.MinLife > tu.Blast.Core.MaxLife {
-			t.Fatalf("lives %v..%v must swap, never fold", tu.Blast.Core.MinLife, tu.Blast.Core.MaxLife)
-		}
-		tu = NewTuner()
-		tu.Move(5) // edge at
+		tu.Move(5) // aim page, edge at
 		tu.Nudge(999)
 		if e, m, c := tu.Blast.EdgeAt, tu.Blast.MidAt, tu.Blast.CoreAt; m <= e || c <= m {
 			t.Fatalf("pushing the edge to %d must push the ladder past it, mid=%d core=%d", e, m, c)
 		}
-		tu.Move(2) // core at
-		tu.Nudge(-999)
-		if m, c := tu.Blast.MidAt, tu.Blast.CoreAt; c <= m {
-			t.Fatalf("dropping the core must stop above mid %d, core=%d", m, c)
-		}
 	})
-	t.Run("unhappy: cursor, page rails, and knob rails clamp", func(t *testing.T) {
+	t.Run("unhappy: cursor and knob rails clamp and nil tuners skip their cue", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		tu := NewTuner()
@@ -156,15 +164,7 @@ func TestTuner(t *testing.T) {
 		if tu.Cursor != 7 {
 			t.Fatalf("cursor %d, want clamped at 7", tu.Cursor)
 		}
-		tu.Move(-99) // angle
-		tu.Nudge(999)
-		if tu.Blast.AngleDeg != 180 {
-			t.Fatalf("angle %v, want the full circle — clamped at the half turn 180", tu.Blast.AngleDeg)
-		}
-		tu.Nudge(-9999)
-		if tu.Blast.AngleDeg != -180 {
-			t.Fatalf("angle %v, want the full circle — clamped at the half turn -180", tu.Blast.AngleDeg)
-		}
+		tu.Move(-99)
 		tu.Move(1) // muzzle x
 		tu.Nudge(9999)
 		if tu.Blast.MuzzleX != 1 {
@@ -174,13 +174,6 @@ func TestTuner(t *testing.T) {
 		if tu.Blast.MuzzleX != 0 {
 			t.Fatalf("muzzle x %v, want clamped at the left edge 0", tu.Blast.MuzzleX)
 		}
-		tu.Move(3) // pulse frac
-		tu.Nudge(9999)
-		if tu.Blast.PulseFrac != 1 {
-			t.Fatalf("pulse frac %v, want clamped at a full second frame 1", tu.Blast.PulseFrac)
-		}
-	})
-	t.Run("unhappy: nil tuners skip their cue", func(t *testing.T) {
 		var ghost *Tuner
 		ghost.Move(1)
 		ghost.Flip(1)
@@ -208,11 +201,15 @@ func tab() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyTab} }
 func shiftTab() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift} }
 
 func liveCount(m Model) int {
-	return len(m.blast.Core.Particles) + len(m.blast.Flame.Particles)
+	n := len(m.blast.Core.Particles)
+	for _, e := range m.blast.Flames {
+		n += len(e.Particles)
+	}
+	return n
 }
 
 func TestModel(t *testing.T) {
-	t.Run("happy: the tool boots the aim page over the stage", func(t *testing.T) {
+	t.Run("happy: the tool boots the aim page over the stage with the compass on the page bar", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		m := NewModel(0)
@@ -220,40 +217,51 @@ func TestModel(t *testing.T) {
 		if !strings.Contains(v, "adjust gunfire") {
 			t.Fatal("the view must show the panel")
 		}
-		for _, page := range []string{"aim", "core", "flame"} {
+		for _, page := range []string{"aim", "core", "NE", "SE", "SW", "NW"} {
 			if !strings.Contains(v, page) {
 				t.Fatalf("the page bar is missing %q", page)
 			}
 		}
 		for _, label := range []string{
-			"angle", "muzzle x", "muzzle y", "pulse delay", "pulse frac",
+			"heading", "muzzle x", "muzzle y", "pulse delay", "pulse frac",
 			"edge at", "mid at", "core at",
 		} {
 			if !strings.Contains(v, label) {
 				t.Fatalf("the aim page is missing the %q knob", label)
 			}
 		}
+		if strings.Contains(v, "color 1") {
+			t.Fatal("the aim page must not show color knobs")
+		}
 		if got := len(strings.Split(v, "\n")); got != defaultH {
 			t.Fatalf("view has %d lines, want %d", got, defaultH)
 		}
 	})
-	t.Run("happy: tab flips to the core page and shift+tab flips back", func(t *testing.T) {
+	t.Run("happy: tab reaches a direction page with its ten engine knobs and five colors", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		m := NewModel(0)
 		m = press(m, tab())
 		v := m.View().Content
-		for _, label := range []string{
-			"count", "min life", "max life", "min speed", "max speed",
-			"spread", "nozzle", "max dist", "lift", "drag",
-		} {
+		for _, label := range []string{"count", "min life", "max speed", "lift", "drag"} {
 			if !strings.Contains(v, label) {
 				t.Fatalf("the core page is missing the %q knob", label)
 			}
 		}
+		if strings.Contains(v, "color 1") {
+			t.Fatal("the shared core has no color ramp")
+		}
+		m = press(m, tab())
+		v = m.View().Content
+		for _, label := range []string{"count", "lift", "drag", "color 1", "color 2", "color 3", "color 4", "color 5"} {
+			if !strings.Contains(v, label) {
+				t.Fatalf("the N page is missing the %q knob", label)
+			}
+		}
 		m = press(m, shiftTab())
-		if !strings.Contains(m.View().Content, "angle") {
-			t.Fatal("shift+tab must flip back to the aim page")
+		m = press(m, shiftTab())
+		if !strings.Contains(m.View().Content, "heading") {
+			t.Fatal("shift+tab twice must flip back to the aim page")
 		}
 	})
 	t.Run("happy: j/k walk the knobs and h/l retune the live blast", func(t *testing.T) {
@@ -268,19 +276,13 @@ func TestModel(t *testing.T) {
 		if m.tuner.Cursor != 0 {
 			t.Fatalf("cursor %d after k, want 0", m.tuner.Cursor)
 		}
-		want := gunfire.DefaultBlast().AngleDeg - 1
+		m = press(m, runeKey('l')) // heading N -> NE
+		if gunfire.ActiveBlast().Heading != sprite.NE {
+			t.Fatalf("active heading %s after l, want NE — the flame must follow the knobs", gunfire.ActiveBlast().Heading)
+		}
 		m = press(m, runeKey('h'))
-		if gunfire.ActiveBlast().AngleDeg != want {
-			t.Fatalf("active angle %v after h, want %v — the flame must follow the knobs", gunfire.ActiveBlast().AngleDeg, want)
-		}
-		m = press(m, runeKey('['))
-		if gunfire.ActiveBlast().AngleDeg != want-10 {
-			t.Fatalf("active angle %v after [, want %v", gunfire.ActiveBlast().AngleDeg, want-10)
-		}
-		m = press(m, runeKey(']'))
-		m = press(m, runeKey('l'))
-		if gunfire.ActiveBlast().AngleDeg != want+1 {
-			t.Fatalf("active angle %v after ] and l, want %v", gunfire.ActiveBlast().AngleDeg, want+1)
+		if gunfire.ActiveBlast().Heading != sprite.N {
+			t.Fatalf("active heading %s after h, want N", gunfire.ActiveBlast().Heading)
 		}
 	})
 	t.Run("happy: f pulls the trigger right now", func(t *testing.T) {
@@ -360,8 +362,10 @@ func TestOpenSave(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		path := filepath.Join(t.TempDir(), "blast.json")
 		saved := gunfire.DefaultBlast()
-		saved.AngleDeg = 60
-		saved.Flame.Lift = 44
+		saved.Heading = sprite.SW
+		shot := saved.ShotAt(sprite.SW)
+		shot.Colors = [5]int{21, 27, 33, 39, 45}
+		saved.SetShot(sprite.SW, shot)
 		if err := saved.Save(path); err != nil {
 			t.Fatalf("seed save: %v", err)
 		}
@@ -379,7 +383,7 @@ func TestOpenSave(t *testing.T) {
 			t.Fatal("Open must put the file's blast in effect")
 		}
 	})
-	t.Run("happy: s saves the file, quits, and the file round-trips", func(t *testing.T) {
+	t.Run("happy: s saves the file, quits, and a retuned color round-trips", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		path := filepath.Join(t.TempDir(), "blast.json")
 		if err := gunfire.DefaultBlast().Save(path); err != nil {
@@ -389,7 +393,12 @@ func TestOpenSave(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Open: %v", err)
 		}
-		m = press(m, runeKey('h')) // angle -1: the stock 90 comes down
+		m = press(m, tab())
+		m = press(m, tab()) // the N page
+		for i := 0; i < 10; i++ {
+			m = press(m, runeKey('j'))
+		}
+		m = press(m, runeKey('l')) // color 1: 226 -> 227
 		mm, cmd := m.Update(runeKey('s'))
 		m = mm.(Model)
 		if cmd == nil {
@@ -405,8 +414,8 @@ func TestOpenSave(t *testing.T) {
 		if err != nil {
 			t.Fatalf("reload: %v", err)
 		}
-		if got.AngleDeg != gunfire.DefaultBlast().AngleDeg-1 {
-			t.Fatalf("saved angle %v, want the nudged %v", got.AngleDeg, gunfire.DefaultBlast().AngleDeg-1)
+		if got.ShotAt(sprite.N).Colors[0] != 227 {
+			t.Fatalf("saved N color 1 is %d, want the nudged 227", got.ShotAt(sprite.N).Colors[0])
 		}
 	})
 	t.Run("unhappy: Open on a missing or broken file is an error", func(t *testing.T) {
