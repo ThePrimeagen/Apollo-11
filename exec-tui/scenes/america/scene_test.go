@@ -2,12 +2,14 @@ package america
 
 // Tests written FIRST: America is the portable patriot scene. The
 // curtain rises on pure black; the full-screened American flag fades
-// in slowly — FadeSeconds of ramping color, no motion — and only once
+// in fast — FadeSeconds of ramping color, no motion — and only once
 // the flag is fully in does the very large eagle enter from the right
 // and cross the whole stage leftward over CrossSeconds, the flag still
-// flying beneath it. After the flyover the flag flies alone. The bill
-// is one scene named America; a stopped or unstaged scene never
-// panics, and waiting before the first render never burns the fade.
+// flying beneath it. After the flyover the flag flies alone. The
+// stock show is quick: the whole beat lands inside six seconds, and
+// the knobs stay live for anyone who wants it slower. The bill is one
+// scene named America; a stopped or unstaged scene never panics, and
+// waiting before the first render never burns the fade.
 
 import (
 	"testing"
@@ -108,15 +110,19 @@ func starCount(scr *screenplay.Screen) int {
 }
 
 func TestAmericaKnobs(t *testing.T) {
-	t.Run("happy: the fade is slow and the crossing is a real flight", func(t *testing.T) {
-		if FadeSeconds < 4 {
-			t.Fatalf("FadeSeconds = %v — the flag fades in slowly, give it at least 4s", FadeSeconds)
+	t.Run("happy: the stock show is fast — a quick fade, a quick crossing", func(t *testing.T) {
+		if FadeSeconds <= 0 || FadeSeconds > 2 {
+			t.Fatalf("FadeSeconds = %v — the flag fades in fast, two seconds at most", FadeSeconds)
 		}
-		if CrossSeconds <= 0 {
-			t.Fatalf("CrossSeconds = %v — the crossing must be a duration", CrossSeconds)
+		if CrossSeconds <= 0 || CrossSeconds > 4 {
+			t.Fatalf("CrossSeconds = %v — the crossing is fast, four seconds at most", CrossSeconds)
+		}
+		c := DefaultConfig()
+		if total := c.EagleDelay + c.CrossSeconds; total > 6 {
+			t.Fatalf("the stock show runs %vs before the flag flies alone — fast means six at most", total)
 		}
 	})
-	t.Run("unhappy: the fade and the crossing are separate beats", func(t *testing.T) {
+	t.Run("unhappy: fast never collapses the beats — fade and crossing stay separate", func(t *testing.T) {
 		if FadeSeconds == CrossSeconds {
 			t.Fatal("the fade and the crossing must be independent knobs")
 		}
@@ -163,7 +169,7 @@ func TestAmericaScene(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: the flag fades in slowly and lands on its finished colors", func(t *testing.T) {
+	t.Run("happy: the flag fades in and lands on its finished colors", func(t *testing.T) {
 		sc := New()
 		sc.Start()
 		defer sc.Stop()
@@ -324,6 +330,7 @@ func TestAmericaScenePlaysConfig(t *testing.T) {
 	})
 	t.Run("unhappy: changing knobs mid-flight never retimes the running scene", func(t *testing.T) {
 		sc := New()
+		sc.Cfg.FadeSeconds = 8.0
 		sc.Start()
 		defer sc.Stop()
 		_ = paint(sc)

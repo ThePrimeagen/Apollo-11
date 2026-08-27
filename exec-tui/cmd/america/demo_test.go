@@ -4,7 +4,7 @@ package main
 // scene standalone, tuned live the way the landing runner tunes. The
 // house opens on pure black with the America marquee and the knob
 // panel — flag fade, eagle delay, eagle cross — under the stage; the
-// full-screened flag fades in slowly, and once it is fully in, the
+// full-screened flag fades in fast, and once it is fully in, the
 // very large eagle crosses the stage right to left with the flag
 // flying beneath. j/k select a knob, h/l nudge it 50ms, s saves to
 // the scene's config JSON, and p (or space, or enter) replays from
@@ -98,7 +98,7 @@ func TestAmericaDemoOpens(t *testing.T) {
 			t.Fatal("no eagle silhouette yet — the flag comes first")
 		}
 	})
-	t.Run("unhappy: waiting a moment is still black — the fade is slow", func(t *testing.T) {
+	t.Run("unhappy: waiting a moment is still black — even a fast fade ramps from black", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, 3)
@@ -246,11 +246,16 @@ func TestAmericaDemoHouseRules(t *testing.T) {
 }
 
 func TestAmericaDemoKnobs(t *testing.T) {
-	t.Run("happy: the panel lists the three knobs with their seconds", func(t *testing.T) {
+	t.Run("happy: the panel opens on the fast stock — a 2s fade, a 4s crossing", func(t *testing.T) {
 		v := ansiPat.ReplaceAllString(newModel(0).View().Content, "")
-		for _, want := range []string{"flag fade", "eagle delay", "eagle cross", "8.000", "12.000"} {
+		for _, want := range []string{"flag fade", "eagle delay", "eagle cross", "  2.000", "  4.000"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the knob panel is missing %q:\n%s", want, v)
+			}
+		}
+		for _, slow := range []string{"8.000", "12.000"} {
+			if strings.Contains(v, slow) {
+				t.Fatalf("the slow stock %q is still on the panel:\n%s", slow, v)
 			}
 		}
 		marked := false
