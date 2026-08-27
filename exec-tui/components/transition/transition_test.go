@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	stageW = 12
-	stageH = 8
+	stageW  = 12
+	stageH  = 8
 	fromInk = 153
 	toInk   = 160
 )
