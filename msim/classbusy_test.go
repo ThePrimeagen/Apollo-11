@@ -60,6 +60,25 @@ func TestClassBusySplitsAndSums(t *testing.T) {
 	}
 }
 
+func TestBusyTotalsByName(t *testing.T) {
+	// happy: every busy nanosecond lands on its consumer's name — jobs via
+	// the runner, tasks/interrupts via the activity
+	e := NewEngine(Config{Interrupts: true})
+	e.Spawn(JobSpec{Name: "V", Prio: 20, VAC: true, Script: Script{
+		{Section: "V", Op: "VXV", Cost: 30 * Millisecond}}})
+	e.RunMS(100)
+	if got := e.BusyNs("V"); got != 30*Millisecond {
+		t.Fatalf("BusyNs(V) = %d, want exactly 30 ms", got)
+	}
+	if got, want := e.BusyNs("DAP"), Nanos(e.InterruptFires("DAP"))*12*Millisecond; got != want {
+		t.Fatalf("BusyNs(DAP) = %d, want fires x 12 ms = %d", got, want)
+	}
+	// unhappy: unknown names report zero
+	if got := e.BusyNs("NOBODY"); got != 0 {
+		t.Fatalf("BusyNs(NOBODY) = %d, want 0", got)
+	}
+}
+
 func TestClassBusyIdleAndTheftUncounted(t *testing.T) {
 	// unhappy: an idle machine with the RR bug reports zero class time on
 	// every millisecond — the theft is hardware, not software
