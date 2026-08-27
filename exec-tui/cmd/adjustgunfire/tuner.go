@@ -1,9 +1,10 @@
-// Package adjustgunfire is the muzzle-flame tuner: the live one-shot
-// flame burning behind a paged panel of every blast knob. Three
-// pages — aim (angle, muzzle, the two-frame pulse, the core
-// brightness ladder) and one page per layer: core and flame, each
-// carrying count, life, speed, spread, nozzle, max distance, lift,
-// and drag. tab flips pages, j/k pick a knob, h/l turn it, [/] take
+// Package adjustgunfire is the muzzle-flame tuner on the eight-point
+// compass: the live one-shot flame burning behind a paged panel of
+// every blast knob. Ten pages — aim (heading, muzzle, the two-frame
+// pulse, the core brightness ladder), the shared core, then one page
+// per direction: N, NE, E, SE, S, SW, W, NW — each direction carrying
+// its ten engine knobs plus the five color stops its flame cools
+// through. tab flips pages, j/k pick a knob, h/l turn it, [/] take
 // bigger steps, f pulls the trigger now, and the tool re-fires on its
 // own so the flame is always burning. s saves the gunfire component's
 // config and quits.
@@ -14,22 +15,25 @@ import (
 	"math"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
 // DefaultConfigPath is the gunfire component's own config file — the
 // JSON lives with the component it tunes, relative to the module root.
 const DefaultConfigPath = "components/gunfire/config.json"
 
-const nPages = 3
-
-// The pages, in tab order.
+// The pages, in tab order: aim, the shared core, then the compass.
 const (
 	pageAim = iota
 	pageCore
-	pageFlame
+	firstHeadingPage
 )
 
-var pageNames = [nPages]string{"aim", "core", "flame"}
+const nPages = firstHeadingPage + 8
+
+var pageNames = [nPages]string{
+	"aim", "core", "N", "NE", "E", "SE", "S", "SW", "W", "NW",
+}
 
 // meta is one knob's rails: label, step, floor, ceiling.
 type meta struct {
@@ -39,10 +43,10 @@ type meta struct {
 	hi    float64
 }
 
-// aimMeta is the aim page: where the flame leaps from and toward, the
-// two-frame pulse, and the core brightness ladder.
+// aimMeta is the aim page: the compass heading the trigger fires,
+// where the muzzle sits, the two-frame pulse, and the core ladder.
 var aimMeta = []meta{
-	{"angle", 1, -180, 180},
+	{"heading", 1, 0, 7},
 	{"muzzle x", 0.01, 0, 1},
 	{"muzzle y", 0.01, 0, 1},
 	{"pulse delay", 0.01, 0, 1},
@@ -52,8 +56,9 @@ var aimMeta = []meta{
 	{"core at", 1, 3, 60},
 }
 
-// layerMeta is every layer page. Count has no artificial ceiling —
-// zero is a silent layer and the top is whatever the terminal holds.
+// layerMeta is the engine-knob page. Count has no artificial
+// ceiling — zero is a silent layer and the top is whatever the
+// terminal holds.
 var layerMeta = []meta{
 	{"count", 1, 0, math.Inf(1)},
 	{"min life", 0.01, 0.01, 6},
@@ -67,12 +72,26 @@ var layerMeta = []meta{
 	{"drag", 0.1, 0, 12},
 }
 
+// shotMeta is a direction page: the engine knobs plus the five color
+// stops of that direction's cooling ramp, freshest first.
+var shotMeta = append(append([]meta{}, layerMeta...),
+	meta{"color 1", 1, 1, 255},
+	meta{"color 2", 1, 1, 255},
+	meta{"color 3", 1, 1, 255},
+	meta{"color 4", 1, 1, 255},
+	meta{"color 5", 1, 1, 255},
+)
+
 // pageMeta is the knob table of one page.
 func pageMeta(page int) []meta {
-	if page == pageAim {
+	switch {
+	case page == pageAim:
 		return aimMeta
+	case page == pageCore:
+		return layerMeta
+	default:
+		return shotMeta
 	}
-	return layerMeta
 }
 
 // Tuner is the page + knob cursor over a BlastConfig.
@@ -87,19 +106,43 @@ func NewTuner() *Tuner {
 	return &Tuner{Blast: gunfire.ActiveBlast()}
 }
 
-// layer is the Layer the current page edits, or nil on the aim page.
-func (t *Tuner) layer() *gunfire.Layer {
+// shot is the Shot the current page edits, or nil off the compass
+// pages.
+func (t *Tuner) shot() *gunfire.Shot {
 	switch t.Page {
-	case pageCore:
-		return &t.Blast.Core
-	case pageFlame:
-		return &t.Blast.Flame
+	case firstHeadingPage + 0:
+		return &t.Blast.N
+	case firstHeadingPage + 1:
+		return &t.Blast.NE
+	case firstHeadingPage + 2:
+		return &t.Blast.E
+	case firstHeadingPage + 3:
+		return &t.Blast.SE
+	case firstHeadingPage + 4:
+		return &t.Blast.S
+	case firstHeadingPage + 5:
+		return &t.Blast.SW
+	case firstHeadingPage + 6:
+		return &t.Blast.W
+	case firstHeadingPage + 7:
+		return &t.Blast.NW
 	}
 	return nil
 }
 
-// Flip turns delta pages, wrapping around the three; the cursor
-// clamps into the new page's rows.
+// layer is the Layer the current page edits, or nil on the aim page.
+func (t *Tuner) layer() *gunfire.Layer {
+	if t.Page == pageCore {
+		return &t.Blast.Core
+	}
+	if s := t.shot(); s != nil {
+		return &s.Layer
+	}
+	return nil
+}
+
+// Flip turns delta pages, wrapping around the ten; the cursor clamps
+// into the new page's rows.
 func (t *Tuner) Flip(delta int) {
 	if t == nil {
 		return
@@ -142,9 +185,22 @@ func (t *Tuner) Nudge(steps int) {
 	t.fixLadder()
 }
 
+// headingIdx is the active heading's slot on the compass.
+func (t *Tuner) headingIdx() int {
+	for i, h := range sprite.Headings {
+		if t.Blast.Heading == h {
+			return i
+		}
+	}
+	return 0
+}
+
 // get reads knob at the given row of the current page.
 func (t *Tuner) get(cursor int) float64 {
 	if l := t.layer(); l != nil {
+		if s := t.shot(); s != nil && cursor >= len(layerMeta) {
+			return float64(s.Colors[cursor-len(layerMeta)])
+		}
 		switch cursor {
 		case 0:
 			return float64(l.Count)
@@ -172,7 +228,7 @@ func (t *Tuner) get(cursor int) float64 {
 	c := t.Blast
 	switch cursor {
 	case 0:
-		return c.AngleDeg
+		return float64(t.headingIdx())
 	case 1:
 		return c.MuzzleX
 	case 2:
@@ -194,6 +250,10 @@ func (t *Tuner) get(cursor int) float64 {
 // set writes knob at the given row of the current page.
 func (t *Tuner) set(cursor int, v float64) {
 	if l := t.layer(); l != nil {
+		if s := t.shot(); s != nil && cursor >= len(layerMeta) {
+			s.Colors[cursor-len(layerMeta)] = int(v + 0.5)
+			return
+		}
 		switch cursor {
 		case 0:
 			l.Count = int(v + 0.5)
@@ -220,7 +280,7 @@ func (t *Tuner) set(cursor int, v float64) {
 	}
 	switch cursor {
 	case 0:
-		t.Blast.AngleDeg = v
+		t.Blast.Heading = sprite.Headings[int(v+0.5)]
 	case 1:
 		t.Blast.MuzzleX = v
 	case 2:
@@ -239,9 +299,14 @@ func (t *Tuner) set(cursor int, v float64) {
 }
 
 // fixRanges keeps every layer's min/max pairs ordered by swapping,
-// never folding.
+// never folding — the core and all eight shots.
 func (t *Tuner) fixRanges() {
-	for _, l := range []*gunfire.Layer{&t.Blast.Core, &t.Blast.Flame} {
+	layers := []*gunfire.Layer{
+		&t.Blast.Core,
+		&t.Blast.N.Layer, &t.Blast.NE.Layer, &t.Blast.E.Layer, &t.Blast.SE.Layer,
+		&t.Blast.S.Layer, &t.Blast.SW.Layer, &t.Blast.W.Layer, &t.Blast.NW.Layer,
+	}
+	for _, l := range layers {
 		if l.MinLife > l.MaxLife {
 			l.MinLife, l.MaxLife = l.MaxLife, l.MinLife
 		}
@@ -268,14 +333,20 @@ func (t *Tuner) fixLadder() {
 func formatKnob(page, cursor int, v float64) string {
 	if page == pageAim {
 		switch cursor {
-		case 0, 5, 6, 7: // angle, ladder
+		case 0: // heading, by name
+			i := int(v + 0.5)
+			if i < 0 || i >= len(sprite.Headings) {
+				i = 0
+			}
+			return fmt.Sprintf("%5s", string(sprite.Headings[i]))
+		case 5, 6, 7: // ladder
 			return fmt.Sprintf("%5.0f", v)
 		default: // muzzle fractions, pulse delay and frac
 			return fmt.Sprintf("%5.2f", v)
 		}
 	}
 	switch cursor {
-	case 0, 8: // count, lift
+	case 0, 8, 10, 11, 12, 13, 14: // count, lift, colors
 		return fmt.Sprintf("%5.0f", v)
 	case 1, 2, 5, 9: // lives, spread, drag
 		return fmt.Sprintf("%5.2f", v)

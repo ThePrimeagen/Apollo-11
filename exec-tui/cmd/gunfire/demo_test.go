@@ -243,7 +243,7 @@ func TestApplyBlast(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		path := filepath.Join(t.TempDir(), "blast.json")
 		c := gunfire.DefaultBlast()
-		c.AngleDeg = 10
+		c.Heading = sprite.SW
 		if err := c.Save(path); err != nil {
 			t.Fatalf("seed save: %v", err)
 		}

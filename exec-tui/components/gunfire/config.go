@@ -1,20 +1,21 @@
-// Package gunfire is the one-shot Doom muzzle flame: the red flame
-// that comes out when the shotgun goes off. One squeeze and the flame
-// leaps up from the muzzle — a white-hot heart wrapped in tongues
-// that cool bright yellow through orange and red down to a maroon
-// ember as they rise, slow, and die. Doom's flash is two sprite
-// frames, so a dimmer second pulse follows the first on a short
-// fuse. There is no period clock anywhere: the blast holds fire until
-// Fire, burns out, and leaves the stage exactly as it found it.
+// Package gunfire is the one-shot Doom muzzle flame on an eight-point
+// compass: the red flame that comes out when the shotgun goes off,
+// tunable direction by direction. One squeeze and the flame leaps
+// from the muzzle along the aimed heading — a white-hot heart wrapped
+// in tongues that cool through that direction's own five-stop color
+// ramp as they rise, slow, and die. Doom's flash is two sprite
+// frames, so a dimmer second pulse follows the first on a short fuse.
+// There is no period clock anywhere: the blast holds fire until Fire,
+// burns out, and leaves the stage exactly as it found it.
 //
-// Every number is data. BlastConfig carries the aim (angle and muzzle
-// position — straight up by default, the way the flash sits in the
-// first-person view), the two-frame pulse, the core brightness
-// ladder, and one engine-knob Layer each for the core and the flame —
-// the flame carrying lift (hot gas rises) and drag (the eruption dies
-// down). The knobs live in this component's config file and become
-// the active blast via UseBlast, so the tuner and the demo stay on
-// the same values.
+// Every number is data. BlastConfig carries the muzzle, the heading
+// the next squeeze fires (N, NE, E, SE, S, SW, W, NW — the same
+// compass the lander atlas speaks), the two-frame pulse, the core
+// brightness ladder, the shared white-hot core, and one Shot per
+// direction — the full engine-knob Layer plus its color ramp. The
+// knobs live in this component's config file and become the active
+// blast via UseBlast, so the tuner and the demo stay on the same
+// values.
 package gunfire
 
 import (
@@ -25,17 +26,19 @@ import (
 	"os"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/particle"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
 var (
-	ErrMuzzle = errors.New("gunfire: muzzle must sit on the stage (fractions 0..1)")
-	ErrAngle  = errors.New("gunfire: angle must be -180..180 degrees around level")
-	ErrDelay  = errors.New("gunfire: pulse delay must be non-negative")
-	ErrPulse  = errors.New("gunfire: pulse fraction must be 0..1")
-	ErrLadder = errors.New("gunfire: core ladder must climb: 1 <= edgeAt < midAt < coreAt")
+	ErrMuzzle  = errors.New("gunfire: muzzle must sit on the stage (fractions 0..1)")
+	ErrHeading = errors.New("gunfire: heading must be one of the eight compass points")
+	ErrDelay   = errors.New("gunfire: pulse delay must be non-negative")
+	ErrPulse   = errors.New("gunfire: pulse fraction must be 0..1")
+	ErrLadder  = errors.New("gunfire: core ladder must climb: 1 <= edgeAt < midAt < coreAt")
+	ErrColor   = errors.New("gunfire: color stops must sit on the xterm cube 1..255")
 )
 
-// Layer is the engine-knob bundle one part of the flame burns under:
+// Layer is the engine-knob bundle one part of the blast burns under:
 // how many specks a squeeze throws, how long and how fast they fly,
 // how wide the fan is, how thick the muzzle is, how far they may get
 // (0 is unleashed), how hard they rise, and how fast they die down.
@@ -52,42 +55,120 @@ type Layer struct {
 	Drag        float64 `json:"drag"`
 }
 
-// BlastConfig is the JSON that tunes the flame: where the muzzle sits
-// (fractions of the stage), where it aims (degrees above level; 90 is
-// straight up), Doom's two-frame pulse (the dimmer re-burst that
-// follows the first on a short fuse), the concentration ladder that
-// decides how bright a core cell burns, and the two layers.
-type BlastConfig struct {
-	AngleDeg   float64 `json:"angleDeg"`   // aim, any which direction: 0 right, 90 up, ±180 left, -90 down
-	MuzzleX    float64 `json:"muzzleX"`    // muzzle, as a fraction of stage width
-	MuzzleY    float64 `json:"muzzleY"`    // muzzle, as a fraction of stage height
-	PulseDelay float64 `json:"pulseDelay"` // seconds between Doom's two flash frames; 0 = one frame
-	PulseFrac  float64 `json:"pulseFrac"`  // second frame size, as a fraction of the first; 0 = one frame
-	EdgeAt     int     `json:"edgeAt"`     // core concentration that earns the star
-	MidAt      int     `json:"midAt"`      // … the yellow shade block
-	CoreAt     int     `json:"coreAt"`     // … the white-hot core block
-
-	Core  Layer `json:"core"`
-	Flame Layer `json:"flame"`
+// Shot is one compass direction's flame: the engine knobs plus the
+// five color stops its tongues cool through — Colors[0] wears the
+// freshest specks, Colors[4] the dying embers.
+type Shot struct {
+	Layer
+	Colors [5]int `json:"colors"`
 }
 
+// BlastConfig is the JSON that tunes the shot: where the muzzle sits
+// (fractions of the stage), the compass heading the next squeeze
+// fires, Doom's two-frame pulse (the dimmer re-burst that follows the
+// first on a short fuse), the concentration ladder that decides how
+// bright a core cell burns, the shared core, and the eight shots.
+type BlastConfig struct {
+	MuzzleX    float64        `json:"muzzleX"`    // muzzle, as a fraction of stage width
+	MuzzleY    float64        `json:"muzzleY"`    // muzzle, as a fraction of stage height
+	Heading    sprite.Heading `json:"heading"`    // the compass point the next squeeze fires
+	PulseDelay float64        `json:"pulseDelay"` // seconds between Doom's two flash frames; 0 = one frame
+	PulseFrac  float64        `json:"pulseFrac"`  // second frame size, as a fraction of the first; 0 = one frame
+	EdgeAt     int            `json:"edgeAt"`     // core concentration that earns the star
+	MidAt      int            `json:"midAt"`      // … the yellow shade block
+	CoreAt     int            `json:"coreAt"`     // … the white-hot core block
+
+	Core Layer `json:"core"` // the shared white-hot pop at the muzzle
+
+	N  Shot `json:"n"`
+	NE Shot `json:"ne"`
+	E  Shot `json:"e"`
+	SE Shot `json:"se"`
+	S  Shot `json:"s"`
+	SW Shot `json:"sw"`
+	W  Shot `json:"w"`
+	NW Shot `json:"nw"`
+}
+
+// DoomRamp is the stock cooling ramp every direction ships with:
+// bright yellow at birth, through orange and red, down to a maroon
+// ember.
+var DoomRamp = [5]int{226, 208, 196, 160, 124}
+
 // DefaultBlast is the stock Doom shotgun flame: the muzzle low at
-// center screen like the gun in first person, the flame leaping
-// straight up — fast out of the barrel, dragged to a stall as lift
-// carries the cooling tongues — and a 0.11s fuse to the dimmer
-// second frame, the way the flash sprite plays twice.
+// center screen like the gun in first person, aimed north — straight
+// up — with every direction carrying the same tuned flame and the
+// Doom red ramp, ready to be pulled apart shot by shot.
 func DefaultBlast() BlastConfig {
+	shot := Shot{
+		Layer:  Layer{Count: 140, MinLife: 0.14, MaxLife: 0.62, MinSpeed: 16, MaxSpeed: 36, Spread: 0.24, Nozzle: 2.4, Lift: 46, Drag: 3},
+		Colors: DoomRamp,
+	}
 	return BlastConfig{
-		AngleDeg:   90,
 		MuzzleX:    0.5,
 		MuzzleY:    0.85,
+		Heading:    sprite.N,
 		PulseDelay: 0.11,
 		PulseFrac:  0.6,
 		EdgeAt:     2,
 		MidAt:      4,
 		CoreAt:     7,
-		Core:  Layer{Count: 80, MinLife: 0.04, MaxLife: 0.12, MinSpeed: 8, MaxSpeed: 20, Spread: 0.55, Nozzle: 3, MaxDistance: 4},
-		Flame: Layer{Count: 140, MinLife: 0.14, MaxLife: 0.62, MinSpeed: 16, MaxSpeed: 36, Spread: 0.24, Nozzle: 2.4, Lift: 46, Drag: 3},
+		Core: Layer{Count: 80, MinLife: 0.04, MaxLife: 0.12, MinSpeed: 8, MaxSpeed: 20, Spread: 0.55, Nozzle: 3, MaxDistance: 4},
+		N:    shot,
+		NE:   shot,
+		E:    shot,
+		SE:   shot,
+		S:    shot,
+		SW:   shot,
+		W:    shot,
+		NW:   shot,
+	}
+}
+
+// ShotAt is the shot one compass point fires. Headings off the
+// compass hand back the zero shot.
+func (c BlastConfig) ShotAt(h sprite.Heading) Shot {
+	switch h {
+	case sprite.N:
+		return c.N
+	case sprite.NE:
+		return c.NE
+	case sprite.E:
+		return c.E
+	case sprite.SE:
+		return c.SE
+	case sprite.S:
+		return c.S
+	case sprite.SW:
+		return c.SW
+	case sprite.W:
+		return c.W
+	case sprite.NW:
+		return c.NW
+	}
+	return Shot{}
+}
+
+// SetShot retunes one compass point's shot, leaving the other seven
+// alone. Headings off the compass set nothing.
+func (c *BlastConfig) SetShot(h sprite.Heading, s Shot) {
+	switch h {
+	case sprite.N:
+		c.N = s
+	case sprite.NE:
+		c.NE = s
+	case sprite.E:
+		c.E = s
+	case sprite.SE:
+		c.SE = s
+	case sprite.S:
+		c.S = s
+	case sprite.SW:
+		c.SW = s
+	case sprite.W:
+		c.W = s
+	case sprite.NW:
+		c.NW = s
 	}
 }
 
@@ -104,7 +185,7 @@ func UseBlast(c BlastConfig) error {
 	return nil
 }
 
-// ResetBlast restores the stock flame.
+// ResetBlast restores the stock shotgun flame.
 func ResetBlast() {
 	_ = UseBlast(DefaultBlast())
 }
@@ -118,13 +199,23 @@ const (
 	nominalH = 60
 )
 
+// validHeading reports h sits on the compass.
+func validHeading(h sprite.Heading) bool {
+	for _, hh := range sprite.Headings {
+		if h == hh {
+			return true
+		}
+	}
+	return false
+}
+
 // Validate reports the first thing wrong with c.
 func (c BlastConfig) Validate() error {
 	if c.MuzzleX < 0 || c.MuzzleX > 1 || c.MuzzleY < 0 || c.MuzzleY > 1 {
 		return ErrMuzzle
 	}
-	if c.AngleDeg < -180 || c.AngleDeg > 180 {
-		return ErrAngle
+	if !validHeading(c.Heading) {
+		return ErrHeading
 	}
 	if c.PulseDelay < 0 {
 		return ErrDelay
@@ -135,38 +226,41 @@ func (c BlastConfig) Validate() error {
 	if c.EdgeAt < 1 || c.MidAt <= c.EdgeAt || c.CoreAt <= c.MidAt {
 		return ErrLadder
 	}
-	core, flame := c.Engines(nominalW, nominalH)
-	for _, layer := range []struct {
-		name string
-		cfg  particle.Config
-	}{
-		{"core", core}, {"flame", flame},
-	} {
-		if err := layer.cfg.Validate(); err != nil {
-			return fmt.Errorf("gunfire: %s layer: %w", layer.name, err)
+	core, flames := c.Engines(nominalW, nominalH)
+	if err := core.Validate(); err != nil {
+		return fmt.Errorf("gunfire: core layer: %w", err)
+	}
+	for i, h := range sprite.Headings {
+		if err := flames[i].Validate(); err != nil {
+			return fmt.Errorf("gunfire: %s shot: %w", h, err)
+		}
+		for _, stop := range c.ShotAt(h).Colors {
+			if stop < 1 || stop > 255 {
+				return fmt.Errorf("gunfire: %s shot: %w", h, ErrColor)
+			}
 		}
 	}
 	return nil
 }
 
-// Engines are the two particle worlds this blast describes on a w×h
-// unit stage: the white-hot core and the red flame, both leaving the
-// muzzle along the aim in straight flight, each under its own lift
-// and drag. Every world has Period 0 — a gunshot is a trigger, not a
+// Engines are the nine particle worlds this blast describes on a w×h
+// unit stage: the shared white-hot core aimed along the active
+// heading, and one flame per compass point — each leaving the same
+// muzzle its own way, in straight flight, under its own lift and
+// drag. Every world has Period 0 — a gunshot is a trigger, not a
 // clock. The muzzle clamps inside stages smaller than its fractions
-// reach.
-func (c BlastConfig) Engines(w, h float64) (core, flame particle.Config) {
+// reach. The flames come back in sprite.Headings order.
+func (c BlastConfig) Engines(w, h float64) (core particle.Config, flames [8]particle.Config) {
 	muzzle := particle.Vec2{
 		X: clamp(c.MuzzleX*w, 0, w),
 		Y: clamp(c.MuzzleY*h, 0, h),
 	}
-	aim := dirAt(c.AngleDeg)
-	base := func(l Layer) particle.Config {
+	base := func(l Layer, dir particle.Vec2) particle.Config {
 		return particle.Config{
 			Width:       w,
 			Height:      h,
 			Origin:      muzzle,
-			Direction:   aim,
+			Direction:   dir,
 			Count:       l.Count,
 			MinLife:     l.MinLife,
 			MaxLife:     l.MaxLife,
@@ -179,15 +273,36 @@ func (c BlastConfig) Engines(w, h float64) (core, flame particle.Config) {
 			Drag:        l.Drag,
 		}
 	}
-	return base(c.Core), base(c.Flame)
+	core = base(c.Core, dirOf(c.Heading))
+	for i, heading := range sprite.Headings {
+		flames[i] = base(c.ShotAt(heading).Layer, dirOf(heading))
+	}
+	return core, flames
 }
 
-// dirAt is the unit heading deg degrees around level, covering the
-// whole circle: 0 fires rightward, 90 straight up, ±180 leftward,
-// -90 straight down. Y grows downward, so climbing means a negative Y.
-func dirAt(deg float64) particle.Vec2 {
-	sin, cos := math.Sincos(deg * math.Pi / 180)
-	return particle.Vec2{X: cos, Y: -sin}
+// dirOf is the unit heading of one compass point on the screen: north
+// is up (Y grows downward), the diagonals are unit-length.
+func dirOf(h sprite.Heading) particle.Vec2 {
+	d := math.Sqrt2 / 2
+	switch h {
+	case sprite.N:
+		return particle.Vec2{X: 0, Y: -1}
+	case sprite.NE:
+		return particle.Vec2{X: d, Y: -d}
+	case sprite.E:
+		return particle.Vec2{X: 1, Y: 0}
+	case sprite.SE:
+		return particle.Vec2{X: d, Y: d}
+	case sprite.S:
+		return particle.Vec2{X: 0, Y: 1}
+	case sprite.SW:
+		return particle.Vec2{X: -d, Y: d}
+	case sprite.W:
+		return particle.Vec2{X: -1, Y: 0}
+	case sprite.NW:
+		return particle.Vec2{X: -d, Y: -d}
+	}
+	return particle.Vec2{}
 }
 
 func clamp(v, lo, hi float64) float64 {
