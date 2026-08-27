@@ -250,3 +250,23 @@ func TestNeverWokenSleeperHoldsCoreForever(t *testing.T) {
 		t.Fatalf("cores=%d vacs=%d, want 1/1 — dormant memory is never reclaimed", c, v)
 	}
 }
+
+func TestEqualWordTieKeepsTheEarlierFind(t *testing.T) {
+	// unhappy (EJ1's minus-zero branch): two identical-word NOVAC jobs wait
+	// while a higher job runs; the ones'-complement compare of equal
+	// magnitudes yields -0 and CCS on -0 PROCEEDS WITH SEARCH, keeping the
+	// earlier find (EXECUTIVE.agc L492-L499) — so the earlier slot resumes
+	// first when the runner ends
+	e := NewEngine(Config{})
+	e.Spawn(job("HIGH", 30, false, 10))
+	e.ScheduleTask(1*Millisecond, "SPA", 0, func(en *Engine) {
+		en.Spawn(job("EARLIER", 20, false, 10))
+	})
+	e.ScheduleTask(2*Millisecond, "SPB", 0, func(en *Engine) {
+		en.Spawn(job("LATER", 20, false, 10))
+	})
+	e.RunMS(12) // HIGH ends at 10 ms; the tie must go to EARLIER (slot 1)
+	if got := e.RunningJob(); got != "EARLIER" {
+		t.Fatalf("running %q, want EARLIER — an exact word tie keeps the earlier slot", got)
+	}
+}
