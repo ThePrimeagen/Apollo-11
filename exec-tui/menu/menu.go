@@ -46,6 +46,7 @@ func Catalog() []Entry {
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "gunfire", Section: "Scenes", Title: "Gunfire", Desc: "one-shot Doom muzzle flame — space fires, arrows step the eight-point aim", Pkg: "./cmd/gunfire"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the full-screen flag fades in from black, then the giant eagle crosses — nudge fade / delay / cross 50ms at a time", Pkg: "./cmd/america"},
+		{ID: "moonwalk", Section: "Scenes", Title: "Moonwalk", Desc: "the astronaut climbs three crates, rides the flagpole down as the flag goes up, then boards the LM — eleven live knobs", Pkg: "./cmd/astronaut"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "editor", Section: "CONFIG", Title: "SPRITE EDITOR", Desc: "vim-ish ASCII editor over the assets/ folder (C-p files, C-e glyphs)"},
