@@ -139,7 +139,7 @@ func TestEverythingOffShowsIdleOps(t *testing.T) {
 			t.Fatalf("idle legend missing %q:\n%s", want, v)
 		}
 	}
-	for _, banned := range []string{"SERVICER:", "MONDO:", "LRHJOB:"} {
+	for _, banned := range []string{"SERVICER:", "MONDO:", "LRHJOB:", "READACCS:", "R10,R11:"} {
 		if strings.Contains(v, banned) {
 			t.Fatalf("idle legend lists %q — only running jobs belong", banned)
 		}

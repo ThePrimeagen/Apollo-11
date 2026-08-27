@@ -202,6 +202,27 @@ func TestLiveRadarToggleFreezesTheft(t *testing.T) {
 	}
 }
 
+func TestDescentOffCancelsThePendingChain(t *testing.T) {
+	// happy: switching descent off at t=0 removes the pre-armed chain
+	// entries — READACCS and R10,R11 never fire, never burn task cost
+	l := NewLive()
+	l.SetRadar(false)
+	l.SetDescent(false)
+	l.StepMS(3_000)
+	e := l.Engine()
+	for _, name := range []string{"READACCS", "R10,R11", "LRHTASK", "LRVTASK"} {
+		if got := e.TaskFires(name); got != 0 {
+			t.Fatalf("%s fired %d times with descent off from t=0, want 0", name, got)
+		}
+		if got := e.BusyNs(name); got != 0 {
+			t.Fatalf("%s burned %d ns with descent off from t=0, want 0", name, got)
+		}
+	}
+	// unhappy: cancelling names that do not exist is a no-op
+	e.CancelTasks("NOBODY", "NOTHING")
+	l.StepMS(100)
+}
+
 func TestLiveDefaultsMatchTheFlight(t *testing.T) {
 	// unhappy-guard: the screen opens in the flight's P63 state — descent
 	// on, monitor off, radar steal on
