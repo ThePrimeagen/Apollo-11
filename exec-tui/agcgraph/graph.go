@@ -253,6 +253,38 @@ func onOff(on bool) string {
 	return sOff.Render("OFF")
 }
 
+// axisRow anchors an "Nms" label at every other gridline column (every
+// 200 ms), skipping any label that would not fit or would collide.
+func axisRow(plot int) string {
+	cells := make([]rune, plot)
+	for i := range cells {
+		cells[i] = ' '
+	}
+	for t := 0; t < windowMS; t += 200 {
+		col := t * plot / windowMS
+		label := []rune(fmt.Sprintf("%dms", t))
+		if col+len(label) > plot {
+			continue
+		}
+		free := true
+		lo := col - 1
+		if lo < 0 {
+			lo = 0
+		}
+		for _, r := range cells[lo : col+len(label)] {
+			if r != ' ' {
+				free = false
+				break
+			}
+		}
+		if !free {
+			continue
+		}
+		copy(cells[col:], label)
+	}
+	return sGridS.Render(string(cells))
+}
+
 func (m Model) View() tea.View {
 	g := gutter
 	if m.w < g+10 {
@@ -268,7 +300,7 @@ func (m Model) View() tea.View {
 
 	pad := strings.Repeat(" ", g)
 	var lines []string
-	for _, l := range lanes {
+	for i, l := range lanes {
 		rows := laneRows(l, m.columns(plot, l.class))
 		for t := 0; t < 3; t++ {
 			left := pad
@@ -276,6 +308,9 @@ func (m Model) View() tea.View {
 				left = sLabel.Render(fmt.Sprintf("%-*s", g, l.label))
 			}
 			lines = append(lines, left+rows[t])
+		}
+		if i == len(lanes)-1 {
+			lines = append(lines, pad+axisRow(plot))
 		}
 		lines = append(lines, "")
 	}
