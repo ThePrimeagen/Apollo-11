@@ -439,3 +439,65 @@ func TestAtlas(t *testing.T) {
 		}
 	})
 }
+
+// TestMuzzle: the exported barrel-tip finder a scene uses to mount
+// the gun anywhere — the muzzle flame must leap from the barrel, not
+// the stock, wherever the gun is blitted.
+func TestMuzzle(t *testing.T) {
+	t.Run("happy: the muzzle is the opaque cell furthest along the heading", func(t *testing.T) {
+		a, err := BuildAtlas()
+		if err != nil {
+			t.Fatalf("BuildAtlas: %v", err)
+		}
+		east, ok := a.Frame(Size, sprite.E)
+		if !ok {
+			t.Fatal("the atlas must hold the east gun")
+		}
+		minC, _, maxC, _, n := bounds(east)
+		if n == 0 {
+			t.Fatal("test premise: the east gun has ink")
+		}
+		if x, y := Muzzle(east, sprite.E); x != maxC || east.At(y, x).Transparent() {
+			t.Fatalf("the east muzzle is (%d,%d), want the rightmost opaque column %d", x, y, maxC)
+		}
+		if x, y := Muzzle(east, sprite.W); x != minC || east.At(y, x).Transparent() {
+			t.Fatalf("aiming the east frame west, the muzzle is (%d,%d), want the leftmost opaque column %d", x, y, minC)
+		}
+		north, ok := a.Frame(Size, sprite.N)
+		if !ok {
+			t.Fatal("the atlas must hold the north gun")
+		}
+		_, nMinR, _, _, _ := bounds(north)
+		if x, y := Muzzle(north, sprite.N); y != nMinR || north.At(y, x).Transparent() {
+			t.Fatalf("the north muzzle is (%d,%d), want the topmost opaque row %d", x, y, nMinR)
+		}
+		for _, h := range sprite.Headings {
+			body, ok := a.Frame(Size, h)
+			if !ok {
+				t.Fatalf("the atlas must hold the %s gun", h)
+			}
+			x, y := Muzzle(body, h)
+			if x < 0 || x >= body.Width || y < 0 || y >= body.Height {
+				t.Fatalf("%s muzzle (%d,%d) is off the %dx%d frame", h, x, y, body.Width, body.Height)
+			}
+			if body.At(y, x).Transparent() {
+				t.Fatalf("%s muzzle (%d,%d) must sit on the gun", h, x, y)
+			}
+		}
+	})
+	t.Run("unhappy: an empty sprite or an off-compass heading never panics", func(t *testing.T) {
+		x, y := Muzzle(sprite.Sprite{}, sprite.E)
+		if x != 0 || y != 0 {
+			t.Fatalf("an empty sprite's muzzle is (%d,%d), want its (0,0) centre", x, y)
+		}
+		a, err := BuildAtlas()
+		if err != nil {
+			t.Fatalf("BuildAtlas: %v", err)
+		}
+		east, _ := a.Frame(Size, sprite.E)
+		bx, by := Muzzle(east, sprite.Heading("XX"))
+		if bx < 0 || bx >= east.Width || by < 0 || by >= east.Height {
+			t.Fatalf("an off-compass muzzle (%d,%d) must stay on the frame", bx, by)
+		}
+	})
+}

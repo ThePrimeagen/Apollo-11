@@ -5,8 +5,11 @@
 // the stage and flies across to exit off the left over CrossSeconds,
 // gliding on a shallow swoop with a gentle bob. Delay holds it off
 // stage first, so a scene can finish its own beat — a fade, a title —
-// before the flyover. The flight clock rides across restarts, so a
-// resize never replays the crossing.
+// before the flyover. Path retunes where the flight begins and ends,
+// as fractions of the full off-right-to-off-left span, so the bird
+// can open already on stage or cut the flight short of the far wing.
+// The flight clock rides across restarts, so a resize never replays
+// the crossing.
 package eagle
 
 import (
@@ -192,16 +195,18 @@ func Art() sprite.Sprite {
 type Eagle struct {
 	delay  float64
 	cross  float64
+	pathA  float64
+	pathB  float64
 	clock  float64
 	body   sprite.Sprite
 	w, h   int
 	staged bool
 }
 
-// New binds an eagle that flies the default crossing with no delay.
-// Nothing is built until Start.
+// New binds an eagle that flies the default crossing with no delay,
+// over the whole span. Nothing is built until Start.
 func New() *Eagle {
-	return &Eagle{cross: DefaultCrossSeconds}
+	return &Eagle{cross: DefaultCrossSeconds, pathB: 1}
 }
 
 // Delay holds the eagle off stage for the first seconds of the scene.
@@ -228,6 +233,21 @@ func (e *Eagle) Cross(seconds float64) *Eagle {
 	return e
 }
 
+// Path sets where the flight begins and ends, as fractions of the
+// full off-right-to-off-left span: 0 is off the right wing, 1 is off
+// the left. The stock flight is the whole span. A backwards, empty,
+// out-of-range or unreal path keeps the stock flight. Call before
+// Start. Nil-safe.
+func (e *Eagle) Path(start, end float64) *Eagle {
+	if e == nil {
+		return nil
+	}
+	if start >= 0 && end <= 1 && end > start {
+		e.pathA, e.pathB = start, end
+	}
+	return e
+}
+
 // Start builds the model for a w×h stage. The flight clock is not
 // touched: a resize never replays the crossing.
 func (e *Eagle) Start(w, h int) {
@@ -247,6 +267,61 @@ func (e *Eagle) Update(dt float64) {
 	e.clock += dt
 }
 
+// place is the flight this instant: the body's top-left stage cell,
+// swoop and bob included, and whether the bird is between its points.
+func (e *Eagle) place() (x, y int, on bool) {
+	if e == nil || !e.staged || e.w < 1 || e.h < 1 || e.cross <= 0 {
+		return 0, 0, false
+	}
+	t := e.clock - e.delay
+	if t < 0 {
+		return 0, 0, false
+	}
+	p := t / e.cross
+	if p >= 1 {
+		return 0, 0, false
+	}
+	q := e.pathA + p*(e.pathB-e.pathA)
+	span := float64(e.w + BodyCols)
+	x = e.w - int(q*span)
+	y = (e.h-BodyRows)/2 +
+		int(math.Round(DipRows*math.Sin(p*math.Pi))) +
+		int(math.Round(BobAmp*math.Sin(2*math.Pi*BobHz*t)))
+	return x, y, true
+}
+
+// At is the body's top-left stage cell this instant and whether the
+// flight currently has the bird on its way — the mount point for
+// whatever a scene hangs on the bird. Nil, unstarted, waiting and
+// finished birds are off.
+func (e *Eagle) At() (x, y int, on bool) {
+	return e.place()
+}
+
+// Progress is how far along its path the flight is, 0 at the start
+// point to 1 at the end, and whether the bird is mid-flight. Nil,
+// unstarted, waiting and finished birds do not fly.
+func (e *Eagle) Progress() (p float64, flying bool) {
+	if e == nil || !e.staged || e.cross <= 0 {
+		return 0, false
+	}
+	t := e.clock - e.delay
+	if t < 0 {
+		return 0, false
+	}
+	p = t / e.cross
+	if p >= 1 {
+		return 1, false
+	}
+	return p, true
+}
+
+// Talons are the two claw clusters' cell offsets on the body canvas,
+// leading claw first — where a scene mounts what the eagle carries.
+func Talons() [2][2]int {
+	return [2][2]int{{10, 14}, {18, 14}}
+}
+
 // Render lays the eagle at its instant of the crossing on a
 // stage-sized sprite. Before the delay, after the crossing, before
 // Start and after Stop the sky is clear.
@@ -255,20 +330,11 @@ func (e *Eagle) Render() sprite.Sprite {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(e.w, e.h)
-	t := e.clock - e.delay
-	if t < 0 || e.cross <= 0 {
+	x, y, on := e.place()
+	if !on {
 		return stage
 	}
-	p := t / e.cross
-	if p >= 1 {
-		return stage
-	}
-	span := float64(e.w + BodyCols)
-	x := e.w - int(p*span)
-	row := (e.h-BodyRows)/2 +
-		int(math.Round(DipRows*math.Sin(p*math.Pi))) +
-		int(math.Round(BobAmp*math.Sin(2*math.Pi*BobHz*t)))
-	sprite.Blit(stage, x, row, e.body)
+	sprite.Blit(stage, x, y, e.body)
 	return stage
 }
 

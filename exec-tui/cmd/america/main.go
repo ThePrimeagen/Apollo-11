@@ -1,17 +1,23 @@
 // america: the portable America scene from scenes/america. The house
 // opens on pure black; the full-screened American flag fades in
-// slowly, and once it is fully in, the very large bald eagle crosses
+// fast, and once it is fully in, the very large bald eagle crosses
 // the stage right to left with the flag flying beneath it. After the
 // flyover the flag flies alone.
 //
-// Three live knobs retune the scene 50ms at a time, the same way the
-// landing runner tunes: flag fade, eagle delay, eagle cross (the
-// eagle's speed). Play rebuilds from the current knobs; s saves them
-// to scenes/america/config.json.
+// Nine live knobs retune the scene, the same way the landing runner
+// tunes: flag fade, eagle delay, eagle cross (the eagle's speed),
+// eagle start / eagle end (where the flight begins and ends, as
+// fractions of the full off-right-to-off-left span), left/right
+// shots (how many shells each talon's shotgun fires across one
+// crossing) and left/right aim (which of the eight compass points
+// each barrel faces). The time knobs step 50ms, the path knobs 0.05
+// of the span, the shots one shell, the aims one compass point with
+// wrap. Play rebuilds from the current knobs; s saves them to
+// scenes/america/config.json.
 //
 //	p / enter / space   play from the top
 //	j / k               select knob
-//	h / l               −50ms / +50ms
+//	h / l               nudge the knob down / up one step
 //	s                   save knobs to scenes/america/config.json
 //	q                   quit
 //
@@ -192,7 +198,7 @@ func (m model) status(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
 	reset := "\x1b[0m"
-	help := dim + pad(" America   p replay  j/k select  h/l ±50ms  s save  q quit", w) + reset
+	help := dim + pad(" America   p replay  j/k select  h/l adjust  s save  q quit", w) + reset
 	if m.note != "" {
 		help = dim + pad(" "+m.note, w) + reset
 	}
@@ -202,7 +208,7 @@ func (m model) status(w int) []string {
 		if i == m.cursor {
 			marker, color = "> ", hot
 		}
-		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %7.3fs", marker, america.KnobLabel(i), m.show.Cfg.Value(i)), w)+reset)
+		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %s", marker, america.KnobLabel(i), m.show.Cfg.Display(i)), w)+reset)
 	}
 	return rows
 }

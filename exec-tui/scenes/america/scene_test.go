@@ -2,12 +2,14 @@ package america
 
 // Tests written FIRST: America is the portable patriot scene. The
 // curtain rises on pure black; the full-screened American flag fades
-// in slowly — FadeSeconds of ramping color, no motion — and only once
+// in fast — FadeSeconds of ramping color, no motion — and only once
 // the flag is fully in does the very large eagle enter from the right
 // and cross the whole stage leftward over CrossSeconds, the flag still
-// flying beneath it. After the flyover the flag flies alone. The bill
-// is one scene named America; a stopped or unstaged scene never
-// panics, and waiting before the first render never burns the fade.
+// flying beneath it. After the flyover the flag flies alone. The
+// stock show is quick: the whole beat lands inside six seconds, and
+// the knobs stay live for anyone who wants it slower. The bill is one
+// scene named America; a stopped or unstaged scene never panics, and
+// waiting before the first render never burns the fade.
 
 import (
 	"testing"
@@ -95,6 +97,38 @@ func leftmost(cells [][2]int) int {
 	return l
 }
 
+// gunCells collects the cells wearing the shotgun's gold — the
+// trigger guard's 178. Neither the flag, the eagle, nor the blast
+// ever wears it, so on this stage those cells are the talon guns.
+func gunCells(scr *screenplay.Screen) [][2]int {
+	var out [][2]int
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			fg, bg := inkAt(scr, x, y)
+			if fg == 178 || bg == 178 {
+				out = append(out, [2]int{y, x})
+			}
+		}
+	}
+	return out
+}
+
+// blastCells collects the cells wearing the muzzle flame's fresh
+// tongues — the Doom ramp's 226, 208 and 196. The finished flag, the
+// eagle and the guns never wear them.
+func blastCells(scr *screenplay.Screen) [][2]int {
+	var out [][2]int
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			fg, _ := inkAt(scr, x, y)
+			if fg == 226 || fg == 208 || fg == 196 {
+				out = append(out, [2]int{y, x})
+			}
+		}
+	}
+	return out
+}
+
 func starCount(scr *screenplay.Screen) int {
 	n := 0
 	for y := 0; y < stageH; y++ {
@@ -108,15 +142,27 @@ func starCount(scr *screenplay.Screen) int {
 }
 
 func TestAmericaKnobs(t *testing.T) {
-	t.Run("happy: the fade is slow and the crossing is a real flight", func(t *testing.T) {
-		if FadeSeconds < 4 {
-			t.Fatalf("FadeSeconds = %v — the flag fades in slowly, give it at least 4s", FadeSeconds)
+	t.Run("happy: the stock show is fast — a quick fade, a quick crossing", func(t *testing.T) {
+		if FadeSeconds <= 0 || FadeSeconds > 2 {
+			t.Fatalf("FadeSeconds = %v — the flag fades in fast, two seconds at most", FadeSeconds)
 		}
-		if CrossSeconds <= 0 {
-			t.Fatalf("CrossSeconds = %v — the crossing must be a duration", CrossSeconds)
+		if CrossSeconds <= 0 || CrossSeconds > 4 {
+			t.Fatalf("CrossSeconds = %v — the crossing is fast, four seconds at most", CrossSeconds)
+		}
+		c := DefaultConfig()
+		if total := c.EagleDelay + c.CrossSeconds; total > 6 {
+			t.Fatalf("the stock show runs %vs before the flag flies alone — fast means six at most", total)
 		}
 	})
-	t.Run("unhappy: the fade and the crossing are separate beats", func(t *testing.T) {
+	t.Run("happy: the stock flight is the whole span — off one wing and off the other", func(t *testing.T) {
+		if StartPoint != 0 {
+			t.Fatalf("StartPoint = %v — the stock eagle enters off the right wing", StartPoint)
+		}
+		if EndPoint != 1 {
+			t.Fatalf("EndPoint = %v — the stock eagle exits off the left wing", EndPoint)
+		}
+	})
+	t.Run("unhappy: fast never collapses the beats — fade and crossing stay separate", func(t *testing.T) {
 		if FadeSeconds == CrossSeconds {
 			t.Fatal("the fade and the crossing must be independent knobs")
 		}
@@ -163,7 +209,7 @@ func TestAmericaScene(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: the flag fades in slowly and lands on its finished colors", func(t *testing.T) {
+	t.Run("happy: the flag fades in and lands on its finished colors", func(t *testing.T) {
 		sc := New()
 		sc.Start()
 		defer sc.Stop()
@@ -324,6 +370,7 @@ func TestAmericaScenePlaysConfig(t *testing.T) {
 	})
 	t.Run("unhappy: changing knobs mid-flight never retimes the running scene", func(t *testing.T) {
 		sc := New()
+		sc.Cfg.FadeSeconds = 8.0
 		sc.Start()
 		defer sc.Stop()
 		_ = paint(sc)
@@ -332,6 +379,168 @@ func TestAmericaScenePlaysConfig(t *testing.T) {
 		tick(sc, 0.5)
 		if got := bgIndex(paint(sc), stageW-1, 0); got == flag.RedInk {
 			t.Fatal("an in-flight fade must keep the timing it launched with")
+		}
+	})
+}
+
+func TestAmericaFlightPath(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: a late start point opens the flight already deep on stage", func(t *testing.T) {
+		t.Cleanup(Reset)
+		cfg := DefaultConfig()
+		cfg.FadeSeconds = 0.2
+		cfg.EagleDelay = 0.2
+		cfg.CrossSeconds = 2.0
+		cfg.EagleStart = 0.5
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.4)
+		cells := eagleCells(paint(sc))
+		if len(cells) < 100 {
+			t.Fatalf("a 0.5 start must open mid-stage, found only %d eagle cells", len(cells))
+		}
+		if l := leftmost(cells); l > stageW/2 {
+			t.Fatalf("a 0.5 start opens with the leading edge at %d — the bird starts halfway along the span", l)
+		}
+	})
+	t.Run("happy: an early end point cuts the flight short of the far wing, on time", func(t *testing.T) {
+		t.Cleanup(Reset)
+		cfg := DefaultConfig()
+		cfg.FadeSeconds = 0.2
+		cfg.EagleDelay = 0.2
+		cfg.CrossSeconds = 2.0
+		cfg.EagleEnd = 0.5
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 2.1)
+		cells := eagleCells(paint(sc))
+		if len(cells) < 100 {
+			t.Fatalf("just before an 0.5 end the bird is still mid-stage, found only %d eagle cells", len(cells))
+		}
+		if l := leftmost(cells); l < 1 {
+			t.Fatalf("an 0.5 end must never reach the left wing, leading edge at %d", l)
+		}
+		tick(sc, 0.4)
+		if got := eagleCells(paint(sc)); len(got) != 0 {
+			t.Fatalf("past the crossing the flight is over, found %d eagle cells", len(got))
+		}
+	})
+	t.Run("unhappy: a backwards path forced onto a live scene falls back to the stock flight", func(t *testing.T) {
+		sc := New()
+		sc.Cfg.FadeSeconds = 0.2
+		sc.Cfg.EagleDelay = 0.2
+		sc.Cfg.CrossSeconds = 2.0
+		sc.Cfg.EagleStart = 0.9
+		sc.Cfg.EagleEnd = 0.1
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 1.2)
+		if len(eagleCells(paint(sc))) == 0 {
+			t.Fatal("a backwards path must fall back to the stock flight, not a dead sky")
+		}
+	})
+}
+
+// TestAmericaArmedEagle: the bird carries a shotgun component in each
+// talon, painted on top of the claws, and each gun fires the gunfire
+// particle blast its configured number of times across the crossing,
+// aimed at its configured compass point.
+func TestAmericaArmedEagle(t *testing.T) {
+	t.Cleanup(Reset)
+	fast := func(leftShots, rightShots int) Config {
+		cfg := DefaultConfig()
+		cfg.FadeSeconds = 0.2
+		cfg.EagleDelay = 0.2
+		cfg.CrossSeconds = 2.0
+		cfg.LeftShots = leftShots
+		cfg.RightShots = rightShots
+		return cfg
+	}
+	t.Run("happy: two shotguns ride the talons across the stage", func(t *testing.T) {
+		t.Cleanup(Reset)
+		if err := Use(fast(1, 1)); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.2+0.5)
+		first := gunCells(paint(sc))
+		if len(first) == 0 {
+			t.Fatal("mid-crossing the talon guns must be painted on the bird")
+		}
+		l1 := leftmost(first)
+		tick(sc, 0.5)
+		second := gunCells(paint(sc))
+		if len(second) == 0 {
+			t.Fatal("the guns must stay mounted through the crossing")
+		}
+		if l2 := leftmost(second); l2 >= l1 {
+			t.Fatalf("the guns must ride the bird leftward: leftmost went %d -> %d", l1, l2)
+		}
+	})
+	t.Run("happy: each gun fires its blast on schedule across the crossing", func(t *testing.T) {
+		t.Cleanup(Reset)
+		if err := Use(fast(2, 2)); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.2+0.3)
+		if got := blastCells(paint(sc)); len(got) != 0 {
+			t.Fatalf("before the first scheduled shot the sky holds %d flame cells — the guns fire on schedule, not at the wing", len(got))
+		}
+		tick(sc, 0.3)
+		if got := blastCells(paint(sc)); len(got) == 0 {
+			t.Fatal("past the first scheduled shot the muzzle flame must be in the air")
+		}
+	})
+	t.Run("unhappy: zero shells is a silent flyover — mounted guns, no flame", func(t *testing.T) {
+		t.Cleanup(Reset)
+		if err := Use(fast(0, 0)); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		at := 0.0
+		for target := 0.4; target <= 2.8; target += 0.4 {
+			tick(sc, target-at)
+			at = target
+			if got := blastCells(paint(sc)); len(got) != 0 {
+				t.Fatalf("at %.1fs a zero-shell gun threw %d flame cells", target, len(got))
+			}
+		}
+	})
+	t.Run("unhappy: before the delay the armed bird is fully off stage — guns too", func(t *testing.T) {
+		t.Cleanup(Reset)
+		cfg := fast(1, 1)
+		cfg.EagleDelay = 1.5
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 1.0)
+		if got := gunCells(paint(sc)); len(got) != 0 {
+			t.Fatalf("before the delay %d gun cells are on stage — the guns wait with the bird", len(got))
 		}
 	})
 }

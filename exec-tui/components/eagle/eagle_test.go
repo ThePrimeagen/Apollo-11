@@ -10,12 +10,16 @@ package eagle
 // carries its color in the foreground, the background, or both, and
 // silhouette edges keep a transparent half for whatever flies
 // beneath. Delay holds the bird off stage first, so a scene can
-// finish its fade before the flyover. Before the delay, after the
-// crossing, before Start and after Stop the sky is clear; dt <= 0
-// never moves the flight; a resize keeps the clock so the crossing
-// never replays mid-scene.
+// finish its fade before the flyover. Path retunes where the flight
+// begins and ends as fractions of the full off-right-to-off-left
+// span: the stock flight is 0 to 1, and a scene can start the eagle
+// already on stage or cut the flight short of the far wing. Before
+// the delay, after the crossing, before Start and after Stop the sky
+// is clear; dt <= 0 never moves the flight; a resize keeps the clock
+// so the crossing never replays mid-scene.
 
 import (
+	"math"
 	"testing"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
@@ -387,9 +391,169 @@ func TestEagleFlight(t *testing.T) {
 		var e *Eagle
 		_ = e.Delay(1)
 		_ = e.Cross(1)
+		_ = e.Path(0.2, 0.8)
 		e.Start(10, 5)
 		e.Update(1)
 		_ = e.Render()
 		e.Stop()
+	})
+}
+
+func TestEaglePath(t *testing.T) {
+	t.Run("happy: a late start point opens the flight already deep on stage", func(t *testing.T) {
+		e := New().Cross(10).Path(0.5, 1.0)
+		e.Start(stageW, stageH)
+		e.Update(1.0 / 30)
+		cells := inkCells(e.Render())
+		if len(cells) < 200 {
+			t.Fatalf("a 0.5 start must open mid-stage, found only %d cells", len(cells))
+		}
+		l, _, _, _ := span(cells)
+		if l > stageW/2 {
+			t.Fatalf("a 0.5 start opens with the leading edge at %d — the bird starts halfway along the span", l)
+		}
+		tick(e, 10)
+		if got := len(inkCells(e.Render())); got != 0 {
+			t.Fatalf("past the crossing the sky must be clear, found %d cells", got)
+		}
+	})
+	t.Run("happy: an early end point cuts the flight short of the far wing", func(t *testing.T) {
+		e := New().Cross(10).Path(0, 0.5)
+		e.Start(stageW, stageH)
+		tick(e, 9.8)
+		cells := inkCells(e.Render())
+		if len(cells) < 200 {
+			t.Fatalf("just before an 0.5 end the bird is still mid-stage, found only %d cells", len(cells))
+		}
+		l, _, _, _ := span(cells)
+		if l < 1 {
+			t.Fatalf("an 0.5 end must never reach the left wing, leading edge at %d", l)
+		}
+		tick(e, 0.5)
+		if got := len(inkCells(e.Render())); got != 0 {
+			t.Fatalf("past the crossing the flight is over, found %d cells", got)
+		}
+	})
+	t.Run("happy: the flight between two points still moves leftward", func(t *testing.T) {
+		e := New().Cross(10).Path(0.25, 0.75)
+		e.Start(stageW, stageH)
+		tick(e, 2.5)
+		first := inkCells(e.Render())
+		if len(first) == 0 {
+			t.Fatal("a quarter in, the eagle must be on stage")
+		}
+		l1, _, _, _ := span(first)
+		tick(e, 2.5)
+		second := inkCells(e.Render())
+		if len(second) == 0 {
+			t.Fatal("halfway in, the eagle must be on stage")
+		}
+		l2, _, _, _ := span(second)
+		if l2 >= l1 {
+			t.Fatalf("the eagle must fly leftward: leftmost went %d -> %d", l1, l2)
+		}
+	})
+	t.Run("unhappy: a backwards, out-of-range or unreal path keeps the stock flight", func(t *testing.T) {
+		for _, bad := range [][2]float64{
+			{0.7, 0.3},
+			{0.5, 0.5},
+			{-0.2, 0.5},
+			{0, 1.2},
+			{math.NaN(), 0.5},
+			{0, math.Inf(1)},
+		} {
+			e := New().Cross(10).Path(bad[0], bad[1])
+			e.Start(stageW, stageH)
+			if got := len(inkCells(e.Render())); got != 0 {
+				t.Fatalf("Path(%v, %v) must keep the stock off-stage start, found %d cells", bad[0], bad[1], got)
+			}
+			tick(e, 5)
+			if len(inkCells(e.Render())) == 0 {
+				t.Fatalf("Path(%v, %v) must keep the stock mid-flight, sky is clear", bad[0], bad[1])
+			}
+		}
+	})
+}
+
+// TestEagleMount is the rig for whatever the bird carries: At and
+// Progress report the flight from outside, and Talons are the claw
+// mounts a scene hangs cargo on.
+func TestEagleMount(t *testing.T) {
+	t.Run("happy: At and Progress track the flight for whatever rides the bird", func(t *testing.T) {
+		e := New().Delay(1).Cross(10)
+		e.Start(stageW, stageH)
+		if _, _, on := e.At(); on {
+			t.Fatal("before the delay the bird is off stage — At must say so")
+		}
+		if p, flying := e.Progress(); flying || p != 0 {
+			t.Fatalf("before the delay Progress is (%v, %v), want (0, false)", p, flying)
+		}
+		tick(e, 1+2.5)
+		x1, y1, on := e.At()
+		if !on {
+			t.Fatal("a quarter in, At must place the bird")
+		}
+		p1, flying := e.Progress()
+		if !flying || p1 <= 0 || p1 >= 1 {
+			t.Fatalf("a quarter in, Progress is (%v, %v), want mid-flight", p1, flying)
+		}
+		cells := inkCells(e.Render())
+		l, _, top, _ := span(cells)
+		if x1 > l || y1 > top {
+			t.Fatalf("At (%d,%d) must be the blit corner at or left-above the ink at (%d,%d)", x1, y1, l, top)
+		}
+		tick(e, 2.5)
+		x2, _, on := e.At()
+		if !on {
+			t.Fatal("halfway in, At must place the bird")
+		}
+		if x2 >= x1 {
+			t.Fatalf("the bird flies leftward: At went %d -> %d", x1, x2)
+		}
+		p2, _ := e.Progress()
+		if p2 <= p1 {
+			t.Fatalf("Progress must grow: %v -> %v", p1, p2)
+		}
+	})
+	t.Run("unhappy: past the crossing, unstarted, or nil — At and Progress report off", func(t *testing.T) {
+		e := New().Cross(10)
+		e.Start(stageW, stageH)
+		tick(e, 11)
+		if _, _, on := e.At(); on {
+			t.Fatal("past the crossing the bird is gone — At must say so")
+		}
+		if _, flying := e.Progress(); flying {
+			t.Fatal("past the crossing Progress must not fly")
+		}
+		fresh := New()
+		if _, _, on := fresh.At(); on {
+			t.Fatal("an unstarted eagle has no stage — At must say off")
+		}
+		var nilEagle *Eagle
+		if _, _, on := nilEagle.At(); on {
+			t.Fatal("a nil eagle must never be on stage")
+		}
+		if _, flying := nilEagle.Progress(); flying {
+			t.Fatal("a nil eagle must never fly")
+		}
+	})
+	t.Run("happy: the talons are two distinct claw mounts on the body, leading first", func(t *testing.T) {
+		talons := Talons()
+		art := Art()
+		if talons[0][0] >= talons[1][0] {
+			t.Fatalf("the leading talon must sit left of the trailing one: %v", talons)
+		}
+		for i, tl := range talons {
+			x, y := tl[0], tl[1]
+			if x < 0 || x >= BodyCols || y < 0 || y >= BodyRows {
+				t.Fatalf("talon %d at (%d,%d) is off the %dx%d canvas", i, x, y, BodyCols, BodyRows)
+			}
+			if art.At(y, x).Transparent() {
+				t.Fatalf("talon %d at (%d,%d) must sit on the bird, not the sky", i, x, y)
+			}
+			if y < BodyRows/2 {
+				t.Fatalf("talon %d at (%d,%d) must reach under the body", i, x, y)
+			}
+		}
 	})
 }

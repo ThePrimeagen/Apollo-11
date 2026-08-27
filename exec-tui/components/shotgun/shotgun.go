@@ -126,7 +126,7 @@ func (g *Gun) Fire() bool {
 	}
 	c := gunfire.ActiveBlast()
 	c.Heading = g.heading
-	mx, my := muzzleOf(body, g.heading)
+	mx, my := Muzzle(body, g.heading)
 	left := (g.w - body.Width) / 2
 	top := (g.h - body.Height) / 2
 	if g.w > 0 {
@@ -141,8 +141,12 @@ func (g *Gun) Fire() bool {
 	return g.Blast.FireAt(g.heading)
 }
 
-// muzzleOf is the opaque cell furthest along heading h — the barrel tip.
-func muzzleOf(sp sprite.Sprite, h sprite.Heading) (x, y int) {
+// Muzzle is the barrel tip of a gun sprite aimed along h: the opaque
+// cell furthest along that heading — where the muzzle flame leaps
+// from, wherever a scene blits the gun. An empty sprite hands back
+// its centre; a heading off the compass scores everything level and
+// lands on the first opaque cell.
+func Muzzle(sp sprite.Sprite, h sprite.Heading) (x, y int) {
 	dx, dy := 0, 0
 	switch h {
 	case sprite.N:
