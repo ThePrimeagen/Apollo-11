@@ -52,7 +52,7 @@ func Catalog() []Entry {
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
 		{ID: "agctop", Section: "EXECUTIVE", Title: "COMMAND SCREEN", Desc: "live msim processes — VAC jobs, coreset jobs, no-priority ops; d/1/r switches", Pkg: "./cmd/agctop"},
-		{ID: "agcgraph", Section: "EXECUTIVE", Title: "GRAPHS", Desc: "three CPU lanes over a 2 s window — frozen cycle anatomy, then real time; d/1/r switches", Pkg: "./cmd/agcgraph"},
+		{ID: "agcgraph", Section: "EXECUTIVE", Title: "GRAPHS", Desc: "a 2.5 s still of the CPU under the switches — lanes + per-job legend; d/1/r re-simulate", Pkg: "./cmd/agcgraph"},
 	}
 }
 
