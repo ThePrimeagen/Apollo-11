@@ -99,6 +99,16 @@ func TestKnobs(t *testing.T) {
 			t.Fatalf("pan cols cannot go negative, got %d", c.PanCols)
 		}
 	})
+	t.Run("happy: the pan amount has no artificial ceiling", func(t *testing.T) {
+		c := DefaultConfig()
+		want := c.PanCols + 500
+		for i := 0; i < 500; i++ {
+			c.Nudge(KnobPanCols, 1)
+		}
+		if c.PanCols != want {
+			t.Fatalf("pan cols hit a rail at %d — it must climb to whatever the operator wants (%d)", c.PanCols, want)
+		}
+	})
 	t.Run("unhappy: an out-of-range knob is a no-op, never a panic", func(t *testing.T) {
 		c := DefaultConfig()
 		before := c

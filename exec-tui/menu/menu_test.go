@@ -408,7 +408,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
-			"landing", "america",
+			"landing", "america", "moonwalk",
 			"flame", "stars-config", "editor",
 			"particle", "dust-config", "gunfire-config",
 			"legacy", "timeline",
@@ -429,6 +429,7 @@ func TestCatalog(t *testing.T) {
 			"closeup":        "Screenplays",
 			"landing":        "Scenes",
 			"america":        "Scenes",
+			"moonwalk":       "Scenes",
 			"flame":          "CONFIG",
 			"stars-config":   "CONFIG",
 			"editor":         "CONFIG",
@@ -537,6 +538,30 @@ func TestCatalog(t *testing.T) {
 		}
 		if seen != 1 {
 			t.Fatalf("America must be listed exactly once, saw %d", seen)
+		}
+	})
+	t.Run("happy: Scenes lists the Moonwalk right after America", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 6 {
+			t.Fatal("catalog must hold the moonwalk scene after America")
+		}
+		if c[5].ID != "moonwalk" || c[5].Title != "Moonwalk" || c[5].Section != "Scenes" || c[5].Pkg != "./cmd/astronaut" {
+			t.Fatalf("sixth entry must be Moonwalk under Scenes → ./cmd/astronaut, got %+v", c[5])
+		}
+	})
+	t.Run("unhappy: the Moonwalk is a scene to edit, not a CONFIG, and never doubles up", func(t *testing.T) {
+		seen := 0
+		for _, e := range Catalog() {
+			if e.ID != "moonwalk" {
+				continue
+			}
+			seen++
+			if e.Section != "Scenes" {
+				t.Fatalf("the Moonwalk must sit under Scenes, found %+v", e)
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("the Moonwalk must be listed exactly once, saw %d", seen)
 		}
 	})
 	t.Run("unhappy: old MAIN PROGRAM / SCREENPLAY / MOON SCREENPLAY / LUNAR LANDER CLOSE-UP labels are gone", func(t *testing.T) {
