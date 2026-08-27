@@ -35,6 +35,9 @@ cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
+  liftoff/    03. Inverse Walkthrough — the walkthrough backwards: ignition,
+              liftoff off the top, cut to the sideways craft, fire off,
+              bobbling forever (scenes/liftoff, ten live knobs)
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser

@@ -1,0 +1,12 @@
+{
+  "riseSeconds": 5.000,
+  "liftAt": 1.600,
+  "fire25": 0.400,
+  "fire50": 0.800,
+  "fire75": 1.200,
+  "fireFull": 1.600,
+  "fireOff": 3.000,
+  "dustStart": 0.400,
+  "dustRun": 3.200,
+  "dustLoss": 0.050
+}

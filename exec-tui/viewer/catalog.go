@@ -25,6 +25,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
@@ -84,6 +85,7 @@ func Catalog() []Item {
 		{ID: "america", Title: "AMERICA", Kind: KindScene, Path: america.DefaultConfigPath, Program: "./cmd/america", spawn: func() screenplay.Component { return wrapScene(america.New()) }},
 		{ID: "moonwalk", Title: "MOONWALK", Kind: KindScene, Path: "scenes/moonwalk/config.json", Program: "./cmd/astronaut", spawn: func() screenplay.Component { return newMoonwalkPreview() }},
 		{ID: "skies", Title: "SKIES", Kind: KindScene, Path: skies.DefaultConfigPath, Program: "./cmd/skies", spawn: func() screenplay.Component { return wrapScene(skies.New()) }},
+		{ID: "liftoff", Title: "INVERSE WALKTHROUGH", Kind: KindScene, Path: liftoff.DefaultConfigPath, Program: "./cmd/liftoff", spawn: func() screenplay.Component { return wrapScene(liftoff.New(nil)) }},
 	}
 }
 

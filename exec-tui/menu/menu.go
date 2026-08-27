@@ -50,6 +50,7 @@ func Catalog() []Entry {
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the flag fades in from black, then the giant eagle crosses, a shotgun blasting in each talon — nine live knobs", Pkg: "./cmd/america"},
 		{ID: "moonwalk", Section: "Scenes", Title: "Moonwalk", Desc: "the astronaut climbs three crates, rides the flagpole down as the flag goes up, then boards the LM — eleven live knobs", Pkg: "./cmd/astronaut"},
 		{ID: "skies", Section: "Scenes", Title: "Skies", Desc: "blue sky tilts up into clouds, then the flag crossfades in as the floor and the eagle flies in with talon shotguns — fifteen live knobs", Pkg: "./cmd/skies"},
+		{ID: "liftoff", Section: "Scenes", Title: "03. Inverse Walkthrough", Desc: "the walkthrough backwards: ignition on the pad, liftoff through the sky, then parked sideways — fire on, fire off, bobbling forever — ten live knobs", Pkg: "./cmd/liftoff"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "sky-config", Section: "CONFIG", Title: "SKY CONFIG", Desc: "tune the blue sky gradient — angle, light ink, dark ink", Pkg: "./cmd/adjustsky/main"},

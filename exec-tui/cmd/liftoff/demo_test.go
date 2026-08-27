@@ -88,7 +88,7 @@ func TestLiftoffSceneRunner(t *testing.T) {
 		}
 		m := newModel(0)
 		_ = m.View()
-		m = frames(m, int(0.3*30+0.5))
+		m = frames(m, 10)
 		if !strings.ContainsRune(m.View().Content, '▌') {
 			t.Fatal("the opening play must already use the saved knobs — a 0.2s climb has cut by now")
 		}
