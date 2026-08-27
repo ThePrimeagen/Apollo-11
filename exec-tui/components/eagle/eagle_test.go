@@ -4,8 +4,13 @@ package eagle
 // eagle — white head low on the left, gold hooked beak and reaching
 // talons, dark brown wings spread wide, white tail fanned behind —
 // that flies across the stage right to left, off one wing and off the
-// other, in CrossSeconds. Delay holds it off stage first, so a scene
-// can finish its fade before the flyover. Before the delay, after the
+// other, in CrossSeconds. The model is half-block pixel art: a
+// BodyCols×(2·BodyRows) pixel grid rendered as plain field cells,
+// upper-half and lower-half blocks — nothing else — so every cell
+// carries its color in the foreground, the background, or both, and
+// silhouette edges keep a transparent half for whatever flies
+// beneath. Delay holds the bird off stage first, so a scene can
+// finish its fade before the flyover. Before the delay, after the
 // crossing, before Start and after Stop the sky is clear; dt <= 0
 // never moves the flight; a resize keeps the clock so the crossing
 // never replays mid-scene.
@@ -65,13 +70,22 @@ func span(cells [][2]int) (l, r, t, b int) {
 	return l, r, t, b
 }
 
+// wears reports whether a painted cell carries an ink in either half
+// — the foreground of a half block, or the background behind it.
+func wears(c sprite.Cell, ink int) bool {
+	if c.Transparent() {
+		return false
+	}
+	return c.FG == ink || c.BG == ink
+}
+
 // artCols reports which art columns hold a given ink.
 func artCols(ink int) map[int]bool {
 	art := Art()
 	cols := map[int]bool{}
 	for r := 0; r < art.Height; r++ {
 		for c := 0; c < art.Width; c++ {
-			if art.At(r, c).FG == ink && !art.At(r, c).Transparent() {
+			if wears(art.At(r, c), ink) {
 				cols[c] = true
 			}
 		}
@@ -95,19 +109,48 @@ func TestEagleArt(t *testing.T) {
 			t.Fatalf("BodyRows = %d — a very large eagle stands at least 12 rows", BodyRows)
 		}
 	})
+	t.Run("happy: the model is pure half-block pixel art", func(t *testing.T) {
+		art := Art()
+		for r := 0; r < art.Height; r++ {
+			for c := 0; c < art.Width; c++ {
+				cell := art.At(r, c)
+				if cell.Transparent() {
+					continue
+				}
+				if cell.Ch != ' ' && cell.Ch != '▀' && cell.Ch != '▄' {
+					t.Fatalf("cell (%d,%d) draws %q — the model is field cells and half blocks only", r, c, cell.Ch)
+				}
+			}
+		}
+	})
+	t.Run("happy: silhouette edges keep a transparent half for what flies beneath", func(t *testing.T) {
+		art := Art()
+		soft := 0
+		for r := 0; r < art.Height; r++ {
+			for c := 0; c < art.Width; c++ {
+				cell := art.At(r, c)
+				if cell.Transparent() {
+					continue
+				}
+				if (cell.Ch == '▀' || cell.Ch == '▄') && cell.BG < 0 {
+					soft++
+				}
+			}
+		}
+		if soft < 10 {
+			t.Fatalf("only %d edge cells keep a transparent half — the silhouette must blend, not box", soft)
+		}
+	})
 	t.Run("happy: a bald eagle — white head and gold beak lead on the left", func(t *testing.T) {
 		art := Art()
 		headLeft, beakLeft := false, false
 		for r := 0; r < art.Height; r++ {
 			for c := 0; c < BodyCols/3; c++ {
 				cell := art.At(r, c)
-				if cell.Transparent() {
-					continue
-				}
-				if cell.FG == HeadInk {
+				if wears(cell, HeadInk) {
 					headLeft = true
 				}
-				if cell.FG == BeakInk {
+				if wears(cell, BeakInk) {
 					beakLeft = true
 				}
 			}
@@ -125,13 +168,10 @@ func TestEagleArt(t *testing.T) {
 		for r := 0; r < art.Height; r++ {
 			for c := 0; c < art.Width; c++ {
 				cell := art.At(r, c)
-				if cell.Transparent() {
-					continue
-				}
-				if cell.FG == BeakInk && r >= BodyRows/2 {
+				if wears(cell, BeakInk) && r >= BodyRows/2 {
 					talons = true
 				}
-				if cell.FG == HeadInk && c >= 2*BodyCols/3 {
+				if wears(cell, HeadInk) && c >= 2*BodyCols/3 {
 					tail = true
 				}
 			}
@@ -150,10 +190,7 @@ func TestEagleArt(t *testing.T) {
 		for r := 0; r < art.Height; r++ {
 			for c := 0; c < art.Width; c++ {
 				cell := art.At(r, c)
-				if cell.Transparent() {
-					continue
-				}
-				if cell.FG == BodyInk || cell.FG == ShadowInk {
+				if wears(cell, BodyInk) || wears(cell, ShadowInk) {
 					wings[c] = true
 					if r < 2 {
 						top = true
@@ -166,6 +203,20 @@ func TestEagleArt(t *testing.T) {
 		}
 		if !top {
 			t.Fatal("the raised wings must reach the top rows of the model")
+		}
+	})
+	t.Run("happy: the brown body ink is everywhere the detectors need it", func(t *testing.T) {
+		art := Art()
+		body := 0
+		for r := 0; r < art.Height; r++ {
+			for c := 0; c < art.Width; c++ {
+				if wears(art.At(r, c), BodyInk) {
+					body++
+				}
+			}
+		}
+		if body < 100 {
+			t.Fatalf("only %d cells wear the brown body ink — the scene detectors key on it", body)
 		}
 	})
 	t.Run("happy: both wingtips are inked, so the crossing enters and exits visibly", func(t *testing.T) {
@@ -184,6 +235,17 @@ func TestEagleArt(t *testing.T) {
 		}
 		if !first || !last {
 			t.Fatalf("the outermost columns must carry ink, first=%v last=%v", first, last)
+		}
+	})
+	t.Run("unhappy: the old glyph shading is gone — no ▓▒░ blocks anywhere", func(t *testing.T) {
+		art := Art()
+		for r := 0; r < art.Height; r++ {
+			for c := 0; c < art.Width; c++ {
+				switch art.At(r, c).Ch {
+				case '▓', '▒', '░', '█', '◣', '◢', '◤', '●':
+					t.Fatalf("cell (%d,%d) still draws %q — the pixel model replaced glyph shading", r, c, art.At(r, c).Ch)
+				}
+			}
 		}
 	})
 }
