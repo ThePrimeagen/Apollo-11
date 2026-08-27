@@ -134,7 +134,8 @@ func (m model) knobCell(k moonwalk.Knob) string {
 	}
 	v := m.cfg.Value(k)
 	val := fmt.Sprintf("%.2f", v)
-	if k == moonwalk.KnobPoleRows || k == moonwalk.KnobPanCols || k == moonwalk.KnobBoxStart {
+	switch k {
+	case moonwalk.KnobPoleRows, moonwalk.KnobPanCols, moonwalk.KnobBoxStart, moonwalk.KnobLMGap:
 		val = fmt.Sprintf("%d", int(v))
 	}
 	return fmt.Sprintf("%s%-10s %6s", mark, k.String(), val)

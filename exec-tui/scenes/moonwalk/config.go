@@ -63,6 +63,7 @@ func DefaultConfig() Config {
 		FlagSeconds:  3.0,
 		PoleRows:     21,
 		ExitSpeed:    18,
+		LMGap:        16,
 		PanCols:      30,
 		PanSeconds:   1.4,
 	}
@@ -139,6 +140,8 @@ func (c Config) Value(k Knob) float64 {
 		return float64(c.PoleRows)
 	case KnobExitSpeed:
 		return c.ExitSpeed
+	case KnobLMGap:
+		return float64(c.LMGap)
 	case KnobPanCols:
 		return float64(c.PanCols)
 	case KnobPanSeconds:
@@ -196,6 +199,9 @@ func (c *Config) Nudge(k Knob, dir int) {
 		c.PoleRows = nudgeInt(c.PoleRows, dir, MinPoleRows, MaxPoleRows)
 	case KnobExitSpeed:
 		c.ExitSpeed = nudgeFloat(c.ExitSpeed, 1, dir, 4, 60)
+	case KnobLMGap:
+		// Floor keeps the module off the flagpole; no ceiling.
+		c.LMGap = nudgeInt(c.LMGap, dir, MinLMGap, math.MaxInt)
 	case KnobPanCols:
 		// No ceiling — pan as far as you like; the floor just keeps
 		// the camera from walking backwards.
