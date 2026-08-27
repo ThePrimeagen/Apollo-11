@@ -108,6 +108,16 @@ func WritePNGs(dir string, scale int) error {
 			return err
 		}
 	}
+	for _, prop := range Props {
+		grid := grids[prop]
+		img := newSheet(len([]rune(grid[0])), len(grid), scale)
+		if err := drawGrid(img, grid, 0, 0, scale); err != nil {
+			return fmt.Errorf("astro: prop %q: %w", prop, err)
+		}
+		if err := savePNG(filepath.Join(dir, "astronaut-"+string(prop)+".png"), img); err != nil {
+			return err
+		}
+	}
 	// Strips cap their magnification so a wide sheet stays under
 	// preview width and never gets resampled off the pixel grid.
 	stripScale := scale
