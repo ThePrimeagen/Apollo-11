@@ -14,6 +14,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
@@ -49,21 +50,36 @@ func bgIndex(scr *screenplay.Screen, x, y int) int {
 	return int(ic)
 }
 
-// eagleCells collects the cells whose content belongs to neither the
-// flag field (spaces) nor its stars — on this stage that is the eagle.
+// inkAt reads a cell's indexed foreground and background, -1 for none.
+func inkAt(scr *screenplay.Screen, x, y int) (fg, bg int) {
+	fg, bg = -1, -1
+	c := scr.Cell(x, y)
+	if c == nil {
+		return fg, bg
+	}
+	if ic, ok := c.Style.Fg.(ansi.IndexedColor); ok {
+		fg = int(ic)
+	}
+	if ic, ok := c.Style.Bg.(ansi.IndexedColor); ok {
+		bg = int(ic)
+	}
+	return fg, bg
+}
+
+// eagleCells collects the cells wearing the eagle's own inks — the
+// brown body and the gold beak and talons. The flag never wears
+// either, at any point of its fade, so on this stage those cells are
+// the eagle.
 func eagleCells(scr *screenplay.Screen) [][2]int {
 	var out [][2]int
 	for y := 0; y < stageH; y++ {
 		for x := 0; x < stageW; x++ {
-			c := scr.Cell(x, y)
-			if c == nil {
-				continue
+			fg, bg := inkAt(scr, x, y)
+			switch {
+			case fg == eagle.BodyInk, bg == eagle.BodyInk,
+				fg == eagle.BeakInk, bg == eagle.BeakInk:
+				out = append(out, [2]int{y, x})
 			}
-			switch c.Content {
-			case "", " ", string(flag.StarGlyph):
-				continue
-			}
-			out = append(out, [2]int{y, x})
 		}
 	}
 	return out
@@ -259,9 +275,10 @@ func TestAmericaScene(t *testing.T) {
 	})
 }
 
-// The star glyph the eagle detector skips must really be the flag's.
+// The eagle detector reads the eagle's own inks, so the flag must
+// never wear them — and the flag's glyph language stays its own.
 func TestAmericaDetectorPremise(t *testing.T) {
-	t.Run("happy: before the eagle enters, the stage is only spaces and stars", func(t *testing.T) {
+	t.Run("happy: before the eagle enters, the stage is spaces, stars and half blocks", func(t *testing.T) {
 		sc := New()
 		sc.Start()
 		defer sc.Stop()
@@ -276,16 +293,30 @@ func TestAmericaDetectorPremise(t *testing.T) {
 					continue
 				}
 				switch c.Content {
-				case "", " ":
+				case "", " ", "▀":
 				case string(flag.StarGlyph):
 					stars++
 				default:
-					t.Fatalf("before the eagle, cell (%d,%d) holds %q — the flag is spaces and stars", y, x, c.Content)
+					t.Fatalf("before the eagle, cell (%d,%d) holds %q — the flag is spaces, stars and half blocks", y, x, c.Content)
 				}
 			}
 		}
 		if stars != 50 {
 			t.Fatalf("the fading flag already carries %d star glyphs, want 50", stars)
+		}
+	})
+	t.Run("unhappy: the flag never wears the eagle's inks, at any point of the fade", func(t *testing.T) {
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		at := 0.0
+		for _, target := range []float64{0.5, FadeSeconds / 2, FadeSeconds - 0.5} {
+			tick(sc, target-at)
+			at = target
+			if got := eagleCells(paint(sc)); len(got) != 0 {
+				t.Fatalf("at %.1fs the fading flag wears eagle ink in %d cells — the detector premise is broken", target, len(got))
+			}
 		}
 	})
 }

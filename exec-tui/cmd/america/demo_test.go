@@ -42,9 +42,14 @@ func fadeFrames() int { return int(america.FadeSeconds*30) + 15 }
 
 func quarterCross() int { return int(america.CrossSeconds / 4 * 30) }
 
-// eagleLeft finds the leftmost stage cell that is neither flag field
-// (space) nor a canton star — the eagle — across every line above the
-// status row, ANSI stripped.
+// eagleSeen reports the eagle's brown ink anywhere in the raw view.
+// The flag never wears 94 at any point of its fade, so the ink is the
+// bird.
+func eagleSeen(v string) bool { return strings.Contains(v, "8;5;94m") }
+
+// eagleLeft finds the leftmost lower-half block above the status row,
+// ANSI stripped. The flag draws its stripe boundaries with upper-half
+// blocks only, so every '▄' on stage is the eagle's silhouette.
 func eagleLeft(v string) (int, bool) {
 	lines := strings.Split(ansiPat.ReplaceAllString(v, ""), "\n")
 	if len(lines) < 2 {
@@ -53,7 +58,7 @@ func eagleLeft(v string) (int, bool) {
 	left, ok := 1<<30, false
 	for _, line := range lines[:len(lines)-1] {
 		for c, ch := range []rune(line) {
-			if ch == ' ' || ch == '★' {
+			if ch != '▄' {
 				continue
 			}
 			if c < left {
@@ -80,8 +85,11 @@ func TestAmericaDemoOpens(t *testing.T) {
 		if strings.Contains(v, "48;5;160m") {
 			t.Fatal("no red yet — the flag fades in from black")
 		}
+		if eagleSeen(v) {
+			t.Fatal("no eagle ink yet — the flag comes first")
+		}
 		if _, ok := eagleLeft(v); ok {
-			t.Fatal("no eagle yet — the flag comes first")
+			t.Fatal("no eagle silhouette yet — the flag comes first")
 		}
 	})
 	t.Run("unhappy: waiting a moment is still black — the fade is slow", func(t *testing.T) {
@@ -110,19 +118,24 @@ func TestAmericaDemoFade(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, fadeFrames()+quarterCross())
-		l1, ok := eagleLeft(m.View().Content)
+		v := m.View().Content
+		if !eagleSeen(v) {
+			t.Fatal("a quarter into the crossing the eagle's ink must be on stage")
+		}
+		l1, ok := eagleLeft(v)
 		if !ok {
-			t.Fatal("a quarter into the crossing the eagle must be on stage")
+			t.Fatal("a quarter into the crossing the eagle's silhouette must be on stage")
 		}
 		m = frames(m, quarterCross())
-		l2, ok := eagleLeft(m.View().Content)
+		v = m.View().Content
+		l2, ok := eagleLeft(v)
 		if !ok {
 			t.Fatal("halfway into the crossing the eagle must still be on stage")
 		}
 		if l2 >= l1 {
 			t.Fatalf("the eagle must fly leftward: leftmost went %d -> %d", l1, l2)
 		}
-		if !strings.Contains(m.View().Content, "48;5;160m") {
+		if !strings.Contains(v, "48;5;160m") {
 			t.Fatal("the flag must keep flying beneath the eagle")
 		}
 	})
