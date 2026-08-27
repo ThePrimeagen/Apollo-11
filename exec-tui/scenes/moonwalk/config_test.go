@@ -29,6 +29,9 @@ func TestConfigDefaults(t *testing.T) {
 		if c.BoxStart < MinBoxStart || c.BoxStart > MaxBoxStart {
 			t.Fatalf("default box start %d out of [%d, %d]", c.BoxStart, MinBoxStart, MaxBoxStart)
 		}
+		if c.LMGap < MinLMGap {
+			t.Fatalf("default lm gap %d under the floor %d", c.LMGap, MinLMGap)
+		}
 		if c.PanCols <= 0 {
 			t.Fatalf("the ending pan must reveal something: %+v", c)
 		}
@@ -109,6 +112,25 @@ func TestKnobs(t *testing.T) {
 			t.Fatalf("pan cols hit a rail at %d — it must climb to whatever the operator wants (%d)", c.PanCols, want)
 		}
 	})
+	t.Run("happy: the lander's distance from the flag has no ceiling either", func(t *testing.T) {
+		c := DefaultConfig()
+		want := c.LMGap + 500
+		for i := 0; i < 500; i++ {
+			c.Nudge(KnobLMGap, 1)
+		}
+		if c.LMGap != want {
+			t.Fatalf("lm gap hit a rail at %d — park the module wherever you like (%d)", c.LMGap, want)
+		}
+	})
+	t.Run("unhappy: the lm gap clamps at its floor", func(t *testing.T) {
+		c := DefaultConfig()
+		for i := 0; i < 500; i++ {
+			c.Nudge(KnobLMGap, -1)
+		}
+		if c.LMGap != MinLMGap {
+			t.Fatalf("lm gap must floor at %d, got %d", MinLMGap, c.LMGap)
+		}
+	})
 	t.Run("unhappy: an out-of-range knob is a no-op, never a panic", func(t *testing.T) {
 		c := DefaultConfig()
 		before := c
@@ -128,6 +150,7 @@ func TestConfigFile(t *testing.T) {
 		c.Nudge(KnobBoxStart, 2)
 		c.Nudge(KnobTopSeconds, 1)
 		c.Nudge(KnobExitSpeed, -2)
+		c.Nudge(KnobLMGap, 5)
 		c.Nudge(KnobPanCols, -4)
 		if err := c.Save(path); err != nil {
 			t.Fatalf("Save: %v", err)

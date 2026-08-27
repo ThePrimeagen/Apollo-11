@@ -28,6 +28,10 @@ const (
 	MaxBoxStart = 90
 )
 
+// MinLMGap keeps the module clear of the flagpole; there is no
+// ceiling — park it as far out as you like.
+const MinLMGap = 2
+
 // Config is every knob the scene exposes.
 type Config struct {
 	StrideFPS    float64 `json:"stride_fps"`
@@ -39,6 +43,7 @@ type Config struct {
 	FlagSeconds  float64 `json:"flag_seconds"`
 	PoleRows     int     `json:"pole_rows"`
 	ExitSpeed    float64 `json:"exit_speed"`
+	LMGap        int     `json:"lm_gap"`
 	PanCols      int     `json:"pan_cols"`
 	PanSeconds   float64 `json:"pan_seconds"`
 }
@@ -76,6 +81,7 @@ const (
 	KnobFlagSeconds
 	KnobPoleRows
 	KnobExitSpeed
+	KnobLMGap
 	KnobPanCols
 	KnobPanSeconds
 	KnobCount
@@ -101,6 +107,8 @@ func (k Knob) String() string {
 		return "pole rows"
 	case KnobExitSpeed:
 		return "exit speed"
+	case KnobLMGap:
+		return "lm gap"
 	case KnobPanCols:
 		return "pan cols"
 	case KnobPanSeconds:
