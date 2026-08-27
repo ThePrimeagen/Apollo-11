@@ -42,7 +42,9 @@ This is the single most misread part of the story, so state it precisely:
 
 A `PINC`/`MINC` request is not a software instruction and not an interrupt. The processor
 simply pauses for one memory cycle while hardware updates the counter, then resumes. Nothing in
-the program can observe that the pause happened.
+the program can observe that the pause happened. (The gate-level mechanics — the request
+latch, the end-of-cycle test, the freeze, the stolen read-±1-write cycle — are traced in
+[`screenplay_memory_cycle_stealing.markdown`](screenplay_memory_cycle_stealing.markdown).)
 
 All memory exhaustion came later, from unfinished jobs holding resources; see
 [`memory_leak.md`](memory_leak.md).
