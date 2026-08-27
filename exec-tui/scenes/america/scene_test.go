@@ -16,10 +16,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/armed"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -454,24 +452,28 @@ func TestAmericaFlightPath(t *testing.T) {
 	})
 }
 
-// TestAmericaArmedEagle: the bird carries one shotgun on the leading
-// talon — the same armed composite the skies scene hangs, with the
-// trailing talon emptied. That gun fires the gunfire particle blast
-// its configured number of times across the crossing, aimed at its
-// configured compass point.
+// TestAmericaArmedEagle: the bird is the armed composite — the same
+// eagle + shotgun performer Skies hangs — with America's own on/off
+// knobs. Stock mounts one shotgun on the leading talon. Turning a
+// talon off empties it. Turning both off is a bare eagle. That
+// mounted gun fires the gunfire particle blast its configured number
+// of times across the crossing, aimed at its configured compass point.
 func TestAmericaArmedEagle(t *testing.T) {
 	t.Cleanup(Reset)
-	fast := func(shots int) Config {
+	fast := func(leftOn, rightOn bool, leftShots, rightShots int) Config {
 		cfg := DefaultConfig()
 		cfg.FadeSeconds = 0.2
 		cfg.EagleDelay = 0.2
 		cfg.CrossSeconds = 2.0
-		cfg.Shots = shots
+		cfg.LeftOn = leftOn
+		cfg.RightOn = rightOn
+		cfg.LeftShots = leftShots
+		cfg.RightShots = rightShots
 		return cfg
 	}
 	t.Run("happy: one shotgun rides the leading talon across the stage", func(t *testing.T) {
 		t.Cleanup(Reset)
-		if err := Use(fast(1)); err != nil {
+		if err := Use(fast(true, false, 1, 0)); err != nil {
 			t.Fatal(err)
 		}
 		sc := New()
@@ -493,9 +495,36 @@ func TestAmericaArmedEagle(t *testing.T) {
 			t.Fatalf("the gun must ride the bird leftward: leftmost went %d -> %d", l1, l2)
 		}
 	})
+	t.Run("happy: turning the trailing talon on mounts a second gun", func(t *testing.T) {
+		t.Cleanup(Reset)
+		if err := Use(fast(true, false, 0, 0)); err != nil {
+			t.Fatal(err)
+		}
+		oneShow := New()
+		oneShow.Start()
+		defer oneShow.Stop()
+		_ = paint(oneShow)
+		tick(oneShow, 0.2+0.5)
+		one := gunCells(paint(oneShow))
+		if len(one) == 0 {
+			t.Fatal("test premise: the stock leading gun must paint gold")
+		}
+		if err := Use(fast(true, true, 0, 0)); err != nil {
+			t.Fatal(err)
+		}
+		both := New()
+		both.Start()
+		defer both.Stop()
+		_ = paint(both)
+		tick(both, 0.2+0.5)
+		two := gunCells(paint(both))
+		if len(two) <= len(one) {
+			t.Fatalf("two mounted talons painted %d gold cells, one painted %d — turning the trailing gun on must add gold", len(two), len(one))
+		}
+	})
 	t.Run("happy: the gun fires its blast on schedule across the crossing", func(t *testing.T) {
 		t.Cleanup(Reset)
-		if err := Use(fast(2)); err != nil {
+		if err := Use(fast(true, false, 2, 0)); err != nil {
 			t.Fatal(err)
 		}
 		sc := New()
@@ -511,50 +540,38 @@ func TestAmericaArmedEagle(t *testing.T) {
 			t.Fatal("past the first scheduled shot the muzzle flame must be in the air")
 		}
 	})
-	t.Run("unhappy: the trailing talon is empty — one gun paints less gold than two", func(t *testing.T) {
+	t.Run("unhappy: both guns off is a bare eagle — no gold, no flame", func(t *testing.T) {
 		t.Cleanup(Reset)
-		t.Cleanup(armed.Reset)
-		if err := Use(fast(0)); err != nil {
+		if err := Use(fast(false, false, 3, 3)); err != nil {
 			t.Fatal(err)
 		}
 		sc := New()
 		sc.Start()
 		defer sc.Stop()
 		_ = paint(sc)
-		tick(sc, 0.2+0.5)
-		one := gunCells(paint(sc))
-		if len(one) == 0 {
-			t.Fatal("the leading talon must still carry a gun")
-		}
-		pair := armed.New().Delay(0.2).Cross(2).
-			LeftGun(sprite.W, 0, 0).RightGun(sprite.E, 0, 0)
-		pair.Start(stageW, stageH)
-		defer pair.Stop()
-		_ = pair.Render()
-		const dt = 1.0 / 30
-		for t := 0.0; t < 0.7-dt/2; t += dt {
-			pair.Update(dt)
-		}
-		two := 0
-		sp := pair.Render()
-		for r := 0; r < sp.Height; r++ {
-			for c := 0; c < sp.Width; c++ {
-				cell := sp.At(r, c)
-				if cell.FG == 178 || cell.BG == 178 {
-					two++
-				}
+		at := 0.0
+		sawEagle := false
+		for target := 0.4; target <= 2.4; target += 0.4 {
+			tick(sc, target-at)
+			at = target
+			scr := paint(sc)
+			if got := gunCells(scr); len(got) != 0 {
+				t.Fatalf("at %.1fs empty talons painted %d gun cells", target, len(got))
+			}
+			if got := blastCells(scr); len(got) != 0 {
+				t.Fatalf("at %.1fs empty talons threw %d flame cells", target, len(got))
+			}
+			if len(eagleCells(scr)) > 0 {
+				sawEagle = true
 			}
 		}
-		if two == 0 {
-			t.Fatal("test premise: a two-gun flyover must paint gold")
-		}
-		if len(one) >= two {
-			t.Fatalf("America painted %d gold cells, a two-gun flyover painted %d — the trailing talon must be empty", len(one), two)
+		if !sawEagle {
+			t.Fatal("the bird must still cross when both talons are empty")
 		}
 	})
 	t.Run("unhappy: zero shells is a silent flyover — mounted gun, no flame", func(t *testing.T) {
 		t.Cleanup(Reset)
-		if err := Use(fast(0)); err != nil {
+		if err := Use(fast(true, false, 0, 0)); err != nil {
 			t.Fatal(err)
 		}
 		sc := New()
@@ -572,7 +589,7 @@ func TestAmericaArmedEagle(t *testing.T) {
 	})
 	t.Run("unhappy: before the delay the armed bird is fully off stage — gun too", func(t *testing.T) {
 		t.Cleanup(Reset)
-		cfg := fast(1)
+		cfg := fast(true, false, 1, 0)
 		cfg.EagleDelay = 1.5
 		if err := Use(cfg); err != nil {
 			t.Fatal(err)

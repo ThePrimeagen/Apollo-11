@@ -4,11 +4,12 @@ package main
 // scene standalone, tuned live the way the landing runner tunes. The
 // house opens on pure black with the America marquee and the knob
 // panel — flag fade, eagle delay, eagle cross, eagle start, eagle
-// end, shots, aim — under the stage; the full-screened flag fades in
-// fast, and once it is fully in, the very large eagle crosses the
-// stage right to left with the flag flying beneath, from its start
-// point to its end point of the span, one shotgun on the leading
-// talon. j/k select a knob, h/l nudge it 50ms, s saves to
+// end, left on / shots / aim, right on / shots / aim — under the
+// stage; the full-screened flag fades in fast, and once it is fully
+// in, the very large eagle crosses the stage right to left with the
+// flag flying beneath, from its start point to its end point of the
+// span, the armed composite carrying America's own talon guns. j/k
+// select a knob, h/l nudge it 50ms, s saves to
 // the scene's config JSON, and p (or space, or enter) replays from
 // the top — back to black — on the current knobs. -seconds brings the
 // curtain down on time, q and ctrl+c quit anywhere, and the view is
@@ -250,23 +251,22 @@ func TestAmericaDemoHouseRules(t *testing.T) {
 }
 
 func TestAmericaDemoKnobs(t *testing.T) {
-	t.Run("happy: the panel opens on the fast stock — timing, flight path, and the one talon gun", func(t *testing.T) {
+	t.Run("happy: the panel opens on the fast stock — timing, flight path, and the composite guns", func(t *testing.T) {
 		v := ansiPat.ReplaceAllString(newModel(0).View().Content, "")
 		for _, want := range []string{
 			"flag fade", "eagle delay", "eagle cross", "eagle start", "eagle end",
-			"shots", "aim",
+			"left on", "left shots", "left aim", "right on", "right shots", "right aim",
 			"  2.000", "  4.000", "  0.000", "  1.000",
 			fmt.Sprintf("%7d", america.StockShots),
-			fmt.Sprintf("%7s", string(america.StockAim)),
+			fmt.Sprintf("%7s", string(america.StockLeftAim)),
+			fmt.Sprintf("%7s", string(america.StockRightAim)),
 		} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the knob panel is missing %q:\n%s", want, v)
 			}
 		}
-		for _, gone := range []string{"left shots", "left aim", "right shots", "right aim"} {
-			if strings.Contains(v, gone) {
-				t.Fatalf("the two-gun knob %q is still on the panel:\n%s", gone, v)
-			}
+		if !strings.Contains(v, "     on") || !strings.Contains(v, "    off") {
+			t.Fatalf("the stock panel must show the leading gun on and the trailing gun off:\n%s", v)
 		}
 		for _, slow := range []string{"8.000", "12.000"} {
 			if strings.Contains(v, slow) {
@@ -288,11 +288,12 @@ func TestAmericaDemoKnobs(t *testing.T) {
 			t.Fatal("the cursor must open on the flag fade knob")
 		}
 	})
-	t.Run("happy: j and k walk the cursor over the seven knobs with wrap", func(t *testing.T) {
+	t.Run("happy: j and k walk the cursor over the eleven knobs with wrap", func(t *testing.T) {
 		m := newModel(0)
 		walk := []america.Knob{
 			america.KnobDelay, america.KnobCross, america.KnobStart, america.KnobEnd,
-			america.KnobShots, america.KnobAim,
+			america.KnobLeftOn, america.KnobLeftShots, america.KnobLeftAim,
+			america.KnobRightOn, america.KnobRightShots, america.KnobRightAim,
 			america.KnobFade,
 		}
 		for _, want := range walk {
@@ -302,8 +303,8 @@ func TestAmericaDemoKnobs(t *testing.T) {
 			}
 		}
 		m = press(m, runeKey('k'))
-		if m.cursor != america.KnobAim {
-			t.Fatalf("k from the top must wrap to the aim, got %d", m.cursor)
+		if m.cursor != america.KnobRightAim {
+			t.Fatalf("k from the top must wrap to the right aim, got %d", m.cursor)
 		}
 	})
 	t.Run("happy: h and l nudge the selected knob one step at a time", func(t *testing.T) {
@@ -349,36 +350,45 @@ func TestAmericaDemoKnobs(t *testing.T) {
 			t.Fatalf("l on the stock end must hold at %v, got %v", america.EndPoint, got)
 		}
 	})
-	t.Run("happy: the gun knobs count shells and walk the compass", func(t *testing.T) {
+	t.Run("happy: the gun knobs flip, count shells, and walk the compass", func(t *testing.T) {
 		m := newModel(0)
 		for i := 0; i < 5; i++ {
 			m = press(m, runeKey('j'))
 		}
+		m = press(m, runeKey('h'))
+		if m.show.Cfg.LeftOn {
+			t.Fatal("h on left on must empty the leading talon")
+		}
 		m = press(m, runeKey('l'))
-		if got := m.show.Cfg.Shots; got != america.StockShots+1 {
-			t.Fatalf("l on the shots must add a shell, got %d", got)
+		if !m.show.Cfg.LeftOn {
+			t.Fatal("l on left on must mount the leading talon")
 		}
 		m = press(m, runeKey('j'))
 		m = press(m, runeKey('l'))
-		if got := m.show.Cfg.Aim; got != sprite.NW {
-			t.Fatalf("l on the stock %s aim must step clockwise to NW, got %s", america.StockAim, got)
+		if got := m.show.Cfg.LeftShots; got != america.StockShots+1 {
+			t.Fatalf("l on the left shots must add a shell, got %d", got)
 		}
-		m = press(m, runeKey('h'))
-		m = press(m, runeKey('h'))
-		if got := m.show.Cfg.Aim; got != sprite.SW {
-			t.Fatalf("h twice must step back to SW, got %s", got)
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('l'))
+		if got := m.show.Cfg.LeftAim; got != sprite.NW {
+			t.Fatalf("l on the stock %s aim must step clockwise to NW, got %s", america.StockLeftAim, got)
+		}
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('l'))
+		if !m.show.Cfg.RightOn {
+			t.Fatal("l on right on must mount the trailing talon")
 		}
 	})
 	t.Run("unhappy: the shell count never goes negative", func(t *testing.T) {
 		m := newModel(0)
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 6; i++ {
 			m = press(m, runeKey('j'))
 		}
 		for i := 0; i < america.StockShots+2; i++ {
 			m = press(m, runeKey('h'))
 		}
-		if got := m.show.Cfg.Shots; got != 0 {
-			t.Fatalf("h below zero must hold the shots at 0, got %d", got)
+		if got := m.show.Cfg.LeftShots; got != 0 {
+			t.Fatalf("h below zero must hold the left shots at 0, got %d", got)
 		}
 	})
 	t.Run("happy: a nudged replay plays the new knobs", func(t *testing.T) {
