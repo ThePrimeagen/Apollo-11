@@ -87,7 +87,7 @@ func DefaultBlast() BlastConfig {
 		MidAt:      4,
 		CoreAt:     7,
 		Core:  Layer{Count: 80, MinLife: 0.04, MaxLife: 0.12, MinSpeed: 8, MaxSpeed: 20, Spread: 0.55, Nozzle: 3, MaxDistance: 4},
-		Flame: Layer{Count: 140, MinLife: 0.2, MaxLife: 0.48, MinSpeed: 16, MaxSpeed: 36, Spread: 0.3, Nozzle: 2.4, Lift: 30, Drag: 3},
+		Flame: Layer{Count: 140, MinLife: 0.14, MaxLife: 0.62, MinSpeed: 16, MaxSpeed: 36, Spread: 0.24, Nozzle: 2.4, Lift: 46, Drag: 3},
 	}
 }
 

@@ -21,14 +21,14 @@
   },
   "flame": {
     "count": 140,
-    "minLife": 0.2,
-    "maxLife": 0.48,
+    "minLife": 0.14,
+    "maxLife": 0.62,
     "minSpeed": 16,
     "maxSpeed": 36,
-    "spread": 0.3,
+    "spread": 0.24,
     "nozzle": 2.4,
     "maxDistance": 0,
-    "lift": 30,
+    "lift": 46,
     "drag": 3
   }
 }
