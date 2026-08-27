@@ -211,6 +211,62 @@ func TestNoHeaderChromeAndLaneGeometry(t *testing.T) {
 	}
 }
 
+func TestTimeAxisLabelsEveryOtherGridline(t *testing.T) {
+	// happy: under the lanes sits a millisecond axis — a label on every
+	// other gray line (every 200 ms), anchored at its gridline column
+	m := sized(New(), 200, 45)
+	v := stripAnsi(view(m))
+	var axis string
+	for _, l := range strings.Split(v, "\n") {
+		if strings.Contains(l, "0ms") && strings.Contains(l, "200ms") {
+			axis = l
+			break
+		}
+	}
+	if axis == "" {
+		t.Fatalf("no time axis row found:\n%s", v)
+	}
+	for _, want := range []string{"0ms", "200ms", "400ms", "1200ms", "2400ms"} {
+		if !strings.Contains(axis, want) {
+			t.Fatalf("axis missing %q: %q", want, axis)
+		}
+	}
+	// labels anchor at their gridline column: t*180/2500 + the 20 gutter
+	if idx := strings.Index(axis, "1200ms"); idx < 104 || idx > 108 {
+		t.Fatalf("1200ms label at column %d, want ~106 (20 + 1200*180/2500)", idx)
+	}
+	if idx := strings.Index(axis, "400ms"); idx < 46 || idx > 50 {
+		t.Fatalf("400ms label at column %d, want ~48", idx)
+	}
+	// the odd gridlines (100, 300, ...) stay unlabeled
+	if strings.Contains(axis, "100ms") || strings.Contains(axis, "300ms") {
+		t.Fatalf("axis labels every OTHER line only: %q", axis)
+	}
+	// unhappy: labels never collide into each other — single spaces between
+	// tokens would mean overlap
+	for _, tok := range strings.Fields(axis) {
+		if !strings.HasSuffix(tok, "ms") {
+			t.Fatalf("stray axis token %q", tok)
+		}
+	}
+}
+
+func TestTimeAxisSurvivesNarrowAndIdle(t *testing.T) {
+	// unhappy: a narrow plot keeps whatever labels fit, without overlap or
+	// panic, and the axis persists on the everything-off portrait
+	m := sized(New(), 120, 30)
+	v := stripAnsi(view(m))
+	if !strings.Contains(v, "0ms") {
+		t.Fatalf("narrow axis lost its origin label:\n%s", v)
+	}
+	m2 := sized(New(), 200, 45)
+	m2, _ = keyed(m2, 'd')
+	v2 := stripAnsi(view(m2))
+	if !strings.Contains(v2, "2400ms") {
+		t.Fatalf("idle portrait lost the axis:\n%s", v2)
+	}
+}
+
 func TestNarrowTerminalShrinksGracefully(t *testing.T) {
 	// unhappy: 120 columns — the plot shrinks, nothing panics, rows fit
 	m := sized(New(), 120, 30)
