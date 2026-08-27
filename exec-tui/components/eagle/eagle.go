@@ -17,13 +17,33 @@ import (
 
 // The eagle's xterm-256 inks: the dark brown wing, its darker shadow
 // and outline, the white head and tail, and the gold beak and talons.
+// The unexported inks shade the exported families: the near-black
+// wing edges, the mottled underwing, the white's soft side, the
+// beak's orange underside, the black pupil and gape, the dark claws.
 const (
-	BodyInk   = 94
-	ShadowInk = 52
-	HeadInk   = 255
-	BeakInk   = 220
-	eyeInk    = 16
+	BodyInk    = 94
+	ShadowInk  = 52
+	HeadInk    = 255
+	BeakInk    = 220
+	darkInk    = 58
+	neutralInk = 236
+	lightInk   = 137
+	grayInk    = 250
+	orangeInk  = 214
+	rustInk    = 166
+	torsoInk   = 235
+	pupilInk   = 16
+	clawInk    = 238
 )
+
+// SignatureInks are the plumage inks that belong to the eagle alone —
+// its browns and golds. The flag's fade ramps never pass through any
+// of them, so a scene can tell the bird from the field by ink alone.
+// The deep shadow, the neutral dark and the whites stay off the list:
+// the fading flag and the white stripes wear those too.
+func SignatureInks() []int {
+	return []int{BodyInk, BeakInk, darkInk, lightInk, orangeInk, rustInk, torsoInk, clawInk}
+}
 
 // DefaultCrossSeconds is the stock crossing: off one wing and off the
 // other in twelve seconds.
@@ -37,93 +57,125 @@ const (
 	BobAmp  = 1.0
 )
 
-// art is the model, drawn facing left. Transparent cells are spaces;
-// inkFor assigns the materials by glyph and region.
+// art is the model, drawn facing left. It is half-block pixel art: a
+// BodyCols×(2·BodyRows) pixel grid folded into terminal cells two
+// pixels at a time.
 var art = buildArt()
 
-// BodyCols and BodyRows are the model's fixed canvas.
+// BodyCols and BodyRows are the model's fixed canvas, in cells.
 const (
 	BodyCols = 62
 	BodyRows = 16
 )
 
-// artRows is the eagle, row by row. Rows shorter than BodyCols are
-// padded with transparent sky on the right.
-var artRows = []string{
-	`    ▄█▙▄█▖                                        ▗█▄▟█▄`,
-	`   ▄██▛▟██▙▄                                    ▄▟██▙▛██▄▄`,
-	`  ▄███▓▓▓▓██▄▄                                ▄▄██▓▓▓▓██████▄▄`,
-	` ▄██▓▓▓▓▓▓▓▓██▄                              ▄██▓▓▓▓▓▓▓█████▄`,
-	` ███▓▓▓▓▓▓▓▓▓▓██▄                          ▄██▓▓▓▓▓▓▓▓▓█████`,
-	` ▀██▓▓▓▓▓▓▓▓▓▓▓▓██▄                      ▄██▓▓▓▓▓▓▓▓▓▓███▀`,
-	`  ▀██▓▓▓▓▓▓▓▓▓▓▓▓▓██▄                  ▄██▓▓▓▓▓▓▓▓▓▓███▀`,
-	`   ▀███▓▓▓▓▓▓▓▓▓▓▓▓▓██▄              ▄██▓▓▓▓▓▓▓▓▓▓███▀`,
-	`  ▄███▄ ▀███▓▓▓▓▓▓▓▓▓▓▓██▄▄        ▄██▓▓▓▓▓▓▓▓▓███▀`,
-	`▄▟██●██▙▄ ▀▀███▓▓▓▓▓▓▓▓▓▓▓███▄▄  ▄███▓▓▓▓▓▓▓▓███▀`,
-	`◣█████████▄▄▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓████████▓▓▓▓████▀`,
-	` ▀▀▀▀▀█████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▛▀▜███▙▄`,
-	`       ▀▀█▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▀▀▀    ▝▜█████▙▖`,
-	`         ▀▓▓▐█▌ ▐█▌ ▀▀▀▀▀▀              ▄▟██████▛▘`,
-	`           ▐█▌ ▐█▌                     ▀▛▀▀▀▀▀`,
-	`          ◢◤▘ ◢◤▘`,
+// pixelInks maps one pixel letter of the grid to its ink. A '.' (or
+// anything short of the row's end) is transparent sky.
+var pixelInks = map[byte]int{
+	'K': darkInk,
+	'N': neutralInk,
+	'B': BodyInk,
+	'L': lightInk,
+	'S': ShadowInk,
+	'W': HeadInk,
+	'G': grayInk,
+	'Y': BeakInk,
+	'O': orangeInk,
+	'R': rustInk,
+	'T': torsoInk,
+	'E': pupilInk,
+	'D': clawInk,
 }
 
-// The material regions, one column span per row: the white head with
-// its gold beak leading on the left, the white tail fanning behind on
-// the right, and the gold legs and talons reaching below. Everything
-// else is wing and body.
-var (
-	headSpans  = map[int][2]int{8: {2, 6}, 9: {1, 8}, 10: {0, 9}, 11: {1, 5}}
-	tailSpans  = map[int][2]int{11: {40, 47}, 12: {40, 49}, 13: {40, 49}, 14: {39, 45}}
-	talonSpans = map[int][2]int{13: {12, 18}, 14: {11, 17}, 15: {10, 16}}
-	beakCells  = map[[2]int]bool{{9, 0}: true, {10, 0}: true}
-)
-
-func spanHas(spans map[int][2]int, r, c int) bool {
-	s, ok := spans[r]
-	return ok && c >= s[0] && c <= s[1]
+// pixelRows is the eagle, one letter per pixel, 2·BodyRows rows of
+// BodyCols columns: the swooping bald eagle of the reference photo —
+// both wings thrown high with fingered tips, the white head low on
+// the leading edge with the gold hooked beak open, the gold legs
+// thrust forward-down with spread talons, and the white tail fanned
+// behind. Facing left.
+var pixelRows = []string{
+	`..............................................................`,
+	`D...N....N..N......................................N.D.DD.....`,
+	`.N...N....N..N....................................NN..N...D...`,
+	`..NB..NN...NN....................................NB..NN..N...D`,
+	`..KNBBNNNBBNNNK...............................KNNN..NN..NN..NN`,
+	`...NNLLNBBNNNNNNN...........................NNBBNNN.BBN.NNN.N.`,
+	`....KNBBNNNNBBNNNNK.......................KNNNNNNNKNNNNNNNNK..`,
+	`.....KNNNNBBNNNNBBNNK...................NNNBBNNNBBBNNNBNN.....`,
+	`.......NNNNNBBNNNNNNSS................KNNNNNNNBBNNNNKNNK......`,
+	`.........KNNNNBBNNBBSSK..............NNNNNNNBBNNNNNBNNN.......`,
+	`...........KKWWWNNNNNSSKNNNNNNNNNNNNKSNNNNBBNNNNKNNNNN........`,
+	`.........WWWWWWWWWSSSSSKNSNNNNNNNNTTSSNNBBNNNNNBBNNN..........`,
+	`.....YYWWWYEWWWWWWW.TTTTTTTTTTTTTTKSTTBBNNNNKNNNNN............`,
+	`...YYYY.WWWWWWWWWW.TTTKTTTTNTTTTTTKSTTNNNBBBNNNN..............`,
+	`..YEEEE.WWWWWWWWGSTTNTTTTKTTTKTT.NTT..NNKNNNNN................`,
+	`..OY.R...WWWWWWGSTTKTTTNTTTKTT...TTNNNN..NNN..................`,
+	`.....RR...WWWGGSTTNTTTKTTTNTTT.TTN..NNNNN.....................`,
+	`............WGWGWBBEBBBBEBTT..................................`,
+	`...........SBWGWBBBBBBBBBBBB..................................`,
+	`...........TSTWTETTTETTTETTGWW................................`,
+	`............SWBBBBBBBBBBBBTGWWWWW.............................`,
+	`............TSTBBTTYBBKTTTT.GWWWWWW...........................`,
+	`.............SNY.YY.BBBBBBT..GWWWWWWW.........................`,
+	`.............TY..Y.TTN.TTTT....WWWGWWW........................`,
+	`.............Y..Y..TT.T.TT......WWWGWWGWW.....................`,
+	`............Y..Y.................WWWGWWGW.....................`,
+	`........Y.Y.Y...Y.Y.Y.............WWGWWWG.W...................`,
+	`.......D.D.D...D.D.D...............WW.W.W.WW..................`,
+	`........D.D.D...D.D.D..................W...W..................`,
+	`.........D.......D..D......................W..................`,
+	`..............................................................`,
+	`..............................................................`,
 }
 
-// inkFor assigns one cell's material: gold beak, legs and talons, the
-// black eye riding the white head, white head and tail, and brown
-// wings with the dark shadow of their underbody and outline nubs.
-func inkFor(r, c int, ch rune) sprite.Cell {
-	switch {
-	case beakCells[[2]int{r, c}], spanHas(talonSpans, r, c):
-		return sprite.Cell{Ch: ch, FG: BeakInk, BG: -1}
-	case ch == '●':
-		return sprite.Cell{Ch: ch, FG: eyeInk, BG: HeadInk}
-	case spanHas(headSpans, r, c), spanHas(tailSpans, r, c):
-		return sprite.Cell{Ch: ch, FG: HeadInk, BG: -1}
-	case ch == '▒':
-		return sprite.Cell{Ch: ch, FG: ShadowInk, BG: -1}
-	case ch == '▖' || ch == '▗' || ch == '▘' || ch == '▝':
-		return sprite.Cell{Ch: ch, FG: ShadowInk, BG: -1}
-	default:
-		return sprite.Cell{Ch: ch, FG: BodyInk, BG: -1}
-	}
-}
-
-// buildArt paints the rows onto the fixed canvas. A row longer than
-// the canvas is a programmer error worth stopping for.
+// buildArt folds the pixel grid into half-block cells: two pixels of
+// one color are a plain field cell, two different colors are an
+// upper-half block over the lower pixel's background, and a lone
+// pixel keeps its other half transparent so the silhouette blends
+// with whatever flies beneath. A malformed grid is a programmer
+// error worth stopping for.
 func buildArt() sprite.Sprite {
-	sp := sprite.New(BodyCols, BodyRows)
-	if len(artRows) != BodyRows {
-		panic("eagle: art rows do not match BodyRows")
+	if len(pixelRows) != 2*BodyRows {
+		panic("eagle: pixel rows do not match 2×BodyRows")
 	}
-	for r, row := range artRows {
-		runes := []rune(row)
-		if len(runes) > BodyCols {
-			panic("eagle: art row wider than BodyCols")
-		}
-		for c, ch := range runes {
-			if ch == ' ' {
-				continue
+	sp := sprite.New(BodyCols, BodyRows)
+	for r := 0; r < BodyRows; r++ {
+		for c := 0; c < BodyCols; c++ {
+			up, upOK := pixelAt(2*r, c)
+			low, lowOK := pixelAt(2*r+1, c)
+			switch {
+			case !upOK && !lowOK:
+			case upOK && lowOK && up == low:
+				sp.Set(r, c, sprite.Cell{Ch: ' ', FG: -1, BG: up})
+			case upOK && lowOK:
+				sp.Set(r, c, sprite.Cell{Ch: '▀', FG: up, BG: low})
+			case upOK:
+				sp.Set(r, c, sprite.Cell{Ch: '▀', FG: up, BG: -1})
+			default:
+				sp.Set(r, c, sprite.Cell{Ch: '▄', FG: low, BG: -1})
 			}
-			sp.Set(r, c, inkFor(r, c, ch))
 		}
 	}
 	return sp
+}
+
+// pixelAt reads one pixel of the grid: its ink and whether it paints.
+func pixelAt(pr, c int) (int, bool) {
+	row := pixelRows[pr]
+	if len(row) > BodyCols {
+		panic("eagle: pixel row wider than BodyCols")
+	}
+	if c >= len(row) {
+		return 0, false
+	}
+	ch := row[c]
+	if ch == '.' || ch == ' ' {
+		return 0, false
+	}
+	ink, ok := pixelInks[ch]
+	if !ok {
+		panic("eagle: unknown pixel letter " + string(ch))
+	}
+	return ink, ok
 }
 
 // Art is the eagle model alone, on its own canvas — for tests,
