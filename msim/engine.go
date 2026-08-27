@@ -114,9 +114,24 @@ func (e *Engine) Spawn(spec JobSpec) *Alarm { return e.exec.allocate(spec) }
 // job that is not asleep, or does not exist, is a no-op.
 func (e *Engine) Wake(name string) { e.exec.wakeByName(name) }
 
-// RunMS advances the machine n milliseconds.
+// tickNs is the machine's processing grain: 100 µs per tick. Dispatches,
+// sleeps, and completions resolve on this lattice; millisecond quantities
+// (the theft waveform, the samples) are preserved exactly across the ten
+// slices of each millisecond.
+const tickNs Nanos = 100 * Microsecond
+
+const ticksPerMs = int(Millisecond / tickNs)
+
+// tickSkim is the theft taken in slice k (0..9) of millisecond ms: the
+// Bresenham split of the waveform value, telescoping to it exactly.
+func tickSkim(ms, k Nanos) Nanos {
+	v := theftAtMs(ms)
+	return v*(k+1)/Nanos(ticksPerMs) - v*k/Nanos(ticksPerMs)
+}
+
+// RunMS advances the machine n milliseconds (n x 10 ticks).
 func (e *Engine) RunMS(n int) {
-	for i := 0; i < n; i++ {
+	for i := 0; i < n*ticksPerMs; i++ {
 		e.tick()
 	}
 }
@@ -141,9 +156,10 @@ func (e *Engine) tick() {
 	}
 
 	// 2) the RR CDU counter theft: pure hardware, skims the front of the tick
-	budget := Millisecond
+	budget := tickNs
+	kInMs := (e.now % Millisecond) / tickNs
 	if e.cfg.RadarBug {
-		skim := theftAtMs(e.now / Millisecond)
+		skim := tickSkim(e.now/Millisecond, kInMs)
 		e.theftNs += skim
 		e.subTick = skim
 		budget -= skim
@@ -176,13 +192,16 @@ func (e *Engine) tick() {
 		budget -= consumed
 	}
 
-	e.samples = append(e.samples, Sample{
-		AtMs:    int(e.now / Millisecond),
-		Cores:   e.CoresHeld(),
-		VACs:    e.VACsHeld(),
-		Running: e.RunningJob(),
-	})
-	e.now += Millisecond
+	// one occupancy sample per millisecond, at its final slice
+	if kInMs == Nanos(ticksPerMs-1) {
+		e.samples = append(e.samples, Sample{
+			AtMs:    int(e.now / Millisecond),
+			Cores:   e.CoresHeld(),
+			VACs:    e.VACsHeld(),
+			Running: e.RunningJob(),
+		})
+	}
+	e.now += tickNs
 	e.subTick = 0
 }
 
@@ -260,21 +279,26 @@ func theftAtMs(ms Nanos) Nanos {
 	return TheftMinPerMs + p*(TheftMaxPerMs-TheftMinPerMs)/(period/2-dwell)
 }
 
-// TheftNsBefore is the theft accumulated by exact machine time t.
+// TheftNsBefore is the theft accumulated by exact machine time t, mirroring
+// the engine's per-tick Bresenham skim.
 func (e *Engine) TheftNsBefore(t Nanos) Nanos {
 	if !e.cfg.RadarBug {
 		return 0
 	}
-	full := t / Millisecond
-	offset := t % Millisecond
+	fullMs := t / Millisecond
 	var total Nanos
-	for ms := Nanos(0); ms < full; ms++ {
+	for ms := Nanos(0); ms < fullMs; ms++ {
 		total += theftAtMs(ms)
 	}
-	if skim := theftAtMs(full); offset > skim {
-		offset = skim
+	rem := t % Millisecond
+	k := rem / tickNs
+	off := rem % tickNs
+	// full slices of the current millisecond telescope to v*k/10
+	total += theftAtMs(fullMs) * k / Nanos(ticksPerMs)
+	if s := tickSkim(fullMs, k); off > s {
+		off = s
 	}
-	return total + offset
+	return total + off
 }
 
 func (e *Engine) findCadence(name string) *cadence {

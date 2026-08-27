@@ -31,7 +31,7 @@ func bar(n, max int) string {
 func RenderTimeline(res *Result, title string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", title)
-	fmt.Fprintf(&b, "Window: t=0 is GET %s (PDI+290 s), %d ms simulated, 1 ms per tick.\n\n",
+	fmt.Fprintf(&b, "Window: t=0 is GET %s (PDI+290 s), %d ms simulated, 100 µs per tick.\n\n",
 		T0GET, res.DurationMS)
 
 	// --- occupancy strip

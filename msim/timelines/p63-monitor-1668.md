@@ -1,6 +1,6 @@
 # P63 with V16N68 — the DELTAH monitor at the flight offsets
 
-Window: t=0 is GET 102:37:55 (PDI+290 s), 100000 ms simulated, 1 ms per tick.
+Window: t=0 is GET 102:37:55 (PDI+290 s), 100000 ms simulated, 100 µs per tick.
 
 ```text
   t(s)  GET        cores 0-8    vacs 0-5   running at sample

@@ -9,7 +9,9 @@ in this repository, **[Outline]** `screenplay_outline.markdown` /
 
 ## The machine model
 
-- One CPU, one millisecond per tick, nanosecond bookkeeping inside the tick.
+- One CPU, 100 µs per tick, nanosecond bookkeeping inside the tick; the
+  theft waveform and the occupancy samples stay millisecond-exact across
+  each millisecond's ten slices.
 - Order inside a tick: hardware dispatches are timestamped at the boundary
   (T5/DAP, then the waitlist, then hardware crew/radar events, then T4RUPT,
   DOWNRUPT), the RR theft skims the front of the tick, interrupt-context CPU

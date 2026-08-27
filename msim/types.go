@@ -1,6 +1,6 @@
 // Package msim is an instruction-level, single-CPU simulator of the Apollo 11
-// LGC Executive during P63 powered descent. The clock advances one millisecond
-// at a time; within each millisecond the CPU is divided, in order, between the
+// LGC Executive during P63 powered descent. The clock advances 100 µs at a
+// time; within each tick the CPU is divided, in order, between the
 // rendezvous-radar counter theft (hardware, invisible), due interrupts and
 // waitlist tasks (which pause the running job mid-instruction), and the
 // highest-priority ready job. Jobs are preempted only between instructions —

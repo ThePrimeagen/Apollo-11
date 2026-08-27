@@ -1,10 +1,10 @@
 # msim — the millisecond Executive
 
 An instruction-level, single-CPU simulator of the Apollo 11 LGC during P63
-powered descent. One millisecond per tick; one entry per interpretive
-instruction, transcribed from the `Luminary099/` listing; preemption only at
-the DANZIG boundary between instructions, exactly as `INTERPRETER.agc`
-L74-L82 tests NEWJOB.
+powered descent. One hundred microseconds per tick; one entry per
+interpretive instruction, transcribed from the `Luminary099/` listing;
+preemption only at the DANZIG boundary between instructions, exactly as
+`INTERPRETER.agc` L74-L82 tests NEWJOB.
 
 ## What it answers
 
