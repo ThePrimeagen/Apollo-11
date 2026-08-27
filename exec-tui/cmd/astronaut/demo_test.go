@@ -127,8 +127,9 @@ func TestMoonwalkTuner(t *testing.T) {
 		if got != want {
 			t.Fatalf("saved %+v, want %+v", got, want)
 		}
-		if !strings.Contains(strings.ToLower(m.View().Content), "saved") {
-			t.Fatal("the view must confirm the save")
+		banner, _ := termfont.Lines(5, "SAVED")
+		if !strings.Contains(stripAnsi(m.View().Content), banner[0]) {
+			t.Fatal("the view must confirm the save with the banner")
 		}
 	})
 	t.Run("happy: s raises a five-row SAVED banner, top centered", func(t *testing.T) {

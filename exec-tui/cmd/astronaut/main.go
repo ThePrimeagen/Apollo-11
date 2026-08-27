@@ -28,6 +28,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
+	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
 const (
@@ -85,12 +86,21 @@ func tick() tea.Cmd {
 
 func (m model) Init() tea.Cmd { return tick() }
 
+// saveToastTTL is how long the banner flies — the operator asked for
+// three seconds, top center, too big to miss.
+const saveToastTTL = 3 * time.Second
+
+// save writes the knobs and raises the banner: SAVED on success, ERR
+// with the failure named in the footer otherwise.
 func (m model) save() model {
+	m.toastID++
 	if err := m.cfg.Save(m.path); err != nil {
 		m.note = "save failed: " + err.Error()
+		m.toast = "ERR"
 		return m
 	}
-	m.note = "saved " + m.path
+	m.note = ""
+	m.toast = "SAVED"
 	return m
 }
 
@@ -105,6 +115,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m, tick()
+	case saveToastClearMsg:
+		if msg.id == m.toastID {
+			m.toast = ""
+		}
+		return m, nil
 	case tea.KeyPressMsg:
 		switch strings.ToLower(msg.String()) {
 		case "ctrl+c", "q":
@@ -125,7 +140,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cfg.Nudge(m.knob, -1)
 			return m, nil
 		case "s":
-			return m.save(), nil
+			m = m.save()
+			id := m.toastID
+			return m, tea.Tick(saveToastTTL, func(time.Time) tea.Msg {
+				return saveToastClearMsg{id: id}
+			})
 		}
 	}
 	return m, nil
@@ -150,6 +169,8 @@ func (m model) footer(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
 	reset := "\x1b[0m"
+	// The help line survives everything — only a failure detail may
+	// borrow it, so "s save" never disappears after a save.
 	help := "moonwalk  j/k knob  h/l nudge  s save  space replay  q quit"
 	if m.note != "" {
 		help = "moonwalk  " + m.note
@@ -189,6 +210,7 @@ func (m model) View() tea.View {
 	}
 	stage := moonwalk.Frame(m.cfg, m.atlas, w, stageH, m.clock)
 	lines := strings.Split(sprite.Render(stage), "\n")
+	overlayToast(lines, m.toast, w)
 	lines = append(lines, m.footer(w)...)
 	for len(lines) < h {
 		lines = append(lines, "")
@@ -199,6 +221,29 @@ func (m model) View() tea.View {
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
 	return v
+}
+
+// overlayToast rides the save banner over the top of the stage: five
+// rows of termfont, centered, gold and bold — too big to miss.
+func overlayToast(lines []string, toast string, w int) {
+	if toast == "" {
+		return
+	}
+	rows, err := termfont.Lines(5, toast)
+	if err != nil {
+		rows = []string{toast}
+	}
+	for i, row := range rows {
+		target := 1 + i
+		if target >= len(lines) {
+			break
+		}
+		pad := (w - len([]rune(row))) / 2
+		if pad < 0 {
+			pad = 0
+		}
+		lines[target] = "\x1b[1;38;5;214m" + clip(strings.Repeat(" ", pad)+row, w) + "\x1b[0m"
+	}
 }
 
 func clip(s string, w int) string {
