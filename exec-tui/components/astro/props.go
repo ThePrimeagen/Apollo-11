@@ -25,3 +25,45 @@ const (
 	RoverPxW = 20
 	RoverPxH = 10
 )
+
+// The crate is a dark-rimmed supply box with a bright face plate and
+// gold corner bolts — chunky enough to read as a platform. The flag
+// is the stars and stripes at ten pixels: a blue canton over
+// alternating red and white bands. The rover is the buggy left parked
+// in the dark: a gold-foil deck on a grey frame, two fat wheels with
+// bright hubs, the dish up front and a whip antenna at the console.
+func init() {
+	grids[PropBlock] = []string{
+		//  01234567
+		"DDDDDDDD",
+		"DVHHHHVD",
+		"DHHWWHHD",
+		"DHWWWWHD",
+		"DHWWWWHD",
+		"DHHWWHHD",
+		"DVHHHHVD",
+		"DDDDDDDD",
+	}
+	grids[PropFlag] = []string{
+		//  0123456789
+		"BBBBRRRRRR",
+		"BBBBWWWWWW",
+		"BBBBRRRRRR",
+		"WWWWWWWWWW",
+		"RRRRRRRRRR",
+		"WWWWWWWWWW",
+	}
+	grids[PropRover] = []string{
+		//  01234567890123456789
+		"..HHH...............",
+		"...H........H.......",
+		"...H..WWW...H.......",
+		"..HHHHWWWHHHH.......",
+		".HVVVVVVVVVVVVVVVH..",
+		".HVVVVVVVVVVVVVVVH..",
+		"..DDDD........DDDD..",
+		"..DHHD........DHHD..",
+		"..DHHD........DHHD..",
+		"..DDDD........DDDD..",
+	}
+}
