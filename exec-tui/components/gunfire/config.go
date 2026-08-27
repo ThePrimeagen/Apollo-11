@@ -29,7 +29,7 @@ import (
 
 var (
 	ErrMuzzle = errors.New("gunfire: muzzle must sit on the stage (fractions 0..1)")
-	ErrAngle  = errors.New("gunfire: angle must be -90..90 degrees around level")
+	ErrAngle  = errors.New("gunfire: angle must be -180..180 degrees around level")
 	ErrDelay  = errors.New("gunfire: pulse delay must be non-negative")
 	ErrPulse  = errors.New("gunfire: pulse fraction must be 0..1")
 	ErrLadder = errors.New("gunfire: core ladder must climb: 1 <= edgeAt < midAt < coreAt")
@@ -58,7 +58,7 @@ type Layer struct {
 // follows the first on a short fuse), the concentration ladder that
 // decides how bright a core cell burns, and the two layers.
 type BlastConfig struct {
-	AngleDeg   float64 `json:"angleDeg"`   // aim above level; 90 straight up, negative dips
+	AngleDeg   float64 `json:"angleDeg"`   // aim, any which direction: 0 right, 90 up, ±180 left, -90 down
 	MuzzleX    float64 `json:"muzzleX"`    // muzzle, as a fraction of stage width
 	MuzzleY    float64 `json:"muzzleY"`    // muzzle, as a fraction of stage height
 	PulseDelay float64 `json:"pulseDelay"` // seconds between Doom's two flash frames; 0 = one frame
@@ -123,7 +123,7 @@ func (c BlastConfig) Validate() error {
 	if c.MuzzleX < 0 || c.MuzzleX > 1 || c.MuzzleY < 0 || c.MuzzleY > 1 {
 		return ErrMuzzle
 	}
-	if c.AngleDeg < -90 || c.AngleDeg > 90 {
+	if c.AngleDeg < -180 || c.AngleDeg > 180 {
 		return ErrAngle
 	}
 	if c.PulseDelay < 0 {
@@ -182,9 +182,9 @@ func (c BlastConfig) Engines(w, h float64) (core, flame particle.Config) {
 	return base(c.Core), base(c.Flame)
 }
 
-// dirAt is the unit heading deg degrees above level, firing rightward
-// at 0 and straight up at 90. Y grows downward, so climbing means a
-// negative Y.
+// dirAt is the unit heading deg degrees around level, covering the
+// whole circle: 0 fires rightward, 90 straight up, ±180 leftward,
+// -90 straight down. Y grows downward, so climbing means a negative Y.
 func dirAt(deg float64) particle.Vec2 {
 	sin, cos := math.Sincos(deg * math.Pi / 180)
 	return particle.Vec2{X: cos, Y: -sin}

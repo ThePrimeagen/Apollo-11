@@ -38,7 +38,7 @@ cmd/          every runnable: editors, demos, tuners
   preview/    atlas / fire / rocket previews and tapes
   editor/     the vim-ish ASCII editor — point it at any folder of atlases
               (default assets/); C-p quick-opens across its files
-  gunfire/    the one-shot muzzle-flame demo (space fires)
+  gunfire/    the one-shot muzzle-flame demo (space fires, arrows aim)
   adjustflame/  tunes components/fire/config.json
   adjuststars/  tunes components/stars/config.json
   adjustgunfire/  tunes components/gunfire/config.json

@@ -42,7 +42,7 @@ type meta struct {
 // aimMeta is the aim page: where the flame leaps from and toward, the
 // two-frame pulse, and the core brightness ladder.
 var aimMeta = []meta{
-	{"angle", 1, -90, 90},
+	{"angle", 1, -180, 180},
 	{"muzzle x", 0.01, 0, 1},
 	{"muzzle y", 0.01, 0, 1},
 	{"pulse delay", 0.01, 0, 1},

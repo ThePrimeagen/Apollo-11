@@ -1,15 +1,21 @@
 // gunfire: the one-shot Doom muzzle-flame demo — the red flame that
 // comes out when the shotgun goes off. An empty stage and the trigger
-// on the space bar: one squeeze and the flame leaps up from the
-// muzzle at low center screen, a white-hot heart wrapped in tongues
-// that cool bright yellow through orange and red to a maroon ember,
-// with Doom's dimmer second flash frame pulsing a beat later — then
-// the stage goes dark again, because a gunshot is a trigger, not a
-// clock. The demo auto-fires once shortly after boot so tapes show
-// the flame, and it reads the same JSON the gunfire tuner saves.
+// on the space bar: one squeeze and the flame leaps from the muzzle
+// at low center screen, a white-hot heart wrapped in tongues that
+// cool bright yellow through orange and red to a maroon ember, with
+// Doom's dimmer second flash frame pulsing a beat later — then the
+// stage goes dark again, because a gunshot is a trigger, not a clock.
+// The aim goes any which direction: left/h and right/l swing the
+// muzzle 15° a press around the full circle — the status line reads
+// the aim out — and the flame's lift stays world-up, so a sideways or
+// downward shot still curls its tongues skyward. The demo auto-fires
+// once shortly after boot so tapes show the flame, and it reads the
+// same JSON the gunfire tuner saves.
 //
-//	space, f  fire
-//	q         quit
+//	space, f      fire
+//	left/h        swing the aim counterclockwise
+//	right/l       swing it back
+//	q             quit
 //
 //	go run ./cmd/gunfire
 //	go run ./cmd/gunfire -seconds 6
@@ -41,6 +47,9 @@ const (
 	// autoFireAt is the one free squeeze after boot, so tapes and the
 	// impatient both see the shot without touching a key.
 	autoFireAt = 0.4
+
+	// aimStepDeg is one press of an aim key: 24 presses is a full turn.
+	aimStepDeg = 15
 )
 
 func applyBlast(path string) error {
@@ -129,9 +138,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "space", " ", "f":
 			m.blast.Fire()
 			return m, nil
+		case "left", "h":
+			swingAim(aimStepDeg)
+			return m, nil
+		case "right", "l":
+			swingAim(-aimStepDeg)
+			return m, nil
 		}
 	}
 	return m, nil
+}
+
+// swingAim turns the active blast's muzzle by delta degrees, wrapping
+// around the circle, and puts it in effect — the very next volley
+// flies the new way.
+func swingAim(delta float64) {
+	c := gunfire.ActiveBlast()
+	c.AngleDeg = wrapDeg(c.AngleDeg + delta)
+	_ = gunfire.UseBlast(c)
+}
+
+// wrapDeg folds an angle into the circle's signed half turns.
+func wrapDeg(a float64) float64 {
+	for a > 180 {
+		a -= 360
+	}
+	for a < -180 {
+		a += 360
+	}
+	return a
 }
 
 func (m model) View() tea.View {
@@ -141,7 +176,7 @@ func (m model) View() tea.View {
 	for len(stage) < h {
 		stage = append(stage, "")
 	}
-	status := " gunfire   space fire   q quit"
+	status := fmt.Sprintf(" gunfire   space fire   ←/→ aim %g°   q quit", gunfire.ActiveBlast().AngleDeg)
 	dim := "\x1b[38;5;240m"
 	reset := "\x1b[0m"
 	body := strings.Join(stage, "\n") + "\n" + dim + pad(status, w) + reset
