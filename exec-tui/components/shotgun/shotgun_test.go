@@ -4,16 +4,21 @@ package shotgun
 // component, aimed on the same eight-point compass the gunfire blast
 // already speaks. It is one 2D side-on asset — the east stock shot —
 // spun in the plane of the screen around the Y-axis coming out of it
-// (east 0°, then counterclockwise: NE 45°, N 90°, …). That is not a
-// 3D rotation: there is no separate rear/top/three-quarter drawing,
-// and W is not FlipH(E). Start builds every heading for a w×h stage;
-// Aim points the barrel; Fire pulls the trigger so the muzzle flame
-// leaps from this heading's barrel tip using the shipped gunfire
-// config (components/gunfire/config.json) for that heading only —
-// never the whole eight-way rose. Update burns the blast; Render
-// paints the aimed gun with whatever flame is still in the air.
-// Before Start and after Stop the stage is empty; a heading off the
-// compass is refused; the trigger needs a stage.
+// (east 0°, then counterclockwise: NE 45°, N 90°, …). The spin
+// happens in square-pixel space — a terminal cell is two stacked
+// square pixels — so the gun is the same length on screen whichever
+// way it points: upright is never twice as long as side-on. And the
+// gun always faces up: the left half of the compass (W, NW, SW) is
+// the right half (E, NE, SE) mirrored left-right, never a spin past
+// vertical that would hang the sights toward the floor. Start builds
+// every heading for a w×h stage; Aim points the barrel; Fire pulls
+// the trigger so the muzzle flame leaps from this heading's barrel
+// tip using the shipped gunfire config
+// (components/gunfire/config.json) for that heading only — never the
+// whole eight-way rose. Update burns the blast; Render paints the
+// aimed gun with whatever flame is still in the air. Before Start and
+// after Stop the stage is empty; a heading off the compass is
+// refused; the trigger needs a stage.
 
 import (
 	"path/filepath"
@@ -78,6 +83,40 @@ func sameSprite(a, b sprite.Sprite) bool {
 	for r := 0; r < a.Height; r++ {
 		for c := 0; c < a.Width; c++ {
 			if a.At(r, c) != b.At(r, c) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// cellPixels reads one half-block cell as its two stacked square
+// pixels — the colors the terminal actually shows, top then bottom.
+func cellPixels(c sprite.Cell) (top, bot int) {
+	if c.Transparent() {
+		return -1, -1
+	}
+	switch c.Ch {
+	case '▀':
+		return c.FG, c.BG
+	case '▄':
+		return c.BG, c.FG
+	}
+	return c.FG, c.FG
+}
+
+// samePicture compares two frames the way the screen shows them: cell
+// by cell as stacked square pixels, so a ▀ and a ▄ that paint the
+// same two colors are equal even when the cell structs differ.
+func samePicture(a, b sprite.Sprite) bool {
+	if a.Width != b.Width || a.Height != b.Height {
+		return false
+	}
+	for r := 0; r < a.Height; r++ {
+		for c := 0; c < a.Width; c++ {
+			at, ab := cellPixels(a.At(r, c))
+			bt, bb := cellPixels(b.At(r, c))
+			if at != bt || ab != bb {
 				return false
 			}
 		}
@@ -217,7 +256,7 @@ func TestRotateGrid(t *testing.T) {
 }
 
 func TestEightDirections(t *testing.T) {
-	t.Run("happy: the eight compass frames are the same 2D gun spun in the screen plane", func(t *testing.T) {
+	t.Run("happy: the gun always faces up — W, NW and SW mirror E, NE and SE left-right", func(t *testing.T) {
 		g := New()
 		g.Start(stageW, stageH)
 		seen := map[string]sprite.Heading{}
@@ -229,18 +268,29 @@ func TestEightDirections(t *testing.T) {
 			}
 			seen[key] = h
 		}
-		east := g.Frame(sprite.E)
-		if sameSprite(g.Frame(sprite.W), sprite.FlipH(east)) {
-			t.Fatal("W must not be FlipH(E) — that is a 3D card-flip, not an in-plane spin")
+		mirrors := []struct{ left, right sprite.Heading }{
+			{sprite.W, sprite.E},
+			{sprite.NW, sprite.NE},
+			{sprite.SW, sprite.SE},
 		}
-		if !sameSprite(g.Frame(sprite.W), sprite.FlipH(sprite.FlipV(east))) {
-			t.Fatal("W must be E spun 180° around the axis coming out of the screen (FlipH+FlipV)")
+		for _, m := range mirrors {
+			if !samePicture(g.Frame(m.left), sprite.FlipH(g.Frame(m.right))) {
+				t.Fatalf("%s must be FlipH(%s) so the sights stay up on the left half of the compass", m.left, m.right)
+			}
 		}
-		if !sameSprite(g.Frame(sprite.S), sprite.FlipH(sprite.FlipV(g.Frame(sprite.N)))) {
+		if !samePicture(g.Frame(sprite.S), sprite.FlipH(sprite.FlipV(g.Frame(sprite.N)))) {
 			t.Fatal("S must be N spun 180° around the axis coming out of the screen")
 		}
 	})
-	t.Run("happy: an east barrel is a long side-on gun, north is that same gun stood on its stock", func(t *testing.T) {
+	t.Run("unhappy: W is never the 180° spin — that would hang the gun upside down", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		east := g.Frame(sprite.E)
+		if samePicture(g.Frame(sprite.W), sprite.FlipH(sprite.FlipV(east))) {
+			t.Fatal("W must not be E spun 180° (FlipH+FlipV) — the sights would face the floor")
+		}
+	})
+	t.Run("happy: on screen the upright gun matches the side-on gun — a cell is two square pixels tall", func(t *testing.T) {
 		g := New()
 		g.Start(stageW, stageH)
 		minC, minR, maxC, maxR, n := bounds(g.Frame(sprite.E))
@@ -251,18 +301,39 @@ func TestEightDirections(t *testing.T) {
 		if ew <= eh {
 			t.Fatalf("east shotgun should be wider than tall, got %dx%d", ew, eh)
 		}
-		minC, minR, maxC, maxR, n = bounds(g.Frame(sprite.N))
-		if n == 0 {
-			t.Fatal("north gun is empty")
+		// Visual units: a cell is one unit wide and two units tall.
+		eLen, eThick := ew, 2*eh
+		for _, h := range []sprite.Heading{sprite.N, sprite.S} {
+			minC, minR, maxC, maxR, n = bounds(g.Frame(h))
+			if n == 0 {
+				t.Fatalf("%s gun is empty", h)
+			}
+			w, cells := maxC-minC+1, maxR-minR+1
+			if cells <= w {
+				t.Fatalf("%s shotgun should be taller than wide, got %dx%d", h, w, cells)
+			}
+			vLen, vThick := 2*cells, w
+			if diff := vLen - eLen; diff < -3 || diff > 3 {
+				t.Fatalf("%s gun runs %d units on screen, east runs %d — an upright gun must not stretch", h, vLen, eLen)
+			}
+			if diff := vThick - eThick; diff < -3 || diff > 3 {
+				t.Fatalf("%s gun is %d units thick on screen, east is %d", h, vThick, eThick)
+			}
 		}
-		nw, nh := maxC-minC+1, maxR-minR+1
-		if nh <= nw {
-			t.Fatalf("north shotgun should be taller than wide, got %dx%d", nw, nh)
-		}
-		// Same 2D pixels: a 90° spin swaps the bounding box, it does
-		// not redraw a skinny 3D rear view.
-		if nw > ew {
-			t.Fatalf("north must be east stood up, not a wider 3D drawing: N %dx%d vs E %dx%d", nw, nh, ew, eh)
+	})
+	t.Run("happy: a 45° gun spans the same distance across and down — no vertical stretch", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		for _, h := range []sprite.Heading{sprite.NE, sprite.SE, sprite.NW, sprite.SW} {
+			minC, minR, maxC, maxR, n := bounds(g.Frame(h))
+			if n == 0 {
+				t.Fatalf("%s gun is empty", h)
+			}
+			across := maxC - minC + 1
+			down := 2 * (maxR - minR + 1)
+			if diff := across - down; diff < -4 || diff > 4 {
+				t.Fatalf("%s gun spans %d units across but %d units down — a diagonal aim must stay square on screen", h, across, down)
+			}
 		}
 	})
 	t.Run("unhappy: a heading off the compass has no frame", func(t *testing.T) {
