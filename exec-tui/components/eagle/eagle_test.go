@@ -205,18 +205,40 @@ func TestEagleArt(t *testing.T) {
 			t.Fatal("the raised wings must reach the top rows of the model")
 		}
 	})
-	t.Run("happy: the brown body ink is everywhere the detectors need it", func(t *testing.T) {
+	t.Run("happy: the signature inks are everywhere the detectors need them", func(t *testing.T) {
 		art := Art()
-		body := 0
+		signed := 0
 		for r := 0; r < art.Height; r++ {
 			for c := 0; c < art.Width; c++ {
-				if wears(art.At(r, c), BodyInk) {
-					body++
+				for _, ink := range SignatureInks() {
+					if wears(art.At(r, c), ink) {
+						signed++
+						break
+					}
 				}
 			}
 		}
-		if body < 100 {
-			t.Fatalf("only %d cells wear the brown body ink — the scene detectors key on it", body)
+		if signed < 150 {
+			t.Fatalf("only %d cells wear a signature ink — the scene detectors key on them", signed)
+		}
+	})
+	t.Run("happy: the signature inks are the eagle's own — never the flag's, never white", func(t *testing.T) {
+		inks := SignatureInks()
+		has := func(ink int) bool {
+			for _, i := range inks {
+				if i == ink {
+					return true
+				}
+			}
+			return false
+		}
+		if !has(BodyInk) || !has(BeakInk) {
+			t.Fatal("the brown body and the gold beak are the eagle's signature")
+		}
+		for _, banned := range []int{ShadowInk, HeadInk, 16, 236, 250} {
+			if has(banned) {
+				t.Fatalf("ink %d can appear on the fading flag or the white head — it must not be a signature", banned)
+			}
 		}
 	})
 	t.Run("happy: both wingtips are inked, so the crossing enters and exits visibly", func(t *testing.T) {

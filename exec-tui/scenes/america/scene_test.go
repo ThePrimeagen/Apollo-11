@@ -66,19 +66,19 @@ func inkAt(scr *screenplay.Screen, x, y int) (fg, bg int) {
 	return fg, bg
 }
 
-// eagleCells collects the cells wearing the eagle's own inks — the
-// brown body and the gold beak and talons. The flag never wears
-// either, at any point of its fade, so on this stage those cells are
-// the eagle.
+// eagleCells collects the cells wearing any of the eagle's signature
+// inks — its browns and golds. The flag never wears one, at any point
+// of its fade, so on this stage those cells are the eagle.
 func eagleCells(scr *screenplay.Screen) [][2]int {
 	var out [][2]int
 	for y := 0; y < stageH; y++ {
 		for x := 0; x < stageW; x++ {
 			fg, bg := inkAt(scr, x, y)
-			switch {
-			case fg == eagle.BodyInk, bg == eagle.BodyInk,
-				fg == eagle.BeakInk, bg == eagle.BeakInk:
-				out = append(out, [2]int{y, x})
+			for _, ink := range eagle.SignatureInks() {
+				if fg == ink || bg == ink {
+					out = append(out, [2]int{y, x})
+					break
+				}
 			}
 		}
 	}
@@ -305,17 +305,17 @@ func TestAmericaDetectorPremise(t *testing.T) {
 			t.Fatalf("the fading flag already carries %d star glyphs, want 50", stars)
 		}
 	})
-	t.Run("unhappy: the flag never wears the eagle's inks, at any point of the fade", func(t *testing.T) {
+	t.Run("unhappy: the flag never wears a signature ink, at any point of the fade", func(t *testing.T) {
 		sc := New()
 		sc.Start()
 		defer sc.Stop()
 		_ = paint(sc)
 		at := 0.0
-		for _, target := range []float64{0.5, FadeSeconds / 2, FadeSeconds - 0.5} {
+		for target := 0.25; target < FadeSeconds-0.3; target += 0.25 {
 			tick(sc, target-at)
 			at = target
 			if got := eagleCells(paint(sc)); len(got) != 0 {
-				t.Fatalf("at %.1fs the fading flag wears eagle ink in %d cells — the detector premise is broken", target, len(got))
+				t.Fatalf("at %.2fs the fading flag wears eagle ink in %d cells — the detector premise is broken", target, len(got))
 			}
 		}
 	})
