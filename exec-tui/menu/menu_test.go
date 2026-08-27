@@ -113,7 +113,7 @@ func TestMenuSections(t *testing.T) {
 		v := stripAnsi(sized(New(Catalog(), ""), 100, 40).View().Content)
 		order := []struct{ header, first string }{
 			{"Screenplays", "MAIN"},
-			{"Scenes", "Landing"},
+			{"Scenes", "Component Viewer"},
 			{"CONFIG", "FLAME CONFIG"},
 			{"LEGACY TUIS", "LEGACY EXEC"},
 		}
@@ -175,8 +175,8 @@ func TestMenuSections(t *testing.T) {
 			t.Fatalf("j from moon must land on closeup, got %q", got)
 		}
 		m = key(m, 'j')
-		if got := Catalog()[m.sel].ID; got != "landing" {
-			t.Fatalf("j from closeup must land on the landing scene, got %q", got)
+		if got := Catalog()[m.sel].ID; got != "viewer" {
+			t.Fatalf("j from closeup must land on the component viewer, got %q", got)
 		}
 		m = key(m, 'k')
 		m = key(m, 'k')
@@ -407,7 +407,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
-			"landing", "gunfire", "america",
+			"viewer", "landing", "gunfire", "america",
 			"flame", "stars-config", "editor", "particle", "dust-config", "gunfire-config",
 			"legacy", "timeline",
 		}
@@ -425,6 +425,7 @@ func TestCatalog(t *testing.T) {
 			"screenplay":     "Screenplays",
 			"moon":           "Screenplays",
 			"closeup":        "Screenplays",
+			"viewer":         "Scenes",
 			"landing":        "Scenes",
 			"gunfire":        "Scenes",
 			"america":        "Scenes",
@@ -465,22 +466,47 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("third entry must be 02. Walkthrough (closeup → ./cmd/lunarcloseup) under Screenplays, got %+v", c[2])
 		}
 	})
-	t.Run("happy: Scenes lists the portable landing", func(t *testing.T) {
+	t.Run("happy: Scenes opens on the component viewer as a single item", func(t *testing.T) {
 		c := Catalog()
 		if len(c) < 4 {
-			t.Fatal("catalog must hold the landing scene after the screenplays")
+			t.Fatal("catalog must hold the component viewer after the screenplays")
 		}
-		if c[3].ID != "landing" || c[3].Title != "Landing" || c[3].Section != "Scenes" || c[3].Pkg != "./cmd/landing" {
-			t.Fatalf("fourth entry must be Landing under Scenes → ./cmd/landing, got %+v", c[3])
+		if c[3].ID != "viewer" || c[3].Title != "Component Viewer" || c[3].Section != "Scenes" || c[3].Pkg != "./cmd/viewer" {
+			t.Fatalf("fourth entry must be Component Viewer under Scenes → ./cmd/viewer, got %+v", c[3])
+		}
+		seen := 0
+		for _, e := range c {
+			if e.ID == "viewer" {
+				seen++
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("the component viewer must be listed exactly once, saw %d", seen)
+		}
+		for _, id := range []string{"shotgun", "stars", "flag", "eagle", "lander"} {
+			for _, e := range c {
+				if e.ID == id {
+					t.Fatalf("component %q must live inside the viewer, not as its own runner entry", id)
+				}
+			}
+		}
+	})
+	t.Run("happy: Scenes lists the portable landing after the viewer", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 5 {
+			t.Fatal("catalog must hold the landing scene after the viewer")
+		}
+		if c[4].ID != "landing" || c[4].Title != "Landing" || c[4].Section != "Scenes" || c[4].Pkg != "./cmd/landing" {
+			t.Fatalf("fifth entry must be Landing under Scenes → ./cmd/landing, got %+v", c[4])
 		}
 	})
 	t.Run("happy: Scenes lists the one-shot gunfire after the landing, and CONFIG lists its tuner", func(t *testing.T) {
 		c := Catalog()
-		if len(c) < 5 {
+		if len(c) < 6 {
 			t.Fatal("catalog must hold the gunfire scene after the landing")
 		}
-		if c[4].ID != "gunfire" || c[4].Title != "Gunfire" || c[4].Section != "Scenes" || c[4].Pkg != "./cmd/gunfire" {
-			t.Fatalf("fifth entry must be Gunfire under Scenes → ./cmd/gunfire, got %+v", c[4])
+		if c[5].ID != "gunfire" || c[5].Title != "Gunfire" || c[5].Section != "Scenes" || c[5].Pkg != "./cmd/gunfire" {
+			t.Fatalf("sixth entry must be Gunfire under Scenes → ./cmd/gunfire, got %+v", c[5])
 		}
 		found := false
 		for _, e := range c {
@@ -498,11 +524,11 @@ func TestCatalog(t *testing.T) {
 	})
 	t.Run("happy: Scenes lists America right after the gunfire", func(t *testing.T) {
 		c := Catalog()
-		if len(c) < 6 {
+		if len(c) < 7 {
 			t.Fatal("catalog must hold the America scene after the gunfire")
 		}
-		if c[5].ID != "america" || c[5].Title != "America" || c[5].Section != "Scenes" || c[5].Pkg != "./cmd/america" {
-			t.Fatalf("sixth entry must be America under Scenes → ./cmd/america, got %+v", c[5])
+		if c[6].ID != "america" || c[6].Title != "America" || c[6].Section != "Scenes" || c[6].Pkg != "./cmd/america" {
+			t.Fatalf("seventh entry must be America under Scenes → ./cmd/america, got %+v", c[6])
 		}
 	})
 	t.Run("unhappy: America is a scene, not a screenplay, and never doubles up", func(t *testing.T) {
