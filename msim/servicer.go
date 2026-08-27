@@ -200,23 +200,13 @@ func servicerP63(locked bool) Script {
 		STORE:1107 VLOAD:1107 DOT:1109 SL1:1109 STORE:1111 VLOAD:1111
 		VXV:1113 VSL2:1113 STORE:1115 DLOAD:1115 DSU:1117 STORE:1119 CALL:1119`)...)
 
-	// --- post-integration housekeeping: copy cycle, thrust monitor, 1/ACCS
-	// SERVICER.agc L270-L372
-	s = append(s,
-		bas("SERVOUT", "COPYCYC", fSERV, 272, 800),
-		bas("SERVOUT", "DVMON", fSERV, 293, 500),
-		bas("SERVOUT", "1/ACCS-A", fSERV, 361, 4500), // DAP accel/jet parameters
-		bas("SERVOUT", "1/ACCS-B", fSERV, 361, 4000),
-		bas("SERVOUT", "AVGEXIT", fSERV, 370, 200),
-	)
-
-	// --- landing-radar nav-frame conversion (radar locked only): the HBEAM
-	// body→SM transform and the DELTAH computation. SERVICER.agc L1146-L1188.
-	// (The full position-update incorporation with its MUNGRAV re-call and
-	// weighting runs below 25,000 ft / after V57 — outside this window.)
-	// (The reasonableness test is skipped before HIGATE — L1190-L1193 — and
-	// the weighted incorporation with its MUNGRAV re-call needs measurements
-	// that only exist below 25,000 ft, so neither appears here.)
+	// --- R12, entered from MUNRETRN: the landing-radar nav-frame conversion
+	// (radar locked only) — the HBEAM body→SM transform and the DELTAH
+	// computation. SERVICER.agc L762-L821 gates, L1146-L1188 body. The READLR
+	// gate opens at the 50,000 ft ALTCRIT (35KCHK, L948), so this runs at the
+	// flight's ~34,000 ft. (The reasonableness test is skipped before HIGATE
+	// — L1190-L1193 — and the weighted incorporation with its MUNGRAV
+	// re-call waits for V57.)
 	if locked {
 		s = append(s, bas("LR-CONVERT", "UPDATCHK", fSERV, 1146, 300))
 		s = append(s, sec("LR-CONVERT", fSERV, `
@@ -227,6 +217,17 @@ func servicerP63(locked bool) Script {
 			DAD:1179 SL:1179 DMP:1182 VXSC:1182 DOT:1184 DSU:1184
 			STORE:1187 EXIT:1188`)...)
 	}
+
+	// --- CONTSERV → copy cycle → thrust monitor → 1/ACCS → AVGEXIT
+	// (SERVICER.agc L822-L829, L530-L542, L279-L320, L359-L372; the
+	// NOR29NOW state rebuild L855-L917 is absorbed in the EXEC residue)
+	s = append(s,
+		bas("SERVOUT", "COPYCYC", fSERV, 530, 800),
+		bas("SERVOUT", "DVMON", fSERV, 293, 500),
+		bas("SERVOUT", "1/ACCS-A", fSERV, 361, 4500), // DAP accel/jet parameters
+		bas("SERVOUT", "1/ACCS-B", fSERV, 361, 4000),
+		bas("SERVOUT", "AVGEXIT", fSERV, 370, 200),
+	)
 
 	// --- LUNLAND: guidance entry + GUILDENSTERN auto-modes monitor (R13)
 	// LUNAR_LANDING_GUIDANCE_EQUATIONS.agc L117-L246

@@ -138,11 +138,17 @@ Measured against the flight record:
 
 ## Known deviations and open questions
 
-- **LR gates above 25,000 ft**: LRHTASK's comment gates the altitude read
-  below 25k ft (L697-L701) and LRVJOB below 15k ft (L1508); the flight's
-  P63 alarms happened near 33k ft. [Cherry]'s job table and the [Outline]'s
-  locked-cycle map both put the radar gates in the P63 configuration, and
-  this sim follows them (they are the boundary-straddling core pressure).
+- **LR gates at ~34,000 ft — resolved in the code's favor**: LRHTASK's
+  comment says "below 25,000 ft" (L697-L701), but the actual gate is the
+  READLR flag, and R10,R11's 35KCHK tests `ALTCRIT` index 2 = **50KFT**
+  (L948): the altitude read was live at the flight's ~34k ft, as [Cherry]'s
+  job table and the [Outline]'s locked-cycle map assume. LRVJOB's velocity
+  gate (VALTCHK's |V| test) is looser ground; the sim keeps it per the
+  [Outline]'s cycle map, timed so its samples end at the boundary.
+- **NOR29NOW** (SERVICER.agc L855-L917, the HCALC/RN1/VN1 state rebuild,
+  ~28 interpretive ops) is not transcribed entry-by-entry; its cost is
+  absorbed by the `execResidueUS` calibration block, which exists for
+  exactly this class of un-transcribed housekeeping.
 - **MONDO cost** is at the documented envelope's floor (30 ms ≈ Eyles' +3%
   per cycle); the envelope's upper half produces the same alarms earlier.
 - The ENTR sub-second phases (.985) and the theft sweep's free parameters
