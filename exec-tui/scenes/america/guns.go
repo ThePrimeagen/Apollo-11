@@ -2,7 +2,6 @@ package america
 
 import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/shotgun"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
@@ -75,41 +74,13 @@ func (g *gunner) Update(dt float64) {
 	}
 }
 
-// fire pulls this talon's trigger: the active blast's muzzle moves to
-// this gun's barrel tip on the stage, aimed along this gun's heading,
-// and the blast bursts there — the same active-config squeeze the
-// standalone shotgun plays.
+// fire pulls this talon's trigger: one shot from the mounted gun's
+// barrel tip on this gun's own blast — the shotgun component owns the
+// squeeze, the gunner only says when.
 func (g *gunner) fire() {
-	gx, gy, on := g.mount()
-	if !on || g.gun.Blast == nil || g.w < 1 || g.h < 1 {
-		return
+	if gx, gy, on := g.mount(); on {
+		_ = g.gun.FireFrom(gx, gy)
 	}
-	heading := g.gun.Heading()
-	body := g.gun.Frame(heading)
-	if body.Width < 1 || body.Height < 1 {
-		return
-	}
-	mx, my := shotgun.Muzzle(body, heading)
-	c := gunfire.ActiveBlast()
-	c.Heading = heading
-	c.MuzzleX = clampFrac((float64(gx+mx) + 0.5) / float64(g.w))
-	c.MuzzleY = clampFrac((float64(gy+my) + 0.5) / float64(g.h))
-	if err := gunfire.UseBlast(c); err != nil {
-		return
-	}
-	_ = g.gun.Blast.FireAt(heading)
-}
-
-// clampFrac pins a stage fraction inside 0..1 — a barrel poking off
-// the stage still fires from the edge.
-func clampFrac(v float64) float64 {
-	if v < 0 {
-		return 0
-	}
-	if v > 1 {
-		return 1
-	}
-	return v
 }
 
 // Render paints the mounted gun over the talon, then whatever flame
