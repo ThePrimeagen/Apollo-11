@@ -26,7 +26,7 @@ components/   everything a scene puts together
   moon/       Moon (the reusable pixelated disc) + Orbit (the craft circling it)
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
-  dsky/       the DSKY panel as a scene component (right-edge dock wipe)
+  dsky/       the DSKY panel as a scene component (docked whole, no entrance)
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + Compose
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
