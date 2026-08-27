@@ -14,6 +14,7 @@ package main
 // always exactly window-height lines.
 
 import (
+	"fmt"
 	"math"
 	"path/filepath"
 	"regexp"
@@ -22,6 +23,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 )
 
@@ -247,11 +249,15 @@ func TestAmericaDemoHouseRules(t *testing.T) {
 }
 
 func TestAmericaDemoKnobs(t *testing.T) {
-	t.Run("happy: the panel opens on the fast stock — a 2s fade, a 4s crossing, the full flight", func(t *testing.T) {
+	t.Run("happy: the panel opens on the fast stock — timing, flight path, and the talon guns", func(t *testing.T) {
 		v := ansiPat.ReplaceAllString(newModel(0).View().Content, "")
 		for _, want := range []string{
 			"flag fade", "eagle delay", "eagle cross", "eagle start", "eagle end",
+			"left shots", "left aim", "right shots", "right aim",
 			"  2.000", "  4.000", "  0.000", "  1.000",
+			fmt.Sprintf("%7d", america.StockShots),
+			fmt.Sprintf("%7s", string(america.StockLeftAim)),
+			fmt.Sprintf("%7s", string(america.StockRightAim)),
 		} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the knob panel is missing %q:\n%s", want, v)
@@ -277,31 +283,22 @@ func TestAmericaDemoKnobs(t *testing.T) {
 			t.Fatal("the cursor must open on the flag fade knob")
 		}
 	})
-	t.Run("happy: j and k walk the cursor over the five knobs with wrap", func(t *testing.T) {
+	t.Run("happy: j and k walk the cursor over the nine knobs with wrap", func(t *testing.T) {
 		m := newModel(0)
-		m = press(m, runeKey('j'))
-		if m.cursor != america.KnobDelay {
-			t.Fatalf("j must land on the delay knob, got %d", m.cursor)
+		walk := []america.Knob{
+			america.KnobDelay, america.KnobCross, america.KnobStart, america.KnobEnd,
+			america.KnobLeftShots, america.KnobLeftAim, america.KnobRightShots, america.KnobRightAim,
+			america.KnobFade,
 		}
-		m = press(m, runeKey('j'))
-		if m.cursor != america.KnobCross {
-			t.Fatalf("j again must land on the cross knob, got %d", m.cursor)
-		}
-		m = press(m, runeKey('j'))
-		if m.cursor != america.KnobStart {
-			t.Fatalf("j again must land on the start knob, got %d", m.cursor)
-		}
-		m = press(m, runeKey('j'))
-		if m.cursor != america.KnobEnd {
-			t.Fatalf("j again must land on the end knob, got %d", m.cursor)
-		}
-		m = press(m, runeKey('j'))
-		if m.cursor != america.KnobFade {
-			t.Fatalf("j past the last knob must wrap to the fade, got %d", m.cursor)
+		for _, want := range walk {
+			m = press(m, runeKey('j'))
+			if m.cursor != want {
+				t.Fatalf("j must land on knob %d, got %d", want, m.cursor)
+			}
 		}
 		m = press(m, runeKey('k'))
-		if m.cursor != america.KnobEnd {
-			t.Fatalf("k from the top must wrap to the end, got %d", m.cursor)
+		if m.cursor != america.KnobRightAim {
+			t.Fatalf("k from the top must wrap to the right aim, got %d", m.cursor)
 		}
 	})
 	t.Run("happy: h and l nudge the selected knob one step at a time", func(t *testing.T) {
@@ -345,6 +342,38 @@ func TestAmericaDemoKnobs(t *testing.T) {
 		m = press(m, runeKey('l'))
 		if got := m.show.Cfg.EagleEnd; got != america.EndPoint {
 			t.Fatalf("l on the stock end must hold at %v, got %v", america.EndPoint, got)
+		}
+	})
+	t.Run("happy: the gun knobs count shells and walk the compass", func(t *testing.T) {
+		m := newModel(0)
+		for i := 0; i < 5; i++ {
+			m = press(m, runeKey('j'))
+		}
+		m = press(m, runeKey('l'))
+		if got := m.show.Cfg.LeftShots; got != america.StockShots+1 {
+			t.Fatalf("l on the left shots must add a shell, got %d", got)
+		}
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('l'))
+		if got := m.show.Cfg.LeftAim; got != sprite.W {
+			t.Fatalf("l on the stock %s aim must step clockwise to W, got %s", america.StockLeftAim, got)
+		}
+		m = press(m, runeKey('h'))
+		m = press(m, runeKey('h'))
+		if got := m.show.Cfg.LeftAim; got != sprite.S {
+			t.Fatalf("h twice must step back to S, got %s", got)
+		}
+	})
+	t.Run("unhappy: the shell counts never go negative", func(t *testing.T) {
+		m := newModel(0)
+		for i := 0; i < 7; i++ {
+			m = press(m, runeKey('j'))
+		}
+		for i := 0; i < america.StockShots+2; i++ {
+			m = press(m, runeKey('h'))
+		}
+		if got := m.show.Cfg.RightShots; got != 0 {
+			t.Fatalf("h below zero must hold the right shots at 0, got %d", got)
 		}
 	})
 	t.Run("happy: a nudged replay plays the new knobs", func(t *testing.T) {

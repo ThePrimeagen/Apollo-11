@@ -1,21 +1,26 @@
 package america
 
-// Tests written FIRST: Config is the five live knobs — how long the
+// Tests written FIRST: Config is the nine live knobs — how long the
 // flag takes to fade in from black, when the eagle enters, how long
-// its crossing takes (the eagle's speed), and where the flight starts
-// and ends as fractions of the full off-right-to-off-left span. The
-// time knobs nudge 50ms at a time, the path knobs 0.05 of the span,
-// the same way the landing scene tunes. Play rebuilds the scene from
-// the current knobs so iteration does not require a restart.
-// Save/Load round-trip the JSON next to the scene; Use is what New
-// plays on the first curtain; a file missing a key keeps that knob at
-// stock.
+// its crossing takes (the eagle's speed), where the flight starts and
+// ends as fractions of the full off-right-to-off-left span, and the
+// talon shotguns: how many times the gun in each talon fires across
+// one crossing, and which of the eight compass points each barrel
+// aims. The time knobs nudge 50ms at a time, the path knobs 0.05 of
+// the span, the shot counts one shell, the aims one compass point
+// with wrap. Play rebuilds the scene from the current knobs so
+// iteration does not require a restart. Save/Load round-trip the JSON
+// next to the scene; Use is what New plays on the first curtain; a
+// file missing a key keeps that knob at stock.
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
 func TestConfig(t *testing.T) {
@@ -39,8 +44,35 @@ func TestConfig(t *testing.T) {
 		if StepPoint != 0.050 {
 			t.Fatalf("path step %v, want 0.05 of the span", StepPoint)
 		}
-		if KnobCount != 5 {
-			t.Fatalf("KnobCount %d, want 5 (flag fade, eagle delay, eagle cross, eagle start, eagle end)", KnobCount)
+		if c.LeftShots != StockShots || c.RightShots != StockShots {
+			t.Fatalf("shots %d/%d, want the stock %d each", c.LeftShots, c.RightShots, StockShots)
+		}
+		if StockShots < 1 {
+			t.Fatalf("StockShots = %d — the stock birds fires on its way across", StockShots)
+		}
+		if c.LeftAim != StockLeftAim || c.RightAim != StockRightAim {
+			t.Fatalf("aims %s/%s, want the stock %s/%s", c.LeftAim, c.RightAim, StockLeftAim, StockRightAim)
+		}
+		if KnobCount != 9 {
+			t.Fatalf("KnobCount %d, want 9 (fade, delay, cross, start, end, left shots, left aim, right shots, right aim)", KnobCount)
+		}
+	})
+	t.Run("happy: Display reads every knob in its own language", func(t *testing.T) {
+		c := DefaultConfig()
+		if got := c.Display(KnobFade); got != "  2.000s" {
+			t.Fatalf("Display(fade) %q, want %q", got, "  2.000s")
+		}
+		if got := c.Display(KnobStart); got != "  0.000" {
+			t.Fatalf("Display(start) %q, want %q — a fraction, not seconds", got, "  0.000")
+		}
+		if got := c.Display(KnobLeftShots); got != fmt.Sprintf("%7d", StockShots) {
+			t.Fatalf("Display(left shots) %q, want a bare count", got)
+		}
+		if got := c.Display(KnobRightAim); got != fmt.Sprintf("%7s", string(StockRightAim)) {
+			t.Fatalf("Display(right aim) %q, want the compass point", got)
+		}
+		if got := c.Display(KnobCount); got != "" {
+			t.Fatalf("an off-panel knob displays %q, want nothing", got)
 		}
 	})
 	t.Run("happy: every knob carries a label and a unit and reads its own value", func(t *testing.T) {
@@ -70,6 +102,12 @@ func TestConfig(t *testing.T) {
 		}
 		if got := c.Value(KnobEnd); got != c.EagleEnd {
 			t.Fatalf("Value(end) %v, want %v", got, c.EagleEnd)
+		}
+		if got := c.Value(KnobLeftShots); got != float64(c.LeftShots) {
+			t.Fatalf("Value(left shots) %v, want %v", got, float64(c.LeftShots))
+		}
+		if got := c.Value(KnobRightShots); got != float64(c.RightShots) {
+			t.Fatalf("Value(right shots) %v, want %v", got, float64(c.RightShots))
 		}
 		for _, k := range []Knob{KnobFade, KnobDelay, KnobCross} {
 			if KnobUnit(k) != "s" {
@@ -114,6 +152,31 @@ func TestConfig(t *testing.T) {
 		if math.Abs(c.EagleEnd-(EndPoint-StepPoint)) > 1e-9 {
 			t.Fatalf("end after -0.05 is %v, want %v", c.EagleEnd, EndPoint-StepPoint)
 		}
+		c.Nudge(KnobLeftShots, 1)
+		if c.LeftShots != StockShots+1 {
+			t.Fatalf("left shots after +1 is %d, want %d", c.LeftShots, StockShots+1)
+		}
+		c.Nudge(KnobRightShots, -1)
+		if c.RightShots != StockShots-1 {
+			t.Fatalf("right shots after -1 is %d, want %d", c.RightShots, StockShots-1)
+		}
+	})
+	t.Run("happy: the aim knobs walk the compass and wrap at the ends", func(t *testing.T) {
+		c := DefaultConfig()
+		c.LeftAim = sprite.NW
+		c.Nudge(KnobLeftAim, 1)
+		if c.LeftAim != sprite.N {
+			t.Fatalf("aim after NW+1 is %s, want the wrap to N", c.LeftAim)
+		}
+		c.Nudge(KnobLeftAim, -1)
+		if c.LeftAim != sprite.NW {
+			t.Fatalf("aim after N-1 is %s, want the wrap back to NW", c.LeftAim)
+		}
+		c.RightAim = sprite.SE
+		c.Nudge(KnobRightAim, 1)
+		if c.RightAim != sprite.S {
+			t.Fatalf("aim after SE+1 is %s, want S — one compass point clockwise", c.RightAim)
+		}
 	})
 	t.Run("unhappy: Nudge will not walk a knob past its rails, and a bad cursor is a no-op", func(t *testing.T) {
 		c := DefaultConfig()
@@ -152,6 +215,16 @@ func TestConfig(t *testing.T) {
 		if math.Abs(c.EagleEnd-(0.5+StepPoint)) > 1e-9 {
 			t.Fatalf("end %v, want %v — the end never falls onto the start", c.EagleEnd, 0.5+StepPoint)
 		}
+		c.LeftShots = 0
+		c.Nudge(KnobLeftShots, -1)
+		if c.LeftShots != 0 {
+			t.Fatalf("left shots %d, want 0 — a silent gun is allowed, a negative one is not", c.LeftShots)
+		}
+		c.RightShots = 0
+		c.Nudge(KnobRightShots, -1)
+		if c.RightShots != 0 {
+			t.Fatalf("right shots %d, want 0 — a silent gun is allowed, a negative one is not", c.RightShots)
+		}
 		before := c
 		c.Nudge(-1, 1)
 		c.Nudge(99, 1)
@@ -159,7 +232,7 @@ func TestConfig(t *testing.T) {
 			t.Fatalf("a bad cursor must not change the knobs, got %+v", c)
 		}
 	})
-	t.Run("happy: Save then Load round-trips the five knobs", func(t *testing.T) {
+	t.Run("happy: Save then Load round-trips the nine knobs", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "america.json")
 		c := DefaultConfig()
 		c.FadeSeconds = 2.5
@@ -167,6 +240,10 @@ func TestConfig(t *testing.T) {
 		c.CrossSeconds = 6.25
 		c.EagleStart = 0.25
 		c.EagleEnd = 0.75
+		c.LeftShots = 5
+		c.LeftAim = sprite.NW
+		c.RightShots = 0
+		c.RightAim = sprite.E
 		if err := c.Save(path); err != nil {
 			t.Fatalf("Save: %v", err)
 		}
@@ -180,6 +257,10 @@ func TestConfig(t *testing.T) {
 			math.Abs(got.EagleStart-c.EagleStart) > 1e-9 ||
 			math.Abs(got.EagleEnd-c.EagleEnd) > 1e-9 {
 			t.Fatalf("round-trip %+v, want %+v", got, c)
+		}
+		if got.LeftShots != c.LeftShots || got.LeftAim != c.LeftAim ||
+			got.RightShots != c.RightShots || got.RightAim != c.RightAim {
+			t.Fatalf("gun round-trip %+v, want %+v", got, c)
 		}
 	})
 	t.Run("happy: a file missing a key keeps that knob at stock", func(t *testing.T) {
@@ -199,6 +280,10 @@ func TestConfig(t *testing.T) {
 		}
 		if got.EagleStart != StartPoint || got.EagleEnd != EndPoint {
 			t.Fatalf("missing path keys loaded %v..%v, want the stock %v..%v", got.EagleStart, got.EagleEnd, StartPoint, EndPoint)
+		}
+		if got.LeftShots != StockShots || got.LeftAim != StockLeftAim ||
+			got.RightShots != StockShots || got.RightAim != StockRightAim {
+			t.Fatalf("missing gun keys loaded %+v, want stock shots and aims", got)
 		}
 	})
 	t.Run("happy: LoadOrDefault is stock when the file is missing, and Use is that config", func(t *testing.T) {
@@ -247,6 +332,9 @@ func TestConfig(t *testing.T) {
 			"an end past the span":    `{"eagleEnd":1.2}`,
 			"an end behind the start": `{"eagleStart":0.8,"eagleEnd":0.4}`,
 			"an end on the start":     `{"eagleStart":0.5,"eagleEnd":0.5}`,
+			"a negative shell count":  `{"leftShots":-1}`,
+			"an aim off the compass":  `{"rightAim":"UP"}`,
+			"an empty aim":            `{"leftAim":""}`,
 		} {
 			bad := filepath.Join(t.TempDir(), "path.json")
 			if err := os.WriteFile(bad, []byte(body), 0o644); err != nil {
@@ -271,6 +359,16 @@ func TestConfig(t *testing.T) {
 		backPath.EagleEnd = 0.1
 		if err := backPath.Save(filepath.Join(t.TempDir(), "z.json")); err == nil {
 			t.Fatal("Save must refuse a backwards flight path")
+		}
+		negShots := DefaultConfig()
+		negShots.RightShots = -2
+		if err := negShots.Save(filepath.Join(t.TempDir(), "w.json")); err == nil {
+			t.Fatal("Save must refuse a negative shell count")
+		}
+		badAim := DefaultConfig()
+		badAim.LeftAim = sprite.Heading("XX")
+		if err := Use(badAim); err == nil {
+			t.Fatal("Use must reject an aim off the compass")
 		}
 		before := Active()
 		badUse := DefaultConfig()

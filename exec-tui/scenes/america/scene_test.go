@@ -97,6 +97,38 @@ func leftmost(cells [][2]int) int {
 	return l
 }
 
+// gunCells collects the cells wearing the shotgun's gold — the
+// trigger guard's 178. Neither the flag, the eagle, nor the blast
+// ever wears it, so on this stage those cells are the talon guns.
+func gunCells(scr *screenplay.Screen) [][2]int {
+	var out [][2]int
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			fg, bg := inkAt(scr, x, y)
+			if fg == 178 || bg == 178 {
+				out = append(out, [2]int{y, x})
+			}
+		}
+	}
+	return out
+}
+
+// blastCells collects the cells wearing the muzzle flame's fresh
+// tongues — the Doom ramp's 226, 208 and 196. The finished flag, the
+// eagle and the guns never wear them.
+func blastCells(scr *screenplay.Screen) [][2]int {
+	var out [][2]int
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			fg, _ := inkAt(scr, x, y)
+			if fg == 226 || fg == 208 || fg == 196 {
+				out = append(out, [2]int{y, x})
+			}
+		}
+	}
+	return out
+}
+
 func starCount(scr *screenplay.Screen) int {
 	n := 0
 	for y := 0; y < stageH; y++ {
@@ -416,6 +448,99 @@ func TestAmericaFlightPath(t *testing.T) {
 		tick(sc, 1.2)
 		if len(eagleCells(paint(sc))) == 0 {
 			t.Fatal("a backwards path must fall back to the stock flight, not a dead sky")
+		}
+	})
+}
+
+// TestAmericaArmedEagle: the bird carries a shotgun component in each
+// talon, painted on top of the claws, and each gun fires the gunfire
+// particle blast its configured number of times across the crossing,
+// aimed at its configured compass point.
+func TestAmericaArmedEagle(t *testing.T) {
+	t.Cleanup(Reset)
+	fast := func(leftShots, rightShots int) Config {
+		cfg := DefaultConfig()
+		cfg.FadeSeconds = 0.2
+		cfg.EagleDelay = 0.2
+		cfg.CrossSeconds = 2.0
+		cfg.LeftShots = leftShots
+		cfg.RightShots = rightShots
+		return cfg
+	}
+	t.Run("happy: two shotguns ride the talons across the stage", func(t *testing.T) {
+		t.Cleanup(Reset)
+		if err := Use(fast(1, 1)); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.2+0.5)
+		first := gunCells(paint(sc))
+		if len(first) == 0 {
+			t.Fatal("mid-crossing the talon guns must be painted on the bird")
+		}
+		l1 := leftmost(first)
+		tick(sc, 0.5)
+		second := gunCells(paint(sc))
+		if len(second) == 0 {
+			t.Fatal("the guns must stay mounted through the crossing")
+		}
+		if l2 := leftmost(second); l2 >= l1 {
+			t.Fatalf("the guns must ride the bird leftward: leftmost went %d -> %d", l1, l2)
+		}
+	})
+	t.Run("happy: each gun fires its blast on schedule across the crossing", func(t *testing.T) {
+		t.Cleanup(Reset)
+		if err := Use(fast(2, 2)); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.2+0.3)
+		if got := blastCells(paint(sc)); len(got) != 0 {
+			t.Fatalf("before the first scheduled shot the sky holds %d flame cells — the guns fire on schedule, not at the wing", len(got))
+		}
+		tick(sc, 0.3)
+		if got := blastCells(paint(sc)); len(got) == 0 {
+			t.Fatal("past the first scheduled shot the muzzle flame must be in the air")
+		}
+	})
+	t.Run("unhappy: zero shells is a silent flyover — mounted guns, no flame", func(t *testing.T) {
+		t.Cleanup(Reset)
+		if err := Use(fast(0, 0)); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		at := 0.0
+		for target := 0.4; target <= 2.8; target += 0.4 {
+			tick(sc, target-at)
+			at = target
+			if got := blastCells(paint(sc)); len(got) != 0 {
+				t.Fatalf("at %.1fs a zero-shell gun threw %d flame cells", target, len(got))
+			}
+		}
+	})
+	t.Run("unhappy: before the delay the armed bird is fully off stage — guns too", func(t *testing.T) {
+		t.Cleanup(Reset)
+		cfg := fast(1, 1)
+		cfg.EagleDelay = 1.5
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 1.0)
+		if got := gunCells(paint(sc)); len(got) != 0 {
+			t.Fatalf("before the delay %d gun cells are on stage — the guns wait with the bird", len(got))
 		}
 	})
 }
