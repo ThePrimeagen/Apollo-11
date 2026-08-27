@@ -1,0 +1,12 @@
+{
+  "count": 18,
+  "puffs": 4,
+  "radius": 6,
+  "spread": 10,
+  "field": 6,
+  "thinAt": 2,
+  "thickAt": 5,
+  "thinFG": 250,
+  "midFG": 252,
+  "thickFG": 255
+}
