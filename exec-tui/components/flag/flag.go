@@ -1,12 +1,17 @@
 // Package flag is the full-screened American flag as a scene
 // component: thirteen stripes, the blue canton over the top seven,
 // and all fifty stars, painted across every cell of the stage. The
-// flag fades in from pure black — Start fixes the layout, and every
-// frame each cell walks its own color ramp from black toward its
-// finished ink, reaching full color at FadeSeconds. Only the colors
-// move; the field itself holds perfectly still. The fade clock rides
-// across restarts, so a resize repaints the layout without ever
-// falling back to black.
+// field is laid out on half rows, so the stripes are mathematically
+// even at any stage height: each stripe spans 2h/13 half-rows give or
+// take one, and a boundary that falls inside a cell paints an
+// upper-half block over the lower stripe's background. The canton
+// bottom lands exactly on the seventh stripe boundary, and only fully
+// blue rows carry stars. The flag fades in from pure black — Start
+// fixes the layout, and every frame each cell walks its own color
+// ramp from black toward its finished ink, reaching full color at
+// FadeSeconds. Only the colors move; the field itself holds perfectly
+// still. The fade clock rides across restarts, so a resize repaints
+// the layout without ever falling back to black.
 package flag
 
 import (
@@ -55,13 +60,20 @@ func CantonCols(w int) int {
 	return int(math.Round(2 * float64(w) / 5))
 }
 
-// CantonRows is how many rows the blue field spans on an h-tall
-// stage: the top seven of the thirteen stripes.
-func CantonRows(h int) int {
+// cantonHalfRows is how deep the blue field runs in half-rows: the
+// top seven of the thirteen stripes, exactly.
+func cantonHalfRows(h int) int {
 	if h < 1 {
 		return 0
 	}
-	return (CantonStripes*h + Stripes - 1) / Stripes
+	return (2*CantonStripes*h + Stripes - 1) / Stripes
+}
+
+// CantonRows is how many whole rows of the stage are fully blue —
+// the rows that can carry stars. A canton that ends mid-cell keeps
+// its split row for the stripes.
+func CantonRows(h int) int {
+	return cantonHalfRows(h) / 2
 }
 
 // The cell materials the layout is made of.
@@ -69,8 +81,14 @@ const (
 	kindRed = iota
 	kindWhite
 	kindBlue
-	kindStar
 )
+
+// cellKind is one cell of the layout: the material of each half-row,
+// and whether a star rides the cell.
+type cellKind struct {
+	up, low uint8
+	star    bool
+}
 
 // Flag is the component. Start lays the field out for its stage,
 // Update runs the fade clock, Render paints the layout at this
@@ -78,7 +96,7 @@ const (
 type Flag struct {
 	fade   float64
 	clock  float64
-	kinds  [][]uint8
+	kinds  [][]cellKind
 	w, h   int
 	staged bool
 }
@@ -149,53 +167,82 @@ func shade(ramp []int, frac float64) int {
 	return ramp[int(math.Round(frac*float64(len(ramp)-1)))]
 }
 
-// cellFor is one cell of the flag at a fade fraction.
-func cellFor(kind uint8, frac float64) sprite.Cell {
+// rampFor is the fade ramp a material walks.
+func rampFor(kind uint8) []int {
 	switch kind {
 	case kindWhite:
-		return sprite.Cell{Ch: ' ', FG: -1, BG: shade(whiteRamp, frac)}
+		return whiteRamp
 	case kindBlue:
-		return sprite.Cell{Ch: ' ', FG: -1, BG: shade(blueRamp, frac)}
-	case kindStar:
-		return sprite.Cell{Ch: StarGlyph, FG: shade(starRamp, frac), BG: shade(blueRamp, frac)}
+		return blueRamp
 	default:
-		return sprite.Cell{Ch: ' ', FG: -1, BG: shade(redRamp, frac)}
+		return redRamp
 	}
 }
 
-// layout fixes which material every cell of a w×h stage wears:
-// thirteen stripes top to bottom, red first and red last, the blue
-// canton over the union's corner, and the fifty stars on their
-// staggered grid.
-func layout(w, h int) [][]uint8 {
-	kinds := make([][]uint8, h)
-	cw, ch := CantonCols(w), CantonRows(h)
+// cellFor is one cell of the flag at a fade fraction. Halves that
+// fade to the same color collapse into a plain field cell; a stripe
+// boundary inside the cell paints the upper half over the lower
+// half's background.
+func cellFor(k cellKind, frac float64) sprite.Cell {
+	if k.star {
+		return sprite.Cell{Ch: StarGlyph, FG: shade(starRamp, frac), BG: shade(blueRamp, frac)}
+	}
+	up := shade(rampFor(k.up), frac)
+	low := shade(rampFor(k.low), frac)
+	if up == low {
+		return sprite.Cell{Ch: ' ', FG: -1, BG: up}
+	}
+	return sprite.Cell{Ch: '▀', FG: up, BG: low}
+}
+
+// halfStripe is the stripe one half-row belongs to: half-rows divide
+// 13 ways as evenly as integer math allows, so no stripe is ever more
+// than one half-row taller than another.
+func halfStripe(hr, h int) int {
+	return hr * Stripes / (2 * h)
+}
+
+// fieldKind is the material of one half-row at one column: canton
+// blue over the union's corner — cut exactly at the seventh stripe
+// boundary — then red and white stripes, red first.
+func fieldKind(hr, c, h, cw int) uint8 {
+	if c < cw && hr*Stripes < 2*CantonStripes*h {
+		return kindBlue
+	}
+	if halfStripe(hr, h)%2 == 0 {
+		return kindRed
+	}
+	return kindWhite
+}
+
+// layout fixes which materials every cell of a w×h stage wears, half
+// a row at a time, and settles the fifty stars onto the fully blue
+// rows on their staggered grid.
+func layout(w, h int) [][]cellKind {
+	kinds := make([][]cellKind, h)
+	cw := CantonCols(w)
 	for r := 0; r < h; r++ {
-		kinds[r] = make([]uint8, w)
-		stripe := r * Stripes / h
+		kinds[r] = make([]cellKind, w)
 		for c := 0; c < w; c++ {
-			switch {
-			case r < ch && c < cw:
-				kinds[r][c] = kindBlue
-			case stripe%2 == 0:
-				kinds[r][c] = kindRed
-			default:
-				kinds[r][c] = kindWhite
+			kinds[r][c] = cellKind{
+				up:  fieldKind(2*r, c, h, cw),
+				low: fieldKind(2*r+1, c, h, cw),
 			}
 		}
 	}
-	for _, rc := range starCells(cw, ch) {
-		if rc[0] >= 0 && rc[0] < h && rc[1] >= 0 && rc[1] < w && rc[0] < ch && rc[1] < cw {
-			kinds[rc[0]][rc[1]] = kindStar
+	cb := CantonRows(h)
+	for _, rc := range starCells(cw, cb) {
+		if rc[0] >= 0 && rc[0] < cb && rc[1] >= 0 && rc[1] < cw {
+			kinds[rc[0]][rc[1]].star = true
 		}
 	}
 	return kinds
 }
 
-// starCells is the fifty-star stagger inside a cw×ch canton: nine
-// rows alternating six and five, the odd rows offset half a step. On
-// a canton too small to keep them apart, stars land on shared cells
-// and simply merge.
+// starCells is the fifty-star stagger inside the canton's cw columns
+// and its ch fully blue rows: nine rows alternating six and five, the
+// odd rows offset half a step. On a canton too small to keep them
+// apart, stars land on shared cells and simply merge.
 func starCells(cw, ch int) [][2]int {
 	var out [][2]int
 	if cw < 1 || ch < 1 {
