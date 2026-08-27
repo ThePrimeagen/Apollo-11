@@ -5,11 +5,12 @@ package skies
 // when the flag begins its crossfade and how long that walk takes,
 // when the eagle enters, how long its crossing takes (the eagle's
 // speed), where the flight starts and ends as fractions of the full
-// off-right-to-off-left span, and the talon shotguns: how many shells
-// each gun fires and at what rate (shots per second), plus which
-// compass point each barrel aims. The time knobs nudge 50ms, the
-// path knobs 0.05 of the span, the shot counts one shell, the rates
-// 0.25 /s, the aims one compass point with wrap.
+// off-right-to-off-left span, and the talon shotguns: whether each
+// gun is mounted, how many shells it fires and at what rate (shots
+// per second), plus which compass point each barrel aims. The time
+// knobs nudge 50ms, the path knobs 0.05 of the span, the on/off
+// knobs flip a switch, the shot counts one shell, the rates 0.25 /s,
+// the aims one compass point with wrap.
 
 import (
 	"fmt"
@@ -51,11 +52,17 @@ func TestConfig(t *testing.T) {
 		if c.LeftAim != StockLeftAim || c.RightAim != StockRightAim {
 			t.Fatalf("aims %s/%s, want the stock %s/%s", c.LeftAim, c.RightAim, StockLeftAim, StockRightAim)
 		}
+		if !c.LeftOn || !c.RightOn {
+			t.Fatalf("on %v/%v, want both mounted", c.LeftOn, c.RightOn)
+		}
+		if !StockLeftOn || !StockRightOn {
+			t.Fatal("stock guns start mounted")
+		}
 		if StockLeftAim != sprite.W || StockRightAim != sprite.E {
 			t.Fatalf("stock aims %s/%s, want W/E", StockLeftAim, StockRightAim)
 		}
-		if KnobCount != 13 {
-			t.Fatalf("KnobCount %d, want 13 (sky rise, flag delay, flag fade, eagle, guns)", KnobCount)
+		if KnobCount != 15 {
+			t.Fatalf("KnobCount %d, want 15 (sky rise, flag delay, flag fade, eagle, guns on/off/aim)", KnobCount)
 		}
 		if c.FlagDelay != FlagDelaySeconds || c.FlagFade != FlagFadeSeconds {
 			t.Fatalf("flag %v/%v, want delay %v fade %v", c.FlagDelay, c.FlagFade, FlagDelaySeconds, FlagFadeSeconds)
@@ -81,11 +88,24 @@ func TestConfig(t *testing.T) {
 		if got := c.Display(KnobRightAim); got != fmt.Sprintf("%7s", string(StockRightAim)) {
 			t.Fatalf("Display(right aim) %q, want the compass point", got)
 		}
+		if got := c.Display(KnobLeftOn); got != fmt.Sprintf("%7s", "on") {
+			t.Fatalf("Display(left on) %q, want on", got)
+		}
+		c.RightOn = false
+		if got := c.Display(KnobRightOn); got != fmt.Sprintf("%7s", "off") {
+			t.Fatalf("Display(right on) %q, want off", got)
+		}
 		if got := KnobLabel(KnobFlagDelay); got != "flag delay" {
 			t.Fatalf("flag delay label %q", got)
 		}
 		if got := KnobLabel(KnobFlagFade); got != "flag fade" {
 			t.Fatalf("flag fade label %q", got)
+		}
+		if got := KnobLabel(KnobLeftOn); got != "left on" {
+			t.Fatalf("left on label %q", got)
+		}
+		if got := KnobLabel(KnobRightOn); got != "right on" {
+			t.Fatalf("right on label %q", got)
 		}
 		if got := c.Display(KnobCount); got != "" {
 			t.Fatalf("an off-panel knob displays %q, want nothing", got)
@@ -131,7 +151,7 @@ func TestConfig(t *testing.T) {
 }
 
 func TestNudge(t *testing.T) {
-	t.Run("happy: time, path, shots, rates, and aims each walk their own grid", func(t *testing.T) {
+	t.Run("happy: time, path, shots, rates, aims, and on/off each walk their own grid", func(t *testing.T) {
 		c := DefaultConfig()
 		c.Nudge(KnobRise, 1)
 		if math.Abs(c.RiseSeconds-(RiseSeconds+StepSeconds)) > 1e-9 {
@@ -157,6 +177,15 @@ func TestNudge(t *testing.T) {
 		if c.LeftAim != sprite.NW {
 			t.Fatalf("left aim %s after +1 from W, want NW", c.LeftAim)
 		}
+		c.Nudge(KnobLeftOn, -1)
+		if c.LeftOn {
+			t.Fatal("h on a mounted gun must switch it off")
+		}
+		c.Nudge(KnobRightOn, -1)
+		c.Nudge(KnobRightOn, 1)
+		if !c.RightOn {
+			t.Fatal("l on an unmounted gun must switch it on")
+		}
 	})
 	t.Run("unhappy: times, paths, shots, and rates never go past their rails", func(t *testing.T) {
 		c := DefaultConfig()
@@ -179,6 +208,16 @@ func TestNudge(t *testing.T) {
 		c.Nudge(KnobRightRate, -1)
 		if c.RightRate != 0 {
 			t.Fatalf("rate %v, want 0", c.RightRate)
+		}
+		c.LeftOn = false
+		c.Nudge(KnobLeftOn, -1)
+		if c.LeftOn {
+			t.Fatal("h on an already-off gun must leave it off")
+		}
+		c.RightOn = true
+		c.Nudge(KnobRightOn, 1)
+		if !c.RightOn {
+			t.Fatal("l on an already-on gun must leave it on")
 		}
 	})
 }
@@ -203,6 +242,8 @@ func TestUseLoadSave(t *testing.T) {
 		c.RiseSeconds = 1.5
 		c.LeftRate = 3.25
 		c.EagleEnd = 0.7
+		c.LeftOn = false
+		c.RightAim = sprite.N
 		path := filepath.Join(t.TempDir(), "skies.json")
 		if err := c.Save(path); err != nil {
 			t.Fatal(err)
@@ -213,6 +254,9 @@ func TestUseLoadSave(t *testing.T) {
 		}
 		if math.Abs(got.RiseSeconds-1.5) > 1e-9 || math.Abs(got.LeftRate-3.25) > 1e-9 || math.Abs(got.EagleEnd-0.7) > 1e-9 {
 			t.Fatalf("loaded %+v, want the saved knobs", got)
+		}
+		if got.LeftOn || got.RightAim != sprite.N {
+			t.Fatalf("loaded guns on=%v aim=%s, want left off aimed N on the right", got.LeftOn, got.RightAim)
 		}
 	})
 	t.Run("happy: a missing file is stock, not an error", func(t *testing.T) {
@@ -250,6 +294,9 @@ func TestUseLoadSave(t *testing.T) {
 		}
 		if got.LeftRate != StockRate {
 			t.Fatalf("missing rate became %v, want stock", got.LeftRate)
+		}
+		if !got.LeftOn || !got.RightOn {
+			t.Fatalf("missing on/off became %v/%v, want both mounted", got.LeftOn, got.RightOn)
 		}
 	})
 }

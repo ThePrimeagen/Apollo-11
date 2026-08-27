@@ -207,10 +207,11 @@ func TestSkiesDemoKnobs(t *testing.T) {
 		v := ansiPat.ReplaceAllString(newModel(0).View().Content, "")
 		for _, want := range []string{
 			"sky rise", "flag delay", "flag fade", "eagle delay", "eagle cross", "eagle start", "eagle end",
-			"left shots", "left rate", "left aim", "right shots", "right rate", "right aim",
+			"left on", "left shots", "left rate", "left aim", "right on", "right shots", "right rate", "right aim",
 			fmt.Sprintf("%7.3f", skies.RiseSeconds),
 			fmt.Sprintf("%7d", skies.StockShots),
 			fmt.Sprintf("%7.2f/s", skies.StockRate),
+			fmt.Sprintf("%7s", "on"),
 		} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the knob panel is missing %q:\n%s", want, v)
@@ -226,7 +227,7 @@ func TestSkiesDemoKnobs(t *testing.T) {
 			t.Fatal("the cursor must open on the sky rise knob")
 		}
 	})
-	t.Run("happy: j and k walk the cursor over the thirteen knobs with wrap", func(t *testing.T) {
+	t.Run("happy: j and k walk the cursor over the fifteen knobs with wrap", func(t *testing.T) {
 		m := newModel(0)
 		m = press(m, runeKey('j'))
 		if m.cursor != skies.KnobFlagDelay {
@@ -243,6 +244,44 @@ func TestSkiesDemoKnobs(t *testing.T) {
 		m = press(m, runeKey('l'))
 		if got := m.show.Cfg.RiseSeconds; math.Abs(got-(skies.RiseSeconds+skies.StepSeconds)) > 1e-9 {
 			t.Fatalf("l must add 50ms to the rise, got %v", got)
+		}
+	})
+	t.Run("happy: h and l switch each shotgun on and off", func(t *testing.T) {
+		m := newModel(0)
+		for i := 0; i < int(skies.KnobLeftOn); i++ {
+			m = press(m, runeKey('j'))
+		}
+		if m.cursor != skies.KnobLeftOn {
+			t.Fatalf("j must land on left on, got %d", m.cursor)
+		}
+		m = press(m, runeKey('h'))
+		if m.show.Cfg.LeftOn {
+			t.Fatal("h must switch the left gun off")
+		}
+		v := ansiPat.ReplaceAllString(m.View().Content, "")
+		if !strings.Contains(v, "left on") || !strings.Contains(v, "off") {
+			t.Fatalf("the panel must read the left gun off:\n%s", v)
+		}
+		m = press(m, runeKey('l'))
+		if !m.show.Cfg.LeftOn {
+			t.Fatal("l must switch the left gun back on")
+		}
+	})
+	t.Run("unhappy: h cannot switch an already-off gun any further off", func(t *testing.T) {
+		m := newModel(0)
+		for i := 0; i < int(skies.KnobRightOn); i++ {
+			m = press(m, runeKey('j'))
+		}
+		if m.cursor != skies.KnobRightOn {
+			t.Fatalf("j must land on right on, got %d", m.cursor)
+		}
+		m = press(m, runeKey('h'))
+		m = press(m, runeKey('h'))
+		if m.show.Cfg.RightOn {
+			t.Fatal("h on an already-off gun must leave it off")
+		}
+		if !m.show.Cfg.LeftOn {
+			t.Fatal("switching the right gun must not touch the left")
 		}
 	})
 	t.Run("happy: s saves the knobs to the config path", func(t *testing.T) {

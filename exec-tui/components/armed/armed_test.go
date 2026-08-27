@@ -4,7 +4,9 @@ package armed
 // a shotgun on each talon, and the gunfire particle blast — as one
 // performer. Scenes no longer wire three siblings; they hang one
 // Armed on the cast. Delay / Cross / Path retune the flight; LeftGun
-// / RightGun retune each talon (aim, shell count, rate). Rate > 0
+// / RightGun retune each talon (aim, shell count, rate). UnmountLeft
+// / UnmountRight empty a talon so that gun never paints or fires.
+// Rate > 0
 // fires after the bird is on stage at that shots/sec (first shell
 // waits one interval). Rate == 0 spaces shells evenly along the
 // flight, the America schedule. Zero shells (or a zero rate on the
@@ -183,10 +185,65 @@ func TestArmedProgressFire(t *testing.T) {
 	})
 	t.Run("unhappy: a nil Armed never panics", func(t *testing.T) {
 		var a *Armed
-		a.Delay(1).Cross(1).Path(0, 1).LeftGun(sprite.W, 1, 1).RightEven(sprite.E, 1)
+		a.Delay(1).Cross(1).Path(0, 1).LeftGun(sprite.W, 1, 1).RightEven(sprite.E, 1).
+			UnmountLeft().UnmountRight()
 		a.Start(8, 8)
 		a.Update(1)
 		_ = a.Render()
 		a.Stop()
+	})
+}
+
+func TestArmedUnmount(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: unmounting the left talon leaves the right gun riding alone", func(t *testing.T) {
+		both := New().Delay(0.2).Cross(2).
+			LeftGun(sprite.W, 0, 0).RightGun(sprite.E, 0, 0)
+		both.Start(stageW, stageH)
+		defer both.Stop()
+		_ = both.Render()
+		tick(both, 0.2+0.5)
+		pair := len(cellsWith(both.Render(), gunInk))
+		if pair == 0 {
+			t.Fatal("test premise: both talons must paint gold")
+		}
+		one := New().Delay(0.2).Cross(2).
+			LeftGun(sprite.W, 0, 0).RightGun(sprite.E, 0, 0).
+			UnmountLeft()
+		one.Start(stageW, stageH)
+		defer one.Stop()
+		_ = one.Render()
+		tick(one, 0.2+0.5)
+		solo := cellsWith(one.Render(), gunInk)
+		if len(solo) == 0 {
+			t.Fatal("the right gun must still paint after the left talon is emptied")
+		}
+		if len(solo) >= pair {
+			t.Fatalf("one talon painted %d gold cells, both painted %d — emptying a talon must drop gold", len(solo), pair)
+		}
+	})
+	t.Run("unhappy: unmounting both talons is a bare eagle — no gold, no flame", func(t *testing.T) {
+		a := New().Delay(0.2).Cross(2).
+			LeftGun(sprite.W, 3, 4).RightGun(sprite.E, 3, 4).
+			UnmountLeft().UnmountRight()
+		a.Start(stageW, stageH)
+		defer a.Stop()
+		_ = a.Render()
+		tick(a, 0.2+0.5)
+		if got := cellsWith(a.Render(), eagle.SignatureInks()...); len(got) == 0 {
+			t.Fatal("the bird must still cross with empty talons")
+		}
+		at := 0.7
+		for target := 0.8; target <= 2.4; target += 0.4 {
+			tick(a, target-at)
+			at = target
+			sp := a.Render()
+			if got := cellsWith(sp, gunInk); len(got) != 0 {
+				t.Fatalf("at %.1fs empty talons painted %d gun cells", target, len(got))
+			}
+			if got := blastCells(sp); len(got) != 0 {
+				t.Fatalf("at %.1fs empty talons threw %d flame cells", target, len(got))
+			}
+		}
 	})
 }
