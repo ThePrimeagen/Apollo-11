@@ -3,7 +3,7 @@
   "run_speed": 16,
   "jump_seconds": 0.55,
   "slide_seconds": 1.8,
-  "flag_seconds": 1.8,
+  "flag_seconds": 3,
   "pole_rows": 18,
   "pan_cols": 24,
   "pan_seconds": 1.4

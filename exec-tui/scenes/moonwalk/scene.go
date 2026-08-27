@@ -66,7 +66,8 @@ func routeFor(cfg Config, stageW, stageH int) route {
 	r := route{grounded: groundedY(stageH)}
 	r.yA = r.grounded - blockRows
 	r.yB = r.grounded - 2*blockRows
-	r.grabY = poleTopRow(cfg, stageH)
+	// One row above the tip: the fists close on the gold ball itself.
+	r.grabY = poleTopRow(cfg, stageH) - 1
 	r.x0 = -astro.Cols
 	// He stands centered on a crate: crate center minus half a sprite.
 	r.xA = blockAX(stageW) + blockCols/2 - astro.Cols/2
