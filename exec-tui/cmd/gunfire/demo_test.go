@@ -132,6 +132,93 @@ func TestGunfireDemo(t *testing.T) {
 	})
 }
 
+func left() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyLeft} }
+
+func right() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyRight} }
+
+func TestAim(t *testing.T) {
+	t.Run("happy: left/h swing the aim counterclockwise, right/l swing it back, and the status reads it out", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		m := newModel(0)
+		_ = m.View()
+		if !strings.Contains(m.View().Content, "aim 90°") {
+			t.Fatal("the status line must read out the stock aim")
+		}
+		m = press(m, left())
+		if got := gunfire.ActiveBlast().AngleDeg; got != 105 {
+			t.Fatalf("one left press aims %v°, want 105", got)
+		}
+		m = press(m, runeKey('h'))
+		if got := gunfire.ActiveBlast().AngleDeg; got != 120 {
+			t.Fatalf("h aims %v°, want 120", got)
+		}
+		m = press(m, runeKey('l'))
+		m = press(m, right())
+		if got := gunfire.ActiveBlast().AngleDeg; got != 90 {
+			t.Fatalf("l and right must swing back to 90, got %v", got)
+		}
+		m = press(m, left())
+		if !strings.Contains(m.View().Content, "aim 105°") {
+			t.Fatal("the status line must follow the aim")
+		}
+	})
+	t.Run("happy: the blast flies where the aim points — a half-turn shot goes left", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		m := newModel(0)
+		_ = m.View()
+		for i := 0; i < 6; i++ { // 90° + 6×15° = 180°: leftward
+			m = press(m, left())
+		}
+		if got := gunfire.ActiveBlast().AngleDeg; got != 180 {
+			t.Fatalf("six left presses aim %v°, want 180", got)
+		}
+		m = frames(m, 1)
+		m = press(m, space())
+		m = frames(m, 2)
+		if len(m.blast.Flame.Particles) == 0 {
+			t.Fatal("the leftward shot must burn")
+		}
+		for i, p := range m.blast.Flame.Particles {
+			if p.Vel.X >= 0 {
+				t.Fatalf("flame speck %d flies at %+v — a 180° shot must head left", i, p.Vel)
+			}
+		}
+	})
+	t.Run("happy: the aim wraps past the half turn and a full turn comes home", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		m := newModel(0)
+		_ = m.View()
+		for i := 0; i < 7; i++ { // 90° + 105° = 195° -> wraps to -165°
+			m = press(m, left())
+		}
+		if got := gunfire.ActiveBlast().AngleDeg; got != -165 {
+			t.Fatalf("seven left presses aim %v°, want the wrap to -165", got)
+		}
+		for i := 0; i < 17; i++ { // 24 steps of 15° is one full turn
+			m = press(m, left())
+		}
+		if got := gunfire.ActiveBlast().AngleDeg; got != 90 {
+			t.Fatalf("a full turn must come home to 90, got %v", got)
+		}
+	})
+	t.Run("unhappy: aiming alone never pulls the trigger", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		m := newModel(0)
+		_ = m.View()
+		for i := 0; i < 10; i++ {
+			m = press(m, left())
+			m = press(m, right())
+		}
+		if n := len(m.blast.Flame.Particles) + len(m.blast.Core.Particles); n != 0 {
+			t.Fatalf("aim keys spawned %d particles — only the trigger fires", n)
+		}
+	})
+}
+
 func TestApplyBlast(t *testing.T) {
 	t.Run("happy: a missing config keeps the stock blast without complaint", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)

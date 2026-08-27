@@ -158,12 +158,12 @@ func TestTuner(t *testing.T) {
 		}
 		tu.Move(-99) // angle
 		tu.Nudge(999)
-		if tu.Blast.AngleDeg != 90 {
-			t.Fatalf("angle %v, want clamped at straight up 90", tu.Blast.AngleDeg)
+		if tu.Blast.AngleDeg != 180 {
+			t.Fatalf("angle %v, want the full circle — clamped at the half turn 180", tu.Blast.AngleDeg)
 		}
 		tu.Nudge(-9999)
-		if tu.Blast.AngleDeg != -90 {
-			t.Fatalf("angle %v, want clamped at straight down -90", tu.Blast.AngleDeg)
+		if tu.Blast.AngleDeg != -180 {
+			t.Fatalf("angle %v, want the full circle — clamped at the half turn -180", tu.Blast.AngleDeg)
 		}
 		tu.Move(1) // muzzle x
 		tu.Nudge(9999)

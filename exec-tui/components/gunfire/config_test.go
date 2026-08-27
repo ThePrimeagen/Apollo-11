@@ -79,13 +79,22 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("got %v, want ErrMuzzle", err)
 		}
 	})
-	t.Run("unhappy: an aim past straight up or straight down is rejected", func(t *testing.T) {
+	t.Run("happy: the aim covers the whole circle — left, down, and every diagonal", func(t *testing.T) {
+		for _, deg := range []float64{180, -180, 135, -120, 91, -91} {
+			c := DefaultBlast()
+			c.AngleDeg = deg
+			if err := c.Validate(); err != nil {
+				t.Fatalf("an aim of %v° must be legal: %v", deg, err)
+			}
+		}
+	})
+	t.Run("unhappy: an aim past the half turn is rejected", func(t *testing.T) {
 		c := DefaultBlast()
-		c.AngleDeg = 91
+		c.AngleDeg = 181
 		if err := c.Validate(); !errors.Is(err, ErrAngle) {
 			t.Fatalf("got %v, want ErrAngle", err)
 		}
-		c.AngleDeg = -91
+		c.AngleDeg = -181
 		if err := c.Validate(); !errors.Is(err, ErrAngle) {
 			t.Fatalf("got %v, want ErrAngle", err)
 		}
@@ -209,6 +218,25 @@ func TestEngines(t *testing.T) {
 		_, flame := DefaultBlast().Engines(100, 60)
 		if math.Abs(flame.Direction.X) > 1e-9 || math.Abs(flame.Direction.Y+1) > 1e-9 {
 			t.Fatalf("a 90° aim must head (0, -1), got %+v", flame.Direction)
+		}
+	})
+	t.Run("happy: the aim goes any which direction — left, down, and the diagonals", func(t *testing.T) {
+		for _, tc := range []struct {
+			deg  float64
+			x, y float64
+		}{
+			{180, -1, 0},                                    // leftward
+			{-180, -1, 0},                                   // the same half turn, signed the other way
+			{-90, 0, 1},                                     // straight down
+			{135, -math.Sqrt2 / 2, -math.Sqrt2 / 2},         // up-left
+			{-45, math.Sqrt2 / 2, math.Sqrt2 / 2},           // down-right
+		} {
+			c := DefaultBlast()
+			c.AngleDeg = tc.deg
+			_, flame := c.Engines(100, 60)
+			if math.Abs(flame.Direction.X-tc.x) > 1e-9 || math.Abs(flame.Direction.Y-tc.y) > 1e-9 {
+				t.Fatalf("a %v° aim must head (%v, %v), got %+v", tc.deg, tc.x, tc.y, flame.Direction)
+			}
 		}
 	})
 	t.Run("happy: each layer carries its own knobs, lift and drag included", func(t *testing.T) {
