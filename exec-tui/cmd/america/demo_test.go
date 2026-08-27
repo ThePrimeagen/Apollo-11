@@ -355,13 +355,13 @@ func TestAmericaDemoKnobs(t *testing.T) {
 		}
 		m = press(m, runeKey('j'))
 		m = press(m, runeKey('l'))
-		if got := m.show.Cfg.LeftAim; got != sprite.W {
-			t.Fatalf("l on the stock %s aim must step clockwise to W, got %s", america.StockLeftAim, got)
+		if got := m.show.Cfg.LeftAim; got != sprite.NW {
+			t.Fatalf("l on the stock %s aim must step clockwise to NW, got %s", america.StockLeftAim, got)
 		}
 		m = press(m, runeKey('h'))
 		m = press(m, runeKey('h'))
-		if got := m.show.Cfg.LeftAim; got != sprite.S {
-			t.Fatalf("h twice must step back to S, got %s", got)
+		if got := m.show.Cfg.LeftAim; got != sprite.SW {
+			t.Fatalf("h twice must step back to SW, got %s", got)
 		}
 	})
 	t.Run("unhappy: the shell counts never go negative", func(t *testing.T) {

@@ -53,6 +53,9 @@ func TestConfig(t *testing.T) {
 		if c.LeftAim != StockLeftAim || c.RightAim != StockRightAim {
 			t.Fatalf("aims %s/%s, want the stock %s/%s", c.LeftAim, c.RightAim, StockLeftAim, StockRightAim)
 		}
+		if StockLeftAim != sprite.W || StockRightAim != sprite.E {
+			t.Fatalf("stock aims %s/%s, want W/E — the clean side-on frames, the leading barrel raking ahead, the trailing one behind", StockLeftAim, StockRightAim)
+		}
 		if KnobCount != 9 {
 			t.Fatalf("KnobCount %d, want 9 (fade, delay, cross, start, end, left shots, left aim, right shots, right aim)", KnobCount)
 		}
