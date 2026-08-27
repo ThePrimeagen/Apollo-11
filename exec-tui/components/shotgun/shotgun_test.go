@@ -136,6 +136,57 @@ func visualLength(sp sprite.Sprite, h sprite.Heading) float64 {
 	return best
 }
 
+// goldColor is the brass palette entry the bead and the trigger wear.
+const goldColor = 178
+
+// framePixels expands a frame into its square-pixel colors, two rows
+// per cell, -1 for empty sky.
+func framePixels(sp sprite.Sprite) [][]int {
+	px := make([][]int, sp.Height*2)
+	for r := range px {
+		px[r] = make([]int, sp.Width)
+		for c := range px[r] {
+			px[r][c] = -1
+		}
+	}
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			top, bot := cellPixels(sp.At(r, c))
+			px[2*r][c] = top
+			px[2*r+1][c] = bot
+		}
+	}
+	return px
+}
+
+// goldCount is how many square pixels of brass a frame shows.
+func goldCount(sp sprite.Sprite) int {
+	n := 0
+	for _, row := range framePixels(sp) {
+		for _, col := range row {
+			if col == goldColor {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// touchesGold reports whether the gold pixel at (r,c) has a gold
+// 4-neighbour — brass travels in masses, never crumbs.
+func touchesGold(px [][]int, r, c int) bool {
+	for _, d := range [][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+		rr, cc := r+d[0], c+d[1]
+		if rr < 0 || rr >= len(px) || cc < 0 || cc >= len(px[rr]) {
+			continue
+		}
+		if px[rr][cc] == goldColor {
+			return true
+		}
+	}
+	return false
+}
+
 // samePicture compares two frames the way the screen shows them: cell
 // by cell as stacked square pixels, so a ▀ and a ▄ that paint the
 // same two colors are equal even when the cell structs differ.
@@ -366,6 +417,36 @@ func TestEightDirections(t *testing.T) {
 			}
 			if diff := got - east; diff < -4 || diff > 4 {
 				t.Fatalf("%s gun runs %.1f units muzzle to stock on screen, east runs %.1f — the gun must not stretch when it turns", h, got, east)
+			}
+		}
+	})
+	t.Run("happy: every heading carries the cardinal gold mass — the bead and trigger never flicker", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		want := goldCount(g.Frame(sprite.E))
+		if want < 4 {
+			t.Fatalf("east gun carries %d gold pixels — the bead and the trigger must both be drawn", want)
+		}
+		for _, h := range sprite.Headings {
+			if got := goldCount(g.Frame(h)); got != want {
+				t.Fatalf("%s carries %d gold pixels, east carries %d — a rotating gun must not flicker its brass", h, got, want)
+			}
+		}
+	})
+	t.Run("unhappy: no heading strands an orphan gold speck", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		for _, h := range sprite.Headings {
+			px := framePixels(g.Frame(h))
+			for r := range px {
+				for c := range px[r] {
+					if px[r][c] != goldColor {
+						continue
+					}
+					if !touchesGold(px, r, c) {
+						t.Fatalf("%s has a lone gold speck at pixel (%d,%d) — brass travels in masses, never crumbs", h, r, c)
+					}
+				}
 			}
 		}
 	})
