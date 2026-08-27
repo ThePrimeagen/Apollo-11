@@ -126,6 +126,31 @@ func TestSkiesDemoRise(t *testing.T) {
 	})
 }
 
+func TestSkiesDemoFlag(t *testing.T) {
+	t.Cleanup(skies.Reset)
+	t.Run("happy: after the flag fade the stars and a stripe ink are on stage", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, int((skies.FlagDelaySeconds+skies.FlagFadeSeconds)*30)+5)
+		v := m.View().Content
+		if !strings.Contains(v, "★") {
+			t.Fatal("a finished flag fade must paint stars on the floor")
+		}
+		if !strings.Contains(v, "48;5;160m") && !strings.Contains(v, "48;5;18m") {
+			t.Fatal("a finished flag fade must wear a stripe or canton background")
+		}
+	})
+	t.Run("unhappy: before the flag delay the stars stay off the sky", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = frames(m, 20)
+		v := m.View().Content
+		if strings.Contains(v, "★") {
+			t.Fatal("the flag must wait for its delay")
+		}
+	})
+}
+
 func TestSkiesDemoHouseRules(t *testing.T) {
 	t.Run("happy: Init schedules the first frame and each frame the next", func(t *testing.T) {
 		m := newModel(0)
@@ -181,7 +206,7 @@ func TestSkiesDemoKnobs(t *testing.T) {
 	t.Run("happy: the panel opens on the stock knobs", func(t *testing.T) {
 		v := ansiPat.ReplaceAllString(newModel(0).View().Content, "")
 		for _, want := range []string{
-			"sky rise", "eagle delay", "eagle cross", "eagle start", "eagle end",
+			"sky rise", "flag delay", "flag fade", "eagle delay", "eagle cross", "eagle start", "eagle end",
 			"left shots", "left rate", "left aim", "right shots", "right rate", "right aim",
 			fmt.Sprintf("%7.3f", skies.RiseSeconds),
 			fmt.Sprintf("%7d", skies.StockShots),
@@ -201,11 +226,11 @@ func TestSkiesDemoKnobs(t *testing.T) {
 			t.Fatal("the cursor must open on the sky rise knob")
 		}
 	})
-	t.Run("happy: j and k walk the cursor over the eleven knobs with wrap", func(t *testing.T) {
+	t.Run("happy: j and k walk the cursor over the thirteen knobs with wrap", func(t *testing.T) {
 		m := newModel(0)
 		m = press(m, runeKey('j'))
-		if m.cursor != skies.KnobDelay {
-			t.Fatalf("j must land on eagle delay, got %d", m.cursor)
+		if m.cursor != skies.KnobFlagDelay {
+			t.Fatalf("j must land on flag delay, got %d", m.cursor)
 		}
 		m = press(m, runeKey('k'))
 		m = press(m, runeKey('k'))

@@ -2,6 +2,7 @@ package skies
 
 // Tests written FIRST: Config is the live knobs on the Skies scene —
 // how long the blue sky takes to tilt up from the horizon (Rise),
+// when the flag begins its crossfade and how long that walk takes,
 // when the eagle enters, how long its crossing takes (the eagle's
 // speed), where the flight starts and ends as fractions of the full
 // off-right-to-off-left span, and the talon shotguns: how many shells
@@ -53,14 +54,20 @@ func TestConfig(t *testing.T) {
 		if StockLeftAim != sprite.W || StockRightAim != sprite.E {
 			t.Fatalf("stock aims %s/%s, want W/E", StockLeftAim, StockRightAim)
 		}
-		if KnobCount != 11 {
-			t.Fatalf("KnobCount %d, want 11", KnobCount)
+		if KnobCount != 13 {
+			t.Fatalf("KnobCount %d, want 13 (sky rise, flag delay, flag fade, eagle, guns)", KnobCount)
+		}
+		if c.FlagDelay != FlagDelaySeconds || c.FlagFade != FlagFadeSeconds {
+			t.Fatalf("flag %v/%v, want delay %v fade %v", c.FlagDelay, c.FlagFade, FlagDelaySeconds, FlagFadeSeconds)
 		}
 	})
 	t.Run("happy: Display reads every knob in its own language", func(t *testing.T) {
 		c := DefaultConfig()
 		if got := c.Display(KnobRise); got != fmt.Sprintf("%7.3fs", RiseSeconds) {
 			t.Fatalf("Display(rise) %q", got)
+		}
+		if got := c.Display(KnobFlagDelay); got != fmt.Sprintf("%7.3fs", FlagDelaySeconds) {
+			t.Fatalf("Display(flag delay) %q", got)
 		}
 		if got := c.Display(KnobStart); got != "  0.000" {
 			t.Fatalf("Display(start) %q, want a fraction, not seconds", got)
@@ -73,6 +80,12 @@ func TestConfig(t *testing.T) {
 		}
 		if got := c.Display(KnobRightAim); got != fmt.Sprintf("%7s", string(StockRightAim)) {
 			t.Fatalf("Display(right aim) %q, want the compass point", got)
+		}
+		if got := KnobLabel(KnobFlagDelay); got != "flag delay" {
+			t.Fatalf("flag delay label %q", got)
+		}
+		if got := KnobLabel(KnobFlagFade); got != "flag fade" {
+			t.Fatalf("flag fade label %q", got)
 		}
 		if got := c.Display(KnobCount); got != "" {
 			t.Fatalf("an off-panel knob displays %q, want nothing", got)
@@ -98,6 +111,8 @@ func TestConfig(t *testing.T) {
 			err  error
 		}{
 			{"negative rise", func(c *Config) { c.RiseSeconds = -1 }, errRise},
+			{"negative flag delay", func(c *Config) { c.FlagDelay = -1 }, errFlagDelay},
+			{"negative flag fade", func(c *Config) { c.FlagFade = -1 }, errFlagFade},
 			{"tiny cross", func(c *Config) { c.CrossSeconds = 0 }, errCross},
 			{"start off the span", func(c *Config) { c.EagleStart = -0.1 }, errStart},
 			{"end off the span", func(c *Config) { c.EagleEnd = 1.2 }, errEnd},
@@ -121,6 +136,10 @@ func TestNudge(t *testing.T) {
 		c.Nudge(KnobRise, 1)
 		if math.Abs(c.RiseSeconds-(RiseSeconds+StepSeconds)) > 1e-9 {
 			t.Fatalf("rise %v after +1", c.RiseSeconds)
+		}
+		c.Nudge(KnobFlagFade, 1)
+		if math.Abs(c.FlagFade-(FlagFadeSeconds+StepSeconds)) > 1e-9 {
+			t.Fatalf("flag fade %v after +1", c.FlagFade)
 		}
 		c.Nudge(KnobStart, 1)
 		if math.Abs(c.EagleStart-(StartPoint+StepPoint)) > 1e-9 {

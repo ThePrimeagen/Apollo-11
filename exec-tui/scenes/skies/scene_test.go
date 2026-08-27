@@ -3,11 +3,13 @@ package skies
 // Tests written FIRST: Skies is the blue-sky scene. The curtain
 // rises on almost-pure light blue; over RiseSeconds the camera tilts
 // up so the darker blue and the generated clouds come into view; then
-// the eagle flies in from the right to its end point and the shotgun
-// in each talon fires — not along the whole crossing, but after the
-// bird is on stage, each gun on its own shot count and rate of fire.
-// Every performer is a reusable component: components/sky,
-// components/cloud, components/eagle, components/shotgun.
+// the American flag crossfades in as the new floor — background
+// coloring, so the eagle and the talon shotguns sit on top. The
+// bird flies in from the right to its end point and each gun fires
+// on its own shot count and rate of fire. Every performer is a
+// reusable component: components/sky, components/cloud,
+// components/flag, components/transition, components/eagle,
+// components/shotgun.
 
 import (
 	"testing"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/cloud"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sky"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
@@ -150,6 +153,35 @@ func cloudCells(scr *screenplay.Screen) int {
 	return n
 }
 
+func flagCells(scr *screenplay.Screen) (stars, red, white, blue int) {
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			if c.Content != "" {
+				r := []rune(c.Content)
+				if len(r) > 0 && r[0] == flag.StarGlyph {
+					stars++
+				}
+			}
+			fg, bg := inkAt(scr, x, y)
+			for _, ink := range []int{fg, bg} {
+				switch ink {
+				case flag.RedInk:
+					red++
+				case flag.WhiteInk:
+					white++
+				case flag.BlueInk:
+					blue++
+				}
+			}
+		}
+	}
+	return
+}
+
 func TestSkiesKnobs(t *testing.T) {
 	t.Run("happy: the stock show tilts the sky, then flies the eagle in", func(t *testing.T) {
 		if RiseSeconds <= 0 || RiseSeconds > 4 {
@@ -161,6 +193,15 @@ func TestSkiesKnobs(t *testing.T) {
 		c := DefaultConfig()
 		if c.RiseSeconds != RiseSeconds {
 			t.Fatalf("rise %v, want %v", c.RiseSeconds, RiseSeconds)
+		}
+		if c.FlagDelay != FlagDelaySeconds {
+			t.Fatalf("flag delay %v, want %v", c.FlagDelay, FlagDelaySeconds)
+		}
+		if c.FlagFade != FlagFadeSeconds {
+			t.Fatalf("flag fade %v, want %v", c.FlagFade, FlagFadeSeconds)
+		}
+		if c.FlagDelay < c.RiseSeconds {
+			t.Fatalf("flag delay %v — the flag waits for the sky to finish climbing", c.FlagDelay)
 		}
 		if c.EagleDelay < c.RiseSeconds/2 {
 			t.Fatalf("eagle delay %v — the bird waits for the sky to start climbing", c.EagleDelay)
@@ -412,6 +453,41 @@ func TestSkiesFlightPath(t *testing.T) {
 		tick(sc, 0.4)
 		if got := eagleCells(paint(sc)); len(got) != 0 {
 			t.Fatalf("past the crossing the flight is over, found %d eagle cells", len(got))
+		}
+	})
+}
+
+func TestSkiesFlagFloor(t *testing.T) {
+	t.Cleanup(sky.Reset)
+	t.Cleanup(cloud.Reset)
+	t.Cleanup(Reset)
+	t.Run("happy: after the fade the flag is the floor and the eagle sits on it", func(t *testing.T) {
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, FlagDelaySeconds+FlagFadeSeconds)
+		scr := paint(sc)
+		stars, red, white, blue := flagCells(scr)
+		if stars == 0 {
+			t.Fatal("a finished flag fade must paint the fifty stars")
+		}
+		if red == 0 || white == 0 || blue == 0 {
+			t.Fatalf("a finished flag fade must wear red/white/blue floors, got %d/%d/%d", red, white, blue)
+		}
+		if len(eagleCells(scr)) == 0 {
+			t.Fatal("the eagle must still be on stage, sitting on the flag")
+		}
+	})
+	t.Run("unhappy: before the flag delay the stars stay off the sky", func(t *testing.T) {
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, FlagDelaySeconds/2)
+		stars, _, _, _ := flagCells(paint(sc))
+		if stars != 0 {
+			t.Fatalf("mid-sky-rise the stage already holds %d stars — the flag waits", stars)
 		}
 	})
 }
