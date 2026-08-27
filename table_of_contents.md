@@ -92,6 +92,9 @@ The first four markers include **two alternatives**. A failed allocation follows
 - [`operations_and_timing.md`](operations_and_timing.md) — every operation running during the
   descent with its rate and cost, the CPU budget ledger (what the 10% margin was actually
   for), and the audit of the "1.8 seconds" figure used by this repo's simulators.
+- [`screenplay_memory_cycle_stealing.markdown`](screenplay_memory_cycle_stealing.markdown) —
+  the hardware mechanics of the theft: what "stealing a memory cycle" physically is, beat by
+  beat, and why no software could ever observe it.
 - [`walkthrough.md`](walkthrough.md) — the entire story in plain English.
 - [`timeline.markdown`](timeline.markdown) — exact mission times, altitudes, and voice calls.
 - [`errorcodes.markdown`](errorcodes.markdown) — the older single-document deep technical

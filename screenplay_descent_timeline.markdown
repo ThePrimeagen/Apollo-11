@@ -3,7 +3,9 @@
 The four regions — pre-descent, P63, P64, P66 — with the 10% throttle phase broken out
 on its own. PDI = 102:33:05 GET.[^sp4029] Every dated claim carries a bracketed source
 link. Job intervals/costs and the full source-linked job table in
-[`screenplay_outline.markdown`](screenplay_outline.markdown).
+[`screenplay_outline.markdown`](screenplay_outline.markdown); the hardware mechanics of the
+counter theft in
+[`screenplay_memory_cycle_stealing.markdown`](screenplay_memory_cycle_stealing.markdown).
 
 ## Region 1 — After undocking, before the engine (100:12 → 102:33)
 

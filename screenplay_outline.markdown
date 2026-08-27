@@ -4,7 +4,9 @@ Every program on the LGC during powered descent: its interval, its cost, and whe
 held a core set / VAC area. Every claim carries a bracketed source link — the 1969
 primary documents (deep-linked to page or passage) and the flight code (deep-linked to
 the line). Mission-time context in
-[`screenplay_descent_timeline.markdown`](screenplay_descent_timeline.markdown).
+[`screenplay_descent_timeline.markdown`](screenplay_descent_timeline.markdown); the hardware
+mechanics of the counter theft in
+[`screenplay_memory_cycle_stealing.markdown`](screenplay_memory_cycle_stealing.markdown).
 
 ## The two pools (what overflowed)
 
