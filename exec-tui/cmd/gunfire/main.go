@@ -5,16 +5,17 @@
 // cool bright yellow through orange and red to a maroon ember, with
 // Doom's dimmer second flash frame pulsing a beat later — then the
 // stage goes dark again, because a gunshot is a trigger, not a clock.
-// The aim goes any which direction: left/h and right/l swing the
-// muzzle 15° a press around the full circle — the status line reads
-// the aim out — and the flame's lift stays world-up, so a sideways or
-// downward shot still curls its tongues skyward. The demo auto-fires
-// once shortly after boot so tapes show the flame, and it reads the
-// same JSON the gunfire tuner saves.
+// The aim walks the eight-point compass: left/h and right/l step the
+// muzzle through N, NE, E, SE, S, SW, W, NW — the status line reads
+// the heading out — and every direction fires its own tuned shot,
+// colors included, straight from the config. Lift stays world-up, so
+// a sideways or downward shot still curls its tongues skyward. The
+// demo auto-fires once shortly after boot so tapes show the flame,
+// and it reads the same JSON the gunfire tuner saves.
 //
 //	space, f      fire
-//	left/h        swing the aim counterclockwise
-//	right/l       swing it back
+//	left/h        step the compass counterclockwise
+//	right/l       step it clockwise
 //	q             quit
 //
 //	go run ./cmd/gunfire
@@ -32,6 +33,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
@@ -47,9 +49,6 @@ const (
 	// autoFireAt is the one free squeeze after boot, so tapes and the
 	// impatient both see the shot without touching a key.
 	autoFireAt = 0.4
-
-	// aimStepDeg is one press of an aim key: 24 presses is a full turn.
-	aimStepDeg = 15
 )
 
 func applyBlast(path string) error {
@@ -139,34 +138,31 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.blast.Fire()
 			return m, nil
 		case "left", "h":
-			swingAim(aimStepDeg)
+			stepAim(-1)
 			return m, nil
 		case "right", "l":
-			swingAim(-aimStepDeg)
+			stepAim(1)
 			return m, nil
 		}
 	}
 	return m, nil
 }
 
-// swingAim turns the active blast's muzzle by delta degrees, wrapping
-// around the circle, and puts it in effect — the very next volley
-// flies the new way.
-func swingAim(delta float64) {
+// stepAim walks the active blast's heading delta steps around the
+// compass — clockwise for positive deltas, wrapping at the ends — and
+// puts it in effect: the very next volley flies the new way.
+func stepAim(delta int) {
 	c := gunfire.ActiveBlast()
-	c.AngleDeg = wrapDeg(c.AngleDeg + delta)
+	idx := 0
+	for i, h := range sprite.Headings {
+		if h == c.Heading {
+			idx = i
+			break
+		}
+	}
+	n := len(sprite.Headings)
+	c.Heading = sprite.Headings[((idx+delta)%n+n)%n]
 	_ = gunfire.UseBlast(c)
-}
-
-// wrapDeg folds an angle into the circle's signed half turns.
-func wrapDeg(a float64) float64 {
-	for a > 180 {
-		a -= 360
-	}
-	for a < -180 {
-		a += 360
-	}
-	return a
 }
 
 func (m model) View() tea.View {
@@ -176,7 +172,7 @@ func (m model) View() tea.View {
 	for len(stage) < h {
 		stage = append(stage, "")
 	}
-	status := fmt.Sprintf(" gunfire   space fire   ←/→ aim %g°   q quit", gunfire.ActiveBlast().AngleDeg)
+	status := fmt.Sprintf(" gunfire   space fire   ←/→ aim %s   q quit", gunfire.ActiveBlast().Heading)
 	dim := "\x1b[38;5;240m"
 	reset := "\x1b[0m"
 	body := strings.Join(stage, "\n") + "\n" + dim + pad(status, w) + reset

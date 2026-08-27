@@ -130,7 +130,7 @@ func TestTuner(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		tu := NewTuner()
-		tu.Flip(4) // the SE page, count
+		tu.Flip(5) // the SE page, count
 		start := tu.Blast.ShotAt(sprite.SE).Count
 		tu.Nudge(100000)
 		if got := tu.Blast.ShotAt(sprite.SE).Count; got != start+100000 {
