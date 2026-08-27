@@ -184,7 +184,7 @@ func (m Model) View() tea.View {
 }
 
 func (m Model) panel() {
-	putText(m.screen, 0, 0, "adjust gunfire   tab page  j/k select  h/l change  [/] ×10  f fire  s save+quit  q quit ", 245)
+	putText(m.screen, 0, 0, "adjust gunfire  tab page  j/k pick  h/l turn  [/] ×10  f fire  s save  q quit ", 245)
 	x := 0
 	for i, name := range pageNames {
 		label, fg := "  "+name+"  ", 245

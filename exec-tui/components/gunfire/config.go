@@ -82,10 +82,10 @@ func DefaultBlast() BlastConfig {
 		EdgeAt:       2,
 		MidAt:        4,
 		CoreAt:       7,
-		Flash:   Layer{Count: 90, MinLife: 0.05, MaxLife: 0.16, MinSpeed: 16, MaxSpeed: 44, Spread: 0.48, Nozzle: 1.2, MaxDistance: 7.5},
-		Pellets: Layer{Count: 7, MinLife: 0.55, MaxLife: 0.75, MinSpeed: 58, MaxSpeed: 74, Spread: 0.07, Nozzle: 0.6},
-		Sparks:  Layer{Count: 26, MinLife: 0.18, MaxLife: 0.5, MinSpeed: 9, MaxSpeed: 26, Spread: 0.5, Nozzle: 0.8},
-		Smoke:   Layer{Count: 16, MinLife: 0.9, MaxLife: 1.8, MinSpeed: 2.5, MaxSpeed: 6, Spread: 0.55, Nozzle: 2.2},
+		Flash:   Layer{Count: 120, MinLife: 0.05, MaxLife: 0.18, MinSpeed: 16, MaxSpeed: 46, Spread: 0.55, Nozzle: 2.6, MaxDistance: 7.5},
+		Pellets: Layer{Count: 7, MinLife: 0.8, MaxLife: 1.0, MinSpeed: 64, MaxSpeed: 80, Spread: 0.07, Nozzle: 0.6},
+		Sparks:  Layer{Count: 30, MinLife: 0.18, MaxLife: 0.5, MinSpeed: 9, MaxSpeed: 26, Spread: 0.5, Nozzle: 0.8},
+		Smoke:   Layer{Count: 16, MinLife: 1.1, MaxLife: 2.2, MinSpeed: 2.5, MaxSpeed: 6, Spread: 0.55, Nozzle: 2.2},
 	}
 }
 
