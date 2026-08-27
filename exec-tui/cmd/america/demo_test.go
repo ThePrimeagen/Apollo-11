@@ -302,6 +302,7 @@ func TestAmericaDemoKnobs(t *testing.T) {
 		_ = m.View()
 		m.show.Cfg.FadeSeconds = 0.2
 		m = press(m, runeKey('p'))
+		_ = m.View()
 		m = frames(m, 30)
 		if !strings.Contains(m.View().Content, "48;5;160m") {
 			t.Fatal("a second after a 0.2s-fade replay the flag must be red")
