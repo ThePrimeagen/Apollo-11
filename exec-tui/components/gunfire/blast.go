@@ -9,22 +9,22 @@ import (
 // shared white-hot core and one flame engine per direction, all
 // sharing a muzzle, each burning its own tune and colors. Start
 // builds all nine for a w×h stage and holds fire; Fire is the
-// trigger — the core and the active heading's flame burst now, and
-// the fuse to Doom's second flash frame is lit against that heading;
-// Update flies every direction and re-reads the active blast each
-// frame so an in-process tuner retunes it live; Render paints the
-// whole burn onto one stage-sized sprite; Done reports a blast with
-// nothing left burning anywhere. A fresh Start rises idle.
+// trigger — the core and every heading's flame burst now, the way
+// the flame tuner plays all eight courses at once, and the fuse to
+// Doom's second flash frame is lit against the whole rose; Update
+// flies every direction and re-reads the active blast each frame so
+// an in-process tuner retunes it live; Render paints the whole burn
+// onto one stage-sized sprite; Done reports a blast with nothing
+// left burning anywhere. A fresh Start rises idle.
 type Blast struct {
 	Core   *particle.Engine
 	Flames [8]*particle.Engine // one per compass point, sprite.Headings order
 
-	seed     int64
-	w, h     int
-	fired    bool
-	armed    bool    // the second-frame fuse is burning
-	fuse     float64 // seconds of fuse left
-	pulseIdx int     // the heading the burning fuse re-pulses
+	seed  int64
+	w, h  int
+	fired bool
+	armed bool    // the second-frame fuse is burning
+	fuse  float64 // seconds of fuse left
 }
 
 // NewBlast binds a blast to its particle seed. Nothing is built until
@@ -69,7 +69,7 @@ func (b *Blast) Start(w, h int) {
 	for i := range flames {
 		b.Flames[i] = particle.New(b.seed+1+int64(i), flames[i])
 	}
-	b.fired, b.armed, b.fuse, b.pulseIdx = false, false, 0, 0
+	b.fired, b.armed, b.fuse = false, false, 0
 }
 
 func (b *Blast) units() (w, h float64) {
@@ -77,34 +77,42 @@ func (b *Blast) units() (w, h float64) {
 		float64(b.h)*particle.CellHeightUnits - 0.01
 }
 
-// Fire is the trigger: the core and the ACTIVE heading's flame burst
-// at the muzzle right now — the other seven hold — and, when the
-// config plays Doom's second flash frame, the fuse to the dimmer
-// re-pulse is lit against that heading. Firing again stacks another
-// shot onto whatever is still burning. The trigger needs a stage:
-// before Start it is refused, and the report says so.
+// Fire is the trigger: the core and every compass heading's flame
+// burst at the muzzle right now — the whole rose, the way the flame
+// tuner plays all eight courses at once — and, when the config plays
+// Doom's second flash frame, the fuse to the dimmer re-pulse is lit
+// against every heading. Firing again stacks another shot onto
+// whatever is still burning. The trigger needs a stage: before Start
+// it is refused, and the report says so.
 func (b *Blast) Fire() bool {
 	if b == nil || b.Core == nil {
 		return false
 	}
 	c := ActiveBlast()
-	idx := headingIndex(c.Heading)
-	if idx < 0 {
-		return false
-	}
 	b.Core.Burst()
-	b.Flames[idx].Burst()
+	for i := range b.Flames {
+		if b.Flames[i] != nil {
+			b.Flames[i].Burst()
+		}
+	}
 	if c.PulseDelay > 0 && c.PulseFrac > 0 {
-		b.armed, b.fuse, b.pulseIdx = true, c.PulseDelay, idx
+		b.armed, b.fuse = true, c.PulseDelay
 	}
 	b.fired = true
 	return true
 }
 
 // pulse is Doom's second flash frame: one dimmer re-burst of the core
-// and the heading that fired, each at frac of its full count.
+// and every heading, each at frac of its full count.
 func (b *Blast) pulse(frac float64) {
-	for _, e := range []*particle.Engine{b.Core, b.Flames[b.pulseIdx]} {
+	engines := []*particle.Engine{b.Core}
+	for i := range b.Flames {
+		engines = append(engines, b.Flames[i])
+	}
+	for _, e := range engines {
+		if e == nil {
+			continue
+		}
 		full := e.Cfg.Count
 		e.Cfg.Count = int(float64(full)*frac + 0.5)
 		e.Burst()
@@ -114,8 +122,8 @@ func (b *Blast) pulse(frac float64) {
 
 // Update pulls the active blast onto every engine, burns the whole
 // compass dt seconds, and burns the fuse — when it runs out, the
-// second frame pulses once against the heading that fired. dt <= 0
-// holds everything, fuse included.
+// second frame pulses once against every heading. dt <= 0 holds
+// everything, fuse included.
 func (b *Blast) Update(dt float64) {
 	if b == nil || dt <= 0 || b.Core == nil {
 		return

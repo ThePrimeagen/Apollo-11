@@ -1,15 +1,16 @@
 package adjustgunfire
 
 // Tests written FIRST: adjustgunfire is the muzzle-flame tuner on the
-// eight-point compass — the live one-shot flame burning behind a
-// paged panel of every blast knob. Ten pages: aim (heading, muzzle,
-// the two-frame pulse, the core brightness ladder — eight knobs), the
+// eight-point compass — the live one-shot rose of every heading burning
+// beside a paged panel of every blast knob. Ten pages: aim (muzzle,
+// the two-frame pulse, the core brightness ladder — seven knobs), the
 // shared core (ten engine knobs), then one page per direction — N,
 // NE, E, SE, S, SW, W, NW — each carrying the ten engine knobs plus
 // the five color stops its flame cools through. tab flips pages, j/k
 // pick a knob, h/l turn it, [/] take bigger steps, f pulls the
 // trigger now, and the tool re-fires on its own. s saves the gunfire
 // component's config and quits. Every change goes live via UseBlast.
+// The preview is the whole rose at once, the way the flame config is.
 
 import (
 	"os"
@@ -67,21 +68,21 @@ func TestTuner(t *testing.T) {
 			t.Fatalf("flipping to a shorter page must clamp the cursor, page %d cursor %d", tu.Page, tu.Cursor)
 		}
 	})
-	t.Run("happy: the heading knob steps the compass and Nudge turns whichever page is open", func(t *testing.T) {
+	t.Run("happy: Nudge turns whichever page is open, direction by direction", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		tu := NewTuner()
-		tu.Nudge(1) // aim page, heading: N -> NE
-		if tu.Blast.Heading != sprite.NE {
-			t.Fatalf("heading %s after a nudge, want NE", tu.Blast.Heading)
+		tu.Nudge(1) // aim page, muzzle x
+		if tu.Blast.MuzzleX != gunfire.DefaultBlast().MuzzleX+0.01 {
+			t.Fatalf("muzzle x %v after a nudge", tu.Blast.MuzzleX)
 		}
 		tu.Nudge(99)
-		if tu.Blast.Heading != sprite.NW {
-			t.Fatalf("heading %s, want clamped at the compass end NW", tu.Blast.Heading)
+		if tu.Blast.MuzzleX != 1 {
+			t.Fatalf("muzzle x %v, want clamped at the right edge 1", tu.Blast.MuzzleX)
 		}
-		tu.Nudge(-99)
-		if tu.Blast.Heading != sprite.N {
-			t.Fatalf("heading %s, want clamped back at N", tu.Blast.Heading)
+		tu.Nudge(-999)
+		if tu.Blast.MuzzleX != 0 {
+			t.Fatalf("muzzle x %v, want clamped back at 0", tu.Blast.MuzzleX)
 		}
 		tu.Flip(1) // core page, count
 		before := tu.Blast.Core.Count
@@ -146,7 +147,7 @@ func TestTuner(t *testing.T) {
 			t.Fatalf("speeds %v..%v must swap, never fold", s.MinSpeed, s.MaxSpeed)
 		}
 		tu = NewTuner()
-		tu.Move(5) // aim page, edge at
+		tu.Move(4) // aim page, edge at
 		tu.Nudge(999)
 		if e, m, c := tu.Blast.EdgeAt, tu.Blast.MidAt, tu.Blast.CoreAt; m <= e || c <= m {
 			t.Fatalf("pushing the edge to %d must push the ladder past it, mid=%d core=%d", e, m, c)
@@ -160,12 +161,12 @@ func TestTuner(t *testing.T) {
 		if tu.Cursor != 0 {
 			t.Fatalf("cursor %d, want clamped at 0", tu.Cursor)
 		}
-		tu.Move(999) // aim has eight knobs
-		if tu.Cursor != 7 {
-			t.Fatalf("cursor %d, want clamped at 7", tu.Cursor)
+		tu.Move(999) // aim has seven knobs
+		if tu.Cursor != 6 {
+			t.Fatalf("cursor %d, want clamped at 6", tu.Cursor)
 		}
 		tu.Move(-99)
-		tu.Move(1) // muzzle x
+		tu.Move(0) // muzzle x
 		tu.Nudge(9999)
 		if tu.Blast.MuzzleX != 1 {
 			t.Fatalf("muzzle x %v, want clamped at the right edge 1", tu.Blast.MuzzleX)
@@ -201,11 +202,10 @@ func tab() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyTab} }
 func shiftTab() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift} }
 
 func liveCount(m Model) int {
-	n := len(m.blast.Core.Particles)
-	for _, e := range m.blast.Flames {
-		n += len(e.Particles)
+	if m.rose == nil {
+		return 0
 	}
-	return n
+	return m.rose.Live()
 }
 
 func TestModel(t *testing.T) {
@@ -223,12 +223,15 @@ func TestModel(t *testing.T) {
 			}
 		}
 		for _, label := range []string{
-			"heading", "muzzle x", "muzzle y", "pulse delay", "pulse frac",
+			"muzzle x", "muzzle y", "pulse delay", "pulse frac",
 			"edge at", "mid at", "core at",
 		} {
 			if !strings.Contains(v, label) {
 				t.Fatalf("the aim page is missing the %q knob", label)
 			}
+		}
+		if strings.Contains(v, "heading") {
+			t.Fatal("the aim page must not show a heading knob — the rose plays every direction at once")
 		}
 		if strings.Contains(v, "color 1") {
 			t.Fatal("the aim page must not show color knobs")
@@ -260,7 +263,7 @@ func TestModel(t *testing.T) {
 		}
 		m = press(m, shiftTab())
 		m = press(m, shiftTab())
-		if !strings.Contains(m.View().Content, "heading") {
+		if !strings.Contains(m.View().Content, "muzzle x") {
 			t.Fatal("shift+tab twice must flip back to the aim page")
 		}
 	})
@@ -276,13 +279,13 @@ func TestModel(t *testing.T) {
 		if m.tuner.Cursor != 0 {
 			t.Fatalf("cursor %d after k, want 0", m.tuner.Cursor)
 		}
-		m = press(m, runeKey('l')) // heading N -> NE
-		if gunfire.ActiveBlast().Heading != sprite.NE {
-			t.Fatalf("active heading %s after l, want NE — the flame must follow the knobs", gunfire.ActiveBlast().Heading)
+		m = press(m, runeKey('l')) // muzzle x
+		if gunfire.ActiveBlast().MuzzleX != gunfire.DefaultBlast().MuzzleX+0.01 {
+			t.Fatalf("active muzzle x %v after l — the flame must follow the knobs", gunfire.ActiveBlast().MuzzleX)
 		}
 		m = press(m, runeKey('h'))
-		if gunfire.ActiveBlast().Heading != sprite.N {
-			t.Fatalf("active heading %s after h, want N", gunfire.ActiveBlast().Heading)
+		if gunfire.ActiveBlast().MuzzleX != gunfire.DefaultBlast().MuzzleX {
+			t.Fatalf("active muzzle x %v after h, want the stock %.2f", gunfire.ActiveBlast().MuzzleX, gunfire.DefaultBlast().MuzzleX)
 		}
 	})
 	t.Run("happy: f pulls the trigger right now", func(t *testing.T) {
@@ -296,6 +299,11 @@ func TestModel(t *testing.T) {
 		m = press(m, runeKey('f'))
 		if liveCount(m) == 0 {
 			t.Fatal("f must fire the flame")
+		}
+		for _, s := range m.rose.Slots {
+			if len(s.Flame.Particles) == 0 {
+				t.Fatalf("the %s panel held fire — the rose plays every heading at once", s.Name)
+			}
 		}
 	})
 	t.Run("happy: the tool re-fires on its own so the flame keeps burning", func(t *testing.T) {

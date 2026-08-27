@@ -20,22 +20,26 @@ const (
 	minH     = 4
 	frameMs  = 1000.0 / 30
 
-	// The tool keeps squeezing the trigger so the blast is always in
+	// Knobs occupy the left; the eight-heading rose plays on the right,
+	// the way the flame tuner lays out its compass.
+	knobCols = 22
+
+	// The tool keeps squeezing the trigger so the rose is always in
 	// the air while you turn knobs: one quick shot after boot, then
 	// one about every Doom shotgun cadence and a half.
 	firstFireAt = 0.25
 	refireEvery = 1.6
 )
 
-// Model is the bubbletea shell around the tuner: the live blast plus
-// the paged knob panel. Every change is applied as the active blast.
+// Model is the bubbletea shell around the tuner: the live eight-heading
+// rose plus the paged knob panel. Every change is applied as the active
+// blast.
 type Model struct {
 	Path     string
 	Saved    bool
 	w, h     int
-	play     *screenplay.Screenplay
 	tuner    *Tuner
-	blast    *gunfire.Blast
+	rose     *gunfire.Compass
 	screen   *screenplay.Screen
 	seconds  float64
 	elapsed  float64
@@ -59,33 +63,21 @@ func Open(path string, seconds float64) (Model, error) {
 	return m, nil
 }
 
-// NewModel opens the tuner scene, optionally auto-quitting after
-// seconds (for tapes).
+// NewModel opens the tuner, optionally auto-quitting after seconds
+// (for tapes). The rose plays every heading at once.
 func NewModel(seconds float64) Model {
-	tuner := NewTuner()
-	blast := gunfire.NewBlast(7)
-	play := screenplay.New(screenplay.Entry{
-		Name: "adjust gunfire",
-		Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Component {
-				return []screenplay.Component{blast}
-			},
-		},
-	})
-	play.Start()
 	return Model{
 		w:        defaultW,
 		h:        defaultH,
-		play:     play,
-		tuner:    tuner,
-		blast:    blast,
+		tuner:    NewTuner(),
+		rose:     gunfire.NewCompass(7),
 		screen:   screenplay.NewScreen(defaultW, defaultH),
 		seconds:  seconds,
 		nextFire: firstFireAt,
 	}
 }
 
-// FrameMsg advances the blast one frame.
+// FrameMsg advances the rose one frame.
 type FrameMsg struct{}
 
 func tick() tea.Cmd {
@@ -106,19 +98,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case FrameMsg:
 		dt := frameMs / 1000
 		m.elapsed += dt
-		m.play.Update(dt)
-		if m.elapsed >= m.nextFire && m.blast.Fire() {
-			m.nextFire = m.elapsed + refireEvery
+		if m.rose != nil {
+			m.rose.Update(dt)
+			if m.elapsed >= m.nextFire {
+				m.rose.Fire()
+				m.nextFire = m.elapsed + refireEvery
+			}
 		}
 		if m.seconds > 0 && m.elapsed >= m.seconds {
-			m.play.Stop()
 			return m, tea.Quit
 		}
 		return m, tick()
 	case tea.KeyPressMsg:
 		switch strings.ToLower(msg.String()) {
 		case "ctrl+c", "q":
-			m.play.Stop()
 			return m, tea.Quit
 		case "tab":
 			m.tuner.Flip(1)
@@ -141,7 +134,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tuner.Nudge(-10)
 			m.apply()
 		case "f", "space", " ":
-			m.blast.Fire()
+			if m.rose != nil {
+				m.rose.Fire()
+			}
 		case "s":
 			if m.Path == "" {
 				m.note = "no config path — open the tool with -config"
@@ -152,7 +147,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.Saved = true
-			m.play.Stop()
 			return m, tea.Quit
 		}
 	}
@@ -168,7 +162,10 @@ func (m Model) apply() {
 }
 
 func (m Model) View() tea.View {
-	m.play.Render(m.screen)
+	m.screen.Clear()
+	if m.rose != nil {
+		m.screen.Blit(knobCols, 2, m.rose.View())
+	}
 	m.panel()
 	if m.note != "" {
 		putText(m.screen, 0, 3+len(pageMeta(m.tuner.Page)), m.note+" ", 203)

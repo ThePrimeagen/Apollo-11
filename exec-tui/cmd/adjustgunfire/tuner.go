@@ -1,13 +1,13 @@
 // Package adjustgunfire is the muzzle-flame tuner on the eight-point
-// compass: the live one-shot flame burning behind a paged panel of
-// every blast knob. Ten pages — aim (heading, muzzle, the two-frame
-// pulse, the core brightness ladder), the shared core, then one page
-// per direction: N, NE, E, SE, S, SW, W, NW — each direction carrying
-// its ten engine knobs plus the five color stops its flame cools
-// through. tab flips pages, j/k pick a knob, h/l turn it, [/] take
-// bigger steps, f pulls the trigger now, and the tool re-fires on its
-// own so the flame is always burning. s saves the gunfire component's
-// config and quits.
+// compass: the live one-shot flame burning as a rose of every heading
+// at once, behind a paged panel of every blast knob. Ten pages — aim
+// (muzzle, the two-frame pulse, the core brightness ladder), the
+// shared core, then one page per direction: N, NE, E, SE, S, SW, W,
+// NW — each direction carrying its ten engine knobs plus the five
+// color stops its flame cools through. tab flips pages, j/k pick a
+// knob, h/l turn it, [/] take bigger steps, f pulls the trigger now,
+// and the tool re-fires on its own so the rose is always burning. s
+// saves the gunfire component's config and quits.
 package adjustgunfire
 
 import (
@@ -15,7 +15,6 @@ import (
 	"math"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
 // DefaultConfigPath is the gunfire component's own config file — the
@@ -43,10 +42,10 @@ type meta struct {
 	hi    float64
 }
 
-// aimMeta is the aim page: the compass heading the trigger fires,
-// where the muzzle sits, the two-frame pulse, and the core ladder.
+// aimMeta is the aim page: where the muzzle sits, the two-frame
+// pulse, and the core ladder. Every heading fires together, so there
+// is no aim knob — the rose is the preview.
 var aimMeta = []meta{
-	{"heading", 1, 0, 7},
 	{"muzzle x", 0.01, 0, 1},
 	{"muzzle y", 0.01, 0, 1},
 	{"pulse delay", 0.01, 0, 1},
@@ -185,16 +184,6 @@ func (t *Tuner) Nudge(steps int) {
 	t.fixLadder()
 }
 
-// headingIdx is the active heading's slot on the compass.
-func (t *Tuner) headingIdx() int {
-	for i, h := range sprite.Headings {
-		if t.Blast.Heading == h {
-			return i
-		}
-	}
-	return 0
-}
-
 // get reads knob at the given row of the current page.
 func (t *Tuner) get(cursor int) float64 {
 	if l := t.layer(); l != nil {
@@ -228,20 +217,18 @@ func (t *Tuner) get(cursor int) float64 {
 	c := t.Blast
 	switch cursor {
 	case 0:
-		return float64(t.headingIdx())
-	case 1:
 		return c.MuzzleX
-	case 2:
+	case 1:
 		return c.MuzzleY
-	case 3:
+	case 2:
 		return c.PulseDelay
-	case 4:
+	case 3:
 		return c.PulseFrac
-	case 5:
+	case 4:
 		return float64(c.EdgeAt)
-	case 6:
+	case 5:
 		return float64(c.MidAt)
-	case 7:
+	case 6:
 		return float64(c.CoreAt)
 	}
 	return 0
@@ -280,20 +267,18 @@ func (t *Tuner) set(cursor int, v float64) {
 	}
 	switch cursor {
 	case 0:
-		t.Blast.Heading = sprite.Headings[int(v+0.5)]
-	case 1:
 		t.Blast.MuzzleX = v
-	case 2:
+	case 1:
 		t.Blast.MuzzleY = v
-	case 3:
+	case 2:
 		t.Blast.PulseDelay = v
-	case 4:
+	case 3:
 		t.Blast.PulseFrac = v
-	case 5:
+	case 4:
 		t.Blast.EdgeAt = int(v + 0.5)
-	case 6:
+	case 5:
 		t.Blast.MidAt = int(v + 0.5)
-	case 7:
+	case 6:
 		t.Blast.CoreAt = int(v + 0.5)
 	}
 }
@@ -333,13 +318,7 @@ func (t *Tuner) fixLadder() {
 func formatKnob(page, cursor int, v float64) string {
 	if page == pageAim {
 		switch cursor {
-		case 0: // heading, by name
-			i := int(v + 0.5)
-			if i < 0 || i >= len(sprite.Headings) {
-				i = 0
-			}
-			return fmt.Sprintf("%5s", string(sprite.Headings[i]))
-		case 5, 6, 7: // ladder
+		case 4, 5, 6: // ladder
 			return fmt.Sprintf("%5.0f", v)
 		default: // muzzle fractions, pulse delay and frac
 			return fmt.Sprintf("%5.2f", v)

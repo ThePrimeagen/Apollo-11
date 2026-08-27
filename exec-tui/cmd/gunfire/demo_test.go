@@ -2,12 +2,13 @@ package main
 
 // Demo harness tests, written first: gunfire is the one-shot Doom
 // muzzle-flame demo — an empty stage and the trigger on the space bar
-// (f works too). One squeeze and the red flame leaps up from the
-// muzzle: a white-hot heart, tongues cooling yellow through orange to
-// red, and Doom's second flash frame pulsing a beat later — then the
-// stage goes dark again, because a gunshot is a trigger, not a clock.
-// The demo auto-fires once shortly after boot so tapes show the
-// flame, and it reads the same JSON the gunfire tuner saves.
+// (f works too). One squeeze and the red flame leaps from the muzzle
+// along every heading at once: a white-hot heart, tongues cooling
+// yellow through orange to red, and Doom's second flash frame pulsing
+// a beat later — then the stage goes dark again, because a gunshot is
+// a trigger, not a clock. The demo auto-fires once shortly after boot
+// so tapes show the flame, and it reads the same JSON the gunfire
+// tuner saves.
 
 import (
 	"os"
@@ -86,8 +87,10 @@ func TestGunfireDemo(t *testing.T) {
 		m := newModel(0)
 		idle := m.View().Content
 		m = frames(m, 15) // 0.5s: past the 0.4s auto-fire
-		if len(m.blast.FlameAt(sprite.N).Particles) == 0 {
-			t.Fatal("0.5s in, the auto-shot's flame must be burning")
+		for _, h := range sprite.Headings {
+			if len(m.blast.FlameAt(h).Particles) == 0 {
+				t.Fatalf("0.5s in, the %s flame must be burning — the whole rose fires together", h)
+			}
 		}
 		m = frames(m, 165) // 6s total: every life and the pulse fuse long spent
 		if got := m.View().Content; got != idle {
@@ -145,82 +148,33 @@ func demoLive(m model) int {
 	return n
 }
 
-func TestAim(t *testing.T) {
-	t.Run("happy: left/h step the compass counterclockwise, right/l step it back, and the status names the heading", func(t *testing.T) {
+func TestAllHeadings(t *testing.T) {
+	t.Run("happy: the trigger lights every compass heading at once", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		m := newModel(0)
 		_ = m.View()
-		if !strings.Contains(m.View().Content, "aim N ") {
-			t.Fatal("the status line must read out the stock heading N")
-		}
-		m = press(m, left())
-		if got := gunfire.ActiveBlast().Heading; got != sprite.NW {
-			t.Fatalf("one left press aims %s, want NW", got)
-		}
-		m = press(m, runeKey('h'))
-		if got := gunfire.ActiveBlast().Heading; got != sprite.W {
-			t.Fatalf("h aims %s, want W", got)
-		}
-		m = press(m, runeKey('l'))
-		m = press(m, right())
-		if got := gunfire.ActiveBlast().Heading; got != sprite.N {
-			t.Fatalf("l and right must step back to N, got %s", got)
-		}
-		m = press(m, right())
-		if got := gunfire.ActiveBlast().Heading; got != sprite.NE {
-			t.Fatalf("right must step clockwise to NE, got %s", got)
-		}
-		if !strings.Contains(m.View().Content, "aim NE ") {
-			t.Fatal("the status line must follow the heading")
-		}
-	})
-	t.Run("happy: the blast flies where the compass points — a W shot goes left", func(t *testing.T) {
-		t.Cleanup(gunfire.ResetBlast)
-		gunfire.ResetBlast()
-		m := newModel(0)
-		_ = m.View()
-		m = press(m, left())
-		m = press(m, left()) // N -> NW -> W
-		if got := gunfire.ActiveBlast().Heading; got != sprite.W {
-			t.Fatalf("two left presses aim %s, want W", got)
-		}
-		m = frames(m, 1)
 		m = press(m, space())
-		m = frames(m, 2)
-		west := m.blast.FlameAt(sprite.W)
-		if len(west.Particles) == 0 {
-			t.Fatal("the W shot must burn")
-		}
-		for i, p := range west.Particles {
-			if p.Vel.X >= 0 {
-				t.Fatalf("flame speck %d flies at %+v — a W shot must head left", i, p.Vel)
+		for _, h := range sprite.Headings {
+			if len(m.blast.FlameAt(h).Particles) == 0 {
+				t.Fatalf("the %s flame held fire — every heading fires together", h)
 			}
 		}
-		if got := len(m.blast.FlameAt(sprite.N).Particles); got != 0 {
-			t.Fatalf("the unfired N flame holds %d specks — only the aimed direction fires", got)
-		}
 	})
-	t.Run("happy: eight steps around the compass come home", func(t *testing.T) {
+	t.Run("unhappy: leftover aim keys change nothing", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		gunfire.ResetBlast()
 		m := newModel(0)
 		_ = m.View()
-		for i := 0; i < 8; i++ {
-			m = press(m, right())
-		}
-		if got := gunfire.ActiveBlast().Heading; got != sprite.N {
-			t.Fatalf("a full turn must come home to N, got %s", got)
-		}
-	})
-	t.Run("unhappy: aiming alone never pulls the trigger", func(t *testing.T) {
-		t.Cleanup(gunfire.ResetBlast)
-		gunfire.ResetBlast()
-		m := newModel(0)
-		_ = m.View()
+		before := gunfire.ActiveBlast()
 		for i := 0; i < 10; i++ {
 			m = press(m, left())
 			m = press(m, right())
+			m = press(m, runeKey('h'))
+			m = press(m, runeKey('l'))
+		}
+		if gunfire.ActiveBlast() != before {
+			t.Fatal("aim keys must not retune the blast — the whole rose fires together")
 		}
 		if n := demoLive(m); n != 0 {
 			t.Fatalf("aim keys spawned %d particles — only the trigger fires", n)
