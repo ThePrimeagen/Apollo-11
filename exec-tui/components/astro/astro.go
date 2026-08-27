@@ -55,22 +55,23 @@ var Palette = []sprite.PaletteEntry{
 	{ID: "V", Name: "visor", FG: 220, BG: 220},
 	{ID: "D", Name: "dark", FG: 240, BG: 240},
 	{ID: "R", Name: "accent", FG: 160, BG: 160},
+	{ID: "B", Name: "flagblue", FG: 26, BG: 26},
 }
 
-// BuildAtlas compiles every pixel grid into one atlas sharing the
-// astronaut palette.
+// BuildAtlas compiles every pixel grid — the poses and the props —
+// into one atlas sharing the astronaut palette.
 func BuildAtlas() (*sprite.Atlas, error) {
 	a := &sprite.Atlas{Palette: append([]sprite.PaletteEntry(nil), Palette...)}
-	for _, pose := range Poses {
-		grid, ok := grids[pose]
+	for _, name := range append(append([]sprite.Heading(nil), Poses...), Props...) {
+		grid, ok := grids[name]
 		if !ok {
-			return nil, fmt.Errorf("astro: pose %q has no pixel grid", pose)
+			return nil, fmt.Errorf("astro: frame %q has no pixel grid", name)
 		}
 		sp, err := CompileGrid(grid)
 		if err != nil {
-			return nil, fmt.Errorf("astro: pose %q: %w", pose, err)
+			return nil, fmt.Errorf("astro: frame %q: %w", name, err)
 		}
-		a.SetFrame(Size, pose, sp)
+		a.SetFrame(Size, name, sp)
 	}
 	return a, nil
 }
