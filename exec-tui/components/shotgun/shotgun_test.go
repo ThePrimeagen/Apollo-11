@@ -15,10 +15,15 @@ package shotgun
 // the trigger so the muzzle flame leaps from this heading's barrel
 // tip using the shipped gunfire config
 // (components/gunfire/config.json) for that heading only — never the
-// whole eight-way rose. Update burns the blast; Render paints the
-// aimed gun with whatever flame is still in the air. Before Start and
-// after Stop the stage is empty; a heading off the compass is
-// refused; the trigger needs a stage.
+// whole eight-way rose. The firing is tied to this gun: Start pins
+// the shipped config onto the gun's own blast, and Fire (or FireFrom,
+// for a gun a scene mounts anywhere) is one shot per call on that
+// blast alone — the package-wide active blast belongs to the tuner
+// and is never touched, and nothing ever fires on its own clock, so
+// the caller controls exactly how often a shotgun fires. Update burns
+// the blast; Render paints the aimed gun with whatever flame is still
+// in the air. Before Start and after Stop the stage is empty; a
+// heading off the compass is refused; the trigger needs a stage.
 
 import (
 	"math"
@@ -464,7 +469,7 @@ func TestFire(t *testing.T) {
 			t.Fatalf("a fired gun must still paint the shotgun, got %d cells", n)
 		}
 	})
-	t.Run("happy: Start loads components/gunfire/config.json so a prior UseBlast does not stick", func(t *testing.T) {
+	t.Run("happy: Start arms this gun with the shipped config and leaves the tuner's active blast alone", func(t *testing.T) {
 		t.Cleanup(gunfire.ResetBlast)
 		weird := gunfire.DefaultBlast()
 		shot := weird.ShotAt(sprite.E)
@@ -482,11 +487,77 @@ func TestFire(t *testing.T) {
 		if !strings.HasSuffix(filepath.ToSlash(gunfire.FindConfig()), "components/gunfire/config.json") {
 			t.Fatalf("FindConfig = %q, want …/components/gunfire/config.json", gunfire.FindConfig())
 		}
-		if gunfire.ActiveBlast().ShotAt(sprite.E).Count != shipped.ShotAt(sprite.E).Count {
-			t.Fatalf("Start must arm the shipped gunfire config, E count %d want %d", gunfire.ActiveBlast().ShotAt(sprite.E).Count, shipped.ShotAt(sprite.E).Count)
+		if got := g.Blast.Config().ShotAt(sprite.E).Count; got != shipped.ShotAt(sprite.E).Count {
+			t.Fatalf("this gun's blast counts %d on E, want the shipped %d — a prior UseBlast must not stick to the gun", got, shipped.ShotAt(sprite.E).Count)
 		}
-		if gunfire.ActiveBlast().ShotAt(sprite.E).Count == 7 {
-			t.Fatal("Start must not leave a prior 7-count UseBlast in effect")
+		if got := gunfire.ActiveBlast().ShotAt(sprite.E).Count; got != 7 {
+			t.Fatalf("the package active blast counts %d on E after Start, want the tuner's 7 — arming a gun must not retune the world", got)
+		}
+	})
+	t.Run("happy: Fire is one shot from this gun alone — the package active blast is never touched", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		before := gunfire.ActiveBlast()
+		g := New()
+		g.Start(stageW, stageH)
+		_ = g.Aim(sprite.NE)
+		if !g.Fire() {
+			t.Fatal("Fire after Start must pull the trigger")
+		}
+		if gunfire.ActiveBlast() != before {
+			t.Fatal("Fire must burn this gun's own blast, not retune the package active")
+		}
+		body := g.Frame(sprite.NE)
+		mx, my := Muzzle(body, sprite.NE)
+		left := (stageW - body.Width) / 2
+		top := (stageH - body.Height) / 2
+		c := g.Blast.Config()
+		if c.Heading != sprite.NE {
+			t.Fatalf("the gun's own blast aims %q, want NE", c.Heading)
+		}
+		wantX := (float64(left+mx) + 0.5) / float64(stageW)
+		wantY := (float64(top+my) + 0.5) / float64(stageH)
+		if math.Abs(c.MuzzleX-wantX) > 1e-9 || math.Abs(c.MuzzleY-wantY) > 1e-9 {
+			t.Fatalf("the gun's own muzzle is (%v,%v), want the barrel tip (%v,%v)", c.MuzzleX, c.MuzzleY, wantX, wantY)
+		}
+	})
+	t.Run("happy: one Fire is one shot — it burns out and stays out until the next trigger", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		g := New()
+		g.Start(stageW, stageH)
+		if !g.Fire() {
+			t.Fatal("Fire after Start must pull the trigger")
+		}
+		for i := 0; i < 150; i++ { // five seconds: past every life and the pulse fuse
+			g.Update(1.0 / 30)
+		}
+		if n := liveBlast(g); n != 0 {
+			t.Fatalf("one shot must burn out, %d particles still in the air", n)
+		}
+		for i := 0; i < 30; i++ {
+			g.Update(1.0 / 30)
+		}
+		if n := liveBlast(g); n != 0 {
+			t.Fatalf("a spent gun re-fired on its own: %d particles — cadence belongs to the caller", n)
+		}
+		if !g.Fire() {
+			t.Fatal("the next trigger must fire the next shot")
+		}
+		if liveBlast(g) == 0 {
+			t.Fatal("the next shot must put flame back in the air")
+		}
+	})
+	t.Run("unhappy: Update alone never pulls the trigger", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		g := New()
+		g.Start(stageW, stageH)
+		for i := 0; i < 90; i++ {
+			g.Update(1.0 / 30)
+		}
+		if n := liveBlast(g); n != 0 {
+			t.Fatalf("three untriggered seconds spawned %d particles", n)
 		}
 	})
 	t.Run("unhappy: the trigger needs a stage — Fire before Start is refused", func(t *testing.T) {
@@ -498,6 +569,74 @@ func TestFire(t *testing.T) {
 		g.Update(1.0 / 30)
 		if liveBlast(g) != 0 {
 			t.Fatalf("a pre-Start trigger must not fire later, found %d particles", liveBlast(g))
+		}
+	})
+}
+
+// TestFireFrom: the trigger for a mounted gun. A scene blits the gun
+// anywhere; FireFrom throws one shot from that mount's barrel tip on
+// this gun's own blast. One call is one shot — cadence belongs to the
+// caller — and no trigger ever touches the package active blast, so
+// two mounted guns never clobber each other.
+func TestFireFrom(t *testing.T) {
+	t.Run("happy: FireFrom fires one shot from the mounted barrel tip, and two guns never clobber each other", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		shipped, err := gunfire.LoadBlast(gunfire.FindConfig())
+		if err != nil {
+			t.Fatalf("the shotgun must use the shipped gunfire config: %v", err)
+		}
+		a := New()
+		a.Start(stageW, stageH)
+		_ = a.Aim(sprite.NE)
+		b := New()
+		b.Start(stageW, stageH)
+		_ = b.Aim(sprite.SW)
+		if !a.FireFrom(2, 3) {
+			t.Fatal("FireFrom must pull the trigger on a started gun")
+		}
+		if !b.FireFrom(30, 9) {
+			t.Fatal("FireFrom must pull the trigger on the second gun")
+		}
+		if got := len(a.Blast.FlameAt(sprite.NE).Particles); got != shipped.ShotAt(sprite.NE).Count {
+			t.Fatalf("gun A burst %d on NE, want the shipped %d", got, shipped.ShotAt(sprite.NE).Count)
+		}
+		if got := len(b.Blast.FlameAt(sprite.SW).Particles); got != shipped.ShotAt(sprite.SW).Count {
+			t.Fatalf("gun B burst %d on SW, want the shipped %d", got, shipped.ShotAt(sprite.SW).Count)
+		}
+		if n := len(a.Blast.FlameAt(sprite.SW).Particles); n != 0 {
+			t.Fatalf("gun B's trigger leaked %d particles into gun A", n)
+		}
+		ca, cb := a.Blast.Config(), b.Blast.Config()
+		if ca.Heading != sprite.NE || cb.Heading != sprite.SW {
+			t.Fatalf("each gun keeps its own aim, got A %q B %q", ca.Heading, cb.Heading)
+		}
+		bodyA := a.Frame(sprite.NE)
+		mxA, myA := Muzzle(bodyA, sprite.NE)
+		wantX := (float64(2+mxA) + 0.5) / float64(stageW)
+		wantY := (float64(3+myA) + 0.5) / float64(stageH)
+		if math.Abs(ca.MuzzleX-wantX) > 1e-9 || math.Abs(ca.MuzzleY-wantY) > 1e-9 {
+			t.Fatalf("gun A's muzzle is (%v,%v), want its own mount's (%v,%v) — gun B must not drag it around", ca.MuzzleX, ca.MuzzleY, wantX, wantY)
+		}
+	})
+	t.Run("unhappy: a mount off the stage still fires from the edge, and an unstarted or nil gun is refused", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		gunfire.ResetBlast()
+		g := New()
+		if g.FireFrom(0, 0) {
+			t.Fatal("FireFrom before Start must be refused")
+		}
+		g.Start(stageW, stageH)
+		if !g.FireFrom(-200, -200) {
+			t.Fatal("a barrel poking off the stage still fires — from the edge")
+		}
+		c := g.Blast.Config()
+		if c.MuzzleX != 0 || c.MuzzleY != 0 {
+			t.Fatalf("a far off-stage mount fires from the stage edge (0,0), got (%v,%v)", c.MuzzleX, c.MuzzleY)
+		}
+		var ng *Gun
+		if ng.FireFrom(1, 1) {
+			t.Fatal("a nil gun must refuse the trigger")
 		}
 	})
 }

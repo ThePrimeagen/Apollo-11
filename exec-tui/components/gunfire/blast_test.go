@@ -8,7 +8,10 @@ package gunfire
 // flash frame follows every heading on a short fuse. Update flies
 // every direction's flame and re-reads the active blast so the tuner
 // retunes it live; Done reports a blast with nothing burning anywhere.
-// No period clock: no trigger, no fire.
+// No period clock: no trigger, no fire. A blast can be pinned to its
+// own tune with Use — then Start, the triggers, Update and Render all
+// read that tune instead of the package active, so one gun's shot
+// never retunes another's.
 
 import (
 	"testing"
@@ -368,6 +371,80 @@ func TestRetune(t *testing.T) {
 		b.Fire()
 		if got := len(b.FlameAt(sprite.N).Particles); got != DefaultBlast().ShotAt(sprite.N).Count {
 			t.Fatalf("a rejected retune must keep the stock volley, got %d", got)
+		}
+	})
+}
+
+// TestUse: a blast can be pinned to its own tune, so one gun's shot
+// never retunes another's — the package-wide active blast belongs to
+// the tuner, not to every gun that fires.
+func TestUse(t *testing.T) {
+	t.Run("happy: a pinned blast burns its own tune while unpinned blasts follow the package active", func(t *testing.T) {
+		t.Cleanup(ResetBlast)
+		ResetBlast()
+		own := DefaultBlast()
+		own.PulseFrac = 0
+		shot := own.ShotAt(sprite.E)
+		shot.Count = 9
+		own.SetShot(sprite.E, shot)
+
+		pinned := NewBlast(7)
+		if err := pinned.Use(own); err != nil {
+			t.Fatalf("Use: %v", err)
+		}
+		pinned.Start(80, 24)
+		loose := NewBlast(8)
+		loose.Start(80, 24)
+
+		if ActiveBlast() != DefaultBlast() {
+			t.Fatal("pinning one blast must not touch the package-wide active blast")
+		}
+		if got := pinned.Config().ShotAt(sprite.E).Count; got != 9 {
+			t.Fatalf("the pinned blast's config counts %d on E, want its own 9", got)
+		}
+		if got := loose.Config().ShotAt(sprite.E).Count; got != DefaultBlast().ShotAt(sprite.E).Count {
+			t.Fatalf("an unpinned blast must report the package active, got %d", got)
+		}
+		pinned.FireAt(sprite.E)
+		if got := len(pinned.FlameAt(sprite.E).Particles); got != 9 {
+			t.Fatalf("the pinned blast burst %d on E, want its own 9", got)
+		}
+		loose.FireAt(sprite.E)
+		if got := len(loose.FlameAt(sprite.E).Particles); got != DefaultBlast().ShotAt(sprite.E).Count {
+			t.Fatalf("the unpinned blast burst %d on E, want the package active's %d", got, DefaultBlast().ShotAt(sprite.E).Count)
+		}
+		if got := len(pinned.FlameAt(sprite.E).Particles); got != 9 {
+			t.Fatalf("the unpinned trigger dragged the pinned blast to %d particles on E", got)
+		}
+	})
+	t.Run("unhappy: a bad tune is rejected and kept out; a nil blast refuses quietly", func(t *testing.T) {
+		t.Cleanup(ResetBlast)
+		ResetBlast()
+		own := DefaultBlast()
+		own.PulseFrac = 0
+		shot := own.ShotAt(sprite.W)
+		shot.Count = 5
+		own.SetShot(sprite.W, shot)
+		b := NewBlast(7)
+		if err := b.Use(own); err != nil {
+			t.Fatalf("Use: %v", err)
+		}
+		b.Start(80, 24)
+		bad := own
+		bad.Heading = "sideways"
+		if err := b.Use(bad); err == nil {
+			t.Fatal("a tune off the compass must be rejected")
+		}
+		b.FireAt(sprite.W)
+		if got := len(b.FlameAt(sprite.W).Particles); got != 5 {
+			t.Fatalf("after the refused tune the blast burst %d on W, want the kept 5", got)
+		}
+		var nb *Blast
+		if err := nb.Use(own); err == nil {
+			t.Fatal("a nil blast must refuse a tune")
+		}
+		if nb.Config() != ActiveBlast() {
+			t.Fatal("a nil blast's config is the package active — never a panic")
 		}
 	})
 }
