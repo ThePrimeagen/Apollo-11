@@ -7,11 +7,13 @@
 // Occupancy counts how many live particles sit in each terminal cell so a
 // caller can color by density. The package does not draw.
 //
-// The engine flies under one of two modes, carried on the Config. The
+// The engine flies under one of three modes, carried on the Config. The
 // default, ModeStraight, keeps every particle on its velocity. ModeSwirl —
 // switched on with Config.SideSwirl — is the cartoon wind: every particle
 // curves toward the loop side as it flies, and every second one sweeps one
-// full loop before flying on.
+// full loop before flying on. ModePool — switched on with Config.Pooled —
+// parks a scatter of specks around the origin inside PoolRadius and
+// leaves them there: the unique, stationary puff a cloud is made of.
 package particle
 
 import (
@@ -28,21 +30,22 @@ const (
 )
 
 var (
-	ErrSize      = errors.New("particle: width and height must be positive")
-	ErrDirection = errors.New("particle: direction must be a non-zero vector")
-	ErrOrigin    = errors.New("particle: origin is outside the box")
-	ErrSpeed     = errors.New("particle: min speed is greater than max speed")
-	ErrLife      = errors.New("particle: min life is greater than max life")
-	ErrPeriod    = errors.New("particle: period must be non-negative")
-	ErrCount     = errors.New("particle: count must be non-negative")
-	ErrSpread    = errors.New("particle: spread must be non-negative")
-	ErrNozzle    = errors.New("particle: nozzle must be non-negative")
-	ErrNegative  = errors.New("particle: speed and life must be non-negative")
-	ErrDistance  = errors.New("particle: max distance must be non-negative")
-	ErrMode      = errors.New("particle: unknown mode")
-	ErrLift      = errors.New("particle: lift must be non-negative")
-	ErrDrag      = errors.New("particle: drag must be non-negative")
-	ErrNil       = errors.New("particle: nil engine")
+	ErrSize       = errors.New("particle: width and height must be positive")
+	ErrDirection  = errors.New("particle: direction must be a non-zero vector")
+	ErrOrigin     = errors.New("particle: origin is outside the box")
+	ErrSpeed      = errors.New("particle: min speed is greater than max speed")
+	ErrLife       = errors.New("particle: min life is greater than max life")
+	ErrPeriod     = errors.New("particle: period must be non-negative")
+	ErrCount      = errors.New("particle: count must be non-negative")
+	ErrSpread     = errors.New("particle: spread must be non-negative")
+	ErrNozzle     = errors.New("particle: nozzle must be non-negative")
+	ErrNegative   = errors.New("particle: speed and life must be non-negative")
+	ErrDistance   = errors.New("particle: max distance must be non-negative")
+	ErrMode       = errors.New("particle: unknown mode")
+	ErrLift       = errors.New("particle: lift must be non-negative")
+	ErrDrag       = errors.New("particle: drag must be non-negative")
+	ErrPoolRadius = errors.New("particle: pool radius must be non-negative")
+	ErrNil        = errors.New("particle: nil engine")
 )
 
 // Mode picks the update rule live particles fly under.
@@ -54,6 +57,9 @@ const (
 	// ModeSwirl is the cartoon wind: every particle curves toward the
 	// loop side, and every second one sweeps a full loop before flying on.
 	ModeSwirl
+	// ModePool is the stationary puff: particles scatter around Origin
+	// inside PoolRadius and stay put.
+	ModePool
 )
 
 // Vec2 is a point or a direction in unit space.
@@ -98,6 +104,7 @@ type Config struct {
 	Drag               float64 // per-second exponential speed decay; the burst dies down
 	Mode               Mode    // update rule; the zero value is ModeStraight
 	SwirlUp            bool    // swirl mode: curls aim at the top of the screen
+	PoolRadius         float64 // pool mode: scatter radius in units around Origin
 }
 
 // SideSwirl is the swirl switch: the same world, but particles curl to
@@ -107,6 +114,14 @@ type Config struct {
 func (c Config) SideSwirl(up bool) Config {
 	c.Mode = ModeSwirl
 	c.SwirlUp = up
+	return c
+}
+
+// Pooled is the pool switch: the same world, but particles scatter
+// around the origin and stay put — a unique puff per seed, the
+// building block of a cloud.
+func (c Config) Pooled() Config {
+	c.Mode = ModePool
 	return c
 }
 
@@ -151,7 +166,10 @@ func (c Config) Validate() error {
 	if c.Drag < 0 {
 		return ErrDrag
 	}
-	if c.Mode != ModeStraight && c.Mode != ModeSwirl {
+	if c.PoolRadius < 0 {
+		return ErrPoolRadius
+	}
+	if c.Mode != ModeStraight && c.Mode != ModeSwirl && c.Mode != ModePool {
 		return ErrMode
 	}
 	return nil
@@ -245,11 +263,31 @@ func (e *Engine) Update(dt float64) {
 
 // advance moves the live particles under the config's mode.
 func (e *Engine) advance(dt float64) {
-	if e.Cfg.Mode == ModeSwirl {
+	switch e.Cfg.Mode {
+	case ModeSwirl:
 		e.advanceSwirl(dt)
-		return
+	case ModePool:
+		e.advancePool(dt)
+	default:
+		e.advanceStraight(dt)
 	}
-	e.advanceStraight(dt)
+}
+
+// advancePool is the parked rule: specks keep their place, age, and
+// expire. Velocity is ignored so a leftover heading cannot drift the
+// puff.
+func (e *Engine) advancePool(dt float64) {
+	n := 0
+	for _, p := range e.Particles {
+		p.Vel = Vec2{}
+		p.Life -= dt
+		p.Age += dt
+		if p.Life > 0 && e.inRange(p.Pos) {
+			e.Particles[n] = p
+			n++
+		}
+	}
+	e.Particles = e.Particles[:n]
 }
 
 // blow applies the world's drag and lift to one velocity: drag decays
@@ -344,14 +382,18 @@ func (e *Engine) emit() {
 		speed := e.between(e.Cfg.MinSpeed, e.Cfg.MaxSpeed)
 		life := e.between(e.Cfg.MinLife, e.Cfg.MaxLife)
 		pos := e.Cfg.Origin
-		if e.Cfg.Nozzle > 0 {
+		vel := heading.Scale(speed)
+		if e.Cfg.Mode == ModePool {
+			pos = e.scatter(e.Cfg.Origin, e.Cfg.PoolRadius)
+			vel = Vec2{}
+		} else if e.Cfg.Nozzle > 0 {
 			perp := Vec2{X: -dir.Y, Y: dir.X}
 			off := (e.rng.Float64() - 0.5) * e.Cfg.Nozzle
 			pos = Vec2{X: pos.X + perp.X*off, Y: pos.Y + perp.Y*off}
 		}
 		p := Particle{
 			Pos:  pos,
-			Vel:  heading.Scale(speed),
+			Vel:  vel,
 			Life: life,
 		}
 		if e.Cfg.Mode == ModeSwirl {
@@ -414,6 +456,20 @@ func (e *Engine) between(min, max float64) float64 {
 		return min
 	}
 	return min + e.rng.Float64()*(max-min)
+}
+
+// scatter is a pool spawn: a uniform disk around origin of the given
+// radius, or the origin itself when the pool has no spread. A disk
+// keeps every speck inside PoolRadius so a cloud's shape is the
+// generator's to compose, not the box's to clip.
+func (e *Engine) scatter(origin Vec2, radius float64) Vec2 {
+	if radius <= 0 {
+		return origin
+	}
+	theta := e.rng.Float64() * 2 * math.Pi
+	r := radius * math.Sqrt(e.rng.Float64())
+	s, c := math.Sincos(theta)
+	return Vec2{X: origin.X + c*r, Y: origin.Y + s*r}
 }
 
 func (e *Engine) inside(p Vec2) bool {

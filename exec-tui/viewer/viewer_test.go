@@ -19,10 +19,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustarmed"
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustcloud"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustdust"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustflame"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustgunfire"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustparticle"
+	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
 	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
@@ -74,23 +77,28 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("first item must be the SHOTGUN component, got %+v", c[0])
 		}
 		want := map[string]Kind{
-			"shotgun":   KindComponent,
-			"stars":     KindComponent,
-			"lander":    KindComponent,
-			"flag":      KindComponent,
-			"eagle":     KindComponent,
-			"moon":      KindComponent,
-			"dsky":      KindComponent,
-			"title":     KindComponent,
-			"astronaut": KindComponent,
-			"rocket":    KindComponent,
-			"gunfire":   KindParticle,
-			"flame":     KindParticle,
-			"dust":      KindParticle,
-			"nyan":      KindParticle,
-			"landing":   KindScene,
-			"america":   KindScene,
-			"moonwalk":  KindScene,
+			"shotgun":    KindComponent,
+			"stars":      KindComponent,
+			"sky":        KindComponent,
+			"cloud":      KindComponent,
+			"lander":     KindComponent,
+			"flag":       KindComponent,
+			"transition": KindComponent,
+			"eagle":      KindComponent,
+			"armed":      KindComponent,
+			"moon":       KindComponent,
+			"dsky":       KindComponent,
+			"title":      KindComponent,
+			"astronaut":  KindComponent,
+			"rocket":     KindComponent,
+			"gunfire":    KindParticle,
+			"flame":      KindParticle,
+			"dust":       KindParticle,
+			"nyan":       KindParticle,
+			"landing":    KindScene,
+			"america":    KindScene,
+			"moonwalk":   KindScene,
+			"skies":      KindScene,
 		}
 		seen := map[string]bool{}
 		for _, it := range c {
@@ -305,6 +313,7 @@ func TestEdit(t *testing.T) {
 			{"landing", "./cmd/landing"},
 			{"america", "./cmd/america"},
 			{"moonwalk", "./cmd/astronaut"},
+			{"skies", "./cmd/skies"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
@@ -322,6 +331,36 @@ func TestEdit(t *testing.T) {
 			}
 			if cmd == nil {
 				t.Fatalf("%s: e must quit so the scene tuner can take the terminal", tc.id)
+			}
+		}
+	})
+	t.Run("happy: e on sky and cloud opens that component's tuner", func(t *testing.T) {
+		cases := []struct {
+			id, wantPath, wantPkg string
+		}{
+			{"sky", adjustsky.DefaultConfigPath, "./cmd/adjustsky/main"},
+			{"cloud", adjustcloud.DefaultConfigPath, "./cmd/adjustcloud/main"},
+			{"armed", adjustarmed.DefaultConfigPath, "./cmd/adjustarmed/main"},
+		}
+		for _, tc := range cases {
+			m := sized(New(findItem(t, KindComponent, tc.id)), 80, 24)
+			mm, cmd := m.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
+			m = mm.(Model)
+			ed, ok := m.ChosenEdit()
+			if !ok {
+				t.Fatalf("%s: e must choose an edit", tc.id)
+			}
+			if ed.Kind != KindComponent {
+				t.Fatalf("%s: edit kind %s, want component", tc.id, ed.Kind)
+			}
+			if ed.Path != tc.wantPath {
+				t.Fatalf("%s: edit path %q, want %q", tc.id, ed.Path, tc.wantPath)
+			}
+			if ed.Program != tc.wantPkg {
+				t.Fatalf("%s: edit program %q, want %q", tc.id, ed.Program, tc.wantPkg)
+			}
+			if cmd == nil {
+				t.Fatalf("%s: e must quit so the tuner can take the terminal", tc.id)
 			}
 		}
 	})

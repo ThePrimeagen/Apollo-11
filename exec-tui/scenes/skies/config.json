@@ -1,0 +1,15 @@
+{
+  "riseSeconds": 3.000,
+  "flagDelay": 3.000,
+  "flagFade": 2.000,
+  "eagleDelay": 2.000,
+  "crossSeconds": 4.000,
+  "eagleStart": 0.000,
+  "eagleEnd": 1.000,
+  "leftShots": 3,
+  "leftRate": 2.00,
+  "leftAim": "W",
+  "rightShots": 3,
+  "rightRate": 2.00,
+  "rightAim": "E"
+}

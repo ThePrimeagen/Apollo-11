@@ -18,6 +18,8 @@ components/   everything a scene puts together
   particle/   the particle engine
   gunfire/    a particle component: the one-shot Doom muzzle flame, tuned per compass direction — owns its config.json
   fire/       flame, booster, compass — owns its config.json
+  sky/        the moveable blue gradient — owns its config.json
+  cloud/      the pool-particle cloud generator — owns its config.json
   stars/      the four-layer starfield — owns its config.json
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component
     descent/  the legacy descent-view renderer (used by the sim UI)
@@ -32,6 +34,7 @@ shows/        composable bills, one package per show
 cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
+  skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser
@@ -41,6 +44,8 @@ cmd/          every runnable: editors, demos, tuners
   gunfire/    the one-shot muzzle-flame demo (space fires, arrows aim) — a particle component, not a scene
   adjustflame/  tunes components/fire/config.json
   adjuststars/  tunes components/stars/config.json
+  adjustsky/    tunes components/sky/config.json
+  adjustcloud/  tunes components/cloud/config.json
   adjustgunfire/  tunes components/gunfire/config.json
 menu/ sim/ ui/  the launcher and the legacy Executive sim
 ```
