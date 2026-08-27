@@ -46,7 +46,13 @@ type model struct {
 	knob    moonwalk.Knob
 	path    string
 	note    string
+	toast   string
+	toastID int
 }
+
+// saveToastClearMsg drops the banner armed by the save that carries
+// the same id — a stale curtain never wipes a fresh banner.
+type saveToastClearMsg struct{ id int }
 
 func newModel(seconds float64) (model, error) {
 	atlas, err := astro.Load()
