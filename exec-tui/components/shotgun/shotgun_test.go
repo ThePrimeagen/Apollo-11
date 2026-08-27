@@ -2,19 +2,25 @@ package shotgun
 
 // Tests written FIRST: Shotgun is the Doom pump gun as a scene
 // component, aimed on the same eight-point compass the gunfire blast
-// already speaks. Start builds every heading for a w×h stage; Aim
-// points the barrel; Fire pulls the trigger so the muzzle flame leaps
-// from this heading's barrel tip; Update burns the blast; Render
+// already speaks. It is one 2D side-on asset — the east stock shot —
+// spun in the plane of the screen around the Y-axis coming out of it
+// (east 0°, then counterclockwise: NE 45°, N 90°, …). That is not a
+// 3D rotation: there is no separate rear/top/three-quarter drawing,
+// and W is not FlipH(E). Start builds every heading for a w×h stage;
+// Aim points the barrel; Fire pulls the trigger so the muzzle flame
+// leaps from this heading's barrel tip using the shipped gunfire
+// config (components/gunfire/config.json) for that heading only —
+// never the whole eight-way rose. Update burns the blast; Render
 // paints the aimed gun with whatever flame is still in the air.
-// W is the horizontal mirror of E, S the vertical mirror of N — the
-// four cardinals and four diagonals are all distinct, and an east
-// barrel is a long gun while a north barrel is a tall one. Before
-// Start and after Stop the stage is empty; a heading off the compass
-// is refused; the trigger needs a stage.
+// Before Start and after Stop the stage is empty; a heading off the
+// compass is refused; the trigger needs a stage.
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
@@ -155,8 +161,61 @@ func TestStart(t *testing.T) {
 	})
 }
 
+func TestRotateGrid(t *testing.T) {
+	t.Run("happy: 90° CCW around the Y-axis coming out of the screen stands a wide bar up", func(t *testing.T) {
+		// X right, Y out of the screen: +90° is counterclockwise on
+		// the page, so a bar along +X (east) stands along -row (north).
+		in := []string{
+			"BBB.",
+			"....",
+			"....",
+			"....",
+		}
+		got := rotateGrid(in, 90)
+		want := []string{
+			"B...",
+			"B...",
+			"B...",
+			"....",
+		}
+		if strings.Join(got, "\n") != strings.Join(want, "\n") {
+			t.Fatalf("90° CCW:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		}
+	})
+	t.Run("happy: 180° is the same 2D asset flipped both ways — in-plane, not a card-flip", func(t *testing.T) {
+		in := []string{
+			"BB..",
+			"A...",
+			"....",
+			"....",
+		}
+		got := rotateGrid(in, 180)
+		want := []string{
+			"....",
+			"....",
+			"...A",
+			"..BB",
+		}
+		if strings.Join(got, "\n") != strings.Join(want, "\n") {
+			t.Fatalf("180°:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		}
+	})
+	t.Run("unhappy: rotating an empty grid stays empty, and junk degrees still yield a grid of dots", func(t *testing.T) {
+		empty := []string{"....", "...."}
+		got := rotateGrid(empty, 45)
+		for _, row := range got {
+			if strings.Trim(row, ".") != "" {
+				t.Fatalf("empty grid spun 45° painted %q", row)
+			}
+		}
+		if got := rotateGrid(nil, 90); len(got) != 0 {
+			t.Fatalf("nil grid must stay nil/empty, got %v", got)
+		}
+	})
+}
+
 func TestEightDirections(t *testing.T) {
-	t.Run("happy: the eight compass frames are all distinct, W mirrors E, S mirrors N", func(t *testing.T) {
+	t.Run("happy: the eight compass frames are the same 2D gun spun in the screen plane", func(t *testing.T) {
 		g := New()
 		g.Start(stageW, stageH)
 		seen := map[string]sprite.Heading{}
@@ -168,35 +227,40 @@ func TestEightDirections(t *testing.T) {
 			}
 			seen[key] = h
 		}
-		if !sameSprite(g.Frame(sprite.W), sprite.FlipH(g.Frame(sprite.E))) {
-			t.Fatal("W must be the horizontal mirror of E")
+		east := g.Frame(sprite.E)
+		if sameSprite(g.Frame(sprite.W), sprite.FlipH(east)) {
+			t.Fatal("W must not be FlipH(E) — that is a 3D card-flip, not an in-plane spin")
 		}
-		if !sameSprite(g.Frame(sprite.S), sprite.FlipV(g.Frame(sprite.N))) {
-			t.Fatal("S must be the vertical mirror of N")
+		if !sameSprite(g.Frame(sprite.W), sprite.FlipH(sprite.FlipV(east))) {
+			t.Fatal("W must be E spun 180° around the axis coming out of the screen (FlipH+FlipV)")
 		}
-		if !sameSprite(g.Frame(sprite.NW), sprite.FlipH(g.Frame(sprite.NE))) {
-			t.Fatal("NW must be the horizontal mirror of NE")
-		}
-		if !sameSprite(g.Frame(sprite.SE), sprite.FlipV(g.Frame(sprite.NE))) {
-			t.Fatal("SE must be the vertical mirror of NE")
+		if !sameSprite(g.Frame(sprite.S), sprite.FlipH(sprite.FlipV(g.Frame(sprite.N)))) {
+			t.Fatal("S must be N spun 180° around the axis coming out of the screen")
 		}
 	})
-	t.Run("happy: an east barrel is a long gun, a north barrel is a tall one", func(t *testing.T) {
+	t.Run("happy: an east barrel is a long side-on gun, north is that same gun stood on its stock", func(t *testing.T) {
 		g := New()
 		g.Start(stageW, stageH)
 		minC, minR, maxC, maxR, n := bounds(g.Frame(sprite.E))
 		if n == 0 {
 			t.Fatal("east gun is empty")
 		}
-		if w, h := maxC-minC+1, maxR-minR+1; w <= h {
-			t.Fatalf("east shotgun should be wider than tall, got %dx%d", w, h)
+		ew, eh := maxC-minC+1, maxR-minR+1
+		if ew <= eh {
+			t.Fatalf("east shotgun should be wider than tall, got %dx%d", ew, eh)
 		}
 		minC, minR, maxC, maxR, n = bounds(g.Frame(sprite.N))
 		if n == 0 {
 			t.Fatal("north gun is empty")
 		}
-		if w, h := maxC-minC+1, maxR-minR+1; h <= w {
-			t.Fatalf("north shotgun should be taller than wide, got %dx%d", w, h)
+		nw, nh := maxC-minC+1, maxR-minR+1
+		if nh <= nw {
+			t.Fatalf("north shotgun should be taller than wide, got %dx%d", nw, nh)
+		}
+		// Same 2D pixels: a 90° spin swaps the bounding box, it does
+		// not redraw a skinny 3D rear view.
+		if nw > ew {
+			t.Fatalf("north must be east stood up, not a wider 3D drawing: N %dx%d vs E %dx%d", nw, nh, ew, eh)
 		}
 	})
 	t.Run("unhappy: a heading off the compass has no frame", func(t *testing.T) {
@@ -204,6 +268,20 @@ func TestEightDirections(t *testing.T) {
 		g.Start(stageW, stageH)
 		if n := opaqueCount(g.Frame(sprite.Heading("up"))); n != 0 {
 			t.Fatalf("off-compass frame painted %d cells", n)
+		}
+	})
+	t.Run("unhappy: NE is not a separately drawn 3D three-quarter — it is E spun 45°", func(t *testing.T) {
+		g := New()
+		g.Start(stageW, stageH)
+		eN := opaqueCount(g.Frame(sprite.E))
+		neN := opaqueCount(g.Frame(sprite.NE))
+		if eN == 0 || neN == 0 {
+			t.Fatal("east and NE guns must both paint")
+		}
+		// Nearest-neighbour 45° keeps most of the pixels; a skinny
+		// 3D diagonal drawing would be far thinner than the side-on gun.
+		if neN < eN/2 {
+			t.Fatalf("NE painted %d cells, east %d — a 2D 45° spin must keep the same gun, not a thin 3D diagonal", neN, eN)
 		}
 	})
 }
@@ -254,20 +332,60 @@ func TestAim(t *testing.T) {
 }
 
 func TestFire(t *testing.T) {
-	t.Run("happy: Fire bursts the muzzle flame along the aimed heading", func(t *testing.T) {
+	t.Run("happy: Fire bursts only the aimed heading, using the shipped gunfire config", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
 		g := New()
 		g.Start(stageW, stageH)
+		shipped, err := gunfire.LoadBlast(gunfire.FindConfig())
+		if err != nil {
+			t.Fatalf("the shotgun must use the shipped gunfire config: %v", err)
+		}
 		_ = g.Aim(sprite.NE)
 		if !g.Fire() {
 			t.Fatal("Fire after Start must pull the trigger")
 		}
-		if liveBlast(g) == 0 {
-			t.Fatal("the trigger must throw particles")
+		got := len(g.Blast.FlameAt(sprite.NE).Particles)
+		want := shipped.ShotAt(sprite.NE).Count
+		if got != want {
+			t.Fatalf("NE flame burst %d, want the shipped gunfire config's %d", got, want)
+		}
+		for _, h := range sprite.Headings {
+			if h == sprite.NE {
+				continue
+			}
+			if n := len(g.Blast.FlameAt(h).Particles); n != 0 {
+				t.Fatalf("Fire must not dump the whole rose: %s held %d particles", h, n)
+			}
 		}
 		g.Update(1.0 / 30)
 		stage := g.Render()
 		if n := opaqueCount(stage); n < 12 {
 			t.Fatalf("a fired gun must still paint the shotgun, got %d cells", n)
+		}
+	})
+	t.Run("happy: Start loads components/gunfire/config.json so a prior UseBlast does not stick", func(t *testing.T) {
+		t.Cleanup(gunfire.ResetBlast)
+		weird := gunfire.DefaultBlast()
+		shot := weird.ShotAt(sprite.E)
+		shot.Count = 7
+		weird.SetShot(sprite.E, shot)
+		if err := gunfire.UseBlast(weird); err != nil {
+			t.Fatalf("UseBlast: %v", err)
+		}
+		g := New()
+		g.Start(stageW, stageH)
+		shipped, err := gunfire.LoadBlast(gunfire.FindConfig())
+		if err != nil {
+			t.Fatalf("FindConfig must locate the shipped gunfire config: %v", err)
+		}
+		if !strings.HasSuffix(filepath.ToSlash(gunfire.FindConfig()), "components/gunfire/config.json") {
+			t.Fatalf("FindConfig = %q, want …/components/gunfire/config.json", gunfire.FindConfig())
+		}
+		if gunfire.ActiveBlast().ShotAt(sprite.E).Count != shipped.ShotAt(sprite.E).Count {
+			t.Fatalf("Start must arm the shipped gunfire config, E count %d want %d", gunfire.ActiveBlast().ShotAt(sprite.E).Count, shipped.ShotAt(sprite.E).Count)
+		}
+		if gunfire.ActiveBlast().ShotAt(sprite.E).Count == 7 {
+			t.Fatal("Start must not leave a prior 7-count UseBlast in effect")
 		}
 	})
 	t.Run("unhappy: the trigger needs a stage — Fire before Start is refused", func(t *testing.T) {
