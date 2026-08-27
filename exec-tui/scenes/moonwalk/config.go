@@ -18,7 +18,14 @@ const DefaultConfigPath = "scenes/moonwalk/config.json"
 // to tower over the crates.
 const (
 	MinPoleRows = 10
-	MaxPoleRows = 24
+	MaxPoleRows = 28
+)
+
+// Box start rails: how many columns before the pole the first stack
+// begins — wide enough for three stacks and a landing.
+const (
+	MinBoxStart = 38
+	MaxBoxStart = 90
 )
 
 // Config is every knob the scene exposes.
@@ -26,9 +33,12 @@ type Config struct {
 	StrideFPS    float64 `json:"stride_fps"`
 	RunSpeed     float64 `json:"run_speed"`
 	JumpSeconds  float64 `json:"jump_seconds"`
+	BoxStart     int     `json:"box_start"`
+	TopSeconds   float64 `json:"top_seconds"`
 	SlideSeconds float64 `json:"slide_seconds"`
 	FlagSeconds  float64 `json:"flag_seconds"`
 	PoleRows     int     `json:"pole_rows"`
+	ExitSpeed    float64 `json:"exit_speed"`
 	PanCols      int     `json:"pan_cols"`
 	PanSeconds   float64 `json:"pan_seconds"`
 }
@@ -56,9 +66,12 @@ const (
 	KnobStrideFPS Knob = iota
 	KnobRunSpeed
 	KnobJumpSeconds
+	KnobBoxStart
+	KnobTopSeconds
 	KnobSlideSeconds
 	KnobFlagSeconds
 	KnobPoleRows
+	KnobExitSpeed
 	KnobPanCols
 	KnobPanSeconds
 	KnobCount
@@ -72,12 +85,18 @@ func (k Knob) String() string {
 		return "run speed"
 	case KnobJumpSeconds:
 		return "jump s"
+	case KnobBoxStart:
+		return "box start"
+	case KnobTopSeconds:
+		return "top s"
 	case KnobSlideSeconds:
 		return "slide s"
 	case KnobFlagSeconds:
 		return "flag s"
 	case KnobPoleRows:
 		return "pole rows"
+	case KnobExitSpeed:
+		return "exit speed"
 	case KnobPanCols:
 		return "pan cols"
 	case KnobPanSeconds:

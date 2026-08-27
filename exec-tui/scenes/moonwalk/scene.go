@@ -48,17 +48,33 @@ func poleTopRow(cfg Config, stageH int) int {
 func blockAX(stageW int) int { return stageW / 4 }
 func blockBX(stageW int) int { return blockAX(stageW) + blockCols + 4 }
 
-// roverX is the rover's left world column — just beyond the viewport
-// until the pan finds it.
+// roverX is the little rover prop's old parking spot; the module
+// replaces it in the green pass.
 func roverX(cfg Config, stageW int) int { return stageW + 1 }
+
+// PoseGone is the frame after he boards the module: nothing to draw.
+const PoseGone = sprite.Heading("")
+
+// stackX is stack i's left world column (i = 0, 1, 2 — one, two,
+// three crates high), marching toward the pole from BoxStart.
+func stackX(cfg Config, stageW, i int) int { return 0 }
+
+// landerX is the lunar module's left world column — beyond the
+// viewport until the pan finds it.
+func landerX(cfg Config, stageW int) int { return 0 }
+
+// flagAt is the flag sprite's top row at t and whether it exists yet
+// — it appears the moment the slide starts.
+func flagAt(cfg Config, stageW, stageH int, t float64) (int, bool) { return 0, false }
 
 // route is one loop of choreography, precomputed for a stage and a
 // config: where every leg starts and lands, and when.
 type route struct {
-	grounded, yA, yB, grabY                  int
-	x0, xJ1, xA, xB, grabX                   int
+	grounded, yA, yB, yC, grabY              int
+	x0, xJ1, xA, xB, xC, grabX, boardX       int
 	hop1At, beat1At, hop2At, beat2At, leapAt float64
-	slideAt, standAt, panAt, cycle           float64
+	topAt, slideAt, standAt, panAt, exitAt   float64
+	boardAt, goneAt, cycle                   float64
 	leapSec                                  float64
 }
 

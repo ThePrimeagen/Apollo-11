@@ -17,14 +17,32 @@ func TestConfigDefaults(t *testing.T) {
 	t.Run("happy: the default knobs are sane and playable", func(t *testing.T) {
 		c := DefaultConfig()
 		if c.StrideFPS <= 0 || c.RunSpeed <= 0 || c.JumpSeconds <= 0 ||
-			c.SlideSeconds <= 0 || c.FlagSeconds <= 0 || c.PanSeconds <= 0 {
+			c.SlideSeconds <= 0 || c.FlagSeconds <= 0 || c.PanSeconds <= 0 || c.ExitSpeed <= 0 {
 			t.Fatalf("default timings must be positive: %+v", c)
+		}
+		if c.TopSeconds < 0 {
+			t.Fatalf("the top hold cannot be negative: %+v", c)
 		}
 		if c.PoleRows < MinPoleRows || c.PoleRows > MaxPoleRows {
 			t.Fatalf("default pole %d out of [%d, %d]", c.PoleRows, MinPoleRows, MaxPoleRows)
 		}
+		if c.BoxStart < MinBoxStart || c.BoxStart > MaxBoxStart {
+			t.Fatalf("default box start %d out of [%d, %d]", c.BoxStart, MinBoxStart, MaxBoxStart)
+		}
 		if c.PanCols <= 0 {
 			t.Fatalf("the ending pan must reveal something: %+v", c)
+		}
+	})
+	t.Run("happy: the defaults stage the requested show", func(t *testing.T) {
+		c := DefaultConfig()
+		if c.RunSpeed < 18 {
+			t.Fatalf("the ground sprint was asked to quicken: %v", c.RunSpeed)
+		}
+		if c.PoleRows < 20 {
+			t.Fatalf("the pole was asked to grow: %d", c.PoleRows)
+		}
+		if c.TopSeconds <= 0 {
+			t.Fatalf("he holds the top for a beat by default: %v", c.TopSeconds)
 		}
 	})
 }
@@ -65,11 +83,17 @@ func TestKnobs(t *testing.T) {
 			}
 		}
 		if c.StrideFPS <= 0 || c.RunSpeed <= 0 || c.JumpSeconds <= 0 ||
-			c.SlideSeconds <= 0 || c.FlagSeconds <= 0 || c.PanSeconds <= 0 {
+			c.SlideSeconds <= 0 || c.FlagSeconds <= 0 || c.PanSeconds <= 0 || c.ExitSpeed <= 0 {
 			t.Fatalf("nudging down forever must clamp, got %+v", c)
+		}
+		if c.TopSeconds < 0 {
+			t.Fatalf("the top hold clamps at zero, got %v", c.TopSeconds)
 		}
 		if c.PoleRows < MinPoleRows {
 			t.Fatalf("pole clamps at %d, got %d", MinPoleRows, c.PoleRows)
+		}
+		if c.BoxStart < MinBoxStart {
+			t.Fatalf("box start clamps at %d, got %d", MinBoxStart, c.BoxStart)
 		}
 		if c.PanCols < 0 {
 			t.Fatalf("pan cols cannot go negative, got %d", c.PanCols)
@@ -91,6 +115,9 @@ func TestConfigFile(t *testing.T) {
 		c := DefaultConfig()
 		c.Nudge(KnobStrideFPS, 3)
 		c.Nudge(KnobPoleRows, 2)
+		c.Nudge(KnobBoxStart, 2)
+		c.Nudge(KnobTopSeconds, 1)
+		c.Nudge(KnobExitSpeed, -2)
 		c.Nudge(KnobPanCols, -4)
 		if err := c.Save(path); err != nil {
 			t.Fatalf("Save: %v", err)

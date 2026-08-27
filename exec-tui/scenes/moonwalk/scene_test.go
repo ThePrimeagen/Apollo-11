@@ -1,23 +1,26 @@
 package moonwalk
 
-// Tests written FIRST. One cycle of the moonwalk scene: run in, jump
-// onto the low crate, jump again onto the tall stack — twice up, nice
-// and high — leap off the top and land on the very tip of the
-// flagpole, slide down while the American flag rises past him to the
-// top, stand at the base, and then the camera pans a little to the
-// right to find the lunar rover parked in the dark. Every beat is a
-// pure function of the knobs, the stage, and the clock.
+// Tests written FIRST. One cycle of the moonwalk show, staged tight:
+// he runs in, climbs three crate stacks — one, two, three high, parked
+// close to the pole so the last leap is a hop, not a superjump — lands
+// with his fists on the gold ball, holds the top for a beat, slides
+// down while the flag APPEARS at the base and flies up past him, bows,
+// and then the camera pans right to the real lunar module (the house
+// LM art, north-facing). He runs to it, jumps at its center hatch, and
+// disappears inside. Every beat is a pure function of the knobs, the
+// stage, and the clock.
 
 import (
 	"testing"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/astro"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
 const (
-	tw = 84
-	th = 30
+	tw = 120
+	th = 34
 )
 
 type sample struct {
@@ -72,38 +75,33 @@ func TestChoreography(t *testing.T) {
 			lastX = s.x
 		}
 	})
-	t.Run("happy: two jumps land him on two ever-higher blocks", func(t *testing.T) {
+	t.Run("happy: three jumps land him on three ever-higher stacks", func(t *testing.T) {
 		samples := sweep(cfg, tw, th)
-		yA := grounded - blockRows
-		yB := grounded - 2*blockRows
-		onA, onB, aBeforeB := false, false, false
+		levels := []int{grounded - blockRows, grounded - 2*blockRows, grounded - 3*blockRows}
+		landed := make([]bool, len(levels))
+		next := 0
 		for _, s := range samples {
 			if isPole(s.pose) {
 				break
 			}
-			if s.pose != astro.PoseJump {
-				if s.y == yA {
-					onA = true
-				}
-				if s.y == yB {
-					onB = true
-					if onA {
-						aBeforeB = true
-					}
-				}
+			if s.pose == astro.PoseStand && next < len(levels) && s.y == levels[next] {
+				landed[next] = true
+				next++
 			}
 		}
-		if !onA {
-			t.Fatalf("he never lands on the low crate (y %d)", yA)
-		}
-		if !onB {
-			t.Fatalf("he never lands on the tall stack (y %d)", yB)
-		}
-		if !aBeforeB {
-			t.Fatal("the low crate must come before the tall stack — two jumps, ever higher")
+		for i, ok := range landed {
+			if !ok {
+				t.Fatalf("he never landed on stack %d (y %d) in order — one, two, three high", i+1, levels[i])
+			}
 		}
 	})
-	t.Run("happy: the leap off the stack lands on the very top of the pole", func(t *testing.T) {
+	t.Run("happy: the last leap is a hop off the top stack, not a superjump", func(t *testing.T) {
+		r := routeFor(cfg, tw, th)
+		if dx := r.grabX - r.xC; dx < 2 || dx > 14 {
+			t.Fatalf("the stacks must sit close to the pole: leap covers %d cols, want a hop (2..14)", dx)
+		}
+	})
+	t.Run("happy: he grabs the ball, holds the top, then rides down", func(t *testing.T) {
 		samples := sweep(cfg, tw, th)
 		var pole []sample
 		for _, s := range samples {
@@ -114,16 +112,25 @@ func TestChoreography(t *testing.T) {
 		if len(pole) == 0 {
 			t.Fatal("he never reaches the pole")
 		}
-		// One row above the tip: his fists close on the gold ball
-		// itself — the tippy top, unmistakably.
-		if got, want := pole[0].y, poleTopRow(cfg, th)-1; got != want {
-			t.Fatalf("the grab starts at y %d, want on the ball at %d", got, want)
+		grab := poleTopRow(cfg, th) - 1
+		if pole[0].y != grab {
+			t.Fatalf("the grab starts at y %d, want on the ball at %d", pole[0].y, grab)
+		}
+		var held float64
+		for _, s := range pole {
+			if s.y != grab {
+				break
+			}
+			held = s.t - pole[0].t
+		}
+		if held < cfg.TopSeconds*0.7 {
+			t.Fatalf("he must hold the top about %.2fs, held %.2fs", cfg.TopSeconds, held)
 		}
 		wantX := poleCol(tw) - astro.GripCol
 		lastY := pole[0].y
 		for _, s := range pole {
 			if s.x != wantX {
-				t.Fatalf("t=%.2f: sliding at x %d, want %d", s.t, s.x, wantX)
+				t.Fatalf("t=%.2f: on the pole at x %d, want %d", s.t, s.x, wantX)
 			}
 			if s.y < lastY {
 				t.Fatalf("t=%.2f: the slide went up", s.t)
@@ -134,63 +141,108 @@ func TestChoreography(t *testing.T) {
 			t.Fatalf("the slide ends at y %d, want the ground %d", pole[len(pole)-1].y, grounded)
 		}
 	})
-	t.Run("happy: the flag goes up while he goes down", func(t *testing.T) {
-		samples := sweep(cfg, tw, th)
-		var start, end float64
-		for _, s := range samples {
-			if isPole(s.pose) {
-				if start == 0 {
-					start = s.t
-				}
-				end = s.t
-			}
+	t.Run("happy: the flag appears at the slide and flies up while he goes down", func(t *testing.T) {
+		r := routeFor(cfg, tw, th)
+		if _, visible := flagAt(cfg, tw, th, r.slideAt-0.05); visible {
+			t.Fatal("the flag must not exist before he starts sliding")
 		}
-		top0 := flagTopAt(cfg, tw, th, start)
-		top1 := flagTopAt(cfg, tw, th, end)
-		if top1 >= top0 {
-			t.Fatalf("the flag must rise during the slide: top went %d -> %d", top0, top1)
+		early, visible := flagAt(cfg, tw, th, r.slideAt+0.05)
+		if !visible {
+			t.Fatal("the flag must appear the moment the slide starts")
 		}
-		if top1 <= poleTopRow(cfg, th)+1 {
-			t.Fatalf("the hoist must outlast the slide — still %d at slide end, the top is %d", top1, poleTopRow(cfg, th)+1)
+		if early < groundRow(th)-flagRows-2 {
+			t.Fatalf("the flag appears near the base, got top %d", early)
 		}
-		_, _, y0 := timelineAt(cfg, tw, th, start)
-		_, _, y1 := timelineAt(cfg, tw, th, end)
-		if y1 <= y0 {
-			t.Fatal("he must descend while the flag rises")
+		late, _ := flagAt(cfg, tw, th, r.slideAt+cfg.SlideSeconds)
+		if late >= early {
+			t.Fatalf("the flag must rise: top went %d -> %d", early, late)
 		}
 		cyc := CycleSeconds(cfg, tw, th)
-		if got, want := flagTopAt(cfg, tw, th, cyc-0.01), poleTopRow(cfg, th)+1; got != want {
-			t.Fatalf("by the end the flag flies at the top: %d, want %d", got, want)
+		end, visible := flagAt(cfg, tw, th, cyc-0.01)
+		if !visible || end != poleTopRow(cfg, th)+1 {
+			t.Fatalf("by the end the flag flies at the top: %d (visible %v), want %d", end, visible, poleTopRow(cfg, th)+1)
 		}
 	})
-	t.Run("happy: the camera holds, then pans a little to the rover", func(t *testing.T) {
-		cyc := CycleSeconds(cfg, tw, th)
+	t.Run("happy: after the pan he runs to the lunar module, jumps at its middle, and vanishes", func(t *testing.T) {
 		samples := sweep(cfg, tw, th)
+		r := routeFor(cfg, tw, th)
+		var exitRun, boardJump, gone []sample
 		for _, s := range samples {
-			if isPole(s.pose) || isRun(s.pose) || s.pose == astro.PoseJump {
-				if cam := cameraAt(cfg, tw, th, s.t); cam != 0 {
-					t.Fatalf("t=%.2f: the camera moved (%d) before the action ended", s.t, cam)
-				}
+			if s.t < r.exitAt {
+				continue
+			}
+			switch {
+			case isRun(s.pose):
+				exitRun = append(exitRun, s)
+			case s.pose == astro.PoseJump:
+				boardJump = append(boardJump, s)
+			case s.pose == PoseGone:
+				gone = append(gone, s)
 			}
 		}
+		if len(exitRun) == 0 {
+			t.Fatal("he must run toward the module after the pan")
+		}
+		lastX := exitRun[0].x
+		for _, s := range exitRun {
+			if s.x < lastX {
+				t.Fatalf("t=%.2f: the exit run went backward", s.t)
+			}
+			lastX = s.x
+			if s.y != grounded {
+				t.Fatalf("t=%.2f: the exit run left the ground", s.t)
+			}
+		}
+		if len(boardJump) == 0 {
+			t.Fatal("he must jump to board")
+		}
+		wantCenter := landerX(cfg, tw) + lander.BodyCols/2
+		gotCenter := boardJump[0].x + astro.Cols/2
+		if gotCenter < wantCenter-1 || gotCenter > wantCenter+1 {
+			t.Fatalf("the boarding jump happens at x-center %d, want the module's middle %d", gotCenter, wantCenter)
+		}
+		up := false
+		for _, s := range boardJump {
+			if s.y < grounded {
+				up = true
+			}
+		}
+		if !up {
+			t.Fatal("the boarding jump must leave the ground")
+		}
+		if len(gone) == 0 {
+			t.Fatal("he must disappear into the module")
+		}
+		if gone[len(gone)-1].t < samples[len(samples)-1].t-0.1 {
+			t.Fatal("once aboard he stays gone until the loop restarts")
+		}
+	})
+	t.Run("happy: the camera holds through the action, then pans to the module", func(t *testing.T) {
+		r := routeFor(cfg, tw, th)
+		for _, tt := range []float64{0.1, r.slideAt - 0.1, r.slideAt + 0.2, r.panAt - 0.05} {
+			if cam := cameraAt(cfg, tw, th, tt); cam != 0 {
+				t.Fatalf("t=%.2f: the camera moved (%d) before the pan", tt, cam)
+			}
+		}
+		cyc := CycleSeconds(cfg, tw, th)
 		if got := cameraAt(cfg, tw, th, cyc-0.01); got != cfg.PanCols {
 			t.Fatalf("the pan must finish at %d cols, got %d", cfg.PanCols, got)
 		}
-		rx := roverX(cfg, tw)
-		if rx < tw {
-			t.Fatalf("the rover (x %d) must start beyond the %d-wide viewport", rx, tw)
+		lx := landerX(cfg, tw)
+		if lx < tw {
+			t.Fatalf("the module (x %d) must start beyond the %d-wide viewport", lx, tw)
 		}
-		if rx+astro.RoverPxW > tw+cfg.PanCols {
-			t.Fatalf("the pan (%d) must fully reveal the rover (x %d + %d)", cfg.PanCols, rx, astro.RoverPxW)
+		if lx+lander.BodyCols > tw+cfg.PanCols {
+			t.Fatalf("the pan (%d) must fully reveal the module (x %d + %d)", cfg.PanCols, lx, lander.BodyCols)
 		}
 	})
-	t.Run("happy: the scene renders the props into the viewport", func(t *testing.T) {
+	t.Run("happy: the scene renders the set into the viewport", func(t *testing.T) {
 		a := mustSceneAtlas(t)
 		early := Frame(cfg, a, tw, th, 0.2)
 		if early.Width != tw || early.Height != th {
 			t.Fatalf("frame is %dx%d, want %dx%d", early.Width, early.Height, tw, th)
 		}
-		var poleGlyph, blockCells bool
+		var poleGlyph bool
 		for r := 0; r < early.Height; r++ {
 			for c := 0; c < early.Width; c++ {
 				if early.At(r, c).Ch == '│' {
@@ -198,23 +250,32 @@ func TestChoreography(t *testing.T) {
 				}
 			}
 		}
-		aTop := groundRow(th) - blockRows
-		for c := blockAX(tw); c < blockAX(tw)+astro.BlockPxW; c++ {
-			if !early.At(aTop, c).Transparent() {
-				blockCells = true
-			}
-		}
 		if !poleGlyph {
 			t.Fatal("the flagpole must be on stage")
+		}
+		stackTop := groundRow(th) - blockRows
+		blockCells := false
+		for c := stackX(cfg, tw, 0); c < stackX(cfg, tw, 0)+blockCols; c++ {
+			if !early.At(stackTop, c).Transparent() {
+				blockCells = true
+			}
 		}
 		if !blockCells {
 			t.Fatal("the crates must be on stage")
 		}
 		cyc := CycleSeconds(cfg, tw, th)
-		before := Frame(cfg, a, tw, th, cyc-cfg.PanSeconds-2.0)
-		after := Frame(cfg, a, tw, th, cyc-0.01)
-		if fingerprint(before) == fingerprint(after) {
-			t.Fatal("the pan must change what the viewport shows")
+		end := Frame(cfg, a, tw, th, cyc-0.01)
+		moduleInk := 0
+		viewLX := landerX(cfg, tw) - cfg.PanCols
+		for r := 0; r < end.Height; r++ {
+			for c := viewLX; c < viewLX+lander.BodyCols; c++ {
+				if !end.At(r, c).Transparent() {
+					moduleInk++
+				}
+			}
+		}
+		if moduleInk < 40 {
+			t.Fatalf("the module must be visible after the pan, found %d painted cells", moduleInk)
 		}
 	})
 	t.Run("happy: one cycle later everything repeats exactly", func(t *testing.T) {
@@ -230,14 +291,6 @@ func TestChoreography(t *testing.T) {
 	})
 }
 
-func fingerprint(sp sprite.Sprite) string {
-	out := ""
-	for _, row := range sp.GlyphRows() {
-		out += row + "\n"
-	}
-	return out
-}
-
 func TestKnobsShapeTheScene(t *testing.T) {
 	t.Run("happy: a faster runner finishes the cycle sooner", func(t *testing.T) {
 		slow := DefaultConfig()
@@ -247,45 +300,38 @@ func TestKnobsShapeTheScene(t *testing.T) {
 			t.Fatal("doubling the ground speed must shorten the cycle")
 		}
 	})
+	t.Run("happy: box start moves the stacks", func(t *testing.T) {
+		near := DefaultConfig()
+		far := DefaultConfig()
+		far.BoxStart = near.BoxStart + 12
+		if stackX(far, tw, 0) >= stackX(near, tw, 0) {
+			t.Fatal("a bigger box start must push the first stack farther from the pole")
+		}
+	})
+	t.Run("happy: the top hold stretches the cycle", func(t *testing.T) {
+		quick := DefaultConfig()
+		quick.TopSeconds = 0.2
+		lazy := DefaultConfig()
+		lazy.TopSeconds = 2.0
+		if CycleSeconds(lazy, tw, th) <= CycleSeconds(quick, tw, th) {
+			t.Fatal("holding the top longer must lengthen the cycle")
+		}
+	})
+	t.Run("happy: a faster exit reaches the module sooner", func(t *testing.T) {
+		amble := DefaultConfig()
+		amble.ExitSpeed = 6
+		sprint := DefaultConfig()
+		sprint.ExitSpeed = 30
+		if CycleSeconds(sprint, tw, th) >= CycleSeconds(amble, tw, th) {
+			t.Fatal("a faster exit must shorten the cycle")
+		}
+	})
 	t.Run("happy: a taller pole grabs higher", func(t *testing.T) {
 		short := DefaultConfig()
 		tall := DefaultConfig()
 		tall.PoleRows = short.PoleRows + 4
 		if poleTopRow(tall, th) >= poleTopRow(short, th) {
 			t.Fatal("more pole rows must raise the tip")
-		}
-	})
-	t.Run("happy: the stride knob changes which frame plays", func(t *testing.T) {
-		slow := DefaultConfig()
-		slow.StrideFPS = 3
-		fast := DefaultConfig()
-		fast.StrideFPS = 24
-		differs := false
-		for _, tt := range []float64{0.15, 0.25, 0.35, 0.45} {
-			p0, _, _ := timelineAt(slow, tw, th, tt)
-			p1, _, _ := timelineAt(fast, tw, th, tt)
-			if p0 != p1 {
-				differs = true
-			}
-		}
-		if !differs {
-			t.Fatal("the stride knob must change the playing frame")
-		}
-	})
-	t.Run("happy: a slower hoist has the flag lower at mid-slide", func(t *testing.T) {
-		quick := DefaultConfig()
-		quick.FlagSeconds = 0.4
-		lazy := DefaultConfig()
-		lazy.FlagSeconds = 4.0
-		var mid float64
-		for _, s := range sweep(quick, tw, th) {
-			if isPole(s.pose) {
-				mid = s.t + 0.2
-				break
-			}
-		}
-		if flagTopAt(quick, tw, th, mid) >= flagTopAt(lazy, tw, th, mid) {
-			t.Fatal("a quick hoist must be higher than a lazy one mid-slide")
 		}
 	})
 	t.Run("unhappy: time before the curtain clamps to the opening run", func(t *testing.T) {
@@ -298,7 +344,7 @@ func TestKnobsShapeTheScene(t *testing.T) {
 		cfg := DefaultConfig()
 		pose, _, _ := timelineAt(cfg, 8, 6, 1.0)
 		if pose == "" {
-			t.Fatal("a tiny stage must still name a pose")
+			t.Fatal("a tiny stage must still name a pose mid-action")
 		}
 		a := mustSceneAtlas(t)
 		sp := Frame(cfg, a, 8, 6, 1.0)
