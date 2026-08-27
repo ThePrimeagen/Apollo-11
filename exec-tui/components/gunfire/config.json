@@ -1,0 +1,174 @@
+{
+  "muzzleX": 0.5,
+  "muzzleY": 0.5,
+  "heading": "N",
+  "pulseDelay": 0.11,
+  "pulseFrac": 0.6,
+  "edgeAt": 2,
+  "midAt": 4,
+  "coreAt": 7,
+  "core": {
+    "count": 80,
+    "minLife": 0.04,
+    "maxLife": 0.12,
+    "minSpeed": 8,
+    "maxSpeed": 20,
+    "spread": 0.55,
+    "nozzle": 3,
+    "maxDistance": 4,
+    "lift": 0,
+    "drag": 0
+  },
+  "n": {
+    "count": 140,
+    "minLife": 0.14,
+    "maxLife": 0.62,
+    "minSpeed": 16,
+    "maxSpeed": 36,
+    "spread": 0.24,
+    "nozzle": 2.4,
+    "maxDistance": 0,
+    "lift": 46,
+    "drag": 3,
+    "colors": [
+      226,
+      208,
+      196,
+      160,
+      124
+    ]
+  },
+  "ne": {
+    "count": 140,
+    "minLife": 0.14,
+    "maxLife": 0.62,
+    "minSpeed": 16,
+    "maxSpeed": 36,
+    "spread": 0.24,
+    "nozzle": 2.4,
+    "maxDistance": 0,
+    "lift": 46,
+    "drag": 3,
+    "colors": [
+      226,
+      208,
+      196,
+      160,
+      124
+    ]
+  },
+  "e": {
+    "count": 140,
+    "minLife": 0.14,
+    "maxLife": 0.62,
+    "minSpeed": 16,
+    "maxSpeed": 36,
+    "spread": 0.24,
+    "nozzle": 2.4,
+    "maxDistance": 0,
+    "lift": 46,
+    "drag": 3,
+    "colors": [
+      226,
+      208,
+      196,
+      160,
+      124
+    ]
+  },
+  "se": {
+    "count": 140,
+    "minLife": 0.14,
+    "maxLife": 0.62,
+    "minSpeed": 16,
+    "maxSpeed": 36,
+    "spread": 0.24,
+    "nozzle": 2.4,
+    "maxDistance": 0,
+    "lift": 46,
+    "drag": 3,
+    "colors": [
+      226,
+      208,
+      196,
+      160,
+      124
+    ]
+  },
+  "s": {
+    "count": 140,
+    "minLife": 0.14,
+    "maxLife": 0.62,
+    "minSpeed": 16,
+    "maxSpeed": 36,
+    "spread": 0.24,
+    "nozzle": 2.4,
+    "maxDistance": 0,
+    "lift": 46,
+    "drag": 3,
+    "colors": [
+      226,
+      208,
+      196,
+      160,
+      124
+    ]
+  },
+  "sw": {
+    "count": 140,
+    "minLife": 0.14,
+    "maxLife": 0.62,
+    "minSpeed": 16,
+    "maxSpeed": 36,
+    "spread": 0.24,
+    "nozzle": 2.4,
+    "maxDistance": 0,
+    "lift": 46,
+    "drag": 3,
+    "colors": [
+      226,
+      208,
+      196,
+      160,
+      124
+    ]
+  },
+  "w": {
+    "count": 140,
+    "minLife": 0.14,
+    "maxLife": 0.62,
+    "minSpeed": 16,
+    "maxSpeed": 36,
+    "spread": 0.24,
+    "nozzle": 2.4,
+    "maxDistance": 0,
+    "lift": 46,
+    "drag": 3,
+    "colors": [
+      226,
+      208,
+      196,
+      160,
+      124
+    ]
+  },
+  "nw": {
+    "count": 140,
+    "minLife": 0.14,
+    "maxLife": 0.62,
+    "minSpeed": 16,
+    "maxSpeed": 36,
+    "spread": 0.24,
+    "nozzle": 2.4,
+    "maxDistance": 0,
+    "lift": 46,
+    "drag": 3,
+    "colors": [
+      226,
+      208,
+      196,
+      160,
+      124
+    ]
+  }
+}

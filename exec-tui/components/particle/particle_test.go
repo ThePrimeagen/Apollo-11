@@ -440,6 +440,164 @@ func TestSetConfig(t *testing.T) {
 	})
 }
 
+func TestBurst(t *testing.T) {
+	t.Run("happy: Burst is the one-shot trigger — Period 0 never auto-emits, the squeeze does", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Period = 0
+		e := New(1, cfg)
+		e.Update(1)
+		if len(e.Particles) != 0 {
+			t.Fatalf("Period=0 must hold fire, got %d", len(e.Particles))
+		}
+		e.Burst()
+		if len(e.Particles) != cfg.Count {
+			t.Fatalf("one squeeze emits %d, want the count %d", len(e.Particles), cfg.Count)
+		}
+		for i, p := range e.Particles {
+			if p.Pos != cfg.Origin {
+				t.Fatalf("particle %d burst at %+v, want the origin %+v", i, p.Pos, cfg.Origin)
+			}
+			if p.Age != 0 {
+				t.Fatalf("particle %d burst with age %f, want 0", i, p.Age)
+			}
+		}
+		e.Burst()
+		if len(e.Particles) != 2*cfg.Count {
+			t.Fatalf("a second squeeze stacks to %d, want %d", len(e.Particles), 2*cfg.Count)
+		}
+	})
+	t.Run("happy: burst particles fly, age, and die like any other", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Period = 0
+		cfg.MinLife, cfg.MaxLife = 0.1, 0.2
+		e := New(2, cfg)
+		e.Burst()
+		e.Update(0.05)
+		if len(e.Particles) == 0 {
+			t.Fatal("mid-life the batch must still fly")
+		}
+		if avgX(e.Particles) >= cfg.Origin.X {
+			t.Fatalf("a leftward burst must drift left, avgX=%.2f origin=%.2f", avgX(e.Particles), cfg.Origin.X)
+		}
+		e.Update(2)
+		if len(e.Particles) != 0 {
+			t.Fatalf("after 2s the whole batch must be dead, still %d", len(e.Particles))
+		}
+	})
+	t.Run("unhappy: a zero count bursts nothing", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Period = 0
+		cfg.Count = 0
+		e := New(3, cfg)
+		e.Burst()
+		if len(e.Particles) != 0 {
+			t.Fatalf("Count=0 must burst 0, got %d", len(e.Particles))
+		}
+	})
+	t.Run("unhappy: a nil engine skips the cue without a panic", func(t *testing.T) {
+		var ghost *Engine
+		ghost.Burst()
+	})
+}
+
+func TestLiftDrag(t *testing.T) {
+	t.Run("happy: lift bends a level flight upward like hot gas rising", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Period = 0
+		cfg.Spread = 0
+		cfg.Direction = Vec2{X: 1, Y: 0}
+		cfg.Origin = Vec2{X: 5, Y: 15}
+		cfg.MinSpeed, cfg.MaxSpeed = 10, 10
+		cfg.MinLife, cfg.MaxLife = 10, 10
+		cfg.Lift = 20
+		e := New(1, cfg)
+		e.Burst()
+		e.Update(0.5)
+		for i, p := range e.Particles {
+			wantVY := -cfg.Lift * 0.5
+			if math.Abs(p.Vel.Y-wantVY) > 1e-9 {
+				t.Fatalf("particle %d climbs at %v after 0.5s of lift 20, want %v", i, p.Vel.Y, wantVY)
+			}
+			if p.Pos.Y >= cfg.Origin.Y {
+				t.Fatalf("particle %d must have risen above the origin, y=%v", i, p.Pos.Y)
+			}
+			if p.Vel.X <= 0 {
+				t.Fatalf("lift is vertical only — particle %d lost its forward speed %v", i, p.Vel.X)
+			}
+		}
+	})
+	t.Run("happy: drag decays speed exponentially, the same at any frame rate", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Period = 0
+		cfg.Spread = 0
+		cfg.MinSpeed, cfg.MaxSpeed = 20, 20
+		cfg.MinLife, cfg.MaxLife = 10, 10
+		cfg.Drag = 3
+		coarse := New(5, cfg)
+		fine := New(5, cfg)
+		coarse.Burst()
+		fine.Burst()
+		coarse.Update(0.2)
+		for i := 0; i < 20; i++ {
+			fine.Update(0.01)
+		}
+		want := 20 * math.Exp(-3*0.2)
+		if got := coarse.Particles[0].Vel.Len(); math.Abs(got-want) > 1e-9 {
+			t.Fatalf("one 0.2s step decayed speed to %v, want %v", got, want)
+		}
+		if got := fine.Particles[0].Vel.Len(); math.Abs(got-want) > 1e-9 {
+			t.Fatalf("twenty 0.01s steps decayed speed to %v, want the same %v", got, want)
+		}
+	})
+	t.Run("happy: zero lift and drag leave the straight flight exactly as it was", func(t *testing.T) {
+		plain := testCfg()
+		plain.Period = 0
+		zeroed := plain
+		zeroed.Lift, zeroed.Drag = 0, 0
+		a := New(9, plain)
+		b := New(9, zeroed)
+		a.Burst()
+		b.Burst()
+		a.Update(0.3)
+		b.Update(0.3)
+		if len(a.Particles) != len(b.Particles) {
+			t.Fatalf("populations diverged %d vs %d", len(a.Particles), len(b.Particles))
+		}
+		for i := range a.Particles {
+			if a.Particles[i] != b.Particles[i] {
+				t.Fatalf("particle %d diverged: %+v vs %+v", i, a.Particles[i], b.Particles[i])
+			}
+		}
+	})
+	t.Run("happy: lift and drag ride along under the swirl too", func(t *testing.T) {
+		cfg := swirlCfg()
+		cfg.Period = 0
+		cfg.Drag = 2
+		e := New(3, cfg)
+		e.Burst()
+		v0 := e.Particles[0].Vel.Len()
+		e.Update(0.25)
+		want := v0 * math.Exp(-2*0.25)
+		if got := e.Particles[0].Vel.Len(); math.Abs(got-want) > 1e-6 {
+			t.Fatalf("swirling speck kept speed %v, want it dragged to %v", got, want)
+		}
+	})
+	t.Run("unhappy: a negative lift is rejected", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Lift = -1
+		if err := New(1, cfg).Validate(); !errors.Is(err, ErrLift) {
+			t.Fatalf("got %v, want ErrLift", err)
+		}
+	})
+	t.Run("unhappy: a negative drag is rejected", func(t *testing.T) {
+		cfg := testCfg()
+		cfg.Drag = -0.5
+		if err := New(1, cfg).Validate(); !errors.Is(err, ErrDrag) {
+			t.Fatalf("got %v, want ErrDrag", err)
+		}
+	})
+}
+
 func TestMaxDistance(t *testing.T) {
 	t.Run("happy: particles die when they travel farther than MaxDistance from the origin", func(t *testing.T) {
 		cfg := testCfg()

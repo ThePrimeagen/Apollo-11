@@ -1,0 +1,13 @@
+{
+  "stride_fps": 12,
+  "run_speed": 20,
+  "jump_seconds": 0.55,
+  "box_start": 46,
+  "top_seconds": 0.6,
+  "slide_seconds": 1.8,
+  "flag_seconds": 3,
+  "pole_rows": 21,
+  "exit_speed": 18,
+  "pan_cols": 30,
+  "pan_seconds": 1.4
+}

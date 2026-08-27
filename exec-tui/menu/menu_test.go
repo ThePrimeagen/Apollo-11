@@ -53,7 +53,7 @@ func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
 		m := sized(New(Catalog(), ""), 100, 40)
 		v := stripAnsi(m.View().Content)
-		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "FLAME", "STARS", "LEGACY"} {
+		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "America", "FLAME", "STARS", "LEGACY"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("menu missing %q:\n%s", want, v)
 			}
@@ -115,6 +115,7 @@ func TestMenuSections(t *testing.T) {
 			{"Screenplays", "MAIN"},
 			{"Scenes", "Landing"},
 			{"CONFIG", "FLAME CONFIG"},
+			{"Particles", "PARTICLE CONFIG"},
 			{"LEGACY TUIS", "LEGACY EXEC"},
 		}
 		prev := -1
@@ -403,12 +404,13 @@ func TestLocateModule(t *testing.T) {
 }
 
 func TestCatalog(t *testing.T) {
-	t.Run("happy: the catalog runs screenplays, scenes, config, legacy", func(t *testing.T) {
+	t.Run("happy: the catalog runs screenplays, scenes, config, particles, legacy", func(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup",
-			"landing",
-			"flame", "stars-config", "editor", "particle", "dust-config",
+			"landing", "america", "moonwalk",
+			"flame", "stars-config", "editor",
+			"particle", "dust-config", "gunfire-config",
 			"legacy", "timeline",
 			"agctop", "agcgraph",
 		}
@@ -423,19 +425,22 @@ func TestCatalog(t *testing.T) {
 	})
 	t.Run("happy: entries group under their category headers in order", func(t *testing.T) {
 		wantSections := map[string]string{
-			"screenplay":   "Screenplays",
-			"moon":         "Screenplays",
-			"closeup":      "Screenplays",
-			"landing":      "Scenes",
-			"flame":        "CONFIG",
-			"stars-config": "CONFIG",
-			"editor":       "CONFIG",
-			"particle":     "CONFIG",
-			"dust-config":  "CONFIG",
-			"legacy":       "LEGACY TUIS",
-			"timeline":     "LEGACY TUIS",
-			"agctop":       "EXECUTIVE",
-			"agcgraph":     "EXECUTIVE",
+			"screenplay":     "Screenplays",
+			"moon":           "Screenplays",
+			"closeup":        "Screenplays",
+			"landing":        "Scenes",
+			"america":        "Scenes",
+			"moonwalk":       "Scenes",
+			"flame":          "CONFIG",
+			"stars-config":   "CONFIG",
+			"editor":         "CONFIG",
+			"particle":       "Particles",
+			"dust-config":    "Particles",
+			"gunfire-config": "Particles",
+			"legacy":         "LEGACY TUIS",
+			"timeline":       "LEGACY TUIS",
+			"agctop":         "EXECUTIVE",
+			"agcgraph":       "EXECUTIVE",
 		}
 		seen := map[string]bool{}
 		last := ""
@@ -474,6 +479,94 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("fourth entry must be Landing under Scenes → ./cmd/landing, got %+v", c[3])
 		}
 	})
+	t.Run("happy: Particles lists the nyan trail, dust-off, and gunfire tuners", func(t *testing.T) {
+		c := Catalog()
+		want := []struct {
+			id, title, pkg string
+		}{
+			{"particle", "PARTICLE CONFIG", "./cmd/adjustparticle/main"},
+			{"dust-config", "DUSTOFF CONFIG", "./cmd/adjustdust/main"},
+			{"gunfire-config", "GUNFIRE CONFIG", "./cmd/adjustgunfire/main"},
+		}
+		got := make([]Entry, 0, 3)
+		for _, e := range c {
+			if e.Section == "Particles" {
+				got = append(got, e)
+			}
+		}
+		if len(got) != len(want) {
+			t.Fatalf("Particles must list %d editable particle components, got %d: %+v", len(want), len(got), got)
+		}
+		for i, w := range want {
+			if got[i].ID != w.id || got[i].Title != w.title || got[i].Pkg != w.pkg || got[i].Section != "Particles" {
+				t.Fatalf("Particles entry %d must be %s (%s) → %s, got %+v", i, w.title, w.id, w.pkg, got[i])
+			}
+		}
+	})
+	t.Run("happy: Scenes lists America right after the landing", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 5 {
+			t.Fatal("catalog must hold the America scene after the landing")
+		}
+		if c[4].ID != "america" || c[4].Title != "America" || c[4].Section != "Scenes" || c[4].Pkg != "./cmd/america" {
+			t.Fatalf("fifth entry must be America under Scenes → ./cmd/america, got %+v", c[4])
+		}
+	})
+	t.Run("unhappy: gunfire is not a scene and the one-shot demo stays off the launcher", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.ID == "gunfire" {
+				t.Fatalf("gunfire is a particle component, not a scene — the demo must not be listed, found %+v", e)
+			}
+			if e.Title == "Gunfire" && e.Section == "Scenes" {
+				t.Fatalf("Scenes must not list Gunfire, found %+v", e)
+			}
+			if e.ID == "gunfire-config" && e.Section == "CONFIG" {
+				t.Fatalf("the gunfire tuner belongs under Particles, not CONFIG, found %+v", e)
+			}
+			if (e.ID == "particle" || e.ID == "dust-config") && e.Section == "CONFIG" {
+				t.Fatalf("particle tuners belong under Particles, not CONFIG, found %+v", e)
+			}
+		}
+	})
+	t.Run("unhappy: America is a scene, not a screenplay, and never doubles up", func(t *testing.T) {
+		seen := 0
+		for _, e := range Catalog() {
+			if e.ID != "america" {
+				continue
+			}
+			seen++
+			if e.Section == "Screenplays" {
+				t.Fatalf("America must sit under Scenes, found %+v", e)
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("America must be listed exactly once, saw %d", seen)
+		}
+	})
+	t.Run("happy: Scenes lists the Moonwalk right after America", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 6 {
+			t.Fatal("catalog must hold the moonwalk scene after America")
+		}
+		if c[5].ID != "moonwalk" || c[5].Title != "Moonwalk" || c[5].Section != "Scenes" || c[5].Pkg != "./cmd/astronaut" {
+			t.Fatalf("sixth entry must be Moonwalk under Scenes → ./cmd/astronaut, got %+v", c[5])
+		}
+	})
+	t.Run("unhappy: the Moonwalk is a scene to edit, not a CONFIG, and never doubles up", func(t *testing.T) {
+		seen := 0
+		for _, e := range Catalog() {
+			if e.ID != "moonwalk" {
+				continue
+			}
+			seen++
+			if e.Section != "Scenes" {
+				t.Fatalf("the Moonwalk must sit under Scenes, found %+v", e)
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("the Moonwalk must be listed exactly once, saw %d", seen)
+		}
+	})
 	t.Run("unhappy: old MAIN PROGRAM / SCREENPLAY / MOON SCREENPLAY / LUNAR LANDER CLOSE-UP labels are gone", func(t *testing.T) {
 		for _, e := range Catalog() {
 			if e.Section == "MAIN PROGRAM" {
@@ -501,7 +594,7 @@ func TestCatalog(t *testing.T) {
 				t.Fatalf("the DEMO section is gone — scenes replaced the demos, found %+v", e)
 			}
 			switch e.ID {
-			case "lander", "stars", "nyan", "dustoff", "dsky", "button":
+			case "lander", "stars", "nyan", "dustoff", "dsky", "button", "gunfire":
 				t.Fatalf("demo %q must not be listed, found %+v", e.ID, e)
 			}
 		}

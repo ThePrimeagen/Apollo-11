@@ -2,9 +2,10 @@
 // (width × height), a nozzle (origin), a direction, a count and a period.
 //
 // Update is the only clock: live particles move, expire, and leave the box;
-// new ones spawn at the origin on each period. Occupancy counts how many
-// live particles sit in each terminal cell so a caller can color by density.
-// The package does not draw.
+// new ones spawn at the origin on each period. Burst spawns one batch on
+// demand — the one-shot trigger for effects with no period at all.
+// Occupancy counts how many live particles sit in each terminal cell so a
+// caller can color by density. The package does not draw.
 //
 // The engine flies under one of two modes, carried on the Config. The
 // default, ModeStraight, keeps every particle on its velocity. ModeSwirl —
@@ -39,6 +40,8 @@ var (
 	ErrNegative  = errors.New("particle: speed and life must be non-negative")
 	ErrDistance  = errors.New("particle: max distance must be non-negative")
 	ErrMode      = errors.New("particle: unknown mode")
+	ErrLift      = errors.New("particle: lift must be non-negative")
+	ErrDrag      = errors.New("particle: drag must be non-negative")
 	ErrNil       = errors.New("particle: nil engine")
 )
 
@@ -91,6 +94,8 @@ type Config struct {
 	Spread             float64 // stddev of a normal, in radians, around Direction
 	Nozzle             float64 // spawn thickness in units, perpendicular to Direction
 	MaxDistance        float64 // 0 means unlimited; else die when farther from Origin
+	Lift               float64 // upward acceleration in units/s²; hot gas rises
+	Drag               float64 // per-second exponential speed decay; the burst dies down
 	Mode               Mode    // update rule; the zero value is ModeStraight
 	SwirlUp            bool    // swirl mode: curls aim at the top of the screen
 }
@@ -139,6 +144,12 @@ func (c Config) Validate() error {
 	}
 	if c.MaxDistance < 0 {
 		return ErrDistance
+	}
+	if c.Lift < 0 {
+		return ErrLift
+	}
+	if c.Drag < 0 {
+		return ErrDrag
 	}
 	if c.Mode != ModeStraight && c.Mode != ModeSwirl {
 		return ErrMode
@@ -241,10 +252,26 @@ func (e *Engine) advance(dt float64) {
 	e.advanceStraight(dt)
 }
 
-// advanceStraight is the standard rule: every particle keeps its velocity.
+// blow applies the world's drag and lift to one velocity: drag decays
+// speed exponentially — exact at any frame rate — and lift pulls the
+// heading upward (Y grows downward, so up is negative). Zero knobs
+// leave the velocity untouched.
+func (e *Engine) blow(v Vec2, dt float64) Vec2 {
+	if e.Cfg.Drag > 0 {
+		v = v.Scale(math.Exp(-e.Cfg.Drag * dt))
+	}
+	if e.Cfg.Lift > 0 {
+		v.Y -= e.Cfg.Lift * dt
+	}
+	return v
+}
+
+// advanceStraight is the standard rule: every particle keeps its
+// velocity, bent only by the world's drag and lift.
 func (e *Engine) advanceStraight(dt float64) {
 	n := 0
 	for _, p := range e.Particles {
+		p.Vel = e.blow(p.Vel, dt)
 		p.Pos = Vec2{X: p.Pos.X + p.Vel.X*dt, Y: p.Pos.Y + p.Vel.Y*dt}
 		p.Life -= dt
 		p.Age += dt
@@ -270,6 +297,7 @@ func (e *Engine) advanceSwirl(dt float64) {
 				p.Vel = p.Vel.Rotate(p.Curl.Rate * (to - from))
 			}
 		}
+		p.Vel = e.blow(p.Vel, dt)
 		p.Pos = Vec2{X: p.Pos.X + p.Vel.X*dt, Y: p.Pos.Y + p.Vel.Y*dt}
 		p.Life -= dt
 		p.Age += dt
@@ -279,6 +307,19 @@ func (e *Engine) advanceSwirl(dt float64) {
 		}
 	}
 	e.Particles = e.Particles[:n]
+}
+
+// Burst emits one batch of Count particles right now, regardless of
+// the period clock — the one-shot trigger. An engine with Period 0
+// never emits on its own, so Burst is its only squeeze: fire, watch
+// the batch fly out and die, fire again whenever. The period clock is
+// untouched, so auto-emitting engines keep their schedule. Nil
+// engines skip the cue.
+func (e *Engine) Burst() {
+	if e == nil {
+		return
+	}
+	e.emit()
 }
 
 func (e *Engine) emitDue(dt float64) {
