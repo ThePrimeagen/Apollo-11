@@ -21,6 +21,7 @@ package shotgun
 // refused; the trigger needs a stage.
 
 import (
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -103,6 +104,31 @@ func cellPixels(c sprite.Cell) (top, bot int) {
 		return c.BG, c.FG
 	}
 	return c.FG, c.FG
+}
+
+// visualLength is the gun's on-screen span in square-pixel units —
+// the distance from the muzzle to the opaque cell farthest from it,
+// with a cell one unit wide and two units tall. An empty sprite has
+// no length.
+func visualLength(sp sprite.Sprite, h sprite.Heading) float64 {
+	mx, my := Muzzle(sp, h)
+	best := 0.0
+	found := false
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			if sp.At(r, c).Transparent() {
+				continue
+			}
+			found = true
+			if d := math.Hypot(float64(c-mx), 2*float64(r-my)); d > best {
+				best = d
+			}
+		}
+	}
+	if !found {
+		return 0
+	}
+	return best
 }
 
 // samePicture compares two frames the way the screen shows them: cell
@@ -321,18 +347,20 @@ func TestEightDirections(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: a 45° gun spans the same distance across and down — no vertical stretch", func(t *testing.T) {
+	t.Run("happy: every heading keeps the gun's on-screen length, muzzle to stock butt", func(t *testing.T) {
 		g := New()
 		g.Start(stageW, stageH)
-		for _, h := range []sprite.Heading{sprite.NE, sprite.SE, sprite.NW, sprite.SW} {
-			minC, minR, maxC, maxR, n := bounds(g.Frame(h))
-			if n == 0 {
+		east := visualLength(g.Frame(sprite.E), sprite.E)
+		if east <= 0 {
+			t.Fatal("east gun is empty")
+		}
+		for _, h := range sprite.Headings {
+			got := visualLength(g.Frame(h), h)
+			if got <= 0 {
 				t.Fatalf("%s gun is empty", h)
 			}
-			across := maxC - minC + 1
-			down := 2 * (maxR - minR + 1)
-			if diff := across - down; diff < -4 || diff > 4 {
-				t.Fatalf("%s gun spans %d units across but %d units down — a diagonal aim must stay square on screen", h, across, down)
+			if diff := got - east; diff < -4 || diff > 4 {
+				t.Fatalf("%s gun runs %.1f units muzzle to stock on screen, east runs %.1f — the gun must not stretch when it turns", h, got, east)
 			}
 		}
 	})
