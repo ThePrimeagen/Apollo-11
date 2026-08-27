@@ -64,9 +64,10 @@ type Engine struct {
 	monitorOn bool
 
 	// activity tracking for the command screen
-	lastRan   map[string]Nanos
-	taskFires map[string]int
-	lastFired map[string]Nanos
+	lastRan    map[string]Nanos
+	taskFires  map[string]int
+	lastFired  map[string]Nanos
+	busyByName map[string]Nanos
 
 	// class-attributed busy time inside the current millisecond
 	msVac  Nanos
@@ -81,9 +82,10 @@ type Engine struct {
 // DOWNRUPT every 20 ms costing 0.2 ms (DOWN_TELEMETRY_PROGRAM.agc L43).
 func NewEngine(cfg Config) *Engine {
 	e := &Engine{cfg: cfg,
-		lastRan:   map[string]Nanos{},
-		taskFires: map[string]int{},
-		lastFired: map[string]Nanos{},
+		lastRan:    map[string]Nanos{},
+		taskFires:  map[string]int{},
+		lastFired:  map[string]Nanos{},
+		busyByName: map[string]Nanos{},
 	}
 	e.exec = newExecutive(e)
 	if cfg.Interrupts {
@@ -192,6 +194,7 @@ func (e *Engine) tick() {
 			e.subTick += c
 			e.softwareNs += c
 			e.msOps += c
+			e.busyByName[a.name] += c
 			if a.remaining == 0 {
 				e.active = e.active[1:]
 			}

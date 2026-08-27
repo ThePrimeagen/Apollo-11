@@ -56,6 +56,21 @@ func (e *Engine) LastFired(name string) Nanos {
 // SetRadarBug flips the RR CDU counter theft live (the RR mode switch).
 func (e *Engine) SetRadarBug(on bool) { e.cfg.RadarBug = on }
 
+// BusyNs is the cumulative CPU consumed under the given name — jobs via
+// the runner, tasks and interrupts via their activity.
+func (e *Engine) BusyNs(name string) Nanos { return e.busyByName[name] }
+
+// SpawnCount counts Executive job entries by name.
+func (e *Engine) SpawnCount(name string) int {
+	n := 0
+	for _, ev := range e.events {
+		if ev.Kind == "spawn" && ev.Job == name {
+			n++
+		}
+	}
+	return n
+}
+
 // Live is the command screen's engine: the P63 descent machine with the
 // three cockpit switches — DESCENT (the whole job chain), 1668 (the DELTAH
 // monitor), RADAR STEAL (the theft) — togglable while it runs.

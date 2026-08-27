@@ -1,12 +1,12 @@
-// agcgraph: the graphs screen — three CPU lanes (VAC jobs, coreset jobs,
-// no-priority operations) over a 180-column window covering 2 s of machine
-// time, opening frozen on one complete guidance cycle.
+// agcgraph: the graphs screen — a still of 2.5 seconds of machine time
+// under the current switches: three CPU lanes (VAC jobs, coreset jobs,
+// no-priority operations) and a text legend for every job that ran.
+// Never animated; every toggle re-simulates the portrait.
 //
-//	space   run / freeze
-//	d       DESCENT — the whole P63 job chain
-//	1       1668 — Buzz's V16N68 DELTAH monitor
-//	r       RADAR STEAL — the RR CDU counter theft
-//	q       quit
+//	d   DESCENT — the whole P63 job chain
+//	1   1668 — Buzz's V16N68 DELTAH monitor
+//	r   RADAR STEAL — the RR CDU counter theft
+//	q   quit
 //
 //	go run ./cmd/agcgraph
 package main
@@ -20,7 +20,6 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/agcgraph"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/ui"
-	msim "github.com/theprimeagen/apollo-11/msim"
 )
 
 func main() {
@@ -28,7 +27,7 @@ func main() {
 	if p, ok := ui.ForcedColorProfile(); ok {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
-	if _, err := termreset.Run(agcgraph.New(msim.NewLive()), opts...); err != nil {
+	if _, err := termreset.Run(agcgraph.New(), opts...); err != nil {
 		fmt.Fprintln(os.Stderr, "agcgraph:", err)
 		os.Exit(1)
 	}

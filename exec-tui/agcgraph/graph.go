@@ -1,24 +1,21 @@
-// Package agcgraph is the graphs screen: three CPU lanes over a 180-column
-// window covering 2.000 s of machine time — no header chrome, a 20-column
-// label gutter, light-gray vertical gridlines marking time (every 100 ms,
-// brighter on the seconds), and the same three switches on the bottom row.
+// Package agcgraph is the graphs screen: a STILL — 2.5 seconds of "here is
+// what the CPU operates with" under the current switch states, never
+// animated. No header chrome: three lanes (each three rows tall) over a
+// 180-column window, labels inside a 20-column gutter, light-gray vertical
+// gridlines every 100 ms (brighter on the seconds), then a plain-text
+// legend describing every job that ran in the interval —
 //
-// Each lane is three rows tall; every column is a small vertical bar — the
-// fraction of that ~11 ms slice the CPU spent in the lane's class:
+//	DOWNRUPT: 25.0ms total :: wakes up every 20ms and runs for 0.2ms
 //
-//	VAC JOBS          jobs holding a core set AND a VAC area
-//	CORESET JOBS      jobs holding a core set only
-//	NO-PRIORITY OPS   tasks & interrupts: cpu only, no memory
-//
-// The screen opens FROZEN on one complete prerun 2 s cycle, so the anatomy
-// of the guidance cycle sits still and readable. space runs and freezes;
-// d / 1 / r flick the switches (and unfreeze); q quits.
+// — and the same three switches on the bottom row. Every toggle
+// re-simulates a fresh 2.5 s snapshot under the new configuration; with
+// everything off only the hardware cadences remain. The opening portrait
+// is the healthy CPU: descent on, monitor off, radar steal off.
 package agcgraph
 
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -26,49 +23,49 @@ import (
 	msim "github.com/theprimeagen/apollo-11/msim"
 )
 
-// frameMS is wall (and sim) milliseconds per frame: 20 fps, 1:1 time.
-const frameMS = 50
-
-// windowMS is the plotted span: 2.000 s across the plot columns.
-const windowMS = 2000
+// windowMS is the portrait span: 2.5 s across the plot columns.
+const windowMS = 2500
 
 // gutter is the label column budget.
 const gutter = 20
 
-// maxPlot is the plot column budget: 180 columns for the 2 s window.
+// maxPlot is the plot column budget.
 const maxPlot = 180
 
-type frameMsg struct{}
-
-func frameTick() tea.Cmd {
-	return tea.Tick(frameMS*time.Millisecond, func(time.Time) tea.Msg { return frameMsg{} })
-}
-
-// Model is the graphs screen over one live machine.
+// Model is the graphs screen: one frozen snapshot per switch configuration.
 type Model struct {
-	live   *msim.Live
-	w, h   int
-	frozen bool
+	live    *msim.Live
+	w, h    int
+	descent bool
+	monitor bool
+	radar   bool
 }
 
-// New pre-runs exactly one 2 s cycle and opens frozen on it.
-func New(l *msim.Live) Model {
+// New opens on the healthy portrait: descent on, monitor off, steal off.
+func New() Model {
+	m := Model{w: 200, h: 45, descent: true, monitor: false, radar: false}
+	m.rebuild()
+	return m
+}
+
+// rebuild re-simulates a fresh 2.5 s snapshot under the current switches.
+func (m *Model) rebuild() {
+	l := msim.NewLive()
+	l.SetRadar(m.radar)
+	l.SetDescent(m.descent)
+	l.SetMonitor(m.monitor)
 	l.StepMS(windowMS)
-	return Model{live: l, w: 200, h: 40, frozen: true}
+	m.live = l
 }
 
-func (m Model) Init() tea.Cmd { return frameTick() }
+// Init schedules nothing: the screen never animates.
+func (m Model) Init() tea.Cmd { return nil }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 		return m, nil
-	case frameMsg:
-		if !m.frozen {
-			m.live.StepMS(frameMS)
-		}
-		return m, frameTick()
 	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
@@ -76,17 +73,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Code {
 		case 'q':
 			return m, tea.Quit
-		case tea.KeySpace:
-			m.frozen = !m.frozen
 		case 'd':
-			m.live.SetDescent(!m.live.DescentOn())
-			m.frozen = false
+			m.descent = !m.descent
+			m.rebuild()
 		case '1':
-			m.live.SetMonitor(!m.live.MonitorOn())
-			m.frozen = false
+			m.monitor = !m.monitor
+			m.rebuild()
 		case 'r':
-			m.live.SetRadar(!m.live.RadarOn())
-			m.frozen = false
+			m.radar = !m.radar
+			m.rebuild()
 		}
 	}
 	return m, nil
@@ -100,6 +95,7 @@ var (
 	sGrid   = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	sGridS  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	sDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	sName   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	sOn     = lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Bold(true)
 	sOff    = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Bold(true)
 	sSwitch = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
@@ -126,27 +122,20 @@ type column struct {
 	grid  int // 0 none, 1 light (100 ms), 2 strong (1 s)
 }
 
-// columns buckets the last windowMS of samples into `plot` columns for one
-// lane class.
+// columns buckets the snapshot's window into `plot` columns for one class.
 func (m Model) columns(plot int, class func(msim.Sample) msim.Nanos) []column {
-	e := m.live.Engine()
-	samples := e.Samples()
-	endMs := int(e.Now() / msim.Millisecond)
-	startMs := endMs - windowMS
+	samples := m.live.Engine().Samples()
 	out := make([]column, plot)
 	for i := 0; i < plot; i++ {
-		loMs := startMs + i*windowMS/plot
-		hiMs := startMs + (i+1)*windowMS/plot
+		loMs := i * windowMS / plot
+		hiMs := (i + 1) * windowMS / plot
 		if hiMs == loMs {
 			hiMs = loMs + 1
 		}
-		// grid: does a 100 ms boundary land in [lo, hi)?
-		if lo100, hi100 := ceilDiv(loMs, 100), ceilDiv(hiMs-1, 100); lo100 <= (hiMs-1)/100 && hi100 >= 0 {
-			if b := lo100 * 100; b >= loMs && b < hiMs {
-				out[i].grid = 1
-				if b%1000 == 0 {
-					out[i].grid = 2
-				}
+		if b := (loMs + 99) / 100 * 100; b >= loMs && b < hiMs {
+			out[i].grid = 1
+			if b%1000 == 0 {
+				out[i].grid = 2
 			}
 		}
 		var busy msim.Nanos
@@ -167,13 +156,6 @@ func (m Model) columns(plot int, class func(msim.Sample) msim.Nanos) []column {
 		out[i].level = lvl
 	}
 	return out
-}
-
-func ceilDiv(a, b int) int {
-	if a >= 0 {
-		return (a + b - 1) / b
-	}
-	return a / b
 }
 
 // laneRows renders one lane's three rows for the given columns.
@@ -199,6 +181,69 @@ func laneRows(l lane, cols []column) [3]string {
 		rows[t] = b.String()
 	}
 	return rows
+}
+
+// legendRow is one describable process: how it is activated and how often.
+type legendRow struct {
+	name   string
+	period string
+	count  func(*msim.Engine) int
+}
+
+func spawns(name string) func(*msim.Engine) int {
+	return func(e *msim.Engine) int { return e.SpawnCount(name) }
+}
+
+func tasks(name string) func(*msim.Engine) int {
+	return func(e *msim.Engine) int { return e.TaskFires(name) }
+}
+
+func rupts(name string) func(*msim.Engine) int {
+	return func(e *msim.Engine) int { return e.InterruptFires(name) }
+}
+
+var legendRows = []legendRow{
+	{"SERVICER", "2s", spawns("SERVICER")},
+	{"MAKEPLAY", "2s", spawns("MAKEPLAY")},
+	{"MONDO", "1s", spawns("MONDO")},
+	{"LRHJOB", "2s", spawns("LRHJOB")},
+	{"LRVJOB", "2s", spawns("LRVJOB")},
+	{"1/GYRO", "2s", spawns("1/GYRO")},
+	{"CHARIN", "keystroke", spawns("CHARIN")},
+	{"READACCS", "2s", tasks("READACCS")},
+	{"R10,R11", "250ms", tasks("R10,R11")},
+	{"LRHTASK", "2s", tasks("LRHTASK")},
+	{"LRVTASK", "2s", tasks("LRVTASK")},
+	{"MONREQ", "1s", tasks("MONREQ")},
+	{"DAP", "100ms", rupts("DAP")},
+	{"T4RUPT", "120ms", rupts("T4RUPT")},
+	{"DOWNRUPT", "20ms", rupts("DOWNRUPT")},
+}
+
+func ms1(n msim.Nanos) string {
+	return fmt.Sprintf("%.1fms", float64(n)/1e6)
+}
+
+// legend lists every process that ran in the window, with its totals.
+func (m Model) legend() []string {
+	e := m.live.Engine()
+	var out []string
+	for _, r := range legendRows {
+		busy := e.BusyNs(r.name)
+		if busy <= 0 {
+			continue
+		}
+		n := r.count(e)
+		avg := busy
+		if n > 0 {
+			avg = busy / msim.Nanos(n)
+		}
+		out = append(out,
+			sName.Render(fmt.Sprintf(" %s:", r.name))+
+				sDim.Render(fmt.Sprintf(" %s total :: wakes up every %s and runs for %s",
+					ms1(busy), r.period, ms1(avg))))
+	}
+	return out
 }
 
 func onOff(on bool) string {
@@ -235,15 +280,13 @@ func (m Model) View() tea.View {
 		lines = append(lines, "")
 	}
 
-	state := "space run"
-	if !m.frozen {
-		state = "space freeze"
-	}
+	lines = append(lines, m.legend()...)
+	lines = append(lines, "")
 	lines = append(lines, " "+
-		sSwitch.Render("[d] DESCENT ")+onOff(m.live.DescentOn())+"    "+
-		sSwitch.Render("[1] 1668 ")+onOff(m.live.MonitorOn())+"    "+
-		sSwitch.Render("[r] RADAR STEAL ")+onOff(m.live.RadarOn())+"      "+
-		sDim.Render(state+" · q quit"))
+		sSwitch.Render("[d] DESCENT ")+onOff(m.descent)+"    "+
+		sSwitch.Render("[1] 1668 ")+onOff(m.monitor)+"    "+
+		sSwitch.Render("[r] RADAR STEAL ")+onOff(m.radar)+"      "+
+		sDim.Render("q quit"))
 
 	if len(lines) > m.h && m.h > 0 {
 		lines = lines[:m.h]
