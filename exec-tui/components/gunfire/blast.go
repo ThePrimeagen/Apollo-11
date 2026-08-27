@@ -25,6 +25,7 @@ type Blast struct {
 	fired bool
 	armed bool    // the second-frame fuse is burning
 	fuse  float64 // seconds of fuse left
+	aimed int     // -1 whole rose (Fire), >=0 one heading (FireAt)
 }
 
 // NewBlast binds a blast to its particle seed. Nothing is built until
@@ -69,12 +70,26 @@ func (b *Blast) Start(w, h int) {
 	for i := range flames {
 		b.Flames[i] = particle.New(b.seed+1+int64(i), flames[i])
 	}
-	b.fired, b.armed, b.fuse = false, false, 0
+	b.fired, b.armed, b.fuse, b.aimed = false, false, 0, -1
 }
 
 func (b *Blast) units() (w, h float64) {
 	return float64(b.w)*particle.CellWidthUnits - 0.01,
 		float64(b.h)*particle.CellHeightUnits - 0.01
+}
+
+func (b *Blast) sync() {
+	if b == nil || b.Core == nil {
+		return
+	}
+	uw, uh := b.units()
+	core, flames := ActiveBlast().Engines(uw, uh)
+	b.Core.Cfg = core
+	for i := range b.Flames {
+		if b.Flames[i] != nil {
+			b.Flames[i].Cfg = flames[i]
+		}
+	}
 }
 
 // Fire is the trigger: the core and every compass heading's flame
@@ -88,7 +103,9 @@ func (b *Blast) Fire() bool {
 	if b == nil || b.Core == nil {
 		return false
 	}
+	b.sync()
 	c := ActiveBlast()
+	b.aimed = -1
 	b.Core.Burst()
 	for i := range b.Flames {
 		if b.Flames[i] != nil {
@@ -102,12 +119,41 @@ func (b *Blast) Fire() bool {
 	return true
 }
 
+// FireAt is the shotgun trigger: the core and only heading h's flame
+// burst now, using that heading's shot from the active config. Headings
+// off the compass and a blast with no stage are refused.
+func (b *Blast) FireAt(h sprite.Heading) bool {
+	if b == nil || b.Core == nil {
+		return false
+	}
+	i := headingIndex(h)
+	if i < 0 {
+		return false
+	}
+	b.sync()
+	c := ActiveBlast()
+	b.aimed = i
+	b.Core.Burst()
+	if b.Flames[i] != nil {
+		b.Flames[i].Burst()
+	}
+	if c.PulseDelay > 0 && c.PulseFrac > 0 {
+		b.armed, b.fuse = true, c.PulseDelay
+	}
+	b.fired = true
+	return true
+}
+
 // pulse is Doom's second flash frame: one dimmer re-burst of the core
 // and every heading, each at frac of its full count.
 func (b *Blast) pulse(frac float64) {
 	engines := []*particle.Engine{b.Core}
-	for i := range b.Flames {
-		engines = append(engines, b.Flames[i])
+	if b.aimed >= 0 && b.aimed < len(b.Flames) {
+		engines = append(engines, b.Flames[b.aimed])
+	} else {
+		for i := range b.Flames {
+			engines = append(engines, b.Flames[i])
+		}
 	}
 	for _, e := range engines {
 		if e == nil {

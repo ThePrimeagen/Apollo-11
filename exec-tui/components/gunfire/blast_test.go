@@ -256,6 +256,85 @@ func TestDone(t *testing.T) {
 	})
 }
 
+func TestFireAt(t *testing.T) {
+	t.Run("happy: FireAt bursts the core and only the aimed heading's shot from the active config", func(t *testing.T) {
+		t.Cleanup(ResetBlast)
+		c := DefaultBlast()
+		c.PulseFrac = 0
+		east := c.ShotAt(sprite.E)
+		east.Count = 33
+		c.SetShot(sprite.E, east)
+		if err := UseBlast(c); err != nil {
+			t.Fatalf("UseBlast: %v", err)
+		}
+		b := NewBlast(7)
+		b.Start(80, 24)
+		if !b.FireAt(sprite.E) {
+			t.Fatal("FireAt E after Start must pull the trigger")
+		}
+		if got := len(b.Core.Particles); got != c.Core.Count {
+			t.Fatalf("core burst %d, want %d", got, c.Core.Count)
+		}
+		if got := len(b.FlameAt(sprite.E).Particles); got != 33 {
+			t.Fatalf("the E flame burst %d, want its own tuned 33", got)
+		}
+		for _, h := range sprite.Headings {
+			if h == sprite.E {
+				continue
+			}
+			if n := len(b.FlameAt(h).Particles); n != 0 {
+				t.Fatalf("FireAt E must leave %s quiet, found %d particles", h, n)
+			}
+		}
+	})
+	t.Run("unhappy: FireAt off the compass is refused and nothing bursts", func(t *testing.T) {
+		t.Cleanup(ResetBlast)
+		ResetBlast()
+		b := NewBlast(7)
+		b.Start(80, 24)
+		if b.FireAt(sprite.Heading("sideways")) {
+			t.Fatal("FireAt off the compass must be refused")
+		}
+		if n := live(b); n != 0 {
+			t.Fatalf("a refused FireAt must not throw particles, found %d", n)
+		}
+	})
+	t.Run("unhappy: FireAt before Start is a refused no-op", func(t *testing.T) {
+		t.Cleanup(ResetBlast)
+		ResetBlast()
+		b := NewBlast(7)
+		if b.FireAt(sprite.N) {
+			t.Fatal("FireAt before Start must report the refused trigger")
+		}
+		b.Start(80, 24)
+		settle(b, 5, 1.0/30)
+		if n := live(b); n != 0 {
+			t.Fatalf("a pre-Start FireAt must not fire later, found %d particles", n)
+		}
+	})
+}
+
+func TestFindConfig(t *testing.T) {
+	t.Run("happy: FindConfig locates the shipped components/gunfire/config.json", func(t *testing.T) {
+		path := FindConfig()
+		if path == "" {
+			t.Fatal("FindConfig must locate the shipped config")
+		}
+		c, err := LoadBlast(path)
+		if err != nil {
+			t.Fatalf("the path FindConfig returned must load: %v", err)
+		}
+		if err := c.Validate(); err != nil {
+			t.Fatalf("the shipped config must validate: %v", err)
+		}
+	})
+	t.Run("unhappy: FindConfig does not invent a blank config for a missing file", func(t *testing.T) {
+		if _, err := LoadBlast(t.TempDir() + "/no-such-gunfire.json"); err == nil {
+			t.Fatal("a missing blast config must error — never a blank shot")
+		}
+	})
+}
+
 func TestRetune(t *testing.T) {
 	t.Run("happy: UseBlast mid-burn retunes the next volley live, direction by direction", func(t *testing.T) {
 		t.Cleanup(ResetBlast)

@@ -45,6 +45,7 @@ func Catalog() []Entry {
 		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
 		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
+		{ID: "viewer", Section: "Scenes", Title: "Component Viewer", Desc: "cycle every component, particle and scene — e edits, closing resumes", Pkg: "./cmd/viewer"},
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the full-screen flag fades in from black, then the giant eagle crosses — nudge fade / delay / cross 50ms at a time", Pkg: "./cmd/america"},
 		{ID: "moonwalk", Section: "Scenes", Title: "Moonwalk", Desc: "the astronaut climbs three crates, rides the flagpole down as the flag goes up, then boards the LM — eleven live knobs", Pkg: "./cmd/astronaut"},
