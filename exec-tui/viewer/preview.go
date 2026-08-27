@@ -83,19 +83,26 @@ func (b *burstingBlast) Update(dt float64) {
 // poolStepSeconds is the beat between steps of the pool demo walk.
 const poolStepSeconds = 0.55
 
+// poolAlarmHoldBeats keeps the full pool on stage — chip up, count
+// red — long enough to read before the drain starts.
+const poolAlarmHoldBeats = 4
+
 // poolHint names the play button while a pool demo sits idle.
 const poolHint = "space plays: add 3 · drop 3 · add 4 · drop 4 · fill to the alarm · drain"
 
-// poolStep is one beat of the walk: add the job, or drop it by name.
+// poolStep is one beat of the walk: add the job, drop it by name, or
+// wait — hold whatever is on stage for the beat.
 type poolStep struct {
-	add bool
-	job pools.Job
+	add  bool
+	wait bool
+	job  pools.Job
 }
 
 // poolScript is the whole lifecycle the play button walks: add three
 // jobs, drop those three, add four, drop those four, then fill every
-// slot to raise the pool's alarm and drain it back to empty. Each job
-// wears the ink its lanes wear on the legacy sim and the graphs.
+// slot to raise the pool's alarm, hold it up for poolAlarmHoldBeats,
+// and drain it back to empty. Each job wears the ink its lanes wear
+// on the legacy sim and the graphs.
 func poolScript(capacity int) []poolStep {
 	trio := []pools.Job{
 		{Name: "SERVICER", Prio: 20, Ink: 83},
@@ -128,6 +135,9 @@ func poolScript(capacity int) []poolStep {
 	}
 	for _, j := range roster[:capacity] {
 		script = append(script, poolStep{add: true, job: j})
+	}
+	for i := 0; i < poolAlarmHoldBeats; i++ {
+		script = append(script, poolStep{wait: true})
 	}
 	for _, j := range roster[:capacity] {
 		script = append(script, poolStep{job: j})
@@ -178,11 +188,14 @@ func (d *poolDemo) run() {
 	}
 	st := d.script[d.step]
 	d.step++
-	if st.add {
+	switch {
+	case st.wait:
+		// the held full pool is the message — the chip speaks
+	case st.add:
 		d.view.Add(st.job)
 		d.last = "+ " + st.job.Name
 		d.lastInk = st.job.Ink
-	} else {
+	default:
 		d.view.Remove(st.job.Name)
 		d.last = "- " + st.job.Name
 		d.lastInk = pools.DimInk
