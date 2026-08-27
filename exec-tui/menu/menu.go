@@ -51,6 +51,7 @@ func Catalog() []Entry {
 		{ID: "dust-config", Section: "CONFIG", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
+		{ID: "agctop", Section: "EXECUTIVE", Title: "COMMAND SCREEN", Desc: "live msim processes — VAC jobs, coreset jobs, no-priority ops; d/1/r switches", Pkg: "./cmd/agctop"},
 	}
 }
 

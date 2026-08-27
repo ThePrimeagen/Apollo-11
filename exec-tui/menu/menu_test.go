@@ -182,12 +182,12 @@ func TestMenuSections(t *testing.T) {
 		m = key(m, 'k')
 		m = key(m, 'k')
 		m = key(m, 'k')
-		if got := Catalog()[m.sel].ID; got != "timeline" {
-			t.Fatalf("k from the top must wrap to timeline, got %q", got)
+		if got := Catalog()[m.sel].ID; got != "agctop" {
+			t.Fatalf("k from the top must wrap to the last entry (agctop), got %q", got)
 		}
 		v := stripAnsi(m.View().Content)
 		for _, line := range strings.Split(v, "\n") {
-			if strings.Contains(line, "▸") && !strings.Contains(line, "TIMELINE") {
+			if strings.Contains(line, "▸") && !strings.Contains(line, "COMMAND SCREEN") {
 				t.Fatalf("the marker sits on a non-selected line: %q", line)
 			}
 		}
@@ -410,6 +410,7 @@ func TestCatalog(t *testing.T) {
 			"landing",
 			"flame", "stars-config", "editor", "particle", "dust-config",
 			"legacy", "timeline",
+			"agctop",
 		}
 		if len(c) != len(want) {
 			t.Fatalf("catalog holds %d entries, want %d", len(c), len(want))
@@ -433,6 +434,7 @@ func TestCatalog(t *testing.T) {
 			"dust-config":  "CONFIG",
 			"legacy":       "LEGACY TUIS",
 			"timeline":     "LEGACY TUIS",
+			"agctop":       "EXECUTIVE",
 		}
 		seen := map[string]bool{}
 		last := ""

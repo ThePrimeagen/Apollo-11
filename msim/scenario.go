@@ -50,6 +50,9 @@ type descent struct {
 	e          *Engine
 	servicer   Script
 	lastGyroNs Nanos
+	// stopped kills the READACCS/R10,R11 re-arm chains — the command
+	// screen's DESCENT switch. The flight scenarios never set it.
+	stopped bool
 }
 
 func newDescent(radarBug bool) *descent {
@@ -101,6 +104,9 @@ func (d *descent) dispexitHook(e *Engine) {
 // right at the boundary.
 func (d *descent) armReadaccs(at Nanos) {
 	d.e.ScheduleTask(at, "READACCS", Millisecond, func(en *Engine) {
+		if d.stopped {
+			return // the DESCENT switch: the chain dies here
+		}
 		d.armReadaccs(en.Now() + 2*Second)
 		en.ScheduleTask(en.Now()+1500*Millisecond, "LRVTASK", 200*Microsecond, func(en2 *Engine) {
 			en2.Spawn(lrvSpec())
@@ -116,6 +122,9 @@ func (d *descent) armReadaccs(at Nanos) {
 // L36-L47, OCT31 = 0.25 s).
 func (d *descent) armR10R11(at Nanos) {
 	d.e.ScheduleTask(at, "R10,R11", 3000*Microsecond, func(en *Engine) {
+		if d.stopped {
+			return
+		}
 		d.armR10R11(en.Now() + 250*Millisecond)
 	})
 }
@@ -126,6 +135,9 @@ func (d *descent) armR10R11(at Nanos) {
 // rebuilt chain stays on the PIPTIME lattice — the phase tables carry the
 // recorded time base, so READACCS keeps firing on the same 2 s grid.
 func (d *descent) restartTables(e *Engine) {
+	if d.stopped {
+		return
+	}
 	next := ((e.Now()+20*Millisecond)/(2*Second) + 1) * (2 * Second)
 	d.armReadaccs(next)
 	d.armR10R11(e.Now() + 250*Millisecond)

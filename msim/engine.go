@@ -62,6 +62,11 @@ type Engine struct {
 	// monitorOn is the MONSAVE1 killer bit, inverted: true while a monitor
 	// verb's MONREQ chain is allowed to re-enlist.
 	monitorOn bool
+
+	// activity tracking for the command screen
+	lastRan   map[string]Nanos
+	taskFires map[string]int
+	lastFired map[string]Nanos
 }
 
 // NewEngine builds a machine. With cfg.Interrupts the three hardware
@@ -70,7 +75,11 @@ type Engine struct {
 // L95-L104), T4RUPT every 120 ms costing 0.96 ms (T4RUPT_PROGRAM.agc L144),
 // DOWNRUPT every 20 ms costing 0.2 ms (DOWN_TELEMETRY_PROGRAM.agc L43).
 func NewEngine(cfg Config) *Engine {
-	e := &Engine{cfg: cfg}
+	e := &Engine{cfg: cfg,
+		lastRan:   map[string]Nanos{},
+		taskFires: map[string]int{},
+		lastFired: map[string]Nanos{},
+	}
 	e.exec = newExecutive(e)
 	if cfg.Interrupts {
 		e.cadences = []*cadence{
@@ -208,6 +217,7 @@ func (e *Engine) tick() {
 func (e *Engine) fireCadence(c *cadence) {
 	for c.next <= e.now {
 		c.fires = append(c.fires, c.next)
+		e.lastFired[c.name] = c.next
 		e.active = append(e.active, activity{name: c.name, remaining: c.cost})
 		c.next += c.period
 	}
@@ -243,6 +253,8 @@ func (e *Engine) drainDue(list *[]*wtask, isWaitlist bool) {
 		if isWaitlist && e.taskGen != gen {
 			break // the restart flushed the waitlist these fires came from
 		}
+		e.taskFires[t.name]++
+		e.lastFired[t.name] = e.now
 		if t.fire != nil {
 			t.fire(e)
 		}
