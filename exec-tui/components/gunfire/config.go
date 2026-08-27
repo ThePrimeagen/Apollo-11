@@ -1,17 +1,20 @@
-// Package gunfire is the one-shot shotgun blast, tuned to read like
-// the Doom shotgun: one squeeze blooms a white-hot muzzle flash,
-// throws seven pellets in a tight fan, sprays sparks that cool
-// through the fire ramp, and — a beat later, on a short fuse — curls
-// gray gunsmoke up out of the barrel. There is no period clock
-// anywhere: the blast holds fire until Fire, plays the shot out, and
-// leaves the stage exactly as it found it.
+// Package gunfire is the one-shot Doom muzzle flame: the red flame
+// that comes out when the shotgun goes off. One squeeze and the flame
+// leaps up from the muzzle — a white-hot heart wrapped in tongues
+// that cool bright yellow through orange and red down to a maroon
+// ember as they rise, slow, and die. Doom's flash is two sprite
+// frames, so a dimmer second pulse follows the first on a short
+// fuse. There is no period clock anywhere: the blast holds fire until
+// Fire, burns out, and leaves the stage exactly as it found it.
 //
-// Every number is data. BlastConfig carries the aim (angle, muzzle
-// position, the smoke fuse and its climb), the flash brightness
-// ladder, and one engine-knob Layer each for the flash, the pellets,
-// the sparks, and the smoke. The knobs live in this component's
-// config file and become the active blast via UseBlast, so the tuner
-// and the demo stay on the same values.
+// Every number is data. BlastConfig carries the aim (angle and muzzle
+// position — straight up by default, the way the flash sits in the
+// first-person view), the two-frame pulse, the core brightness
+// ladder, and one engine-knob Layer each for the core and the flame —
+// the flame carrying lift (hot gas rises) and drag (the eruption dies
+// down). The knobs live in this component's config file and become
+// the active blast via UseBlast, so the tuner and the demo stay on
+// the same values.
 package gunfire
 
 import (
@@ -26,16 +29,16 @@ import (
 
 var (
 	ErrMuzzle = errors.New("gunfire: muzzle must sit on the stage (fractions 0..1)")
-	ErrAngle  = errors.New("gunfire: angle must be -80..80 degrees around level")
-	ErrDelay  = errors.New("gunfire: smoke delay must be non-negative")
-	ErrRise   = errors.New("gunfire: smoke rise must be 0..89 degrees above the aim")
-	ErrLadder = errors.New("gunfire: flash ladder must climb: 1 <= edgeAt < midAt < coreAt")
+	ErrAngle  = errors.New("gunfire: angle must be -90..90 degrees around level")
+	ErrDelay  = errors.New("gunfire: pulse delay must be non-negative")
+	ErrPulse  = errors.New("gunfire: pulse fraction must be 0..1")
+	ErrLadder = errors.New("gunfire: core ladder must climb: 1 <= edgeAt < midAt < coreAt")
 )
 
-// Layer is the engine-knob bundle one part of the blast fires under:
+// Layer is the engine-knob bundle one part of the flame burns under:
 // how many specks a squeeze throws, how long and how fast they fly,
-// how wide the fan is, how thick the bore is, and how far from the
-// muzzle they are allowed to get (0 is unleashed).
+// how wide the fan is, how thick the muzzle is, how far they may get
+// (0 is unleashed), how hard they rise, and how fast they die down.
 type Layer struct {
 	Count       int     `json:"count"`
 	MinLife     float64 `json:"minLife"`
@@ -45,53 +48,52 @@ type Layer struct {
 	Spread      float64 `json:"spread"`
 	Nozzle      float64 `json:"nozzle"`
 	MaxDistance float64 `json:"maxDistance"`
+	Lift        float64 `json:"lift"`
+	Drag        float64 `json:"drag"`
 }
 
-// BlastConfig is the JSON that tunes the shot: where the muzzle sits
-// (fractions of the stage), where it aims (degrees above level), the
-// smoke fuse and how steeply the smoke climbs past the aim, the
-// concentration ladder that decides how bright a flash cell burns,
-// and the four layers.
+// BlastConfig is the JSON that tunes the flame: where the muzzle sits
+// (fractions of the stage), where it aims (degrees above level; 90 is
+// straight up), Doom's two-frame pulse (the dimmer re-burst that
+// follows the first on a short fuse), the concentration ladder that
+// decides how bright a core cell burns, and the two layers.
 type BlastConfig struct {
-	AngleDeg     float64 `json:"angleDeg"`     // aim above level, degrees; negative dips
-	MuzzleX      float64 `json:"muzzleX"`      // muzzle, as a fraction of stage width
-	MuzzleY      float64 `json:"muzzleY"`      // muzzle, as a fraction of stage height
-	SmokeDelay   float64 `json:"smokeDelay"`   // seconds after the trigger before the smoke
-	SmokeRiseDeg float64 `json:"smokeRiseDeg"` // how far above the aim the smoke climbs
-	EdgeAt       int     `json:"edgeAt"`       // flash concentration that earns the star
-	MidAt        int     `json:"midAt"`        // … the yellow shade block
-	CoreAt       int     `json:"coreAt"`       // … the white-hot core block
+	AngleDeg   float64 `json:"angleDeg"`   // aim above level; 90 straight up, negative dips
+	MuzzleX    float64 `json:"muzzleX"`    // muzzle, as a fraction of stage width
+	MuzzleY    float64 `json:"muzzleY"`    // muzzle, as a fraction of stage height
+	PulseDelay float64 `json:"pulseDelay"` // seconds between Doom's two flash frames; 0 = one frame
+	PulseFrac  float64 `json:"pulseFrac"`  // second frame size, as a fraction of the first; 0 = one frame
+	EdgeAt     int     `json:"edgeAt"`     // core concentration that earns the star
+	MidAt      int     `json:"midAt"`      // … the yellow shade block
+	CoreAt     int     `json:"coreAt"`     // … the white-hot core block
 
-	Flash   Layer `json:"flash"`
-	Pellets Layer `json:"pellets"`
-	Sparks  Layer `json:"sparks"`
-	Smoke   Layer `json:"smoke"`
+	Core  Layer `json:"core"`
+	Flame Layer `json:"flame"`
 }
 
-// DefaultBlast is the stock Doom shotgun: a fat, brief flash leashed
-// to a tight ball at the muzzle, the classic seven pellets in a
-// ±5.7° fan (Doom's own shotgun spread), a fist of sparks that cool
-// as they fall away, and a lazy curl of gunsmoke on a 0.12s fuse.
+// DefaultBlast is the stock Doom shotgun flame: the muzzle low at
+// center screen like the gun in first person, the flame leaping
+// straight up — fast out of the barrel, dragged to a stall as lift
+// carries the cooling tongues — and a 0.11s fuse to the dimmer
+// second frame, the way the flash sprite plays twice.
 func DefaultBlast() BlastConfig {
 	return BlastConfig{
-		AngleDeg:     0,
-		MuzzleX:      0.18,
-		MuzzleY:      0.52,
-		SmokeDelay:   0.12,
-		SmokeRiseDeg: 42,
-		EdgeAt:       2,
-		MidAt:        4,
-		CoreAt:       7,
-		Flash:   Layer{Count: 120, MinLife: 0.05, MaxLife: 0.18, MinSpeed: 16, MaxSpeed: 46, Spread: 0.55, Nozzle: 2.6, MaxDistance: 7.5},
-		Pellets: Layer{Count: 7, MinLife: 0.8, MaxLife: 1.0, MinSpeed: 64, MaxSpeed: 80, Spread: 0.07, Nozzle: 0.6},
-		Sparks:  Layer{Count: 30, MinLife: 0.18, MaxLife: 0.5, MinSpeed: 9, MaxSpeed: 26, Spread: 0.5, Nozzle: 0.8},
-		Smoke:   Layer{Count: 16, MinLife: 1.1, MaxLife: 2.2, MinSpeed: 2.5, MaxSpeed: 6, Spread: 0.55, Nozzle: 2.2},
+		AngleDeg:   90,
+		MuzzleX:    0.5,
+		MuzzleY:    0.85,
+		PulseDelay: 0.11,
+		PulseFrac:  0.6,
+		EdgeAt:     2,
+		MidAt:      4,
+		CoreAt:     7,
+		Core:  Layer{Count: 80, MinLife: 0.04, MaxLife: 0.12, MinSpeed: 8, MaxSpeed: 20, Spread: 0.55, Nozzle: 3, MaxDistance: 4},
+		Flame: Layer{Count: 140, MinLife: 0.2, MaxLife: 0.48, MinSpeed: 16, MaxSpeed: 36, Spread: 0.3, Nozzle: 2.4, Lift: 30, Drag: 3},
 	}
 }
 
 var activeBlast = DefaultBlast()
 
-// UseBlast makes ActiveBlast — and every blast reading it — fire
+// UseBlast makes ActiveBlast — and every blast reading it — burn
 // these settings. Invalid settings are rejected and the active blast
 // holds.
 func UseBlast(c BlastConfig) error {
@@ -102,7 +104,7 @@ func UseBlast(c BlastConfig) error {
 	return nil
 }
 
-// ResetBlast restores the stock shotgun.
+// ResetBlast restores the stock flame.
 func ResetBlast() {
 	_ = UseBlast(DefaultBlast())
 }
@@ -121,24 +123,24 @@ func (c BlastConfig) Validate() error {
 	if c.MuzzleX < 0 || c.MuzzleX > 1 || c.MuzzleY < 0 || c.MuzzleY > 1 {
 		return ErrMuzzle
 	}
-	if c.AngleDeg < -80 || c.AngleDeg > 80 {
+	if c.AngleDeg < -90 || c.AngleDeg > 90 {
 		return ErrAngle
 	}
-	if c.SmokeDelay < 0 {
+	if c.PulseDelay < 0 {
 		return ErrDelay
 	}
-	if c.SmokeRiseDeg < 0 || c.SmokeRiseDeg > 89 {
-		return ErrRise
+	if c.PulseFrac < 0 || c.PulseFrac > 1 {
+		return ErrPulse
 	}
 	if c.EdgeAt < 1 || c.MidAt <= c.EdgeAt || c.CoreAt <= c.MidAt {
 		return ErrLadder
 	}
-	flash, pellets, sparks, smoke := c.Engines(nominalW, nominalH)
+	core, flame := c.Engines(nominalW, nominalH)
 	for _, layer := range []struct {
 		name string
 		cfg  particle.Config
 	}{
-		{"flash", flash}, {"pellets", pellets}, {"sparks", sparks}, {"smoke", smoke},
+		{"core", core}, {"flame", flame},
 	} {
 		if err := layer.cfg.Validate(); err != nil {
 			return fmt.Errorf("gunfire: %s layer: %w", layer.name, err)
@@ -147,23 +149,24 @@ func (c BlastConfig) Validate() error {
 	return nil
 }
 
-// Engines are the four particle worlds this blast describes on a w×h
-// unit stage. Flash, pellets, and sparks all leave the muzzle along
-// the aim and fly straight; the smoke leaves the same muzzle climbing
-// SmokeRiseDeg past the aim and curls with the cartoon-wind swirl.
-// Every world has Period 0 — a gunshot is a trigger, not a clock.
-// The muzzle clamps inside stages smaller than its fractions reach.
-func (c BlastConfig) Engines(w, h float64) (flash, pellets, sparks, smoke particle.Config) {
+// Engines are the two particle worlds this blast describes on a w×h
+// unit stage: the white-hot core and the red flame, both leaving the
+// muzzle along the aim in straight flight, each under its own lift
+// and drag. Every world has Period 0 — a gunshot is a trigger, not a
+// clock. The muzzle clamps inside stages smaller than its fractions
+// reach.
+func (c BlastConfig) Engines(w, h float64) (core, flame particle.Config) {
 	muzzle := particle.Vec2{
 		X: clamp(c.MuzzleX*w, 0, w),
 		Y: clamp(c.MuzzleY*h, 0, h),
 	}
-	base := func(l Layer, dir particle.Vec2) particle.Config {
+	aim := dirAt(c.AngleDeg)
+	base := func(l Layer) particle.Config {
 		return particle.Config{
 			Width:       w,
 			Height:      h,
 			Origin:      muzzle,
-			Direction:   dir,
+			Direction:   aim,
 			Count:       l.Count,
 			MinLife:     l.MinLife,
 			MaxLife:     l.MaxLife,
@@ -172,18 +175,16 @@ func (c BlastConfig) Engines(w, h float64) (flash, pellets, sparks, smoke partic
 			Spread:      l.Spread,
 			Nozzle:      l.Nozzle,
 			MaxDistance: l.MaxDistance,
+			Lift:        l.Lift,
+			Drag:        l.Drag,
 		}
 	}
-	aim := dirAt(c.AngleDeg)
-	flash = base(c.Flash, aim)
-	pellets = base(c.Pellets, aim)
-	sparks = base(c.Sparks, aim)
-	smoke = base(c.Smoke, dirAt(c.AngleDeg+c.SmokeRiseDeg)).SideSwirl(true)
-	return flash, pellets, sparks, smoke
+	return base(c.Core), base(c.Flame)
 }
 
-// dirAt is the unit heading deg degrees above level, firing rightward.
-// Y grows downward, so climbing means a negative Y.
+// dirAt is the unit heading deg degrees above level, firing rightward
+// at 0 and straight up at 90. Y grows downward, so climbing means a
+// negative Y.
 func dirAt(deg float64) particle.Vec2 {
 	sin, cos := math.Sincos(deg * math.Pi / 180)
 	return particle.Vec2{X: cos, Y: -sin}

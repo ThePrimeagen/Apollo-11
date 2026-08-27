@@ -79,6 +79,7 @@ func TestFire(t *testing.T) {
 		c.Core.Count = 20
 		c.Flame.MinLife, c.Flame.MaxLife = 5, 5 // nothing dies during the check
 		c.Core.MinLife, c.Core.MaxLife = 5, 5
+		c.Core.MaxDistance, c.Flame.MaxDistance = 0, 0
 		if err := UseBlast(c); err != nil {
 			t.Fatalf("UseBlast: %v", err)
 		}
@@ -110,8 +111,9 @@ func TestFire(t *testing.T) {
 			"zero frac":  func(c *BlastConfig) { c.PulseFrac = 0 },
 		} {
 			c := DefaultBlast()
-			c.Flame.MinLife, c.Flame.MaxLife = 5, 5
+			c.Flame.MinLife, c.Flame.MaxLife = 5, 5 // nothing dies during the check
 			c.Core.MinLife, c.Core.MaxLife = 5, 5
+			c.Core.MaxDistance, c.Flame.MaxDistance = 0, 0
 			mod(&c)
 			if err := UseBlast(c); err != nil {
 				t.Fatalf("%s UseBlast: %v", name, err)

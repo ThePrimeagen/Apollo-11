@@ -5,21 +5,21 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 )
 
-// Blast is the one-shot shotgun component: four quiet particle
-// engines sharing a muzzle. Start builds them for a w×h stage and
-// holds fire; Fire is the trigger — flash, pellets, and sparks burst
-// now and the smoke's fuse starts burning; Update flies the shot and
-// re-reads the active blast each frame so an in-process tuner retunes
-// it live; Render paints the whole shot onto one stage-sized sprite;
-// Done reports a shot that has fully played out. A fresh Start rises
-// idle — the old shot forgotten.
+// Blast is the one-shot muzzle flame: two quiet particle engines
+// sharing a muzzle — the white-hot core and the red flame. Start
+// builds them for a w×h stage and holds fire; Fire is the trigger —
+// both burst now and the fuse to Doom's second flash frame is lit;
+// Update flies the flame and re-reads the active blast each frame so
+// an in-process tuner retunes it live; Render paints the burn onto
+// one stage-sized sprite; Done reports a flame that has burnt out. A
+// fresh Start rises idle — the old shot forgotten.
 type Blast struct {
-	Flash, Pellets, Sparks, Smoke *particle.Engine
+	Core, Flame *particle.Engine
 
 	seed  int64
 	w, h  int
 	fired bool
-	armed bool    // a smoke fuse is burning
+	armed bool    // the second-frame fuse is burning
 	fuse  float64 // seconds of fuse left
 }
 
@@ -29,18 +29,16 @@ func NewBlast(seed int64) *Blast {
 	return &Blast{seed: seed}
 }
 
-// Start builds the four engines for a w×h stage, all holding fire.
+// Start builds both engines for a w×h stage, holding fire.
 func (b *Blast) Start(w, h int) {
 	if b == nil {
 		return
 	}
 	b.w, b.h = w, h
 	uw, uh := b.units()
-	flash, pellets, sparks, smoke := ActiveBlast().Engines(uw, uh)
-	b.Flash = particle.New(b.seed, flash)
-	b.Pellets = particle.New(b.seed+1, pellets)
-	b.Sparks = particle.New(b.seed+2, sparks)
-	b.Smoke = particle.New(b.seed+3, smoke)
+	core, flame := ActiveBlast().Engines(uw, uh)
+	b.Core = particle.New(b.seed, core)
+	b.Flame = particle.New(b.seed+1, flame)
 	b.fired, b.armed, b.fuse = false, false, 0
 }
 
@@ -49,75 +47,79 @@ func (b *Blast) units() (w, h float64) {
 		float64(b.h)*particle.CellHeightUnits - 0.01
 }
 
-// Fire is the trigger: the flash, the pellets, and the sparks burst
-// at the muzzle right now, and the smoke's fuse is lit — it curls out
-// SmokeDelay seconds later (immediately on a zero fuse). Firing again
-// stacks another volley onto whatever is still flying. The trigger
-// needs a stage: before Start it is refused, and the report says so.
+// Fire is the trigger: the core and the flame burst at the muzzle
+// right now, and — when the config plays Doom's second flash frame —
+// the fuse to the dimmer re-pulse is lit. Firing again stacks another
+// flame onto whatever is still burning. The trigger needs a stage:
+// before Start it is refused, and the report says so.
 func (b *Blast) Fire() bool {
-	if b == nil || b.Flash == nil {
+	if b == nil || b.Core == nil {
 		return false
 	}
-	b.Flash.Burst()
-	b.Pellets.Burst()
-	b.Sparks.Burst()
-	if delay := ActiveBlast().SmokeDelay; delay > 0 {
-		b.armed, b.fuse = true, delay
-	} else {
-		b.Smoke.Burst()
+	b.Core.Burst()
+	b.Flame.Burst()
+	c := ActiveBlast()
+	if c.PulseDelay > 0 && c.PulseFrac > 0 {
+		b.armed, b.fuse = true, c.PulseDelay
 	}
 	b.fired = true
 	return true
 }
 
-// Update pulls the active blast onto the engines, flies the shot dt
-// seconds, and burns the smoke fuse — when it runs out, the smoke
-// curls out once. dt <= 0 holds everything, fuse included.
+// pulse is Doom's second flash frame: one dimmer re-burst, each layer
+// at PulseFrac of its full count.
+func (b *Blast) pulse(frac float64) {
+	for _, e := range []*particle.Engine{b.Core, b.Flame} {
+		full := e.Cfg.Count
+		e.Cfg.Count = int(float64(full)*frac + 0.5)
+		e.Burst()
+		e.Cfg.Count = full
+	}
+}
+
+// Update pulls the active blast onto the engines, burns the flame dt
+// seconds, and burns the fuse — when it runs out, the second frame
+// pulses once. dt <= 0 holds everything, fuse included.
 func (b *Blast) Update(dt float64) {
-	if b == nil || dt <= 0 || b.Flash == nil {
+	if b == nil || dt <= 0 || b.Core == nil {
 		return
 	}
 	uw, uh := b.units()
-	flash, pellets, sparks, smoke := ActiveBlast().Engines(uw, uh)
-	b.Flash.Cfg = flash
-	b.Pellets.Cfg = pellets
-	b.Sparks.Cfg = sparks
-	b.Smoke.Cfg = smoke
-	b.Flash.Update(dt)
-	b.Pellets.Update(dt)
-	b.Sparks.Update(dt)
-	b.Smoke.Update(dt)
+	core, flame := ActiveBlast().Engines(uw, uh)
+	b.Core.Cfg = core
+	b.Flame.Cfg = flame
+	b.Core.Update(dt)
+	b.Flame.Update(dt)
 	if b.armed {
 		b.fuse -= dt
 		if b.fuse <= 0 {
 			b.armed = false
-			b.Smoke.Burst()
+			b.pulse(ActiveBlast().PulseFrac)
 		}
 	}
 }
 
-// Done reports a shot that has fully played out: the trigger was
-// pulled, the fuse is burnt, and nothing is left flying. An idle,
+// Done reports a flame that has fully burnt out: the trigger was
+// pulled, the fuse is spent, and nothing is left burning. An idle,
 // unstarted, or stopped blast has not performed — never done.
 func (b *Blast) Done() bool {
-	return b != nil && b.Flash != nil && b.fired && !b.armed &&
-		len(b.Flash.Particles) == 0 && len(b.Pellets.Particles) == 0 &&
-		len(b.Sparks.Particles) == 0 && len(b.Smoke.Particles) == 0
+	return b != nil && b.Core != nil && b.fired && !b.armed &&
+		len(b.Core.Particles) == 0 && len(b.Flame.Particles) == 0
 }
 
-// Render paints the shot onto one stage-sized sprite. Before Start
+// Render paints the burn onto one stage-sized sprite. Before Start
 // and after Stop there is nothing built, so the stage is empty.
 func (b *Blast) Render() sprite.Sprite {
-	if b == nil || b.Flash == nil || b.w < 1 || b.h < 1 {
+	if b == nil || b.Core == nil || b.w < 1 || b.h < 1 {
 		return sprite.Sprite{}
 	}
-	return paint(ActiveBlast(), b.w, b.h, b.Flash, b.Pellets, b.Sparks, b.Smoke)
+	return paint(ActiveBlast(), b.w, b.h, b.Core, b.Flame)
 }
 
-// Stop drops the engines; a fresh Start rebuilds them idle.
+// Stop drops both engines; a fresh Start rebuilds them idle.
 func (b *Blast) Stop() {
 	if b == nil {
 		return
 	}
-	b.Flash, b.Pellets, b.Sparks, b.Smoke = nil, nil, nil, nil
+	b.Core, b.Flame = nil, nil
 }
