@@ -1,15 +1,20 @@
 package main
 
 // Demo harness tests, written first: cmd/america runs the America
-// scene standalone. The house opens on pure black with the America
-// marquee on the status line; the full-screened flag fades in slowly,
-// and once it is fully in, the very large eagle crosses the stage
-// right to left with the flag flying beneath. p (or space, or enter)
-// replays from the top — back to black. -seconds brings the curtain
-// down on time, q and ctrl+c quit anywhere, and the view is always
-// exactly window-height lines.
+// scene standalone, tuned live the way the landing runner tunes. The
+// house opens on pure black with the America marquee and the knob
+// panel — flag fade, eagle delay, eagle cross — under the stage; the
+// full-screened flag fades in slowly, and once it is fully in, the
+// very large eagle crosses the stage right to left with the flag
+// flying beneath. j/k select a knob, h/l nudge it 50ms, s saves to
+// the scene's config JSON, and p (or space, or enter) replays from
+// the top — back to black — on the current knobs. -seconds brings the
+// curtain down on time, q and ctrl+c quit anywhere, and the view is
+// always exactly window-height lines.
 
 import (
+	"math"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -47,16 +52,17 @@ func quarterCross() int { return int(america.CrossSeconds / 4 * 30) }
 // bird.
 func eagleSeen(v string) bool { return strings.Contains(v, "8;5;94m") }
 
-// eagleLeft finds the leftmost lower-half block above the status row,
-// ANSI stripped. The flag draws its stripe boundaries with upper-half
-// blocks only, so every '▄' on stage is the eagle's silhouette.
+// eagleLeft finds the leftmost lower-half block above the status
+// panel, ANSI stripped. The flag draws its stripe boundaries with
+// upper-half blocks only, so every '▄' on stage is the eagle's
+// silhouette.
 func eagleLeft(v string) (int, bool) {
 	lines := strings.Split(ansiPat.ReplaceAllString(v, ""), "\n")
-	if len(lines) < 2 {
+	if len(lines) < statusRows+1 {
 		return 0, false
 	}
 	left, ok := 1<<30, false
-	for _, line := range lines[:len(lines)-1] {
+	for _, line := range lines[:len(lines)-statusRows] {
 		for c, ch := range []rune(line) {
 			if ch != '▄' {
 				continue
@@ -235,6 +241,98 @@ func TestAmericaDemoHouseRules(t *testing.T) {
 			if _, ok := cmd().(tea.QuitMsg); !ok {
 				t.Fatalf("%v must issue tea.Quit", msg)
 			}
+		}
+	})
+}
+
+func TestAmericaDemoKnobs(t *testing.T) {
+	t.Run("happy: the panel lists the three knobs with their seconds", func(t *testing.T) {
+		v := ansiPat.ReplaceAllString(newModel(0).View().Content, "")
+		for _, want := range []string{"flag fade", "eagle delay", "eagle cross", "8.000", "12.000"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("the knob panel is missing %q:\n%s", want, v)
+			}
+		}
+		marked := false
+		for _, line := range strings.Split(v, "\n") {
+			if strings.Contains(line, ">") && strings.Contains(line, "flag fade") {
+				marked = true
+			}
+		}
+		if !marked {
+			t.Fatal("the cursor must open on the flag fade knob")
+		}
+	})
+	t.Run("happy: j and k walk the cursor over the knobs with wrap", func(t *testing.T) {
+		m := newModel(0)
+		m = press(m, runeKey('j'))
+		if m.cursor != america.KnobDelay {
+			t.Fatalf("j must land on the delay knob, got %d", m.cursor)
+		}
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('j'))
+		if m.cursor != america.KnobFade {
+			t.Fatalf("j past the last knob must wrap to the fade, got %d", m.cursor)
+		}
+		m = press(m, runeKey('k'))
+		if m.cursor != america.KnobCross {
+			t.Fatalf("k from the top must wrap to the cross, got %d", m.cursor)
+		}
+	})
+	t.Run("happy: h and l nudge the selected knob 50ms at a time", func(t *testing.T) {
+		m := newModel(0)
+		m = press(m, runeKey('l'))
+		if got := m.show.Cfg.FadeSeconds; math.Abs(got-(america.FadeSeconds+america.StepSeconds)) > 1e-9 {
+			t.Fatalf("l must add 50ms to the fade, got %v", got)
+		}
+		m = press(m, runeKey('h'))
+		m = press(m, runeKey('h'))
+		if got := m.show.Cfg.FadeSeconds; math.Abs(got-(america.FadeSeconds-america.StepSeconds)) > 1e-9 {
+			t.Fatalf("h twice must take 50ms off the fade, got %v", got)
+		}
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('l'))
+		if got := m.show.Cfg.CrossSeconds; math.Abs(got-(america.CrossSeconds+america.StepSeconds)) > 1e-9 {
+			t.Fatalf("l on the cross knob must add 50ms, got %v", got)
+		}
+	})
+	t.Run("happy: a nudged replay plays the new knobs", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m.show.Cfg.FadeSeconds = 0.2
+		m = press(m, runeKey('p'))
+		m = frames(m, 30)
+		if !strings.Contains(m.View().Content, "48;5;160m") {
+			t.Fatal("a second after a 0.2s-fade replay the flag must be red")
+		}
+	})
+	t.Run("happy: s saves the knobs to the config path", func(t *testing.T) {
+		t.Cleanup(america.Reset)
+		m := newModel(0)
+		m.path = filepath.Join(t.TempDir(), "america.json")
+		m = press(m, runeKey('l'))
+		m = press(m, runeKey('s'))
+		if m.note != "saved" {
+			t.Fatalf("note %q, want saved", m.note)
+		}
+		got, err := america.Load(m.path)
+		if err != nil {
+			t.Fatalf("the saved file must load: %v", err)
+		}
+		if math.Abs(got.FadeSeconds-(america.FadeSeconds+america.StepSeconds)) > 1e-9 {
+			t.Fatalf("saved fade %v, want the nudged %v", got.FadeSeconds, america.FadeSeconds+america.StepSeconds)
+		}
+		if !strings.Contains(m.View().Content, "saved") {
+			t.Fatal("the status line must show the save")
+		}
+	})
+	t.Run("unhappy: s without a config path says so instead of writing", func(t *testing.T) {
+		m := newModel(0)
+		m.path = ""
+		m = press(m, runeKey('s'))
+		if m.note != "no config path" {
+			t.Fatalf("note %q, want no config path", m.note)
 		}
 	})
 }

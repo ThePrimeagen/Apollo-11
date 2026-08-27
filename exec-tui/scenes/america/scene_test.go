@@ -275,6 +275,67 @@ func TestAmericaScene(t *testing.T) {
 	})
 }
 
+func TestAmericaScenePlaysConfig(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: New plays the Active config on the first curtain", func(t *testing.T) {
+		t.Cleanup(Reset)
+		fast := DefaultConfig()
+		fast.FadeSeconds = 0.3
+		fast.EagleDelay = 0.4
+		fast.CrossSeconds = 2.0
+		if err := Use(fast); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.5)
+		if got := bgIndex(paint(sc), stageW-1, 0); got != flag.RedInk {
+			t.Fatalf("a 0.3s fade must be at full color by 0.5s, wears %d", got)
+		}
+		tick(sc, 0.5)
+		if len(eagleCells(paint(sc))) == 0 {
+			t.Fatal("with a 0.4s delay and a 2s crossing the eagle must be on stage at 1s")
+		}
+	})
+	t.Run("happy: a nudged knob is what the next play uses", func(t *testing.T) {
+		sc := New()
+		sc.Start()
+		_ = paint(sc)
+		if got := bgIndex(paint(sc), stageW-1, 0); got != flag.Black {
+			t.Fatal("test premise: the stock curtain opens black")
+		}
+		sc.Stop()
+		sc.Cfg.FadeSeconds = 0.2
+		sc.Cfg.EagleDelay = 0.2
+		sc.Cfg.CrossSeconds = 1.0
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.5)
+		scr := paint(sc)
+		if got := bgIndex(scr, stageW-1, 0); got != flag.RedInk {
+			t.Fatalf("the replay must fade in 0.2s, wears %d at 0.5s", got)
+		}
+		if len(eagleCells(scr)) == 0 {
+			t.Fatal("the replay must fly the eagle on the nudged 0.2s delay")
+		}
+	})
+	t.Run("unhappy: changing knobs mid-flight never retimes the running scene", func(t *testing.T) {
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 2.0)
+		sc.Cfg.FadeSeconds = 0.1
+		tick(sc, 0.5)
+		if got := bgIndex(paint(sc), stageW-1, 0); got == flag.RedInk {
+			t.Fatal("an in-flight fade must keep the timing it launched with")
+		}
+	})
+}
+
 // The eagle detector reads the eagle's own inks, so the flag must
 // never wear them — and the flag's glyph language stays its own.
 func TestAmericaDetectorPremise(t *testing.T) {
