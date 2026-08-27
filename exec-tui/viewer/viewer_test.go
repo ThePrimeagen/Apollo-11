@@ -113,6 +113,12 @@ func TestCatalog(t *testing.T) {
 				t.Fatalf("catalog missing %q", id)
 			}
 		}
+		for i, it := range c {
+			m := sized(New(i), 80, 24)
+			if m.View().Content == "" {
+				t.Fatalf("%s rendered an empty frame", it.ID)
+			}
+		}
 	})
 	t.Run("unhappy: kinds are the three words the type line prints, never a synonym", func(t *testing.T) {
 		for _, it := range Catalog() {
