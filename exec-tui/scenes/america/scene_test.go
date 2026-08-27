@@ -122,6 +122,14 @@ func TestAmericaKnobs(t *testing.T) {
 			t.Fatalf("the stock show runs %vs before the flag flies alone — fast means six at most", total)
 		}
 	})
+	t.Run("happy: the stock flight is the whole span — off one wing and off the other", func(t *testing.T) {
+		if StartPoint != 0 {
+			t.Fatalf("StartPoint = %v — the stock eagle enters off the right wing", StartPoint)
+		}
+		if EndPoint != 1 {
+			t.Fatalf("EndPoint = %v — the stock eagle exits off the left wing", EndPoint)
+		}
+	})
 	t.Run("unhappy: fast never collapses the beats — fade and crossing stay separate", func(t *testing.T) {
 		if FadeSeconds == CrossSeconds {
 			t.Fatal("the fade and the crossing must be independent knobs")
@@ -339,6 +347,75 @@ func TestAmericaScenePlaysConfig(t *testing.T) {
 		tick(sc, 0.5)
 		if got := bgIndex(paint(sc), stageW-1, 0); got == flag.RedInk {
 			t.Fatal("an in-flight fade must keep the timing it launched with")
+		}
+	})
+}
+
+func TestAmericaFlightPath(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: a late start point opens the flight already deep on stage", func(t *testing.T) {
+		t.Cleanup(Reset)
+		cfg := DefaultConfig()
+		cfg.FadeSeconds = 0.2
+		cfg.EagleDelay = 0.2
+		cfg.CrossSeconds = 2.0
+		cfg.EagleStart = 0.5
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.4)
+		cells := eagleCells(paint(sc))
+		if len(cells) < 100 {
+			t.Fatalf("a 0.5 start must open mid-stage, found only %d eagle cells", len(cells))
+		}
+		if l := leftmost(cells); l > stageW/2 {
+			t.Fatalf("a 0.5 start opens with the leading edge at %d — the bird starts halfway along the span", l)
+		}
+	})
+	t.Run("happy: an early end point cuts the flight short of the far wing, on time", func(t *testing.T) {
+		t.Cleanup(Reset)
+		cfg := DefaultConfig()
+		cfg.FadeSeconds = 0.2
+		cfg.EagleDelay = 0.2
+		cfg.CrossSeconds = 2.0
+		cfg.EagleEnd = 0.5
+		if err := Use(cfg); err != nil {
+			t.Fatal(err)
+		}
+		sc := New()
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 2.1)
+		cells := eagleCells(paint(sc))
+		if len(cells) < 100 {
+			t.Fatalf("just before an 0.5 end the bird is still mid-stage, found only %d eagle cells", len(cells))
+		}
+		if l := leftmost(cells); l < 1 {
+			t.Fatalf("an 0.5 end must never reach the left wing, leading edge at %d", l)
+		}
+		tick(sc, 0.4)
+		if got := eagleCells(paint(sc)); len(got) != 0 {
+			t.Fatalf("past the crossing the flight is over, found %d eagle cells", len(got))
+		}
+	})
+	t.Run("unhappy: a backwards path forced onto a live scene falls back to the stock flight", func(t *testing.T) {
+		sc := New()
+		sc.Cfg.FadeSeconds = 0.2
+		sc.Cfg.EagleDelay = 0.2
+		sc.Cfg.CrossSeconds = 2.0
+		sc.Cfg.EagleStart = 0.9
+		sc.Cfg.EagleEnd = 0.1
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 1.2)
+		if len(eagleCells(paint(sc))) == 0 {
+			t.Fatal("a backwards path must fall back to the stock flight, not a dead sky")
 		}
 	})
 }
