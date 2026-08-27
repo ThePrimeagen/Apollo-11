@@ -1,10 +1,11 @@
 package dsky
 
 // Tests written FIRST: the DSKY panel is a scene component that docks
-// on the right third of the stage. Over WipeSeconds it reveals one
-// column at a time from the right edge, painting the electroluminescent
-// display (VERB/NOUN/PROG and the registers) into the blanked sky. The
-// panel hugs the right edge and clips on a stage smaller than itself.
+// against the right edge of the stage. There is no entrance animation:
+// the very first render after Start already paints the whole
+// electroluminescent display (VERB/NOUN/PROG and the registers), and
+// time never changes what the panel shows. The panel hugs the right
+// edge and clips on a stage smaller than itself.
 
 import (
 	"strings"
@@ -45,15 +46,6 @@ func stageText(sp sprite.Sprite) string {
 	return strings.Join(rows, "\n")
 }
 
-func columnLit(sp sprite.Sprite, col int) bool {
-	for r := 0; r < sp.Height; r++ {
-		if !sp.At(r, col).Transparent() {
-			return true
-		}
-	}
-	return false
-}
-
 func TestPanelSprite(t *testing.T) {
 	t.Run("happy: the panel sprite carries the DSKY labels", func(t *testing.T) {
 		sp := SpriteOf(MonitorState())
@@ -79,91 +71,80 @@ func TestPanelSprite(t *testing.T) {
 }
 
 func TestPanelOnStage(t *testing.T) {
-	t.Run("happy: after the wipe the DSKY hugs the right edge", func(t *testing.T) {
+	t.Run("happy: the very first render is the whole DSKY, hugging the right edge", func(t *testing.T) {
 		p := NewPanel(MonitorState())
 		p.Start(stageW, stageH)
-		p.Update(WipeSeconds)
-		sp := p.Render()
+		sp := p.Render() // no Update: the panel has no entrance to wait out
 		if sp.Width != stageW || sp.Height != stageH {
 			t.Fatalf("stage %dx%d, want %dx%d", sp.Width, sp.Height, stageW, stageH)
 		}
 		text := stageText(sp)
 		for _, want := range []string{"VERB", "NOUN", "PROG"} {
 			if !strings.Contains(text, want) {
-				t.Fatalf("revealed panel is missing %q", want)
+				t.Fatalf("the opening frame is missing %q", want)
 			}
 		}
-		// VERB sits on the panel; the panel's right edge is the stage's.
-		left := stageW - lab.Width
-		found := false
-		for r := 0; r < sp.Height; r++ {
-			row := glyphRow(sp, r)
-			if i := strings.Index(row, "VERB"); i >= 0 {
-				found = true
-				if i < left {
-					t.Fatalf("VERB starts at col %d, want ≥ %d (right-hugging panel)", i, left)
+		// Every opaque panel cell is on stage, right-hugging and
+		// vertically centered — and nothing else is painted.
+		panel := SpriteOf(MonitorState())
+		x := stageW - panel.Width
+		y := (stageH - panel.Height) / 2
+		want := 0
+		for r := 0; r < panel.Height; r++ {
+			for c := 0; c < panel.Width; c++ {
+				cell := panel.At(r, c)
+				if cell.Transparent() {
+					continue
+				}
+				want++
+				if got := sp.At(y+r, x+c); got != cell {
+					t.Fatalf("panel cell (%d,%d) at stage (%d,%d): %+v, want %+v", r, c, y+r, x+c, got, cell)
 				}
 			}
 		}
-		if !found {
-			t.Fatal("VERB must be on stage after the wipe")
+		if got := opaqueCount(sp); got != want {
+			t.Fatalf("stage lit %d cells, the panel alone has %d — the component paints only itself", got, want)
 		}
 	})
-	t.Run("happy: at t=0 nothing of the panel has been revealed", func(t *testing.T) {
+	t.Run("happy: time never changes the panel — every update holds the same picture", func(t *testing.T) {
 		p := NewPanel(MonitorState())
 		p.Start(stageW, stageH)
-		if n := opaqueCount(p.Render()); n != 0 {
-			t.Fatalf("opening frame lit %d cells — the wipe has not started", n)
+		first := stageText(p.Render())
+		if !strings.Contains(first, "VERB") {
+			t.Fatal("test premise: the opening frame must already show the panel")
 		}
-	})
-	t.Run("happy: columns appear from the right, one at a time", func(t *testing.T) {
-		p := NewPanel(MonitorState())
-		p.Start(stageW, stageH)
-		want := DockCols(stageW)
-		prev := 0
-		for i := 1; i <= 10; i++ {
-			p.Update(WipeSeconds / 10)
-			sp := p.Render()
-			lit := 0
-			for c := stageW - 1; c >= 0; c-- {
-				if !columnLit(sp, c) {
-					break
-				}
-				lit++
+		// Forward time, a single frame, held time, and (unhappy) time
+		// running backwards: none of them may repaint a single cell.
+		for _, dt := range []float64{1.0 / 30, 5, 0, -1} {
+			p.Update(dt)
+			if got := stageText(p.Render()); got != first {
+				t.Fatalf("Update(%v) changed the panel:\n%s\nwant:\n%s", dt, got, first)
 			}
-			if lit < prev {
-				t.Fatalf("revealed columns shrank from %d to %d — the wipe only grows", prev, lit)
-			}
-			prev = lit
-		}
-		if prev == 0 {
-			t.Fatal("after the wipe the right edge must hold DSKY cells")
-		}
-		if prev > want {
-			t.Fatalf("revealed %d columns past the dock of %d", prev, want)
 		}
 	})
-	t.Run("happy: stop clears the staging; a fresh start keeps the wipe clock", func(t *testing.T) {
+	t.Run("happy: stop clears the staging; a fresh start shows the whole panel at once", func(t *testing.T) {
 		p := NewPanel(MonitorState())
 		p.Start(stageW, stageH)
-		p.Update(WipeSeconds)
 		if opaqueCount(p.Render()) == 0 {
-			t.Fatal("test premise: a wiped panel must show")
+			t.Fatal("test premise: a started panel must show")
 		}
 		p.Stop()
 		if sp := p.Render(); sp.Width != 0 || sp.Height != 0 {
 			t.Fatalf("a stopped panel rendered %dx%d", sp.Width, sp.Height)
 		}
 		p.Start(stageW, stageH)
-		if opaqueCount(p.Render()) == 0 {
-			t.Fatal("a restaged panel must keep its wipe clock — already revealed")
+		if !strings.Contains(stageText(p.Render()), "VERB") {
+			t.Fatal("a restaged panel must be whole on its first frame — no entrance replays")
 		}
 	})
 	t.Run("unhappy: a stage smaller than the panel clips instead of panicking", func(t *testing.T) {
 		p := NewPanel(MonitorState())
 		p.Start(10, 5)
-		p.Update(WipeSeconds)
-		if n := opaqueCount(p.Render()); n > 10*5 {
+		n := opaqueCount(p.Render())
+		if n == 0 {
+			t.Fatal("a clipped panel must still show the slice that fits")
+		}
+		if n > 10*5 {
 			t.Fatalf("tiny stage lit %d cells, has only %d", n, 10*5)
 		}
 	})
@@ -179,29 +160,6 @@ func TestPanelOnStage(t *testing.T) {
 		ghost.Update(1)
 		ghost.Render()
 		ghost.Stop()
-	})
-}
-
-func TestDockCols(t *testing.T) {
-	t.Run("happy: a 72-wide stage docks 25 — enough for the panel, ~one third", func(t *testing.T) {
-		if got := DockCols(72); got != lab.Width {
-			t.Fatalf("DockCols(72)=%d, want %d", got, lab.Width)
-		}
-	})
-	t.Run("happy: a wide stage docks a full third", func(t *testing.T) {
-		if got := DockCols(120); got != 40 {
-			t.Fatalf("DockCols(120)=%d, want 40", got)
-		}
-	})
-	t.Run("unhappy: a stage narrower than the panel docks the whole width", func(t *testing.T) {
-		if got := DockCols(10); got != 10 {
-			t.Fatalf("DockCols(10)=%d, want 10", got)
-		}
-	})
-	t.Run("unhappy: a zero stage docks nothing", func(t *testing.T) {
-		if got := DockCols(0); got != 0 {
-			t.Fatalf("DockCols(0)=%d, want 0", got)
-		}
 	})
 }
 
