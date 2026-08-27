@@ -34,7 +34,7 @@ const (
 	defaultW   = 84
 	defaultH   = 30
 	frameMs    = 1000.0 / 30
-	footerRows = 3
+	footerRows = 4
 )
 
 type model struct {
@@ -134,7 +134,7 @@ func (m model) knobCell(k moonwalk.Knob) string {
 	}
 	v := m.cfg.Value(k)
 	val := fmt.Sprintf("%.2f", v)
-	if k == moonwalk.KnobPoleRows || k == moonwalk.KnobPanCols {
+	if k == moonwalk.KnobPoleRows || k == moonwalk.KnobPanCols || k == moonwalk.KnobBoxStart {
 		val = fmt.Sprintf("%d", int(v))
 	}
 	return fmt.Sprintf("%s%-10s %6s", mark, k.String(), val)
@@ -149,7 +149,7 @@ func (m model) footer(w int) []string {
 		help = "moonwalk  " + m.note
 	}
 	lines := []string{dim + clip(help, w) + reset}
-	for row := 0; row < 2; row++ {
+	for row := 0; row < 3; row++ {
 		var cells []string
 		for i := 0; i < 4; i++ {
 			k := moonwalk.Knob(row*4 + i)

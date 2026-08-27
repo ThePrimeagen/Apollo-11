@@ -43,18 +43,22 @@ type Config struct {
 	PanSeconds   float64 `json:"pan_seconds"`
 }
 
-// DefaultConfig is the show as originally staged.
+// DefaultConfig is the show as staged: a quick sprint, three stacks
+// parked a hop from the pole, a beat at the top, a slow hoist that
+// outlasts the slide, and a pan wide enough to reveal the whole
+// module before he runs over and boards it.
 func DefaultConfig() Config {
 	return Config{
 		StrideFPS:    12,
-		RunSpeed:     16,
+		RunSpeed:     20,
 		JumpSeconds:  0.55,
+		BoxStart:     46,
+		TopSeconds:   0.6,
 		SlideSeconds: 1.8,
-		// The hoist outlasts the slide on purpose: the flag is still
-		// climbing while he stands at the base, so the crossing reads.
 		FlagSeconds:  3.0,
-		PoleRows:     18,
-		PanCols:      24,
+		PoleRows:     21,
+		ExitSpeed:    18,
+		PanCols:      30,
 		PanSeconds:   1.4,
 	}
 }
@@ -115,12 +119,18 @@ func (c Config) Value(k Knob) float64 {
 		return c.RunSpeed
 	case KnobJumpSeconds:
 		return c.JumpSeconds
+	case KnobBoxStart:
+		return float64(c.BoxStart)
+	case KnobTopSeconds:
+		return c.TopSeconds
 	case KnobSlideSeconds:
 		return c.SlideSeconds
 	case KnobFlagSeconds:
 		return c.FlagSeconds
 	case KnobPoleRows:
 		return float64(c.PoleRows)
+	case KnobExitSpeed:
+		return c.ExitSpeed
 	case KnobPanCols:
 		return float64(c.PanCols)
 	case KnobPanSeconds:
@@ -166,14 +176,20 @@ func (c *Config) Nudge(k Knob, dir int) {
 		c.RunSpeed = nudgeFloat(c.RunSpeed, 1, dir, 2, 60)
 	case KnobJumpSeconds:
 		c.JumpSeconds = nudgeFloat(c.JumpSeconds, 0.05, dir, 0.2, 2)
+	case KnobBoxStart:
+		c.BoxStart = nudgeInt(c.BoxStart, dir, MinBoxStart, MaxBoxStart)
+	case KnobTopSeconds:
+		c.TopSeconds = nudgeFloat(c.TopSeconds, 0.05, dir, 0, 4)
 	case KnobSlideSeconds:
 		c.SlideSeconds = nudgeFloat(c.SlideSeconds, 0.05, dir, 0.3, 6)
 	case KnobFlagSeconds:
 		c.FlagSeconds = nudgeFloat(c.FlagSeconds, 0.05, dir, 0.2, 8)
 	case KnobPoleRows:
 		c.PoleRows = nudgeInt(c.PoleRows, dir, MinPoleRows, MaxPoleRows)
+	case KnobExitSpeed:
+		c.ExitSpeed = nudgeFloat(c.ExitSpeed, 1, dir, 4, 60)
 	case KnobPanCols:
-		c.PanCols = nudgeInt(c.PanCols, dir, 0, 60)
+		c.PanCols = nudgeInt(c.PanCols, dir, 0, 80)
 	case KnobPanSeconds:
 		c.PanSeconds = nudgeFloat(c.PanSeconds, 0.05, dir, 0.2, 5)
 	}
