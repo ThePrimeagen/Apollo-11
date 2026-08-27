@@ -99,6 +99,7 @@ func TestCatalog(t *testing.T) {
 			"america":    KindScene,
 			"moonwalk":   KindScene,
 			"skies":      KindScene,
+			"liftoff":    KindScene,
 		}
 		seen := map[string]bool{}
 		for _, it := range c {
@@ -314,6 +315,7 @@ func TestEdit(t *testing.T) {
 			{"america", "./cmd/america"},
 			{"moonwalk", "./cmd/astronaut"},
 			{"skies", "./cmd/skies"},
+			{"liftoff", "./cmd/liftoff"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)

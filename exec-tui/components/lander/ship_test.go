@@ -1117,3 +1117,290 @@ func livePad(s *Ship) int {
 	}
 	return len(s.padDust.Left.Particles) + len(s.padDust.Right.Particles)
 }
+
+// Tests written FIRST: the inverse walkthrough plays the landing
+// backwards. LiftPath is the landing path time-reversed — the hull
+// opens parked on the horizon pad, holds it until lift-at, then rises
+// on the mirrored ease (a slow, heavy crawl off the pad that rockets
+// off the top). IgniteAt is ThrottleAt run backwards: dark on the pad,
+// then ¼, ½, ¾, and full power, each at its own t=0 offset. FireFor
+// lets a parked ship burn its tail fire for so many seconds of played
+// time and then cut it — the walkthrough's fire scene reversed. A
+// liftoff kicks pad dust through DustAt/DustLoss only: there is no
+// stock dust choreography to inherit from the landing.
+
+const liftRise = 5.0
+
+func TestLiftPath(t *testing.T) {
+	pad := LandPadRow(screenH)
+	t.Run("happy: the craft holds the pad until lift-at, then rises fully off the top", func(t *testing.T) {
+		row, col := LiftPath(screenW, screenH, 0, 1.6, liftRise)
+		if row != pad {
+			t.Fatalf("t=0 row %d, want the pad %d", row, pad)
+		}
+		if col != (screenW-BodyCols)/2 {
+			t.Fatalf("t=0 col %d, want centered %d", col, (screenW-BodyCols)/2)
+		}
+		if row, _ := LiftPath(screenW, screenH, 1.55, 1.6, liftRise); row != pad {
+			t.Fatalf("just before lift-at row %d, want the pad %d", row, pad)
+		}
+		prev := pad
+		for ti := 0; ti <= 500; ti++ {
+			tt := 1.6 + liftRise*float64(ti)/500
+			row, _ := LiftPath(screenW, screenH, tt, 1.6, liftRise)
+			if row > prev {
+				t.Fatalf("t=%.2f row %d moved down (was %d) — a liftoff only climbs", tt, row, prev)
+			}
+			prev = row
+		}
+		gone, _ := LiftPath(screenW, screenH, 1.6+liftRise, 1.6, liftRise)
+		if gone != -BodyRows {
+			t.Fatalf("at the end of the climb row %d, want %d (fully off the top)", gone, -BodyRows)
+		}
+		late, _ := LiftPath(screenW, screenH, 1000, 1.6, liftRise)
+		if late != -BodyRows {
+			t.Fatalf("long after the climb row %d drifted, want %d", late, -BodyRows)
+		}
+	})
+	t.Run("happy: the climb is the landing's mirror — a heavy crawl off the pad, then it rockets", func(t *testing.T) {
+		span := float64(pad - (-BodyRows))
+		rowAt := func(tSec float64) int {
+			row, _ := LiftPath(screenW, screenH, tSec, 0, liftRise)
+			return row
+		}
+		progress := func(tSec float64) float64 {
+			return float64(pad-rowAt(tSec)) / span
+		}
+		if got := progress(0.4 * liftRise); got > 0.15 {
+			t.Fatalf("at 40%% of the climb the hull is already %.2f of the way — want a heavy ease-in under 0.15", got)
+		}
+		first := pad - rowAt(0.2*liftRise)
+		last := rowAt(0.8*liftRise) - (-BodyRows)
+		if first >= last {
+			t.Fatalf("first 20%% of time climbed %d rows, last 20%% climbed %d — the launch must sprint at the end", first, last)
+		}
+		mid := rowAt(liftRise / 2)
+		linear := pad - int(math.Round(0.5*span))
+		if mid == linear {
+			t.Fatalf("halfway row %d is the linear midpoint — the climb must ease in, not rise uniformly", mid)
+		}
+		if mid <= linear {
+			t.Fatalf("halfway row %d is past the linear midpoint %d — ease-in must save the distance for the end", mid, linear)
+		}
+		s := NewShip(44).North().Lift(0.5, 2.0)
+		s.Start(screenW, screenH)
+		warmShip(s, 1.5)
+		gotRow, gotCol := s.position()
+		wantRow, wantCol := LiftPath(screenW, screenH, s.Clock(), 0.5, 2.0)
+		if gotRow != wantRow || gotCol != wantCol {
+			t.Fatalf("a Lift ship must ride the mirrored path, at (%d,%d) want (%d,%d)", gotRow, gotCol, wantRow, wantCol)
+		}
+	})
+	t.Run("unhappy: negative time is the pad, no duration snaps off the top, and Lift on nil stays nil", func(t *testing.T) {
+		if row, _ := LiftPath(screenW, screenH, -3, 1.6, liftRise); row != pad {
+			t.Fatalf("t<0 row %d, want the pad %d", row, pad)
+		}
+		if row, _ := LiftPath(screenW, screenH, 2, 0, 0); row != -BodyRows {
+			t.Fatalf("seconds<=0 row %d, want %d (already gone)", row, -BodyRows)
+		}
+		var ghost *Ship
+		if ghost.Lift(1.6, liftRise) != nil {
+			t.Fatal("Lift must return the nil receiver")
+		}
+	})
+}
+
+func TestLiftIgnite(t *testing.T) {
+	t.Run("happy: cold on the pad, then ¼, ½, ¾, and full power, each at its offset", func(t *testing.T) {
+		s := NewShip(50).North().Lift(1.6, liftRise).IgniteAt(0.4, 0.8, 1.2, 1.6)
+		s.Start(screenW, screenH)
+		base := s.flameBase.Count
+		if base < 1 {
+			t.Fatal("test premise: a lift ship must snapshot a live booster base")
+		}
+		if got := s.Flame.Config().Count; got != 0 {
+			t.Fatalf("on the cold pad count %d, want 0", got)
+		}
+		if n := len(s.Flame.Eng.Particles); n != 0 {
+			t.Fatalf("on the cold pad %d particles live, want none", n)
+		}
+		warmShip(s, 0.5)
+		if got := s.Flame.Config().Count; got != int(math.Round(float64(base)*0.25)) {
+			t.Fatalf("at ¼ count %d, want ¼ of %d", got, base)
+		}
+		warmShip(s, 0.4)
+		if got := s.Flame.Config().Count; got != int(math.Round(float64(base)*0.5)) {
+			t.Fatalf("at ½ count %d, want ½ of %d", got, base)
+		}
+		warmShip(s, 0.4)
+		if got := s.Flame.Config().Count; got != int(math.Round(float64(base)*0.75)) {
+			t.Fatalf("at ¾ count %d, want ¾ of %d", got, base)
+		}
+		warmShip(s, 0.4)
+		if got := s.Flame.Config().Count; got != base {
+			t.Fatalf("at liftoff count %d, want full %d", got, base)
+		}
+		warmShip(s, 3.0)
+		if got := s.Flame.Config().Count; got != base {
+			t.Fatalf("mid-climb count %d, want full %d — the booster burns all the way up", got, base)
+		}
+	})
+	t.Run("happy: a lift with no ignition schedule burns full from the opening", func(t *testing.T) {
+		s := NewShip(51).North().Lift(0.5, 3.0)
+		s.Start(screenW, screenH)
+		base := s.flameBase.Count
+		if base < 1 {
+			t.Fatal("test premise: a lift ship must snapshot a live booster base")
+		}
+		if got := s.Flame.Config().Count; got != base {
+			t.Fatalf("unscheduled lift opens at count %d, want full %d", got, base)
+		}
+		warmShip(s, 2.0)
+		if got := s.Flame.Config().Count; got != base {
+			t.Fatalf("unscheduled lift mid-climb count %d, want full %d", got, base)
+		}
+	})
+	t.Run("unhappy: IgniteAt on nil stays nil, full at 0 burns from t=0, and a westbound park never ignites", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.IgniteAt(1, 2, 3, 4) != nil {
+			t.Fatal("IgniteAt must return the nil receiver")
+		}
+		s := NewShip(52).North().Lift(1.0, 3.0).IgniteAt(0, 0, 0, 0)
+		s.Start(screenW, screenH)
+		if got, base := s.Flame.Config().Count, s.flameBase.Count; got != base {
+			t.Fatalf("full at 0 opens at count %d, want full %d", got, base)
+		}
+		west := NewShip(53).Parked().IgniteAt(5, 6, 7, 8)
+		west.Start(screenW, screenH)
+		want := west.Flame.Config().Count
+		if want < 1 {
+			t.Fatal("test premise: a parked west ship must arm a live plume")
+		}
+		warmShip(west, 2.0)
+		if got := west.Flame.Config().Count; got != want {
+			t.Fatalf("ignite offsets must only speak in lift mode, count %d want %d", got, want)
+		}
+	})
+}
+
+// tailFire counts plume glyphs right of a parked west hull.
+func tailFire(s *Ship) int {
+	stage := s.Render()
+	_, col := FlightPath(screenW, screenH, s.Clock())
+	n := 0
+	for r := 0; r < stage.Height; r++ {
+		for c := col + BodyCols; c < stage.Width; c++ {
+			if flameGlyph(stage.At(r, c).Ch) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func TestFireFor(t *testing.T) {
+	t.Run("happy: the parked tail fire burns for the given seconds, then cuts to nothing", func(t *testing.T) {
+		s := NewShip(60).Parked().FireFor(2.0)
+		s.Start(screenW, screenH)
+		if s.Flame == nil {
+			t.Fatal("a FireFor ship must open lit")
+		}
+		warmShip(s, 1.5)
+		if s.Flame == nil {
+			t.Fatal("mid-burn the fire must still be armed")
+		}
+		if tailFire(s) == 0 {
+			t.Fatal("mid-burn the plume must trail the tail")
+		}
+		warmShip(s, 0.6)
+		if s.Flame != nil {
+			t.Fatal("past the deadline the fire must be dropped for the collector")
+		}
+		if tailFire(s) != 0 {
+			t.Fatal("past the deadline no plume may paint")
+		}
+	})
+	t.Run("happy: a restart past the deadline opens dark — no one-frame flash", func(t *testing.T) {
+		s := NewShip(61).Parked().FireFor(1.0)
+		s.Start(screenW, screenH)
+		warmShip(s, 1.5)
+		s.Stop()
+		s.Start(screenW, screenH)
+		if s.Flame != nil {
+			t.Fatal("a restage after the deadline must respect the cut")
+		}
+		if tailFire(s) != 0 {
+			t.Fatal("a restage after the deadline must render no fire")
+		}
+	})
+	t.Run("unhappy: FireFor on nil stays nil, a zero burn never lights, and a dark ship stays dark", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.FireFor(2.0) != nil {
+			t.Fatal("FireFor must return the nil receiver")
+		}
+		z := NewShip(62).Parked().FireFor(0)
+		z.Start(screenW, screenH)
+		if z.Flame != nil {
+			t.Fatal("a zero burn must never light")
+		}
+		d := NewShip(63).Dark().Parked().FireFor(5)
+		d.Start(screenW, screenH)
+		if d.Flame != nil {
+			t.Fatal("Dark wins: FireFor must not arm a cold ship")
+		}
+		warmShip(d, 1.0)
+		if d.Flame != nil {
+			t.Fatal("a dark ship stays dark through the burn window")
+		}
+	})
+}
+
+func TestLiftDust(t *testing.T) {
+	t.Run("happy: the pad blows both ways from the dust offset while the craft climbs away", func(t *testing.T) {
+		s := NewShip(70).North().Lift(1.0, 4.0).IgniteAt(0.25, 0.5, 0.75, 1.0).DustAt(0.3, 2.0).DustLoss(0.05)
+		s.Start(screenW, screenH)
+		warmShip(s, 0.2)
+		noKick(t, s, "before the dust offset")
+		warmShip(s, 0.25)
+		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+			t.Fatalf("at the offset the pad must blow dust out both sides, left=%v right=%v", l, r)
+		}
+		warmShip(s, 1.0)
+		if l, r, _, _ := kickedDust(s.Render(), centerCol); !l || !r {
+			t.Fatalf("mid-run, craft lifting, the pad must still blow both ways, left=%v right=%v", l, r)
+		}
+	})
+	t.Run("happy: after the run the cloud drains at DustLoss — a taper, not a blink", func(t *testing.T) {
+		s := NewShip(73).North().Lift(0.5, 4.0).DustAt(0.2, 1.0).DustLoss(0.05)
+		s.Start(screenW, screenH)
+		warmShip(s, 1.1)
+		held := livePad(s)
+		if held == 0 {
+			t.Fatal("test premise: the pad must be dusty at the end of the run")
+		}
+		warmShip(s, 0.3)
+		got := livePad(s)
+		if got == 0 {
+			t.Fatal("0.3s past the run the cloud must still hold specks — a drain, not a blink")
+		}
+		if got >= held {
+			t.Fatalf("past the run %d specks, held %d — the drain must already be falling", got, held)
+		}
+	})
+	t.Run("unhappy: no DustAt means a liftoff never kicks, and a dark lift kicks nothing", func(t *testing.T) {
+		bare := NewShip(71).North().Lift(0.5, 2.0)
+		bare.Start(screenW, screenH)
+		warmShip(bare, 3.0)
+		noKick(t, bare, "a liftoff without a dust schedule")
+		if bare.padDust != nil {
+			t.Fatal("a liftoff must not inherit the landing's stock dust choreography")
+		}
+		dark := NewShip(72).Dark().North().Lift(0.5, 2.0).DustAt(0.1, 5.0)
+		dark.Start(screenW, screenH)
+		warmShip(dark, 1.0)
+		noKick(t, dark, "a dark lift")
+		if dark.padDust != nil {
+			t.Fatal("a cold liftoff kicks no dust")
+		}
+	})
+}
