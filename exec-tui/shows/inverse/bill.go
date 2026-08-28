@@ -3,7 +3,8 @@
 // "liftoff": the lander parked on the huge moon horizon ignites (¼,
 // ½, ¾, full — the landing throttle run backwards), the pad blows its
 // mirrored dust cloud, and the craft climbs off the top on the
-// landing's mirrored ease; the empty moon then holds for the cut.
+// landing's mirrored ease — hull and booster fire both gone; the
+// empty moon then holds for the cut.
 // Scene two, "engines on": the west-facing craft parked at center
 // stage, tail fire burning, bobbling on its sine. Scene three,
 // "engines off": the very same bobble scene, engine out — it bobbles

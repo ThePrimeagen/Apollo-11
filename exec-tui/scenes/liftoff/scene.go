@@ -5,7 +5,8 @@
 // throttles up (¼, ½, ¾, full — the landing throttle run backwards),
 // the pad blows its mirrored dust cloud, and at LiftAt the craft
 // climbs on the landing's mirrored ease: a slow, heavy crawl off the
-// pad that rockets off the top. Then the scene simply holds the empty
+// pad that rockets off the top, hull and booster fire both gone.
+// Then the scene simply holds the empty
 // moon until the screenplay cuts away — on 04. Inverse Walkthrough's
 // bill the next entry is the bobble scene, engines on.
 //

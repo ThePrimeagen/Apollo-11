@@ -36,6 +36,13 @@ const (
 	// the size-4 north engine bell, matching the rocket card.
 	NorthFlameRow = 8
 	NorthFlameCol = 7
+	// NorthFlameRows is the south-firing plume box in cells: the
+	// Toward(S) world is 12 units tall, two units per cell.
+	NorthFlameRows = 6
+	// LiftGoneRow is the hull top-left that puts the hull and the
+	// down-firing booster fully above the stage. The plume hangs
+	// from NorthFlameRow, so -14 puts the last fire cell at row -1.
+	LiftGoneRow = -(NorthFlameRow + NorthFlameRows)
 	// DropSeconds is how long the north-facing fall from off the top
 	// of the stage to off the bottom takes.
 	DropSeconds = 6.0
@@ -478,9 +485,10 @@ func (s *Ship) Land(seconds float64) *Ship {
 
 // Lift flies the liftoff: the hull opens parked on the moon-horizon
 // pad, holds it until `at` seconds into the scene, then rises fully
-// off the top over `seconds` — the landing played backwards. Pad dust
-// comes only from DustAt: a liftoff has no stock dust choreography.
-// Call before Start. Nil-safe.
+// off the top over `seconds` — the landing played backwards, and
+// then a little further so the down-firing booster leaves with the
+// hull. Pad dust comes only from DustAt: a liftoff has no stock dust
+// choreography. Call before Start. Nil-safe.
 func (s *Ship) Lift(at, seconds float64) *Ship {
 	if s == nil {
 		return nil
@@ -872,17 +880,18 @@ func LandPath(stageW, stageH int, t, seconds float64) (row, col int) {
 
 // LiftPath is the hull's top-left at t seconds of a liftoff that
 // leaves the pad at `at` and takes `seconds` to clear the stage: the
-// landing path played backwards. The craft holds the horizon pad
+// landing path played backwards, then a little further so the
+// down-firing booster is gone too. The craft holds the horizon pad
 // until lift-at, then rises on the mirrored ease (p^LandEasePower) —
 // a slow, heavy crawl off the pad that rockets off the top — and is
-// fully gone by at+seconds. Time before the curtain clamps to the
-// pad.
+// fully gone (hull and plume) by at+seconds. Time before the curtain
+// clamps to the pad.
 func LiftPath(stageW, stageH int, t, at, seconds float64) (row, col int) {
 	if t < 0 {
 		t = 0
 	}
 	col = (stageW - BodyCols) / 2
-	start, end := LandPadRow(stageH), -BodyRows
+	start, end := LandPadRow(stageH), LiftGoneRow
 	if t < at {
 		return start, col
 	}

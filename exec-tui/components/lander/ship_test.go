@@ -1134,10 +1134,8 @@ func livePad(s *Ship) int {
 
 const liftRise = 5.0
 
-// liftGoneRow is the hull top-left that puts the down-firing
-// booster fully above the stage: the Toward(S) box is 6 cells
-// tall and hangs from NorthFlameRow.
-const liftGoneRow = -(NorthFlameRow + 6)
+// liftGoneRow pins the tests to the exported clearance mark.
+const liftGoneRow = LiftGoneRow
 
 func countFlame(sp sprite.Sprite) int {
 	n := 0
@@ -1174,16 +1172,16 @@ func TestLiftPath(t *testing.T) {
 			prev = row
 		}
 		gone, _ := LiftPath(screenW, screenH, 1.6+liftRise, 1.6, liftRise)
-		if gone != -BodyRows {
-			t.Fatalf("at the end of the climb row %d, want %d (fully off the top)", gone, -BodyRows)
+		if gone != liftGoneRow {
+			t.Fatalf("at the end of the climb row %d, want %d (fully off the top)", gone, liftGoneRow)
 		}
 		late, _ := LiftPath(screenW, screenH, 1000, 1.6, liftRise)
-		if late != -BodyRows {
-			t.Fatalf("long after the climb row %d drifted, want %d", late, -BodyRows)
+		if late != liftGoneRow {
+			t.Fatalf("long after the climb row %d drifted, want %d", late, liftGoneRow)
 		}
 	})
 	t.Run("happy: the climb is the landing's mirror — a heavy crawl off the pad, then it rockets", func(t *testing.T) {
-		span := float64(pad - (-BodyRows))
+		span := float64(pad - liftGoneRow)
 		rowAt := func(tSec float64) int {
 			row, _ := LiftPath(screenW, screenH, tSec, 0, liftRise)
 			return row
@@ -1195,7 +1193,7 @@ func TestLiftPath(t *testing.T) {
 			t.Fatalf("at 40%% of the climb the hull is already %.2f of the way — want a heavy ease-in under 0.15", got)
 		}
 		first := pad - rowAt(0.2*liftRise)
-		last := rowAt(0.8*liftRise) - (-BodyRows)
+		last := rowAt(0.8*liftRise) - liftGoneRow
 		if first >= last {
 			t.Fatalf("first 20%% of time climbed %d rows, last 20%% climbed %d — the launch must sprint at the end", first, last)
 		}
