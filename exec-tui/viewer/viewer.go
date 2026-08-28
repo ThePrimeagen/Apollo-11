@@ -26,10 +26,12 @@ const (
 )
 
 // Model is the component viewer: one item on stage, chrome on top.
+// F drops the chrome so the item owns every cell; F again restores it.
 type Model struct {
 	items   []Item
 	idx     int
 	edit    int
+	full    bool
 	w, h    int
 	preview screenplay.Component
 }
@@ -52,6 +54,9 @@ func NewWith(items []Item, idx int) Model {
 
 // Index is the current catalog slot.
 func (m Model) Index() int { return m.idx }
+
+// Fullscreen reports whether the chrome is down and the item owns the window.
+func (m Model) Fullscreen() bool { return m.full }
 
 // Current is the item now on stage, or zero for an empty catalog.
 func (m Model) Current() Item {
@@ -90,7 +95,10 @@ func (m *Model) restage() {
 }
 
 func (m Model) previewSize() (w, h int) {
-	w, h = m.w, m.h-headerH-footerH
+	w, h = m.w, m.h
+	if !m.full {
+		h = m.h - headerH - footerH
+	}
 	if w < 1 {
 		w = 1
 	}
@@ -98,6 +106,19 @@ func (m Model) previewSize() (w, h int) {
 		h = 1
 	}
 	return
+}
+
+func (m *Model) resizePreview() {
+	if m.preview == nil {
+		return
+	}
+	pw, ph := m.previewSize()
+	m.preview.Start(pw, ph)
+}
+
+func (m *Model) toggleFull() {
+	m.full = !m.full
+	m.resizePreview()
 }
 
 func (m *Model) cycle(delta int) {
@@ -160,7 +181,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.preview.Stop()
 			}
 			return m, tea.Quit
-		case " ", "space", "f":
+		case "f":
+			m.toggleFull()
+			return m, nil
+		case " ", "space":
 			if f, ok := m.preview.(interface{ Fire() bool }); ok {
 				f.Fire()
 			}
@@ -192,6 +216,12 @@ func (m Model) frame() sprite.Sprite {
 		h = 1
 	}
 	stage := sprite.New(w, h)
+	if m.full {
+		if m.preview != nil {
+			sprite.Blit(stage, 0, 0, m.preview.Render())
+		}
+		return stage
+	}
 	it := m.Current()
 	if it.Title != "" {
 		paintTitle(stage, it.Title)
@@ -230,7 +260,7 @@ func paintType(stage sprite.Sprite, kind string) {
 }
 
 func paintFooter(stage sprite.Sprite) {
-	help := " n/p cycle   e edit   q quit"
+	help := " n/p cycle   e edit   f full   q quit"
 	row := stage.Height - 1
 	if row < 0 {
 		return
