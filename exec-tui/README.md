@@ -42,6 +42,9 @@ cmd/          every runnable: editors, demos, tuners
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   coreset/    the Core Set scene: the memory unit drains to one core set, its
               twelve words, then the priority bits — 6 of PRIO over 9 of VAC address
+  coreset2/   Core Sets Two: picks up on the held priority word — the six-job
+              roster, the EJSCAN loop as code, then two scans with the full word
+              math (PRIO + VAC address) where the newest SERVICER copy always wins
   liftoff/    the liftoff scene — the landing backwards: ignition, mirrored
               dust, the climb off the top (scenes/liftoff, nine live knobs)
   bobble/     the west-facing lander parked and bobbling, engine on or off

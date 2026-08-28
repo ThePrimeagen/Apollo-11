@@ -103,6 +103,7 @@ func TestCatalog(t *testing.T) {
 			"vacs":       KindComponent,
 			"cpugraph":   KindComponent,
 			"breakdown":  KindScene,
+			"scan":       KindScene,
 			"title":      KindComponent,
 			"astronaut":  KindComponent,
 			"rocket":     KindComponent,
@@ -332,6 +333,7 @@ func TestEdit(t *testing.T) {
 			{"moonwalk", moonwalk.DefaultConfigPath, "./cmd/astronaut"},
 			{"skies", skies.DefaultConfigPath, "./cmd/skies"},
 			{"breakdown", coreset.DefaultConfigPath, "./cmd/coreset"},
+			{"scan", "scenes/coreset2", "./cmd/coreset2"},
 			{"liftoff", liftoff.DefaultConfigPath, "./cmd/liftoff"},
 			{"bobble", bobble.DefaultConfigPath, "./cmd/bobble"},
 		}

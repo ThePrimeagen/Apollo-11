@@ -28,6 +28,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset2"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
@@ -95,6 +96,7 @@ func Catalog() []Item {
 		{ID: "moonwalk", Title: "MOONWALK", Kind: KindScene, Path: "scenes/moonwalk/config.json", Program: "./cmd/astronaut", spawn: func() screenplay.Component { return newMoonwalkPreview() }},
 		{ID: "skies", Title: "SKIES", Kind: KindScene, Path: skies.DefaultConfigPath, Program: "./cmd/skies", spawn: func() screenplay.Component { return wrapScene(skies.New()) }},
 		{ID: "breakdown", Title: "BREAKDOWN", Kind: KindScene, Path: coreset.DefaultConfigPath, Program: "./cmd/coreset", spawn: func() screenplay.Component { return wrapScene(coreset.New()) }},
+		{ID: "scan", Title: "SCAN", Kind: KindScene, Path: "scenes/coreset2", Program: "./cmd/coreset2", spawn: func() screenplay.Component { return wrapScene(coreset2.New()) }},
 		{ID: "liftoff", Title: "LIFTOFF", Kind: KindScene, Path: liftoff.DefaultConfigPath, Program: "./cmd/liftoff", spawn: func() screenplay.Component { return wrapScene(liftoff.New(nil)) }},
 		{ID: "bobble", Title: "BOBBLE", Kind: KindScene, Path: bobble.DefaultConfigPath, Program: "./cmd/bobble", spawn: func() screenplay.Component { return wrapScene(bobble.New(nil)) }},
 	}
