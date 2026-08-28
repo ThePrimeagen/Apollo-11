@@ -90,8 +90,11 @@ func TestCatalog(t *testing.T) {
 			"armed":      KindComponent,
 			"moon":       KindComponent,
 			"dsky":       KindComponent,
+			"coreset":    KindComponent,
 			"coresets":   KindComponent,
+			"vac":        KindComponent,
 			"vacs":       KindComponent,
+			"breakdown":  KindScene,
 			"title":      KindComponent,
 			"astronaut":  KindComponent,
 			"rocket":     KindComponent,
@@ -318,6 +321,7 @@ func TestEdit(t *testing.T) {
 			{"america", "./cmd/america"},
 			{"moonwalk", "./cmd/astronaut"},
 			{"skies", "./cmd/skies"},
+			{"breakdown", "./cmd/coreset"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
@@ -680,6 +684,97 @@ func TestPoolDemo(t *testing.T) {
 		}
 		if !found {
 			t.Fatal("the full pool must show its chip")
+		}
+	})
+}
+
+// Tests written FIRST: the CORE SET and VAC items are single Box
+// components wrapped in a toggle demo. Space turns the slot on
+// through four different job inks, one per press, then off again —
+// the little pill that lights up in different colors with a bit of
+// text inside. The bottom row hints the button.
+
+func spawnBox(t *testing.T, id string) *boxDemo {
+	t.Helper()
+	it := Catalog()[findItem(t, KindComponent, id)]
+	comp := it.spawn()
+	d, ok := comp.(*boxDemo)
+	if !ok {
+		t.Fatalf("%s must spawn the box demo, got %T", id, comp)
+	}
+	d.Start(80, 19)
+	return d
+}
+
+func TestBoxDemo(t *testing.T) {
+	t.Run("happy: space cycles the slot through four job inks, then off, then round again", func(t *testing.T) {
+		d := spawnBox(t, "coreset")
+		if d.view.Busy() {
+			t.Fatal("the demo opens on a free slot")
+		}
+		seen := map[int]bool{}
+		var names []string
+		for i := 0; i < 4; i++ {
+			if !d.Fire() {
+				t.Fatal("the toggle must always take")
+			}
+			j, ok := d.view.Job()
+			if !ok {
+				t.Fatalf("press %d must light the slot", i+1)
+			}
+			if j.Ink <= 0 || seen[j.Ink] {
+				t.Fatalf("press %d wears ink %d — four presses, four different inks", i+1, j.Ink)
+			}
+			seen[j.Ink] = true
+			names = append(names, j.Name)
+		}
+		if !d.Fire() {
+			t.Fatal("the fifth press must take")
+		}
+		if d.view.Busy() {
+			t.Fatal("the fifth press turns the slot off")
+		}
+		if !d.Fire() {
+			t.Fatal("the sixth press must take")
+		}
+		j, ok := d.view.Job()
+		if !ok || j.Name != names[0] {
+			t.Fatalf("the cycle must wrap to %q, got %+v ok=%v", names[0], j, ok)
+		}
+	})
+	t.Run("happy: the box demo shows its unnumbered label and the hint", func(t *testing.T) {
+		d := spawnBox(t, "coreset")
+		sp := d.Render()
+		found := false
+		for r := 0; r < sp.Height; r++ {
+			if strings.Contains(demoRow(sp, r), "CORE SET") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("the core set box wears the plain CORE SET label — no number")
+		}
+		if !strings.Contains(demoRow(sp, sp.Height-1), "space toggles") {
+			t.Fatalf("the hint must name the button, got %q", demoRow(sp, sp.Height-1))
+		}
+		v := spawnBox(t, "vac")
+		sp = v.Render()
+		if !demoText(sp, "VAC") {
+			t.Fatal("the VAC box wears its plain VAC label")
+		}
+	})
+	t.Run("unhappy: before Start the demo renders nothing and never panics", func(t *testing.T) {
+		it := Catalog()[findItem(t, KindComponent, "vac")]
+		d, ok := it.spawn().(*boxDemo)
+		if !ok {
+			t.Fatalf("vac must spawn the box demo, got %T", it.spawn())
+		}
+		if sp := d.Render(); sp.Width != 0 || sp.Height != 0 {
+			t.Fatalf("before Start the demo renders %dx%d, want nothing", sp.Width, sp.Height)
+		}
+		d.Update(1)
+		if !d.Fire() {
+			t.Fatal("the toggle works even before the curtain — state is identity, the stage is not")
 		}
 	})
 }
