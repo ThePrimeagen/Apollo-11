@@ -76,6 +76,29 @@ func meteorCell(scr *screenplay.Screen) (x, y int, ok bool) {
 	return 0, 0, false
 }
 
+// skyCells is the twinkling field with the shooting star's own cells
+// masked out — the trail reuses the sky glyphs, so a composite would
+// look like stars shapeshifting as the meteor passes.
+func skyCells(sc *Show, scr *screenplay.Screen) map[[2]int]string {
+	mask := map[[2]int]bool{}
+	if sc != nil && sc.meteor != nil {
+		sp := sc.meteor.Render()
+		for y := 0; y < sp.Height; y++ {
+			for x := 0; x < sp.Width; x++ {
+				cell := sp.At(y, x)
+				if cell.Ch != 0 && cell.Ch != ' ' {
+					mask[[2]int{x, y}] = true
+				}
+			}
+		}
+	}
+	out := starCells(scr)
+	for pos := range mask {
+		delete(out, pos)
+	}
+	return out
+}
+
 func starCells(scr *screenplay.Screen) map[[2]int]string {
 	out := map[[2]int]string{}
 	for y := 0; y < stageH; y++ {
@@ -183,14 +206,14 @@ func TestExplorerScene(t *testing.T) {
 		sc.Cfg.MinFadeSeconds, sc.Cfg.MaxFadeSeconds = 1, 1
 		sc.Start()
 		defer sc.Stop()
-		before := starCells(paint(sc))
+		before := skyCells(sc, paint(sc))
 		if len(before) == 0 {
 			t.Fatal("test premise: the opening sky holds stars")
 		}
 		var faded bool
 		for i := 0; i < 8; i++ {
 			tick(sc, 0.5)
-			now := starCells(paint(sc))
+			now := skyCells(sc, paint(sc))
 			held := 0
 			for pos, ch := range now {
 				was, ok := before[pos]

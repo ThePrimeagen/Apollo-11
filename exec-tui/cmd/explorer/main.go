@@ -1,5 +1,5 @@
-// explorer: the explorer scene from scenes/explorer — the big IE logo
-// parked at center stage under the twinkling sky — and the editable
+// explorer: the Big E scene from scenes/explorer — the moon-sized IE
+// logo under blinking stars, plus one shooting star — and the editable
 // screen for its four knobs. j/k select a knob, h/l tune it LIVE (the
 // sky reads the knobs on the next frame): min/max cycle move 250ms at
 // a time, min/max fade 50ms, every knob railed and no pair crossing.
