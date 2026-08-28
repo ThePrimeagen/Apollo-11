@@ -27,12 +27,14 @@ components/   everything a scene puts together
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (docked whole, no entrance)
+              with a pressable keypad: VERB, NOUN, digits, ENTR, CLR, RSET
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + Compose
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
   lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing on a huge moon horizon
 cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
+  dskypad/    the DSKY as a live keypad — type V16 N68 ENTR on the component
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   lander/     the continuous-descent demo

@@ -110,7 +110,7 @@ stops the old scene before starting the new.
 | `components/stars` | `Starfield` — the cached-catalog sky, with an optional right-edge dock wipe, a Slow brake, and a Continuity `Seed` that carries the sky across scene cuts |
 | `components/particle` | `Engine` — live config get/set (count, life, max distance) |
 | `components/lander` | `Ship` — atlas hull + optional booster plume; west fly-in, north drop, north landing (plume throttles ¾, ½, ¼, off) |
-| `components/dsky` | `Panel` — the DSKY docked whole against the right edge; no entrance animation |
+| `components/dsky` | `Panel` — the DSKY docked whole against the right edge, no entrance animation; `Press` types on it (VERB, NOUN, digits, ENTR, CLR, RSET) |
 | `components/moon` | `Moon` — the pixelated disc alone; `Orbit` — the lone gold craft circling it; `Horizon` — a huge moon's surface as a colored floor along the bottom |
 | `components/title` | `Title` — banner cards set in terminal-fonts |
 

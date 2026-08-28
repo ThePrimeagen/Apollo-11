@@ -1,7 +1,8 @@
 // Package dsky is the DSKY as a scene component: the Apollo Display
 // and Keyboard docks against the right edge of the stage, whole from
-// its first frame. The component holds no animation — any entrance
-// choreography belongs to the scene that casts it.
+// its first frame, and types like the real unit — Press feeds it VERB,
+// NOUN, digits, ENTR, CLR, and RSET. The component holds no animation
+// — any entrance choreography belongs to the scene that casts it.
 package dsky
 
 import (
@@ -22,12 +23,18 @@ const (
 
 // Panel is the DSKY as a scene component. Start pins the stage, Render
 // paints the whole panel into a stage-sized sprite hugging the right
-// edge, and Stop clears the staging. The panel keeps no clocks, so
+// edge, and Stop clears the staging. Press types on it — VERB, NOUN,
+// digits, ENTR, CLR, RSET (see keys.go). The panel keeps no clocks, so
 // every frame — the first included — shows the complete display.
 type Panel struct {
 	State  lab.State
 	w, h   int
 	staged bool
+	// The open keypad entry: which field digits land in, what has been
+	// typed, and the value to fall back to (keys.go).
+	entry Key
+	buf   string
+	prev  string
 }
 
 // NewPanel opens a DSKY. Nothing is built until Start.
