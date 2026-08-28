@@ -9,8 +9,12 @@ package msim
 //
 // MondoCost is the monitor's per-refresh CPU: the N68 DELTAH fetch, scaling,
 // and three five-digit decimal conversions through UPDATNN/NVSUB. The
-// documented envelope is 30-60 ms (see msim/RESEARCH.md).
-const MondoCost Nanos = 30 * Millisecond
+// documented envelope is 30-60 ms (see msim/RESEARCH.md); the calibrated
+// value sits at its middle, where the monitor cycle runs the Outline's
+// 50-100 ms deficit (~105% demand) and the flight anchors hold — the
+// envelope's top flips the first alarm to a 1201, a code the flight never
+// threw in P63.
+const MondoCost Nanos = 50 * Millisecond
 
 // MonreqCost: LODSAMPT + the two enlistments — a task-context sliver.
 const MonreqCost Nanos = 200 * Microsecond

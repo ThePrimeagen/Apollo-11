@@ -83,7 +83,7 @@ conversion: −75 ms, inside Eyles' margin step (15% → ~13%).
 | DOWNRUPT | 0.2 ms per 20 ms | DOWN_TELEMETRY L43 |
 | R10,R11 → LANDISP | 3 ms per 250 ms, in task context | P70-P71.agc L36-L49 (runs LANDISP in-task) |
 | READACCS | 1 ms per 2.000 s, unconditional re-arm | GOREADAX L80-L81 |
-| MONDO | 30 ms, 1 Hz, NOVAC, never sleeps; first refresh ENTR+1 s (MONDEL) | PINBALL L2373-L2403; [Outline] 30-60 ms envelope |
+| MONDO | 50 ms, 1 Hz, NOVAC, never sleeps; first refresh ENTR+1 s (MONDEL) | PINBALL L2373-L2403; [Outline] 30-60 ms envelope, calibrated mid-band |
 | MAKEPLAY static | 8 ms NOVAC at user prio+1 | DISPLAY_INTERFACE L836-L847 |
 | MAKEPLAY blocked | sleeps holding its core set until the next display request wakes-and-kills it | ENDIDLE/NVSBWAIT; PINBALL L3159-L3168 (the 1206 logic) |
 | LRHJOB | 1 ms + 95 ms core-holding sleep + 1 ms, fired 50 ms before the next READACCS | SERVICER.agc L697-L727, L1567-L1570 |
@@ -141,7 +141,7 @@ the model's documented free parameters rather than new physics:
    the cycle still completes, and its V06N63 display job — now blocked
    behind the monitor's DSKY — **sleeps holding a core set**. One core,
    parked, invisible, until a restart.
-3. **The latch**: the next cycle carries the monitor's two 30 ms refreshes
+3. **The latch**: the next cycle carries the monitor's two 50 ms refreshes
    and misses completion. From then on every boundary's fresh SERVICER
    (higher VAC word) preempts the runner, which parks at ~95% done holding
    its core set + VAC. One pair leaks per cycle. The system is bistable:
@@ -163,7 +163,7 @@ Measured against the flight record:
 | Anchor | Flight | Sim |
 | :--- | :--- | :--- |
 | First alarm after keying V16N68 | 1202, ~12 s ([Tillman] p. 2; +304→+316) | 1202, +10.0 s |
-| Second alarm after re-keying | 1202, ~10-12 s (+346→+356/8) | 1202, +11.0 s |
+| Second alarm after re-keying | 1202, ~10-12 s (+346→+356/8) | 1202, +9.0 s |
 | Third, short monitor use | no alarm (+374/+380) | no alarm |
 | Any 1201 in P63 | none | none |
 | Pool state at the failure | (not recorded in 1969) | cores 8/8, VACs 4/5 |
@@ -183,8 +183,14 @@ Measured against the flight record:
   ~28 interpretive ops) is not transcribed entry-by-entry; its cost is
   absorbed by the `execResidueUS` calibration block, which exists for
   exactly this class of un-transcribed housekeeping.
-- **MONDO cost** is at the documented envelope's floor (30 ms ≈ Eyles' +3%
-  per cycle); the envelope's upper half produces the same alarms earlier.
+- **MONDO cost** is calibrated to the documented envelope's middle (50 ms;
+  the envelope is 30-60 ms). The floor (30 ms ≈ Eyles' +3% per cycle) left
+  the monitor cycle only ~35 ms short of completion — under the [Outline]'s
+  50-100 ms deficit; 50 ms lands the deficit mid-band (~5% over) with the
+  same two 1202s inside their flight windows (+10/+9 s vs the memo's
+  ~10-12 s). The envelope's top (60 ms) leaks the VAC pool faster than the
+  core wall and flips the first alarm to a 1201 — a code the flight never
+  threw in P63 — so it is excluded.
 - The ENTR sub-second phases (.985) and the theft sweep's free parameters
   are tuned inside their documented bands to reproduce the flight trace;
   Cherry's event log has one-second resolution.

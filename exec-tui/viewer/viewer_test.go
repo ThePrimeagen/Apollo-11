@@ -30,8 +30,10 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
 	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
@@ -111,6 +113,8 @@ func TestCatalog(t *testing.T) {
 			"america":    KindScene,
 			"moonwalk":   KindScene,
 			"skies":      KindScene,
+			"liftoff":    KindScene,
+			"bobble":     KindScene,
 		}
 		seen := map[string]bool{}
 		for _, it := range c {
@@ -327,6 +331,8 @@ func TestEdit(t *testing.T) {
 			{"moonwalk", moonwalk.DefaultConfigPath, "./cmd/astronaut"},
 			{"skies", skies.DefaultConfigPath, "./cmd/skies"},
 			{"breakdown", coreset.DefaultConfigPath, "./cmd/coreset"},
+			{"liftoff", liftoff.DefaultConfigPath, "./cmd/liftoff"},
+			{"bobble", bobble.DefaultConfigPath, "./cmd/bobble"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
