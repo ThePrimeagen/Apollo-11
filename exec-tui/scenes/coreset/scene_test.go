@@ -279,20 +279,40 @@ func TestAnatomyAct(t *testing.T) {
 }
 
 func TestZoomAct(t *testing.T) {
-	t.Run("happy: the rest fades and PRIO glides to center stage", func(t *testing.T) {
+	t.Run("happy: the rest fades out for a quarter second while PRIO holds its slot, then it glides to center", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, ZoomStart+0.2)
-		mustSee(t, scr, CaptionZoom)
-		scr = seek(t, s, ZoomSeconds-0.2-0.02)
-		x, _ := mustSee(t, scr, "PRIO")
-		center := stageW / 2
-		if x < center-12 || x > center+12 {
-			t.Fatalf("PRIO sits at column %d, want near the center %d", x, center)
+		scr := seek(t, s, ZoomStart-0.05)
+		bx, by := mustSee(t, scr, "PRIO")
+		scr = seek(t, s, 0.05+FadeOutSeconds*0.6)
+		x, y := mustSee(t, scr, "PRIO")
+		if x != bx || y != by {
+			t.Fatalf("mid-fade PRIO moved from (%d,%d) to (%d,%d) — the glide must wait for the fade", bx, by, x, y)
 		}
+		mustSee(t, scr, CaptionZoom)
+		scr = seek(t, s, FadeOutSeconds*0.4+0.07)
 		mustNotSee(t, scr, "MPAC")
 		mustNotSee(t, scr, "MODE")
 		mustNotSee(t, scr, "BANK")
 		mustNotSee(t, scr, "PUSH")
+		mustNotSee(t, scr, "CORE SET")
+		scr = seek(t, s, ZoomSeconds-FadeOutSeconds-0.07-0.02-0.05)
+		x2, _ := mustSee(t, scr, "PRIO")
+		center := stageW / 2
+		if x2 < center-12 || x2 > center+12 {
+			t.Fatalf("PRIO sits at column %d, want near the center %d", x2, center)
+		}
+	})
+	t.Run("unhappy: the glide never begins before the fade-out completes", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, ZoomStart+0.02)
+		bx, by := mustSee(t, scr, "PRIO")
+		for _, dt := range []float64{0.1, 0.1} {
+			scr = seek(t, s, dt)
+			x, y := mustSee(t, scr, "PRIO")
+			if x != bx || y != by {
+				t.Fatalf("PRIO left (%d,%d) for (%d,%d) inside the quarter-second fade", bx, by, x, y)
+			}
+		}
 	})
 	t.Run("unhappy: the parked CORE SET box fades with the rest", func(t *testing.T) {
 		s := opened(t)
@@ -360,6 +380,54 @@ func TestBitsAct(t *testing.T) {
 		mustSee(t, scr, "OCT 20")
 		mustSee(t, scr, "OCT 400")
 		mustSee(t, scr, CaptionBits)
+	})
+	t.Run("happy: the field labels share one row, spaced under their own fields", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, BitsStart+1)
+		px, py := mustSee(t, scr, "PRIORITY — OCT 20")
+		vx, vy := mustSee(t, scr, "VAC ADDRESS — OCT 400")
+		if py != vy {
+			t.Fatalf("the labels sit on rows %d and %d — they must share one line", py, vy)
+		}
+		prioEnd := px + len([]rune("PRIORITY — OCT 20"))
+		if prioEnd+2 > vx {
+			t.Fatalf("the labels collide: priority ends at %d, VAC begins at %d — want daylight between them", prioEnd, vx)
+		}
+	})
+	t.Run("happy: the bits sit wide enough to carry both labels beneath them", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, BitsStart+1)
+		wantBits := ""
+		for i := 14; i >= 0; i-- {
+			wantBits += string(rune('0' + (PriorityWord>>i)&1))
+		}
+		_, h := scr.Size()
+		var cols []int
+		for y := 0; y < h && cols == nil; y++ {
+			line := []rune(rowText(scr, y))
+			digits := ""
+			var xs []int
+			for x, ch := range line {
+				if ch == '0' || ch == '1' {
+					digits += string(ch)
+					xs = append(xs, x)
+				}
+			}
+			if digits == wantBits {
+				cols = xs
+			}
+		}
+		if cols == nil {
+			t.Fatalf("no row spells the fifteen bits %s", wantBits)
+		}
+		for i := 1; i < len(cols); i++ {
+			if gap := cols[i] - cols[i-1]; gap < 3 {
+				t.Fatalf("bits %d and %d sit %d apart — the row must breathe so the labels fit beneath", i-1, i, gap)
+			}
+		}
+		if span := cols[len(cols)-1] - cols[0]; span < 50 {
+			t.Fatalf("the bit row spans %d columns — too narrow to seat both labels on one line", span)
+		}
 	})
 	t.Run("happy: the scene holds on the bits — a long wait changes nothing", func(t *testing.T) {
 		s := opened(t)
