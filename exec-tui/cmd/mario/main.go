@@ -1,19 +1,17 @@
-// inverse: 04. Inverse Walkthrough — the composable three-scene bill
-// from shows/inverse, the walkthrough played backwards. The house
-// opens on "liftoff": the lander parked on the moon horizon ignites
-// (¼, ½, ¾, full), kicks the mirrored pad dust, and climbs off the
-// top on the landing's mirrored ease; the empty moon holds. Space
-// cuts to "engines on": the west-facing craft parked at center, tail
-// fire burning, bobbling on its sine. Space cuts to "engines off":
-// the same craft, engine out, bobbling ad infinitum. Space on the
-// last scene ends the show. One stars.Continuity seeds every scene's
-// sky, so no cut ever jumps a star.
+// mario: 03. Mario — the composable three-scene bill from
+// shows/mario, the astronaut's flagpole run. The house opens on
+// "run": he sprints in from the left wing and climbs three crate
+// stacks, then holds on the top crate. Space cuts to "flagpole": the
+// leap onto the gold ball, a beat at the top, the slide down while
+// the flag flies up, then the bow. Space cuts to "board": the camera
+// pans to the lunar module, he runs over, jumps the hatch, and
+// vanishes. Space on the last scene ends the show.
 //
 //	space     next scene (past the last one, the show ends)
 //	q         quit
 //
-//	go run ./cmd/inverse
-//	go run ./cmd/inverse -seconds 15
+//	go run ./cmd/mario
+//	go run ./cmd/mario -seconds 15
 package main
 
 import (
@@ -26,52 +24,21 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
-	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
-	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
-	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
-	"github.com/theprimeagen/apollo-11/exec-tui/shows/inverse"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
+	"github.com/theprimeagen/apollo-11/exec-tui/shows/mario"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 const (
-	defaultW = 72
-	defaultH = 28
+	defaultW = 84
+	defaultH = 30
 	minW     = 10
 	minH     = 4
 	frameMs  = 1000.0 / 30
 )
-
-// applySky loads a tuned sky config and makes it the active sky. A
-// missing file quietly keeps the stock sky; a broken file is an error
-// worth stopping for.
-func applySky(path string) error {
-	c, err := stars.LoadSky(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	return stars.UseSky(c)
-}
-
-// applyPuff loads a tuned dust config and makes it the active kick.
-// A missing file quietly keeps the stock puff; a broken file is an
-// error worth stopping for.
-func applyPuff(path string) error {
-	c, err := dust.LoadPuff(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	return dust.UsePuff(c)
-}
 
 func forcedColorProfile() (colorprofile.Profile, bool) {
 	if os.Getenv("CLICOLOR_FORCE") != "" {
@@ -89,7 +56,7 @@ type model struct {
 }
 
 func newModel(seconds float64) model {
-	play := screenplay.Compose(inverse.Bill())
+	play := screenplay.Compose(mario.Bill())
 	play.Start()
 	return model{
 		w:       defaultW,
@@ -125,7 +92,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
-		// The screen tracks the sky: everything above the status line.
 		m.screen.Resize(max(m.w, minW), max(m.h, minH)-1)
 		return m, nil
 	case frameMsg:
@@ -186,39 +152,16 @@ func pad(s string, w int) string {
 
 func main() {
 	seconds := flag.Float64("seconds", 0, "auto-quit after N seconds (0 = interactive)")
-	skyPath := flag.String("stars", "components/stars/config.json",
-		"sky config JSON (adjuststars); a missing file keeps the stock sky")
-	puffPath := flag.String("dust", "components/dust/config.json",
-		"dust puff JSON (adjustdust); a missing file keeps the stock kick")
-	liftPath := flag.String("liftoff", liftoff.DefaultConfigPath,
-		"liftoff timing JSON; a missing file keeps the stock knobs")
-	bobPath := flag.String("bobble", bobble.DefaultConfigPath,
-		"bobble ride JSON; a missing file keeps the stock knobs")
+	walkPath := flag.String("config", moonwalk.DefaultConfigPath,
+		"moonwalk timing JSON; a missing file keeps the stock knobs")
 	flag.Parse()
-	if err := applySky(menu.Resolve(*skyPath)); err != nil {
-		fmt.Fprintln(os.Stderr, "inverse:", err)
-		os.Exit(1)
-	}
-	if err := applyPuff(menu.Resolve(*puffPath)); err != nil {
-		fmt.Fprintln(os.Stderr, "inverse:", err)
-		os.Exit(1)
-	}
-	lc, err := liftoff.LoadOrDefault(menu.Resolve(*liftPath))
+	c, err := moonwalk.LoadOrDefault(menu.Resolve(*walkPath))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "inverse:", err)
+		fmt.Fprintln(os.Stderr, "mario:", err)
 		os.Exit(1)
 	}
-	if err := liftoff.Use(lc); err != nil {
-		fmt.Fprintln(os.Stderr, "inverse:", err)
-		os.Exit(1)
-	}
-	bc, err := bobble.LoadOrDefault(menu.Resolve(*bobPath))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "inverse:", err)
-		os.Exit(1)
-	}
-	if err := bobble.Use(bc); err != nil {
-		fmt.Fprintln(os.Stderr, "inverse:", err)
+	if err := moonwalk.Use(c); err != nil {
+		fmt.Fprintln(os.Stderr, "mario:", err)
 		os.Exit(1)
 	}
 	var opts []tea.ProgramOption
@@ -226,7 +169,7 @@ func main() {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
 	if _, err := termreset.Run(newModel(*seconds), opts...); err != nil {
-		fmt.Fprintln(os.Stderr, "inverse:", err)
+		fmt.Fprintln(os.Stderr, "mario:", err)
 		os.Exit(1)
 	}
 }

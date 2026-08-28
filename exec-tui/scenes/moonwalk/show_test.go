@@ -81,12 +81,13 @@ func TestMoonwalkShowBeats(t *testing.T) {
 			t.Fatal("the flag must not exist at the start of the leap")
 		}
 		tickShow(sc, (r.panAt-r.leapAt)+1)
+		early, _ := flagAt(sc.Cfg, showW, showH, r.slideAt+0.05)
 		late, visible := flagAt(sc.Cfg, showW, showH, r.panAt-clockEps)
 		if !visible {
 			t.Fatal("by the bow the flag must be flying")
 		}
-		if late <= groundRow(showH)-flagRows-2 {
-			t.Fatalf("the flag must have climbed off the base, top %d", late)
+		if late >= early {
+			t.Fatalf("the flag must rise while he slides: top went %d -> %d", early, late)
 		}
 	})
 	t.Run("happy: BeatBoard pans to the module, he jumps the hatch, and stays gone", func(t *testing.T) {

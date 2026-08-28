@@ -1,39 +1,18 @@
 # screenplay
 
 A screenplay is scenes in order; a scene is a cast of components playing
-over time. `space` cuts to the next scene. The premiere plays a
-four-scene bill:
-
-- **Scene 1 — arrival.** Three seconds of drifting sky, then a starfield
-  that translates with the craft as it comes in: every star shifts left
-  on the same ease-out cubic the hull flies, so the whole scene rushes
-  past during the fly-in, then the sky's own parallax drift takes over
-  once the craft parks. The full zoomed-in craft (the size-4, 26×10
-  west-facing frame from the lander atlas) slides in from the right
-  wing with a cold engine — no booster fire — parks at center stage,
-  then bobbles one full cell up and down on a sine with a 10-second
-  period.
-- **Scene 2 — dsky.** The parked craft stays. Over ~500ms the right
-  third of the sky blanks out one column at a time from the right edge,
-  and the DSKY (V16 N68 on P63) docks in that space.
-- **Scene 3 — descent orbit.** The explainer: a pixelated moon at
-  center stage with a lone gold craft circling it eastward over the
-  top — no line drawn, the craft alone traces the path. The sky
-  behind it holds perfectly still (`NewTunedStarfield().Still()`) —
-  the craft is the only thing moving. This is where the craft was,
-  and why it flies sideways. All circle math runs in half-cell pixels
-  (a terminal cell is ~2× taller than wide), so the moon and the
-  orbit read round on a real terminal.
-- **Scene 4 — the end.** `THE END` in the height-5 terminal-fonts banner,
-  centered under the same sky.
+over time. `space` cuts to the next scene. The numbered bills live under
+`shows/` and launch from the Screenplays shelf:
 
 ```bash
 cd exec-tui
-go run ./cmd/premiere                # interactive
-go run ./cmd/premiere -seconds 30    # auto-quit, handy for tapes
+go run ./cmd/moon                    # 01. Moon Orbit
+go run ./cmd/lunarcloseup            # 02. Walkthrough
+go run ./cmd/mario                   # 03. Mario
+go run ./cmd/inverse                 # 04. Inverse Walkthrough
 ```
 
-`space` cuts to the next scene (the final scene holds). `q` / `ctrl+c` quit.
+`space` cuts to the next scene (past the last one, the show ends). `q` / `ctrl+c` quit.
 
 ## The shape
 
@@ -133,11 +112,11 @@ go run ./cmd/adjuststars/main -seconds 15   # auto-quit, handy for tapes
 
 `j`/`k` (or arrows) pick a number, `h`/`l` change it, `s` **saves the
 config file and quits**, `q` quits without saving. The tuner is itself a
-`screenplay.Scene` on a one-scene bill — the same lifecycle that runs the
-premiere runs the tool.
+`screenplay.Scene` on a one-scene bill — the same lifecycle that runs
+any screenplay runs the tool.
 
-The premiere reads the same file at boot (`-stars`, default
-`components/stars/config.json`) and its scenes cast `NewTunedStarfield()`,
+The numbered screenplays read the same file at boot (`-stars`, default
+`components/stars/config.json`) and their scenes cast `NewTunedStarfield()`,
 which samples the active sky when it starts — so a tuned sky just works
 in any scene, and a missing file just means the stock sky.
 

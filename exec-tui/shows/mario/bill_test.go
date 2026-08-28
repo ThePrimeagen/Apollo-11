@@ -130,6 +130,7 @@ func TestMarioBill(t *testing.T) {
 		defer p.Stop()
 		p.Next()
 		p.Next()
+		p.Render(scr) // stage the board so its clock can run
 		run(p, 4)
 		v := frame(p, scr)
 		if p.CurrentName() != "board" {

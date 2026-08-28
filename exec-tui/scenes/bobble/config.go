@@ -16,7 +16,7 @@ import (
 // many cells it rides from center. The standalone runner flips the
 // engine with h/l, walks the period 50ms at a time and the amplitude
 // one cell; Play rebuilds the scene from whatever they hold. s writes
-// this JSON next to the scene. 03. Inverse Walkthrough plays the same
+// this JSON next to the scene. 04. Inverse Walkthrough plays the same
 // Active ride, lit on one entry and dark on the next.
 type Config struct {
 	Engine         bool    `json:"engine"`
