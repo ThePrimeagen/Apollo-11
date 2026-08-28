@@ -195,20 +195,28 @@ func TestLegitimacy(t *testing.T) {
 		for _, ep := range EpilogueBlocks() {
 			run = append(run, ep...)
 		}
-		start := -1
+		// TC INTPRET recurs through SERVICER — the run must line up
+		// whole against one of its occurrences.
+		matches := func(start int) bool {
+			if start+len(run) > len(file) {
+				return false
+			}
+			for j, want := range run {
+				if file[start+j] != want {
+					return false
+				}
+			}
+			return true
+		}
+		found := false
 		for i := range file {
-			if file[i] == run[0] {
-				start = i
+			if file[i] == run[0] && matches(i) {
+				found = true
 				break
 			}
 		}
-		if start < 0 {
-			t.Fatalf("the run's first line %q is not in SERVICER.agc", run[0])
-		}
-		for j, want := range run {
-			if got := file[start+j]; got != want {
-				t.Fatalf("the run breaks at offset %d:\nfile %q\nrun  %q — the scroll must be one real consecutive stretch", j, got, want)
-			}
+		if !found {
+			t.Fatal("the scroll must be one real consecutive stretch of SERVICER.agc")
 		}
 		if last := run[len(run)-1]; !strings.Contains(last, "RVQ") {
 			t.Fatalf("the run must close on the interpreter's own return, got %q", last)

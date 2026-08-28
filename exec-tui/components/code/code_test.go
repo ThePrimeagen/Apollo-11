@@ -239,8 +239,8 @@ func TestGutterAndMarks(t *testing.T) {
 			t.Fatalf("the blank row stays blank, got %q", artRow(art, 1))
 		}
 		cx, _, _ := findArt(art, "VLOAD")
-		if cx != 7 {
-			t.Fatalf("the code follows a 7-cell gutter, starts at %d", cx)
+		if cx != 7+16 {
+			t.Fatalf("the code keeps its own indent after a 7-cell gutter: VLOAD at %d, want %d", cx, 7+16)
 		}
 	})
 	t.Run("unhappy: without a gutter there are no addresses", func(t *testing.T) {

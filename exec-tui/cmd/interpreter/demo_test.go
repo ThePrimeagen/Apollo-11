@@ -82,13 +82,13 @@ func TestInterpreterDemoPlays(t *testing.T) {
 		mm, _ := m.Update(tea.WindowSizeMsg{Width: 110, Height: 45})
 		m = mm.(model)
 		_ = m.View()
-		if strings.Contains(plain(m), "MUNGRAV") {
-			t.Fatal("test premise: the gravity call waits past the opening vignette")
+		if strings.Contains(plain(m), "ABVEL") {
+			t.Fatal("test premise: the velocity chunk waits past the opening vignette")
 		}
 		m = frames(m, toSeconds(stock.StopStart(1)+0.2))
 		v := plain(m)
-		if !strings.Contains(v, "MUNGRAV") {
-			t.Fatal("by the second stop the gravity call must surface at the vignette's edge")
+		if !strings.Contains(v, "ABVEL") {
+			t.Fatal("by the second stop the velocity chunk must surface at the vignette's edge")
 		}
 		m = frames(m, toSeconds(stock.StopStart(4)-stock.StopStart(1)-0.2+0.5))
 		v = plain(m)

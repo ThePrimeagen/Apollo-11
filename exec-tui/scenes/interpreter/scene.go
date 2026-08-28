@@ -1,261 +1,208 @@
-// Package interpreter is the walkthrough of the virtual machine's
-// code the way DANZIG sees it: a scrolling column of five fake
-// interpretive instructions — VXV (vector cross vector) first — each
-// block spelling the op, how its arguments arrive, what the op costs
-// in milliseconds, and then the check to DANZIG that ends nearly
-// every real instruction in INTERPRETER.agc: is a job of higher
-// priority waiting? The check wears five different dresses, one per
-// instruction — the real assembly (CCS NEWJOB / TCF CHANG2),
-// pseudocode, a fork diagram, a weighing of PRIORITY words, and a
-// rubber stamp — so the same question is asked five ways.
+// Package interpreter walks the REAL interpreter code the way DANZIG
+// sees it. The scroll is MUNRVG — the average-G integration SERVICER
+// ran every two seconds of the powered descent — verbatim and
+// consecutive from Luminary099/SERVICER.agc, TC INTPRET through RVQ.
+// The code component displays the cards, the scrollcode component
+// moves them; the scene only chooses what to show: a prologue (the
+// routine's own header comments and the TC INTPRET hand-off), five
+// spotlit chunks — the ΔV load, the guidance push, the position out,
+// the velocity out, and the VXV cross product the scene is named
+// for — the DOT altitude-rate block scrolling past between the last
+// two stops, and three trailing chunks (through MUNGRAV to RVQ) so
+// the fade below the last stop still has code to sink through.
 //
-// The column wears Rose Pine over the Rose Pine base, behind a
-// vertical vignette: the spotlit block is bright at its anchor, the
-// blocks one step above and below sit equally dimmed, two steps away
-// is barely visible, and past that the code cannot be seen at all.
-// An INTPRET prologue rides above the first instruction and an EXIT
-// epilogue below the last — seven blocks — so the vignette never
-// runs out of code. The spotlight rests HoldSeconds on each
-// instruction, glides GlideSeconds to the next on an eased camera
-// that lands exactly on its anchor, and holds forever on the fifth.
-// Both timings are live knobs on a Config the standalone runner
-// nudges 50ms at a time and saves to scenes/interpreter/config.json.
+// Each spotlit chunk ends in an annotated check to DANZIG — the
+// question the interpreter asks between op pairs: is a job of higher
+// priority waiting? — in its own dress: the real assembly (verbatim
+// INTERPRETER.agc), pseudocode, a fork, a weighing, a stamp. Every
+// NEWJOB in the checks wears a love mark and the VXV op itself wears
+// gold. Two live knobs (hold, glide) retune the walkthrough and save
+// to scenes/interpreter/config.json.
 package interpreter
 
 import (
-	"fmt"
-	"math"
 	"strings"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/danzig"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/code"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/scrollcode"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
 // The stock knobs — DefaultConfig is these two timings.
 const (
-	// HoldSeconds rests the spotlight on each instruction.
+	// HoldSeconds rests the spotlight on each chunk.
 	HoldSeconds = 4.0
 	// GlideSeconds carries the camera from one stop to the next.
 	GlideSeconds = 0.9
 )
 
-// addrBase seats the fake column in fixed memory: the gutter counts
-// octal locations from here, one per content line.
+// addrBase seats the scroll's gutter: fake octal locations, one per
+// non-empty line, counted from here.
 const addrBase = 0o4000
 
-// gutterW is the octal address plus the two spaces after it.
-const gutterW = 7
-
-// Instr is one fake virtual instruction on the scroll: the op line,
-// how the arguments arrive, what it costs, and its own look for the
-// DANZIG check.
-type Instr struct {
-	Mnemonic string
-	Op       string
-	Args     []string
-	Time     string
-	Check    []string
-	Style    string
-	Caption  string
+// Chunk is one spotlit stretch of the real listing: the verbatim
+// SERVICER source, then the annotated check to DANZIG in this
+// chunk's own dress.
+type Chunk struct {
+	Name    string
+	Source  []string
+	Intro   string
+	Check   []string
+	Style   string
+	Caption string
 }
 
-// Instructions is the walkthrough: five fake interpretive
-// instructions, VXV first, each ending in a different dress for the
-// same DANZIG question.
-func Instructions() []Instr {
-	stampTop := "    ╭─ DANZIG " + strings.Repeat("─", 15) + "╮"
-	stampBody := "    │ NEWJOB = 0 ✓ carry on  │"
-	stampBot := "    ╰" + strings.Repeat("─", 24) + "╯"
-	return []Instr{
+// PrologueLines is the routine's own header and the TC INTPRET
+// hand-off — verbatim SERVICER.agc, never spotlit, riding dark above
+// the first chunk.
+func PrologueLines() []string {
+	return []string{
+		"# MUNRVG IS A SPECIAL AVERAGE G INTEGRATION ROUTINE USED BY THRUSTING",
+		"# PROGRAMS WHICH FUNCTION IN THE VICINITY OF AN ASSUMED SPHERICAL MOON.",
+		"\t\tTC\tINTPRET",
+	}
+}
+
+// MidLines is the DOT altitude-rate block — the real code between
+// the velocity chunk and the VXV chunk. The camera scrolls through
+// it without stopping, so the run stays consecutive.
+func MidLines() []string {
+	return []string{
+		"\t\t\tUNIT/R/",
+		"\t\tDOT\tSL1",
+		"\t\t\tV1S",
+		"\t\tSTOVL\tHDOTDISP\t# HDOT = V. UNIT(R)*2(7) M/CS.",
+		"\t\t\tR1S",
+	}
+}
+
+// EpilogueBlocks is the rest of the routine, verbatim and in order —
+// the lunar-landing display terms, MUNGRAV, and the RVQ return — so
+// the vignette below the last stop has real code to fade through.
+func EpilogueBlocks() [][]string {
+	return [][]string{
 		{
-			Mnemonic: "VXV",
-			Op:       "VXV — vector cross vector         # MPAC ← MPAC × X",
-			Args:     []string{"    args: V from MPAC, X ← fetch(ADDRWD)"},
-			Time:     "    time: ≈ 5.0 ms                # ≈ 425 machine cycles",
+			"\t\tDSU",
+			"\t\t\t/LAND/",
+			"\t\tSTCALL\tHCALC\t\t# FOR NOW, DISPLAY WHETHER POS OR NEG",
+			"\t\t\tMUNRETRN",
+		},
+		{
+			"MUNGRAV\t\tUNIT\t\t\t# AT 36D HAVE ABVAL(R), AT 34D R.R",
+			"\t\tSTODL\tUNIT/R/",
+			"\t\t\t34D",
+			"\t\tSL\tBDDV",
+			"\t\t\t6D",
+			"\t\t\t-MUDTMUN",
+		},
+		{
+			"\t\tDMP\tVXSC",
+			"\t\t\tSHIFT11",
+			"\t\t\tUNIT/R/",
+			"\t\tSTORE\tGDT1/2\t\t# 1/2GDT SCALED AT 2(7) M/CS.",
+			"\t\tRVQ",
+		},
+	}
+}
+
+// Chunks is the walkthrough: five consecutive stretches of MUNRVG,
+// each ending in the same check to DANZIG in a different dress.
+func Chunks() []Chunk {
+	stampTop := "\t\t╭─ DANZIG " + strings.Repeat("─", 15) + "╮"
+	stampBody := "\t\t│ NEWJOB = 0 ✓ CARRY ON  │"
+	stampBot := "\t\t╰" + strings.Repeat("─", 24) + "╯"
+	return []Chunk{
+		{
+			Name: "VLOAD VXSC",
+			Source: []string{
+				"MUNRVG\t\tVLOAD\tVXSC",
+				"\t\t\tDELV",
+				"\t\t\tKPIP2",
+				"\t\tPUSH\tVAD\t\t# 1ST PUSH:  DELV IN UNITS OF 2(8) M/CS",
+				"\t\t\tGDT/2",
+			},
+			Intro: "# ...THEN THE DISPATCH — THE CHECK, AS THE REAL ASSEMBLY (INTERPRETER.AGC):",
 			Check: []string{
-				"    CCS NEWJOB                    # higher priority waiting?",
-				"    TCF CHANG2                    # yes — swap to that job",
+				"\t\tCCS\tNEWJOB\t\t\t# SEE IF A JOB OF HIGHER PRIORITY IS",
+				"\t\tTCF\tCHANG2\t\t\t# PRESENT, AND IF SO, CHANGE JOBS.",
 			},
 			Style:   "assembly",
-			Caption: "1/5 VXV — the check as the real assembly: CCS NEWJOB, TCF CHANG2 — INTERPRETER.agc",
+			Caption: "1/5 VLOAD VXSC — the ΔV load — the check as the real assembly: CCS NEWJOB / TCF CHANG2",
 		},
 		{
-			Mnemonic: "DOT",
-			Op:       "DOT — vector dot product          # MPAC ← MPAC · X",
-			Args:     []string{"    args: V from MPAC, X ← fetch(ADDRWD)"},
-			Time:     "    time: ≈ 3.4 ms                # three DP multiplies",
+			Name: "PDDL DDV",
+			Source: []string{
+				"\t\tPUSH\tVAD\t\t# 2ND PUSH:  (DELV + GDT)/2, UNITS OF 2(7)",
+				"\t\t\tV\t\t#\t\t\t\t(12)",
+				"\t\tPDDL\tDDV",
+				"\t\t\tPGUIDE",
+				"\t\t\tSHIFT11",
+			},
+			Intro: "# ...THEN THE SAME CHECK, SPELLED OUT AS PSEUDOCODE:",
 			Check: []string{
-				"    if NEWJOB != 0:               # DANZIG, spelled out",
-				"        swap cores[0], cores[NEWJOB]",
+				"\t\tIF\tNEWJOB != 0:\t\t# DANZIG, SPELLED OUT",
+				"\t\tSWAP\tCORES[0], CORES[NEWJOB]",
 			},
 			Style:   "pseudocode",
-			Caption: "2/5 DOT — the check as pseudocode: a non-zero NEWJOB swaps core sets before the next op",
+			Caption: "2/5 PDDL DDV — the guidance push — the check as pseudocode: a non-zero NEWJOB swaps cores",
 		},
 		{
-			Mnemonic: "MXV",
-			Op:       "MXV — matrix times vector         # MPAC ← M(X) × MPAC",
-			Args:     []string{"    args: M ← fetch 6 words at ADDRWD"},
-			Time:     "    time: ≈ 9.8 ms                # nine multiplies deep",
+			Name: "STCALL R1S",
+			Source: []string{
+				"\t\tVXSC",
+				"\t\tVAD",
+				"\t\t\tR",
+				"\t\tSTCALL\tR1S\t\t# STORE R SCALED AT 2(+24) M",
+				"\t\t\tMUNGRAV",
+			},
+			Intro: "# ...THEN THE SAME CHECK, AS A FORK:",
 			Check: []string{
-				"    DANZIG ─┬─ NEWJOB = 0 ──▶ next op",
-				"            ╰─ NEWJOB > 0 ──▶ CHANG2",
+				"\t\tDANZIG ─┬─ NEWJOB = 0 ──▶ NEXT OP",
+				"\t\t        ╰─ NEWJOB > 0 ──▶ CHANG2",
 			},
 			Style:   "fork",
-			Caption: "3/5 MXV — the check as a fork: zero rides on, non-zero exits to CHANG2",
+			Caption: "3/5 STCALL R1S — position out, call gravity — the check as a fork: zero rides on",
 		},
 		{
-			Mnemonic: "VXSC",
-			Op:       "VXSC — vector times scalar        # MPAC ← MPAC × K",
-			Args:     []string{"    args: K ← fetch(ADDRWD)       # the scalar rides along"},
-			Time:     "    time: ≈ 2.6 ms                # one multiply per part",
+			Name: "STORE V1S",
+			Source: []string{
+				"# Page 883",
+				"\t\tVAD\tVAD",
+				"\t\tVAD",
+				"\t\t\tV",
+				"\t\tSTORE\tV1S\t\t# STORE V SCALED AT 2(+7) M/CS.",
+				"\t\tABVAL",
+				"\t\tSTOVL\tABVEL\t\t# STORE SPEED FOR LR AND DISPLAYS.",
+			},
+			Intro: "# ...THEN THE SAME CHECK, AS A WEIGHING OF PRIORITY WORDS:",
 			Check: []string{
-				"    this job  ▓▓▓▓▓░░░░░ 20       # DANZIG weighs the words",
-				"    NEWJOB    ▓▓▓▓▓▓▓░░░ 26 → CHANG2",
+				"\t\tTHIS JOB  ▓▓▓▓▓░░░░░ 20\t\t# DANZIG WEIGHS THE WORDS",
+				"\t\tNEWJOB    ▓▓▓▓▓▓▓░░░ 26 ──▶ CHANG2",
 			},
 			Style:   "weighing",
-			Caption: "4/5 VXSC — the check as a weighing: the bigger PRIORITY word takes the CPU",
+			Caption: "4/5 STORE V1S — velocity out, speed for the LR — the check as a weighing of PRIORITY words",
 		},
 		{
-			Mnemonic: "DAD",
-			Op:       "DAD — double precision add        # MPAC ← MPAC + X",
-			Args:     []string{"    args: X ← fetch(ADDRWD)       # one erasable pair"},
-			Time:     "    time: ≈ 0.9 ms                # the cheap one",
-			Check:    []string{stampTop, stampBody, stampBot},
-			Style:    "stamp",
-			Caption:  "5/5 DAD — the check as a stamp: cleared through DANZIG, the job keeps the core",
+			Name: "VXV VSL2",
+			Source: []string{
+				"\t\tVXV\tVSL2",
+				"\t\t\tWM",
+				"\t\tSTODL\tDELVS\t\t# LUNAR ROTATION CORRECTION TERM*2(5) M/CS.",
+				"\t\t\t36D",
+			},
+			Intro:   "# ...THEN THE SAME CHECK, AS A STAMP:",
+			Check:   []string{stampTop, stampBody, stampBot},
+			Style:   "stamp",
+			Caption: "5/5 VXV VSL2 — the V cross V itself — the check as a stamp: carry on",
 		},
 	}
 }
 
-// Block is one run of lines on the scroll, separated from the next
-// by one blank row.
-type Block struct {
-	Name  string
-	Lines []string
-}
-
-// prologue is the interpreter's own entry, riding above the first
-// instruction — never spotlit, always half-seen.
-func prologue() []string {
-	return []string{
-		"INTPRET:                          # enter the virtual machine",
-		"    LOC ← the word after the TC   # op pairs live at LOC",
-		"    unpack pair → op, EDOP        # two ops packed per word",
-	}
-}
-
-// epilogue rides below the last instruction so the final stop still
-// has code fading under it.
-func epilogue() []string {
-	return []string{
-		"EXIT:                             # leave the interpreter",
-		"    resume native code at LOC     # machine words again",
-	}
-}
-
-// Blocks is the whole scroll: the INTPRET prologue, the five
-// instructions (op, args, time, check), and the EXIT epilogue.
-func Blocks() []Block {
-	ins := Instructions()
-	bs := make([]Block, 0, len(ins)+2)
-	bs = append(bs, Block{Name: "INTPRET", Lines: prologue()})
-	for _, in := range ins {
-		lines := append([]string{in.Op}, in.Args...)
-		lines = append(lines, in.Time)
-		lines = append(lines, in.Check...)
-		bs = append(bs, Block{Name: in.Mnemonic, Lines: lines})
-	}
-	bs = append(bs, Block{Name: "EXIT", Lines: epilogue()})
-	return bs
-}
-
-// ink is one Rose Pine color the scene paints with, at whatever
-// vignette level a block sits.
-type ink int
-
-const (
-	inkText ink = iota
-	inkMuted
-	inkGold
-	inkFoam
-	inkIris
-	inkRose
-	inkCount
-)
-
-// shades is the vignette: level 0 is the danzig card's Rose Pine,
-// level 1 keeps each hue but sinks it toward the base, level 2 is
-// the same near-gone ink for everything — barely visible is past
-// caring about hue.
-var shades = [inkCount][3]int{
-	inkText:  {danzig.Text256, 103, 237},
-	inkMuted: {danzig.Muted256, 60, 237},
-	inkGold:  {danzig.Gold256, 137, 237},
-	inkFoam:  {danzig.Foam256, 66, 237},
-	inkIris:  {danzig.Iris256, 97, 237},
-	inkRose:  {danzig.Rose256, 138, 237},
-}
-
-// shade is ink i at a vignette level: negative levels clamp to the
-// spotlight, level 3 and past do not paint at all, and a ghost ink
-// falls back to text so a bad kind is still readable.
-func shade(i ink, level int) int {
-	if level < 0 {
-		level = 0
-	}
-	if level > 2 {
-		return -1
-	}
-	if i < 0 || i >= inkCount {
-		i = inkText
-	}
-	return shades[i][level]
-}
-
-// vigLevel rounds a block's distance from the spotlight to its shade
-// level. Broken distances are past seeing, never a panic.
-func vigLevel(d float64) int {
-	d = math.Abs(d)
-	if math.IsNaN(d) || d >= 2.5 {
-		return 3
-	}
-	return int(math.Round(d))
-}
-
-// kindInk maps the danzig tokenizer's syntax classes onto the inks.
-func kindInk(k danzig.Kind) ink {
-	switch k {
-	case danzig.KindComment:
-		return inkMuted
-	case danzig.KindKeyword:
-		return inkIris
-	case danzig.KindLabel:
-		return inkFoam
-	case danzig.KindNumber:
-		return inkGold
-	case danzig.KindOp:
-		return inkRose
-	default:
-		return inkText
-	}
-}
-
-// anchorY is the screen row the spotlit block's op line parks on —
-// high enough that two blocks fit below it, the way the vignette is
-// framed.
-func anchorY(h int) int {
-	y := h / 4
-	if y < 1 {
-		y = 1
-	}
-	return y
-}
-
-// Show is the Interpreter scene: one director component running the
-// scroll on its own clock. Cfg is the two knobs Assemble reads on
-// each Start, so a replay (Stop then Start) rebuilds the walkthrough
-// from whatever they hold now.
+// Show is the Interpreter scene: one director composing the code
+// cards and the scroll. Cfg is the two knobs Assemble reads on each
+// Start, so a replay (Stop then Start) rebuilds the walkthrough from
+// whatever they hold now.
 type Show struct {
 	Cfg Config
 	screenplay.Ensemble
@@ -277,96 +224,107 @@ func Bill() screenplay.Bill {
 	}
 }
 
-// director owns the walkthrough: the knobs it was cast with and the
-// clock. The clock is its identity — a resize (Stop then Start)
-// keeps it — while a fresh scene Start assembles a fresh director
-// from the Show's current knobs.
+// director owns the composition: the scroll of real code below, the
+// caption above the house floor. The scroll's clock is its identity
+// — a resize (Stop then Start) keeps it — while a fresh scene Start
+// assembles a fresh director from the Show's current knobs.
 type director struct {
 	cfg    Config
-	clock  float64
+	scroll *scrollcode.Scroll
 	w, h   int
 	staged bool
 }
 
 func newDirector(cfg Config) *director {
-	return &director{cfg: cfg}
+	return &director{
+		cfg:    cfg,
+		scroll: assemble().Tune(cfg.HoldSeconds, cfg.GlideSeconds),
+	}
+}
+
+// assemble builds the roster: the prologue, the five spotlit chunks
+// with the DOT block scrolling past before the last one, and the
+// three-chunk tail — every card on one continuous octal gutter.
+func assemble() *scrollcode.Scroll {
+	var blocks []scrollcode.Block
+	addr := addrBase
+	add := func(c *code.Code, lines []string, stop bool) {
+		blocks = append(blocks, scrollcode.Block{Code: c.Gutter(addr), Stop: stop})
+		addr += nonEmpty(lines)
+	}
+
+	add(code.New(code.LangAGC, PrologueLines()), PrologueLines(), false)
+	chunks := Chunks()
+	for i, ch := range chunks {
+		if i == len(chunks)-1 {
+			add(code.New(code.LangAGC, MidLines()), MidLines(), false)
+		}
+		lines := append([]string{}, ch.Source...)
+		lines = append(lines, "", ch.Intro)
+		lines = append(lines, ch.Check...)
+		c := code.New(code.LangAGC, lines)
+		markChecks(c, len(ch.Source))
+		if ch.Style == "stamp" {
+			markSpans(c, 0, "VXV", code.Gold)
+		}
+		add(c, lines, true)
+	}
+	for _, ep := range EpilogueBlocks() {
+		add(code.New(code.LangAGC, ep), ep, false)
+	}
+	return scrollcode.New(blocks...)
+}
+
+// markChecks highlights every NEWJOB of the annotation lines in love
+// ink — the word the whole check turns on.
+func markChecks(c *code.Code, srcLen int) {
+	for li := srcLen; li < len(c.Lines()); li++ {
+		markSpans(c, li, "NEWJOB", code.Love)
+	}
+}
+
+// markSpans marks every occurrence of needle on one expanded line.
+func markSpans(c *code.Code, line int, needle string, ink int) {
+	lines := c.Lines()
+	if line < 0 || line >= len(lines) {
+		return
+	}
+	rs := []rune(lines[line])
+	ns := []rune(needle)
+	for i := 0; i+len(ns) <= len(rs); i++ {
+		if string(rs[i:i+len(ns)]) == needle {
+			c.Mark(line, i, i+len(ns), ink)
+		}
+	}
+}
+
+func nonEmpty(lines []string) int {
+	n := 0
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	return n
 }
 
 func (d *director) Start(w, h int) {
 	d.w, d.h = w, h
 	d.staged = true
+	sh := h - 2
+	if sh < 1 {
+		sh = 1
+	}
+	d.scroll.Start(w, sh)
 }
 
 func (d *director) Update(dt float64) {
-	if dt <= 0 {
-		return
-	}
-	d.clock += dt
+	d.scroll.Update(dt)
 }
 
-func (d *director) Stop() { d.staged = false }
-
-// focusPos is the continuous spotlight position in [0, 4]: whole at
-// a hold, fractional through a glide, capped forever on the last
-// instruction.
-func (c Config) focusPos(t float64) float64 {
-	last := float64(len(Instructions()) - 1)
-	if t <= 0 {
-		return 0
-	}
-	period := c.HoldSeconds + c.GlideSeconds
-	if period <= 0 {
-		return last
-	}
-	i := math.Floor(t / period)
-	if i >= last {
-		return last
-	}
-	e := t - i*period
-	if e <= c.HoldSeconds {
-		return i
-	}
-	return i + ease((e-c.HoldSeconds)/c.GlideSeconds)
-}
-
-// camRow is the scroll row the camera holds at the anchor: the
-// spotlit block's own row at a hold, the eased in-between on a
-// glide, rounded — not truncated — so the camera lands exactly on
-// its destination while its own glide still runs.
-func camRow(rows []int, p float64) int {
-	i := int(math.Floor(p))
-	f := p - float64(i)
-	from := rows[1+i]
-	if f <= 0 {
-		return from
-	}
-	return from + int(math.Round(f*float64(rows[2+i]-rows[1+i])))
-}
-
-// captionIdx is which instruction's caption the frame wears: the
-// nearer stop, so a glide hands the words over at its midpoint.
-func captionIdx(p float64) int {
-	i := int(math.Round(p))
-	if i < 0 {
-		i = 0
-	}
-	if last := len(Instructions()) - 1; i > last {
-		i = last
-	}
-	return i
-}
-
-// columnWidth is the widest content line plus the gutter.
-func columnWidth(bs []Block) int {
-	w := 0
-	for _, b := range bs {
-		for _, line := range b.Lines {
-			if n := len([]rune(line)); n > w {
-				w = n
-			}
-		}
-	}
-	return w + gutterW
+func (d *director) Stop() {
+	d.scroll.Stop()
+	d.staged = false
 }
 
 func (d *director) Render() sprite.Sprite {
@@ -376,75 +334,15 @@ func (d *director) Render() sprite.Sprite {
 	stage := sprite.New(d.w, d.h)
 	for r := 0; r < d.h; r++ {
 		for c := 0; c < d.w; c++ {
-			stage.Set(r, c, sprite.Cell{Ch: ' ', FG: -1, BG: danzig.Base256})
+			stage.Set(r, c, sprite.Cell{Ch: ' ', FG: -1, BG: code.Base})
 		}
 	}
-
-	bs := Blocks()
-	rows := make([]int, len(bs)+1)
-	for i, b := range bs {
-		rows[i+1] = rows[i] + len(b.Lines) + 1
-	}
-	p := d.cfg.focusPos(d.clock)
-	cam := camRow(rows, p)
-	anchor := anchorY(d.h)
-	left := (d.w - columnWidth(bs)) / 2
-	if left < 0 {
-		left = 0
-	}
-
-	addr := addrBase
-	for b, blk := range bs {
-		level := vigLevel(float64(b) - (1 + p))
-		top := anchor + rows[b] - cam
-		if level <= 2 {
-			for li, line := range blk.Lines {
-				d.paintLine(stage, top+li, left, addr+li, line, level)
-			}
-		}
-		addr += len(blk.Lines)
-	}
-
-	putText(stage, d.h-1, 2, Instructions()[captionIdx(p)].Caption, shade(inkMuted, 0))
-	return stage
-}
-
-// paintLine writes one gutter-led source line at its vignette level.
-// Rows off the stage — or under the caption's breathing room — are
-// skipped whole.
-func (d *director) paintLine(stage sprite.Sprite, y, x, addr int, line string, level int) {
-	if y < 0 || y > d.h-3 {
-		return
-	}
-	col := x
-	for _, r := range fmt.Sprintf("%05o  ", addr) {
-		stage.Set(y, col, sprite.Cell{Ch: r, FG: shade(inkMuted, level), BG: danzig.Base256})
+	sprite.Blit(stage, 0, 0, d.scroll.Render())
+	caption := Chunks()[d.scroll.FocusStop()].Caption
+	col := 2
+	for _, ch := range caption {
+		stage.Set(d.h-1, col, sprite.Cell{Ch: ch, FG: code.Muted, BG: code.Base})
 		col++
 	}
-	for _, tok := range danzig.TokenizeLine(line) {
-		fg := shade(kindInk(tok.Kind), level)
-		for _, r := range tok.Text {
-			stage.Set(y, col, sprite.Cell{Ch: r, FG: fg, BG: danzig.Base256})
-			col++
-		}
-	}
-}
-
-// ease is the repo's ease-out cubic, clamped to the glide.
-func ease(p float64) float64 {
-	if p <= 0 {
-		return 0
-	}
-	if p >= 1 {
-		return 1
-	}
-	q := 1 - p
-	return 1 - q*q*q
-}
-
-func putText(sp sprite.Sprite, r, c int, text string, fg int) {
-	for _, ch := range text {
-		sp.Set(r, c, sprite.Cell{Ch: ch, FG: fg, BG: danzig.Base256})
-		c++
-	}
+	return stage
 }
