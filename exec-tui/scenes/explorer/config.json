@@ -1,0 +1,6 @@
+{
+  "minCycleSeconds": 2.00,
+  "maxCycleSeconds": 7.00,
+  "minFadeSeconds": 0.40,
+  "maxFadeSeconds": 1.60
+}

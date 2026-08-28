@@ -17,6 +17,7 @@ go run ./cmd/stars -strategy still       # stars hold still
 | --- | --- |
 | `dust-rush` (default) | · and ˚ streak right→left; * and ✦ almost hang |
 | `still` | no motion — a static night sky |
+| `twinkle` | no motion — some stars fade in and out while the rest hold |
 | `far-fast` / `near-fast` / `uniform` / `uniform-slow` / `hyperspace` / `drift` | other fly takes |
 
 Glyphs: `·` dust, `˚` spark, `*` mid, `✦` near. Colors are white with a little
@@ -54,3 +55,17 @@ tuned config say (the moon's descent orbit plays under it).
 ```bash
 go run ./cmd/adjuststars/main            # tunes components/stars/config.json
 ```
+
+## Twinkle
+
+The `twinkle` mode parks the sky and lets about a third of the stars
+breathe — fade in over a ramp, hold bright, fade out, hold dark, and
+around again. Each breather deterministically draws its cycle from
+`[MinCycleSeconds, MaxCycleSeconds]` and its ramps from
+`[MinFadeSeconds, MaxFadeSeconds]` (clamped to half its cycle), dims
+through its layer's grays, and vanishes at zero while the steady stars
+hold the frame. `TwinkleConfig` carries the four knobs between the
+rails (`MinTwinkleCycle`/`MaxTwinkleCycle`, `MinTwinkleFade`/
+`MaxTwinkleFade`); `UseTwinkle` / `ActiveTwinkle` / `ResetTwinkle` are
+the package-active setting the paint reads every frame, so a tuner
+(the explorer scene's `cmd/explorer`) retunes the breathing live.
