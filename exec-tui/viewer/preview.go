@@ -5,6 +5,7 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/astro"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/cloud"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/cpugraph"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/fire"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/gunfire"
@@ -210,6 +211,69 @@ func (d *boxDemo) Render() sprite.Sprite {
 			break
 		}
 		stage.Set(stage.Height-1, col, sprite.Cell{Ch: ch, FG: pools.DimInk, BG: -1})
+		col++
+	}
+	return stage
+}
+
+// cpuState is one stop on the CPU GRAPH demo's switch walk.
+type cpuState struct {
+	label                             string
+	descent, monitor, radar, approach bool
+}
+
+// cpuStates is the story the space key walks, in the order the graphs
+// screen teaches it: the healthy portrait, the radar-steal knife edge,
+// the 1668 monitor crossing the 2 s line, P64 crossing it harder, and
+// the idle cadences — then around again.
+var cpuStates = []cpuState{
+	{"the healthy portrait — descent alone", true, false, false, false},
+	{"the knife edge — radar steal on", true, false, true, false},
+	{"past the line — the 1668 monitor", true, true, true, false},
+	{"past it harder — the P64 approach", true, false, true, true},
+	{"everything off — the idle cadences", false, false, false, false},
+}
+
+// cpuDemo wraps the standalone graph component for the viewer: the
+// portrait alone on stage — no legend, no switch row — with space (the
+// viewer's trigger key) stepping the component's own switch API through
+// cpuStates. The bottom row hints the button and names the state.
+type cpuDemo struct {
+	view *cpugraph.Graph
+	step int
+}
+
+func newCPUGraphDemo(g *cpugraph.Graph) *cpuDemo { return &cpuDemo{view: g} }
+
+func (d *cpuDemo) Start(w, h int)    { d.view.Start(w, h) }
+func (d *cpuDemo) Stop()             { d.view.Stop() }
+func (d *cpuDemo) Update(dt float64) { d.view.Update(dt) }
+
+// Fire steps to the next switch state, wrapping past the last. The
+// monitor is keyed before the approach so the DSKY hand-off inside the
+// component's API always lands on the scripted state.
+func (d *cpuDemo) Fire() bool {
+	d.step = (d.step + 1) % len(cpuStates)
+	st := cpuStates[d.step]
+	d.view.SetDescent(st.descent)
+	d.view.SetRadar(st.radar)
+	d.view.SetMonitor(st.monitor)
+	d.view.SetApproach(st.approach)
+	return true
+}
+
+func (d *cpuDemo) Render() sprite.Sprite {
+	stage := d.view.Render()
+	if stage.Width < 1 || stage.Height < 1 {
+		return stage
+	}
+	hint := "space steps the switches · " + cpuStates[d.step].label
+	col := 1
+	for _, ch := range hint {
+		if col >= stage.Width {
+			break
+		}
+		stage.Set(stage.Height-1, col, sprite.Cell{Ch: ch, FG: typeInk, BG: -1})
 		col++
 	}
 	return stage

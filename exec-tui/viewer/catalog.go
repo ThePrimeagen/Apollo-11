@@ -13,6 +13,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/armed"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/astro"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/cpugraph"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
@@ -81,6 +82,7 @@ func Catalog() []Item {
 		{ID: "coresets", Title: "CORE SET PANEL", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewCoreSetPanel()) }},
 		{ID: "vac", Title: "VAC", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newBoxDemo(pools.NewVAC()) }},
 		{ID: "vacs", Title: "VAC PANEL", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewVACPanel()) }},
+		{ID: "cpugraph", Title: "CPU GRAPH", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newCPUGraphDemo(cpugraph.New()) }},
 		{ID: "title", Title: "TITLE", Kind: KindComponent, Path: assets, spawn: mustTitle},
 		{ID: "astronaut", Title: "ASTRONAUT", Kind: KindComponent, Path: astro.FindAtlas(), spawn: func() screenplay.Component { return newAstroRun() }},
 		{ID: "rocket", Title: "ROCKET", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newRocketPreview() }},
