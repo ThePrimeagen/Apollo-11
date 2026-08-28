@@ -27,11 +27,14 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustparticle"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/ie"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
@@ -96,6 +99,7 @@ func TestCatalog(t *testing.T) {
 			"eagle":      KindComponent,
 			"armed":      KindComponent,
 			"moon":       KindComponent,
+			"ie":         KindComponent,
 			"dsky":       KindComponent,
 			"coreset":    KindComponent,
 			"coresets":   KindComponent,
@@ -117,6 +121,7 @@ func TestCatalog(t *testing.T) {
 			"skies":      KindScene,
 			"liftoff":    KindScene,
 			"bobble":     KindScene,
+			"explorer":   KindScene,
 		}
 		seen := map[string]bool{}
 		for _, it := range c {
@@ -336,6 +341,7 @@ func TestEdit(t *testing.T) {
 			{"scan", "scenes/coreset2", "./cmd/coreset2"},
 			{"liftoff", liftoff.DefaultConfigPath, "./cmd/liftoff"},
 			{"bobble", bobble.DefaultConfigPath, "./cmd/bobble"},
+			{"explorer", explorer.DefaultConfigPath, "./cmd/explorer"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
@@ -471,6 +477,122 @@ func TestEdit(t *testing.T) {
 		}
 		if m.Index() != 0 {
 			t.Fatalf("empty catalog cursor moved to %d", m.Index())
+		}
+	})
+}
+
+// Tests written FIRST: the EXPLORER item is the ie component — the
+// old Internet Explorer logo, the fixed 14×7 card of the bold blue e
+// wearing its golden swoosh — listed as a component, staged centered,
+// and edited like any other code-drawn card: e opens the assets
+// editor, never a tuner.
+
+func TestExplorerItem(t *testing.T) {
+	t.Run("happy: the catalog lists EXPLORER and stages the blue e under the golden swoosh", func(t *testing.T) {
+		idx := findItem(t, KindComponent, "ie")
+		it := Catalog()[idx]
+		if it.Title != "EXPLORER" {
+			t.Fatalf("the item's banner is %q, want EXPLORER", it.Title)
+		}
+		comp := it.spawn()
+		if _, ok := comp.(*ie.Logo); !ok {
+			t.Fatalf("the ie item must stage the logo component, got %T", comp)
+		}
+		comp.Start(80, 19)
+		sp := comp.Render()
+		if sp.Width != 80 || sp.Height != 19 {
+			t.Fatalf("the preview rendered %dx%d, want the 80x19 stage", sp.Width, sp.Height)
+		}
+		blue, gold := false, false
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				cell := sp.At(r, c)
+				if cell.FG == ie.BlueInk || cell.BG == ie.BlueInk {
+					blue = true
+				}
+				if cell.FG == ie.GoldInk || cell.BG == ie.GoldInk {
+					gold = true
+				}
+			}
+		}
+		if !blue || !gold {
+			t.Fatalf("the preview must wear the blue e and the golden swoosh, blue %v gold %v", blue, gold)
+		}
+	})
+	t.Run("unhappy: e on the logo opens the assets editor, never a tuner", func(t *testing.T) {
+		m := sized(New(findItem(t, KindComponent, "ie")), 80, 24)
+		mm, cmd := m.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
+		m = mm.(Model)
+		ed, ok := m.ChosenEdit()
+		if !ok {
+			t.Fatal("e must choose an edit")
+		}
+		if ed.Kind != KindComponent {
+			t.Fatalf("edit kind %s, want component", ed.Kind)
+		}
+		if ed.Path != editor.DefaultAssetsDir {
+			t.Fatalf("edit path %q, want the assets folder %q", ed.Path, editor.DefaultAssetsDir)
+		}
+		if ed.Program != "" {
+			t.Fatalf("a code-drawn card must not launch a tuner, got %q", ed.Program)
+		}
+		if cmd == nil {
+			t.Fatal("e must quit so the editor can take the terminal")
+		}
+	})
+}
+
+// Tests written FIRST: the BIG E item is the explorer scene — the
+// moon-sized Internet Explorer logo parked under the twinkling sky —
+// listed as a scene whose e opens the scene's own tuner on its
+// config, the editable screen for the four twinkle knobs.
+
+func TestBigEItem(t *testing.T) {
+	t.Run("happy: the catalog lists BIG E and stages the logo under the twinkling stars", func(t *testing.T) {
+		idx := findItem(t, KindScene, "explorer")
+		it := Catalog()[idx]
+		if it.Title != "BIG E" {
+			t.Fatalf("the item's banner is %q, want BIG E", it.Title)
+		}
+		comp := it.spawn()
+		comp.Start(80, 19)
+		comp.Update(0.1)
+		sp := comp.Render()
+		if sp.Width != 80 || sp.Height != 19 {
+			t.Fatalf("the preview rendered %dx%d, want the 80x19 stage", sp.Width, sp.Height)
+		}
+		blue, gold, star := false, false, false
+		glyphs := map[rune]bool{}
+		for _, g := range stars.Glyphs {
+			glyphs[g] = true
+		}
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				cell := sp.At(r, c)
+				if cell.FG == ie.BlueInk || cell.BG == ie.BlueInk {
+					blue = true
+				}
+				if cell.FG == ie.GoldInk || cell.BG == ie.GoldInk {
+					gold = true
+				}
+				if glyphs[cell.Ch] {
+					star = true
+				}
+			}
+		}
+		if !blue || !gold || !star {
+			t.Fatalf("the preview must wear the blue e, the golden swoosh and the stars: blue %v gold %v star %v", blue, gold, star)
+		}
+	})
+	t.Run("unhappy: BIG E is a scene, not the fixed card — the two explorers stay distinct", func(t *testing.T) {
+		card := Catalog()[findItem(t, KindComponent, "ie")]
+		scene := Catalog()[findItem(t, KindScene, "explorer")]
+		if card.ID == scene.ID || card.Title == scene.Title {
+			t.Fatalf("the card (%q %q) and the scene (%q %q) must not collide",
+				card.ID, card.Title, scene.ID, scene.Title)
+		}
+		if scene.Program != "./cmd/explorer" {
+			t.Fatalf("e on the scene launches %q, want its own tuner ./cmd/explorer", scene.Program)
 		}
 	})
 }

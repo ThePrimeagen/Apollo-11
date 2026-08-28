@@ -24,6 +24,9 @@ components/   everything a scene puts together
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component
     descent/  the legacy descent-view renderer (used by the sim UI)
   moon/       Moon (the reusable pixelated disc) + Orbit (the craft circling it)
+  ie/         the old Internet Explorer logo: the blue e and its golden swoosh,
+              a fixed 14×7 card in half-cell pixels (EXPLORER in the viewer)
+              plus Big, the moon-sized geometry-drawn sibling that fills a stage
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)
@@ -49,6 +52,8 @@ cmd/          every runnable: editors, demos, tuners
               dust, the climb off the top (scenes/liftoff, nine live knobs)
   bobble/     the west-facing lander parked and bobbling, engine on or off
               (scenes/bobble, three live knobs)
+  explorer/   the big IE logo under the twinkling sky (scenes/explorer,
+              four live knobs: min/max twinkle cycle and min/max fade)
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser

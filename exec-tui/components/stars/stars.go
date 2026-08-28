@@ -57,7 +57,7 @@ var (
 
 // Strategies returns every named fly style in demo order.
 func Strategies() []Strategy {
-	return []Strategy{DustRush, Still, FarFast, NearFast, Uniform, UniformSlow, Hyperspace, Drift}
+	return []Strategy{DustRush, Still, FarFast, NearFast, Uniform, UniformSlow, Hyperspace, Drift, Twinkle}
 }
 
 // Lookup finds a named strategy (case-sensitive).
@@ -133,13 +133,29 @@ func NewCatalog(w, h int, density [4]int) *Catalog {
 // Paint calls put for every star at tick, flying with s. Draw this
 // FIRST — put overwrites whatever is there, and the caller then paints
 // craft/UI on top. Still strategies and negative ticks freeze the sky
-// at its opening frame. put may be nil (no-op).
+// at its opening frame. A Twinkle sky parks every star at home and
+// breathes the active twinkle config instead: steady stars paint
+// their tint, breathers paint their fade ink of the instant, and a
+// star faded all the way out is not painted at all. put may be nil
+// (no-op).
 func (c *Catalog) Paint(tick int, s Strategy, put func(row, col int, ch rune, fg int)) {
 	if c == nil || put == nil || c.w < 1 || c.h < 1 {
 		return
 	}
 	if s.Name == Still.Name || tick < 0 {
 		tick = 0
+	}
+	if s.Name == Twinkle.Name {
+		cfg := ActiveTwinkle()
+		t := float64(tick) / StarFPS
+		for _, st := range c.stars {
+			ink := TwinkleInk(st.row, st.col, st.kind, t, cfg)
+			if ink < 0 {
+				continue
+			}
+			put(st.row, st.col, Glyphs[st.kind], ink)
+		}
+		return
 	}
 	delays := s.delays()
 	for _, st := range c.stars {
