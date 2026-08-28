@@ -248,6 +248,68 @@ func TestHardWhiteLineAtTwoSeconds(t *testing.T) {
 	}
 }
 
+// styledRow finds the still-styled render line for one process row.
+func styledRow(m Model, name string) string {
+	for _, l := range strings.Split(view(m), "\n") {
+		if strings.HasPrefix(stripAnsi(l), " "+name) {
+			return l
+		}
+	}
+	return ""
+}
+
+// hasStyledBlock reports whether s carries at least one bar glyph rendered
+// under exactly the given style.
+func hasStyledBlock(s string, st lipgloss.Style) bool {
+	for _, g := range blocks {
+		if strings.Contains(s, st.Render(string(g))) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestServicerOverrunTailTurnsRed(t *testing.T) {
+	// happy: when the single pass exceeds the 2 s boundary, the SERVICER
+	// bar past the white line is RED — the overflow made visible — while
+	// everything before the line stays green
+	green := lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
+	red := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	bound := lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true).Render("│")
+
+	m := sized(New(), 200, 45)
+	m, _ = keyed(m, 'r')
+	m, _ = keyed(m, '1') // radar + 1668: the pass crosses
+	row := styledRow(m, "SERVICER")
+	parts := strings.SplitN(row, bound, 2)
+	if len(parts) != 2 {
+		t.Fatalf("SERVICER row carries no white boundary cell:\n%q", row)
+	}
+	if !hasStyledBlock(parts[0], green) || hasStyledBlock(parts[0], red) {
+		t.Fatalf("before the line the pass must be green and never red:\n%q", parts[0])
+	}
+	if !hasStyledBlock(parts[1], red) || hasStyledBlock(parts[1], green) {
+		t.Fatalf("past the line the overrun must be red and never green:\n%q", parts[1])
+	}
+
+	m, _ = keyed(m, 'p') // radar + P64 (1668 drops): crosses harder, same alarm
+	parts = strings.SplitN(styledRow(m, "SERVICER"), bound, 2)
+	if len(parts) != 2 || !hasStyledBlock(parts[1], red) || hasStyledBlock(parts[1], green) {
+		t.Fatalf("the P64 overrun must be red past the line:\n%q", styledRow(m, "SERVICER"))
+	}
+
+	// unhappy: a pass that fits inside its cycle shows no red anywhere —
+	// descent alone, and the descent+radar knife edge
+	fits := sized(New(), 200, 45)
+	if row := styledRow(fits, "SERVICER"); hasStyledBlock(row, red) {
+		t.Fatalf("descent-only pass fits — no red belongs on its row:\n%q", row)
+	}
+	fits, _ = keyed(fits, 'r')
+	if row := styledRow(fits, "SERVICER"); hasStyledBlock(row, red) {
+		t.Fatalf("the knife edge still fits — no red belongs on its row:\n%q", row)
+	}
+}
+
 func TestTogglesResimulate(t *testing.T) {
 	// happy: each switch key rebuilds a fresh 2.5 s snapshot under the new
 	// configuration; unhappy: inert keys change nothing, q quits
