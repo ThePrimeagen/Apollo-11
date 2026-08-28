@@ -21,7 +21,7 @@ components/   everything a scene puts together
   sky/        the moveable blue gradient — owns its config.json
   cloud/      the pool-particle cloud generator — owns its config.json
   stars/      the four-layer starfield — owns its config.json
-  bigstar/    the larger multi-cell star (size 1..5)
+  bigstar/    the larger multi-cell star (any size >= 1; no ceiling)
   startrail/  persist-particle comet wake — owns its config.json
               (peak spawn, life taper)
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component

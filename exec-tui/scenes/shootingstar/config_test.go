@@ -4,18 +4,18 @@ package shootingstar
 // scene — preview path (circle or square, so the tail is readable),
 // star size (or random), flight speed, and the persist-trail knobs
 // (count, period, min/max life, nozzle, peak, taper). Peak steepens
-// the slit onto the spine; taper cuts max life by |offset|. The
-// standalone runner walks them live; s writes this JSON next to the
-// scene. The scene itself always falls right-to-left (high right to
-// low left). Fall is the stock tuner path; circle and square stay as
-// optional tail-reading loops.
+// the slit onto the spine; taper cuts max life by |offset|. Knobs
+// are never clamped: size, speed, and the rest may be negative or
+// past any old rail. The standalone runner walks them live; s writes
+// this JSON next to the scene. The scene itself always falls
+// right-to-left (high right to low left). Fall is the stock tuner
+// path; circle and square stay as optional tail-reading loops.
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/bigstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/startrail"
 )
 
@@ -114,48 +114,60 @@ func TestConfig(t *testing.T) {
 			t.Fatalf("square path reads %v, want 2", got)
 		}
 	})
-	t.Run("unhappy: size stays in 1..MaxSize, count/life/nozzle will not go negative, and a bad cursor is a no-op", func(t *testing.T) {
+	t.Run("unhappy: Nudge never clamps — size past 5, speed past 80 and through zero, count through zero, and a bad cursor is a no-op", func(t *testing.T) {
 		c := DefaultConfig()
-		c.Size = bigstar.MaxSize
+		c.Size = 5
 		c.Nudge(KnobSize, 1)
-		if c.Size != bigstar.MaxSize {
-			t.Fatalf("size %d, want the MaxSize ceiling", c.Size)
+		if c.Size != 6 {
+			t.Fatalf("size %d, want 6 — no ceiling", c.Size)
 		}
-		c.Size = bigstar.MinSize
+		c.Size = 1
 		c.Nudge(KnobSize, -1)
-		if c.Size != bigstar.MinSize {
-			t.Fatalf("size %d, want the MinSize floor", c.Size)
+		if c.Size != 0 {
+			t.Fatalf("size %d, want 0 — no floor", c.Size)
+		}
+		c.Nudge(KnobSize, -1)
+		if c.Size != -1 {
+			t.Fatalf("size %d, want -1", c.Size)
+		}
+		c.Speed = 80
+		c.Nudge(KnobSpeed, 1)
+		if c.Speed <= 80 {
+			t.Fatalf("speed %v, want past 80 — no ceiling", c.Speed)
+		}
+		c.Speed = 0
+		c.Nudge(KnobSpeed, -1)
+		if c.Speed >= 0 {
+			t.Fatalf("speed %v, want negative — no floor", c.Speed)
 		}
 		c.Count = 1
 		c.Nudge(KnobSpawn, -1)
-		if c.Count != 1 {
-			t.Fatalf("count %d, want the 1 floor", c.Count)
+		if c.Count != 0 {
+			t.Fatalf("count %d, want 0", c.Count)
 		}
-		c.MinLife = StepLife
-		c.MaxLife = StepLife
-		c.Nudge(KnobMinLife, -1)
-		if c.MinLife != StepLife {
-			t.Fatalf("min life %v, want the life floor", c.MinLife)
+		c.Nudge(KnobSpawn, -1)
+		if c.Count != -1 {
+			t.Fatalf("count %d, want -1", c.Count)
 		}
 		c.Nozzle = 0
 		c.Nudge(KnobNozzle, -1)
-		if c.Nozzle != 0 {
-			t.Fatalf("nozzle %v, want the 0 floor", c.Nozzle)
+		if c.Nozzle >= 0 {
+			t.Fatalf("nozzle %v, want negative", c.Nozzle)
 		}
 		c.Peak = 1
 		c.Nudge(KnobPeak, -1)
-		if c.Peak != 1 {
-			t.Fatalf("peak %v, want the 1 floor — Peak<=1 is uniform", c.Peak)
+		if c.Peak >= 1 {
+			t.Fatalf("peak %v, want below 1", c.Peak)
 		}
 		c.Taper = 0
 		c.Nudge(KnobTaper, -1)
-		if c.Taper != 0 {
-			t.Fatalf("taper %v, want the 0 floor", c.Taper)
+		if c.Taper >= 0 {
+			t.Fatalf("taper %v, want negative", c.Taper)
 		}
 		c.Taper = 1
 		c.Nudge(KnobTaper, 1)
-		if c.Taper != 1 {
-			t.Fatalf("taper %v, want the 1 ceiling", c.Taper)
+		if c.Taper <= 1 {
+			t.Fatalf("taper %v, want past 1", c.Taper)
 		}
 		before := c
 		c.Nudge(-1, 1)
@@ -232,7 +244,7 @@ func TestConfig(t *testing.T) {
 			t.Fatalf("Use must push peak/taper, startrail Active %+v", trail)
 		}
 	})
-	t.Run("unhappy: missing, broken, and out-of-range files error, and Save/Use refuse a bad knob", func(t *testing.T) {
+	t.Run("unhappy: missing, broken, and unknown-path files error; size and speed are never refused", func(t *testing.T) {
 		t.Cleanup(Reset)
 		if _, err := Load(filepath.Join(t.TempDir(), "nope.json")); err == nil {
 			t.Fatal("a missing file must error")
@@ -253,25 +265,27 @@ func TestConfig(t *testing.T) {
 		}
 		neg := DefaultConfig()
 		neg.Speed = -1
-		if err := neg.Save(filepath.Join(t.TempDir(), "x.json")); err == nil {
-			t.Fatal("Save must refuse a negative speed")
+		negPath := filepath.Join(t.TempDir(), "neg.json")
+		if err := neg.Save(negPath); err != nil {
+			t.Fatalf("Save must keep a negative speed: %v", err)
+		}
+		gotNeg, err := Load(negPath)
+		if err != nil {
+			t.Fatalf("Load must keep a negative speed: %v", err)
+		}
+		if gotNeg.Speed != -1 {
+			t.Fatalf("loaded speed %v, want -1", gotNeg.Speed)
 		}
 		before := Active()
-		badUse := DefaultConfig()
-		badUse.Size = 0
-		if err := Use(badUse); err == nil {
-			t.Fatal("Use must reject size 0")
-		}
-		if Active() != before {
-			t.Fatalf("Active after a rejected Use is %+v, want %+v", Active(), before)
-		}
 		wide := DefaultConfig()
-		wide.Taper = 2
-		if err := Use(wide); err == nil {
-			t.Fatal("Use must reject a taper past 1")
+		wide.Size = 9
+		wide.Speed = -4
+		if err := Use(wide); err != nil {
+			t.Fatalf("Use must keep size 9 and speed -4: %v", err)
 		}
-		if Active() != before {
-			t.Fatalf("Active after a rejected taper is %+v, want %+v", Active(), before)
+		if Active().Size != 9 || Active().Speed != -4 {
+			t.Fatalf("Active after an unclamped Use is %+v, want size 9 speed -4", Active())
 		}
+		_ = Use(before)
 	})
 }

@@ -75,19 +75,30 @@ func TestShootingStarRunner(t *testing.T) {
 			t.Fatal("the selected knob must be marked")
 		}
 	})
-	t.Run("unhappy: size will not pass MaxSize, count will not hit zero, and space does not quit", func(t *testing.T) {
+	t.Run("unhappy: size walks past 5, speed walks past 80 and through zero, and space does not quit", func(t *testing.T) {
+		t.Cleanup(shootingstar.Reset)
 		m := newModel(0, false)
 		m.show.Cfg.Size = 5
 		m.cursor = shootingstar.KnobSize
 		m = press(m, runeKey('l'))
-		if m.show.Cfg.Size != 5 {
-			t.Fatalf("size %d, want the MaxSize ceiling", m.show.Cfg.Size)
+		if m.show.Cfg.Size != 6 {
+			t.Fatalf("size %d, want 6 — no ceiling", m.show.Cfg.Size)
 		}
-		m.show.Cfg.Count = 1
-		m.cursor = shootingstar.KnobSpawn
+		m.show.Cfg.Size = 0
 		m = press(m, runeKey('h'))
-		if m.show.Cfg.Count != 1 {
-			t.Fatalf("count %d, want the 1 floor", m.show.Cfg.Count)
+		if m.show.Cfg.Size != -1 {
+			t.Fatalf("size %d, want -1", m.show.Cfg.Size)
+		}
+		m.show.Cfg.Speed = 80
+		m.cursor = shootingstar.KnobSpeed
+		m = press(m, runeKey('l'))
+		if m.show.Cfg.Speed <= 80 {
+			t.Fatalf("speed %v, want past 80 — no ceiling", m.show.Cfg.Speed)
+		}
+		m.show.Cfg.Speed = 0
+		m = press(m, runeKey('h'))
+		if m.show.Cfg.Speed >= 0 {
+			t.Fatalf("speed %v, want negative — no floor", m.show.Cfg.Speed)
 		}
 		_, cmd := m.Update(space())
 		if cmd != nil {

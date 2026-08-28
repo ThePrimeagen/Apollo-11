@@ -131,9 +131,6 @@ func (f *Flyer) Update(dt float64) {
 	f.clock += dt
 	if !f.show.closedLoop() {
 		speed := f.show.Cfg.Speed
-		if speed < 1 {
-			speed = 1
-		}
 		if f.clock*speed >= f.lap {
 			f.clock = 0
 			f.show.Seed++
@@ -170,9 +167,6 @@ func (f *Flyer) at(clock float64) (pos, heading particle.Vec2) {
 		return f.previewAt(clock)
 	}
 	speed := f.show.Cfg.Speed
-	if speed < 1 {
-		speed = 1
-	}
 	t := 0.0
 	if f.lap > 0 {
 		t = clock * speed / f.lap
@@ -186,9 +180,6 @@ func (f *Flyer) at(clock float64) (pos, heading particle.Vec2) {
 func (f *Flyer) previewAt(clock float64) (pos, heading particle.Vec2) {
 	cx, cy := f.uw/2, f.uh/2
 	speed := f.show.Cfg.Speed
-	if speed < 1 {
-		speed = 1
-	}
 	switch f.show.Cfg.Path {
 	case PathSquare:
 		m := math.Min(f.uw, f.uh) * 0.18

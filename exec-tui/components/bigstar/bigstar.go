@@ -1,8 +1,9 @@
 // Package bigstar is the larger star component: a sparkle that occupies
 // one cell at size 1 and grows into a multi-cell burst (span 2*size-1)
-// at sizes 2..5. Size and heading can be set, or rolled random at
-// Start. Place pins the center; a parked star sits at stage center.
-// The package does not move — motion is the shooting-star scene's.
+// at any size >= 1. There is no size ceiling. Size and heading can be
+// set, or rolled random at Start. Place pins the center; a parked star
+// sits at stage center. The package does not move — motion is the
+// shooting-star scene's.
 package bigstar
 
 import (
@@ -16,15 +17,16 @@ import (
 
 const (
 	MinSize   = 1
-	MaxSize   = 5
+	MaxSize   = 5 // random-roll range only; painting and knobs have no ceiling
 	CoreGlyph = '★'
 )
 
-var ErrSize = errors.New("bigstar: size must be 1..5")
+var ErrSize = errors.New("bigstar: size must be at least 1 to paint")
 
-// ValidateSize reports whether n is a playable star size.
+// ValidateSize reports whether n can paint a burst. Any size >= 1
+// paints; there is no ceiling. The stored size is never rewritten.
 func ValidateSize(n int) error {
-	if n < MinSize || n > MaxSize {
+	if n < MinSize {
 		return ErrSize
 	}
 	return nil
@@ -32,9 +34,9 @@ func ValidateSize(n int) error {
 
 // Art paints a size-n burst. Heading, when non-zero, stretches a
 // trailing spark opposite the flight so a meteor reads as moving.
-// A rejected size is an empty sprite.
+// A non-positive size is an empty sprite; the caller keeps its size.
 func Art(size int, heading particle.Vec2) sprite.Sprite {
-	if ValidateSize(size) != nil {
+	if size < MinSize {
 		return sprite.Sprite{}
 	}
 	n := 2*size - 1
@@ -101,25 +103,19 @@ func New(seed int64) *Star {
 	return &Star{Size: MinSize, Seed: seed}
 }
 
-// NewSized binds a star of the given size. A rejected size falls
-// back to MinSize so the caller still has a performer.
+// NewSized binds a star of the given size. The size is kept as given,
+// including zero and negative — never clamped.
 func NewSized(size int) *Star {
-	if ValidateSize(size) != nil {
-		size = MinSize
-	}
 	return &Star{Size: size}
 }
 
 // Span is the burst's width and height in cells: 2*size-1.
+// A non-positive size spans nothing, without rewriting Size.
 func (s *Star) Span() int {
-	if s == nil {
+	if s == nil || s.Size < MinSize {
 		return 0
 	}
-	n := s.Size
-	if ValidateSize(n) != nil {
-		n = MinSize
-	}
-	return 2*n - 1
+	return 2*s.Size - 1
 }
 
 // Place pins the core at (col, row). Call before or after Start.
@@ -147,9 +143,6 @@ func (s *Star) Start(w, h int) {
 	rng := rand.New(rand.NewSource(s.Seed))
 	if s.RandomSize {
 		s.Size = MinSize + rng.Intn(MaxSize-MinSize+1)
-	}
-	if ValidateSize(s.Size) != nil {
-		s.Size = MinSize
 	}
 	if s.RandomDir {
 		ang := rng.Float64() * 2 * math.Pi
