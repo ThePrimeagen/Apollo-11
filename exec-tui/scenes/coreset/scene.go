@@ -39,8 +39,13 @@ const (
 	WordBeat = 0.35
 	// WordHold keeps the finished anatomy on stage before the zoom.
 	WordHold = 3.0
-	// ZoomSeconds fades the rest and glides PRIORITY to center stage.
+	// ZoomSeconds covers the whole priority zoom: first FadeOutSeconds
+	// of everything else burning away while PRIORITY holds its slot,
+	// then the glide to center stage.
 	ZoomSeconds = 1.4
+	// FadeOutSeconds is the quarter second the rest gets to leave
+	// before PRIORITY moves.
+	FadeOutSeconds = 0.25
 
 	// FadeSeconds covers the whole drain: fourteen dissolves — five
 	// VAC boxes, the VAC title, seven core sets, the core title.
@@ -75,9 +80,16 @@ const (
 	CaptionZoom  = "eleven words of workspace — one word runs the show"
 	CaptionBits  = "one 15-bit word — OCT 20400: SERVICER at PRIO 20, working VAC1 at 400"
 
-	dimInk    = 240
-	panelGap  = 6
-	shadeStep = DissolveSeconds / 5
+	dimInk        = 240
+	panelGap      = 6
+	shadeStep     = DissolveSeconds / 5
+	zoomShadeStep = FadeOutSeconds / 5
+
+	// The bit row's geometry: every bit bitPitch columns from its
+	// neighbor and a fieldGapW gutter between the six priority bits
+	// and the nine VAC bits, so both field labels seat on one line.
+	bitPitch  = 4
+	fieldGapW = 6
 )
 
 // Group is one logical run of the twelve words, its ink, and its
@@ -308,7 +320,7 @@ func (d *director) paintPanels(stage sprite.Sprite, t float64) {
 	vacArt := d.vac.Art()
 	if t >= FadeStart {
 		for i, fr := range fadeOrder() {
-			steps := stepsFor(t - FadeStart - float64(i)*FadeBeat)
+			steps := stepsFor(t-FadeStart-float64(i)*FadeBeat, shadeStep)
 			if steps == 0 {
 				continue
 			}
@@ -403,11 +415,12 @@ func (d *director) paintAnatomy(stage sprite.Sprite, t float64) {
 	}
 }
 
-// paintZoom dissolves everything but PRIORITY and glides it to
-// center stage.
+// paintZoom burns everything but PRIORITY away over FadeOutSeconds —
+// the word holding its bar slot the whole while — and only then
+// glides it to center stage.
 func (d *director) paintZoom(stage sprite.Sprite, t float64) {
 	e := t - ZoomStart
-	steps := stepsFor(e)
+	steps := stepsFor(e, zoomShadeStep)
 	wordW, barX, barY := d.barGeometry()
 
 	fading := sprite.New(d.w, d.h)
@@ -425,7 +438,7 @@ func (d *director) paintZoom(stage sprite.Sprite, t float64) {
 	dissolve(fading, 0, 0, d.w, d.h, steps)
 	sprite.Blit(stage, 0, 0, fading)
 
-	p := ease(e / ZoomSeconds)
+	p := ease((e - FadeOutSeconds) / (ZoomSeconds - FadeOutSeconds))
 	fromX, fromY := barX+11*wordW, barY
 	toX, toY := d.prioHome(wordW)
 	x := fromX + int(p*float64(toX-fromX))
@@ -444,41 +457,47 @@ func (d *director) prioHome(wordW int) (x, y int) {
 
 // paintBits parks PRIORITY and breaks the 15-bit word open: six
 // priority bits over nine VAC-address bits, octal digits under each
-// group of three.
+// group of three, and both field labels seated on one shared line —
+// the row is paced wide enough (bitPitch per bit, fieldGapW between
+// the fields) that neither label crowds the other.
 func (d *director) paintBits(stage sprite.Sprite) {
 	wordW, _, _ := d.barGeometry()
 	px, py := d.prioHome(wordW)
 	paintWord(stage, 11, px, py, wordW)
 
 	bitRow := py + pools.BoxH + 2
-	width := 2*PrioBitCount - 1 + 3 + 2*VACBitCount - 1
-	bx := (d.w - width) / 2
+	prioW := bitPitch*(PrioBitCount-1) + 1
+	vacW := bitPitch*(VACBitCount-1) + 1
+	vacX := prioW + fieldGapW
+	bx := (d.w - (vacX + vacW)) / 2
 	if bx < 0 {
 		bx = 0
 	}
 	for i := 0; i < 15; i++ {
 		bit := (PriorityWord >> (14 - i)) & 1
-		x := bx + 2*i
+		x := bx + bitPitch*i
 		ink := PrioInk
 		if i >= PrioBitCount {
-			x += 3
+			x += fieldGapW - bitPitch + 1
 			ink = VACAddrInk
 		}
 		stage.Set(bitRow, x, sprite.Cell{Ch: rune('0' + bit), FG: ink, BG: -1})
 	}
 	digits := fmt.Sprintf("%05o", PriorityWord)
 	for g := 0; g < 5; g++ {
-		first := 3 * g
-		x := bx + 2*first + 2
+		mid := 3*g + 1
+		x := bx + bitPitch*mid
 		ink := PrioInk
-		if first >= PrioBitCount {
-			x += 3
+		if 3*g >= PrioBitCount {
+			x += fieldGapW - bitPitch + 1
 			ink = VACAddrInk
 		}
 		stage.Set(bitRow+2, x, sprite.Cell{Ch: rune(digits[g]), FG: ink, BG: -1})
 	}
-	putText(stage, bitRow+4, bx, fmt.Sprintf("PRIORITY — OCT %o", PrioOctal), PrioInk)
-	putText(stage, bitRow+5, bx+2*PrioBitCount+2, fmt.Sprintf("VAC ADDRESS — OCT %o", VACAddrOctal), VACAddrInk)
+	prioLabel := fmt.Sprintf("PRIORITY — OCT %o", PrioOctal)
+	vacLabel := fmt.Sprintf("VAC ADDRESS — OCT %o", VACAddrOctal)
+	putText(stage, bitRow+4, bx+(prioW-runeLen(prioLabel))/2, prioLabel, PrioInk)
+	putText(stage, bitRow+4, bx+vacX+(vacW-runeLen(vacLabel))/2, vacLabel, VACAddrInk)
 }
 
 func (d *director) caption(stage sprite.Sprite, text string) {
@@ -512,12 +531,12 @@ func dissolve(sp sprite.Sprite, x, y, w, h, steps int) {
 }
 
 // stepsFor is how many ramp rungs a dissolve that started e seconds
-// ago has burned. Before its beat, none.
-func stepsFor(e float64) int {
+// ago has burned, at one rung per step seconds. Before its beat, none.
+func stepsFor(e, step float64) int {
 	if e <= 0 {
 		return 0
 	}
-	s := int(e/shadeStep) + 1
+	s := int(e/step) + 1
 	if s > 6 {
 		s = 6
 	}
@@ -535,6 +554,8 @@ func ease(p float64) float64 {
 	q := 1 - p
 	return 1 - q*q*q
 }
+
+func runeLen(s string) int { return len([]rune(s)) }
 
 func clipTo(s string, room int) string {
 	if room < 0 {
