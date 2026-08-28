@@ -137,3 +137,36 @@ func (l *Live) RadarOn() bool { return l.d.e.cfg.RadarBug }
 
 // SetRadar flips the RR CDU counter theft.
 func (l *Live) SetRadar(on bool) { l.d.e.SetRadarBug(on) }
+
+// ServicerOneShot reports the single-cycle rule.
+func (l *Live) ServicerOneShot() bool { return l.d.oneshot }
+
+// SetServicerOneShot lets only the run's FIRST READACCS enter a SERVICER —
+// the graphs screen's portrait rule, so the one pass can stretch past its
+// own boundary instead of being buried under the 2 s successor. Everything
+// else (READACCS, the LR gates, R10/R11, the cadences) keeps its timer.
+func (l *Live) SetServicerOneShot(on bool) { l.d.oneshot = on }
+
+// ApproachOn reports the P64 approach switch.
+func (l *Live) ApproachOn() bool { return l.d.approach }
+
+// SetApproach flips the machine into early P64 — the approach phase. On:
+// every SERVICER pass carries the REDESIG landing-site perturbations, the
+// pass's display request becomes the flashing V06N64 (it takes a VAC and
+// sleeps holding it until PRO), and HIGATASK enters HIGATJOB to park on its
+// own VAC through the antenna slew. Off restores the P63 pass and cancels a
+// not-yet-fired HIGATASK; a HIGATJOB already asleep keeps its memory — the
+// antenna does not un-slew.
+func (l *Live) SetApproach(on bool) {
+	d := l.d
+	if on == d.approach {
+		return
+	}
+	d.approach = on
+	d.loadServicer()
+	if on {
+		StartHigate(d.e, d.e.Now())
+		return
+	}
+	d.e.CancelTasks("HIGATASK")
+}

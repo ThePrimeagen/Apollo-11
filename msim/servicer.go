@@ -151,10 +151,12 @@ func mungrav(section string) Script {
 		DMP:1127 VXSC:1127 STORE:1130 RVQ:1131`)
 }
 
-// servicerP63 builds the pass. locked adds the landing-radar nav-frame
+// servicerPass builds the pass. locked adds the landing-radar nav-frame
 // conversion (UPDATCHK/POSUPDAT through STORE DELTAH), the ~2% that arrived
-// with "data good" (Eyles; the outline's margin 15% → 13%).
-func servicerP63(locked bool) Script {
+// with "data good" (Eyles; the outline's margin 15% → 13%). approach adds
+// the REDESIG landing-site perturbation equations — the P64 phase's
+// unsheddable extra guidance (Eyles: margin < 10%).
+func servicerPass(locked, approach bool) Script {
 	var s Script
 
 	// --- job entry, ABVAL of accumulated delta-V, mass update, gimbal trig
@@ -251,6 +253,27 @@ func servicerP63(locked bool) Script {
 		bas("GUIDANCE", "TDISPSET", fLLGE, 325, 900),
 		bas("GUIDANCE", "FASTCHNG", fLLGE, 326, 250),
 	)
+
+	// --- REDESIG: the landing-site perturbation equations (approach phase
+	// only). The WCHPHASE dispatch after TTFINCR (BRSPOT2, L328-L329) sends
+	// the approach quadratic through REDESIG — the APPRQUAD table entry at
+	// L59 — before falling into RGVGCALC (L408). Every P64 pass pays it:
+	// fetch and clear the ELINCR/AZINCR increments, perturb LAND along the
+	// line of sight, guard the horizon depression, renormalize |LAND|, and
+	// copy LANDTEMP back. LLGE L335-L408.
+	if approach {
+		s = append(s,
+			bas("REDESIG", "REDFLAG-TREDES", fLLGE, 335, 500),
+			bas("REDESIG", "ELINCR-FETCH", fLLGE, 344, 700),
+		)
+		s = append(s, sec("REDESIG", fLLGE, `
+			VLOAD:361 VSU:361 RTB:364 NORMUNIT:365 VXV:366 VSL1:366
+			VXSC:368 PDDL:368 VXSC:371 VSU:371 VAD:373 PUSH:373
+			DLOAD:377 DSU:377 BMN:380 DLOAD:380 STORE:383
+			DLOAD:384 DSU:384 DDV:387 VXSC:387 VAD:389 UNIT:389
+			VXSC:391 VSL1:391 STORE:393 EXIT:394`)...)
+		s = append(s, bas("REDESIG", "FASTCHNG-LANDCOPY", fLLGE, 396, 900))
+	}
 
 	// --- RGVGCALC: state into guidance coordinates (P63 skips REDESIG)
 	// LLGE L442-L480
@@ -391,9 +414,11 @@ var execResidueUS = 36_000
 func ServicerScript(p Phase) (Script, error) {
 	switch p {
 	case P63Prelock:
-		return servicerP63(false), nil
+		return servicerPass(false, false), nil
 	case P63Locked:
-		return servicerP63(true), nil
+		return servicerPass(true, false), nil
+	case P64Approach:
+		return servicerPass(true, true), nil
 	default:
 		return nil, fmt.Errorf("msim: no SERVICER transcription for phase %d", int(p))
 	}
