@@ -95,6 +95,7 @@ func TestCatalog(t *testing.T) {
 			"vac":        KindComponent,
 			"vacs":       KindComponent,
 			"breakdown":  KindScene,
+			"scan":       KindScene,
 			"title":      KindComponent,
 			"astronaut":  KindComponent,
 			"rocket":     KindComponent,
@@ -322,6 +323,7 @@ func TestEdit(t *testing.T) {
 			{"moonwalk", "./cmd/astronaut"},
 			{"skies", "./cmd/skies"},
 			{"breakdown", "./cmd/coreset"},
+			{"scan", "./cmd/coreset2"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
