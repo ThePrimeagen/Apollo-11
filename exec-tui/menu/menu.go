@@ -59,6 +59,7 @@ func Catalog() []Entry {
 		{ID: "checkprio", Section: "Scenes", Title: "Check Priority", Desc: "the DANZIG check as one C-style function — every core set's data[11] read, new against old, the highest priority wins the cpu", Pkg: "./cmd/checkprio"},
 		{ID: "alarms", Section: "Scenes", Title: "Alarms", Desc: "find_free_core_set or throw 1202, find_free_vac_area or throw 1201 — the allocation code walked to both alarms", Pkg: "./cmd/alarms"},
 		{ID: "shootingstar", Section: "Scenes", Title: "Shooting Star", Desc: "a larger star with a persist-particle comet trail, right to left (high right to low left) — eleven live knobs (fall / circle / square; peak + taper)", Pkg: "./cmd/shootingstar"},
+		{ID: "explorer", Section: "Scenes", Title: "Big E", Desc: "the moon-sized IE logo under blinking stars, plus one shooting star from top mid-right to bottom mid-left — four live knobs", Pkg: "./cmd/explorer"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "sky-config", Section: "CONFIG", Title: "SKY CONFIG", Desc: "tune the blue sky gradient — angle, light ink, dark ink", Pkg: "./cmd/adjustsky/main"},

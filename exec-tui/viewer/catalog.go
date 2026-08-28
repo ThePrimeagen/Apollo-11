@@ -88,6 +88,7 @@ func Catalog() []Item {
 		{ID: "armed", Title: "ARMED EAGLE", Kind: KindComponent, Path: adjustarmed.DefaultConfigPath, Program: "./cmd/adjustarmed/main", spawn: func() screenplay.Component { return armed.New() }},
 		{ID: "moon", Title: "MOON", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return moon.New() }},
 		{ID: "ie", Title: "EXPLORER", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return ie.New() }},
+		{ID: "bige", Title: "BIG E", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return ie.NewBig() }},
 		{ID: "dsky", Title: "DSKY", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return dsky.NewPanel(dsky.MonitorState()) }},
 		{ID: "coreset", Title: "CORE SET", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newBoxDemo(pools.NewCoreSet()) }},
 		{ID: "coresets", Title: "CORE SET PANEL", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewCoreSetPanel()) }},

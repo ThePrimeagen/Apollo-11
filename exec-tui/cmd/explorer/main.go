@@ -189,7 +189,7 @@ func (m model) status(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
 	reset := "\x1b[0m"
-	help := dim + pad("explorer   p play  j/k select  h/l tune (live)  s save  q quit", w) + reset
+	help := dim + pad("big e   p play  j/k select  h/l tune (live)  s save  q quit", w) + reset
 	if m.note != "" {
 		help = dim + pad(m.note, w) + reset
 	}

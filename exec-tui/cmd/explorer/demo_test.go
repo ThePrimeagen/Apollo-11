@@ -21,11 +21,13 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 )
 
 func cleanup() {
 	explorer.Reset()
 	stars.ResetTwinkle()
+	shootingstar.Reset()
 }
 
 func frames(m model, n int) model {
@@ -53,9 +55,9 @@ func TestExplorerRunner(t *testing.T) {
 		cleanup()
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"explorer", "play", "tune", "save", "quit",
+		for _, want := range []string{"big e", "play", "tune", "save", "quit",
 			"min cycle", "max cycle", "min fade", "max fade"} {
-			if !strings.Contains(v, want) {
+			if !strings.Contains(strings.ToLower(v), want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
 		}
@@ -67,6 +69,30 @@ func TestExplorerRunner(t *testing.T) {
 		}
 		if !strings.ContainsAny(v, "·˚*✦") {
 			t.Fatal("the logo plays under the stars")
+		}
+		if !strings.Contains(v, "★") {
+			t.Fatal("one shooting star must already be on stage")
+		}
+	})
+	t.Run("happy: the shooting star flies once and does not return", func(t *testing.T) {
+		cleanup()
+		m := newModel(0)
+		_ = m.View()
+		seen := strings.Contains(m.View().Content, "★")
+		m = frames(m, 40)
+		if strings.Contains(m.View().Content, "★") {
+			seen = true
+		}
+		if !seen {
+			t.Fatal("test premise: the shooting star must fly")
+		}
+		m = frames(m, 200)
+		if strings.Contains(m.View().Content, "★") {
+			t.Fatal("after the crossing the shooting star must leave the stage")
+		}
+		m = frames(m, 90)
+		if strings.Contains(m.View().Content, "★") {
+			t.Fatal("a second shooting star must not appear")
 		}
 	})
 	t.Run("happy: j/k select a knob and h/l walk it by its step", func(t *testing.T) {

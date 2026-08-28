@@ -19,6 +19,7 @@ type Show struct {
 	Cfg     Config
 	Seed    int64
 	preview bool
+	once    bool
 	sky     *stars.Continuity
 	flyer   *Flyer
 	cross   Crossing
@@ -45,6 +46,14 @@ func newShow(sky *stars.Continuity, preview bool) *Show {
 	s := &Show{Cfg: Active(), Seed: 11, preview: preview, sky: sky}
 	s.Assemble = s.assemble
 	return s
+}
+
+// NewOnce is the shooting star as a component: one fall, top mid-right
+// to bottom mid-left, then gone. It carries no sky — a scene casts it
+// over whatever background it already has.
+func NewOnce() *Flyer {
+	s := &Show{Cfg: Active(), Seed: 1, once: true}
+	return newFlyer(s)
 }
 
 func (s *Show) assemble() []screenplay.Component {
@@ -77,6 +86,7 @@ type Flyer struct {
 	uw    float64
 	uh    float64
 	w, h  int
+	done  bool
 }
 
 func newFlyer(s *Show) *Flyer {
@@ -105,8 +115,13 @@ func (f *Flyer) Start(w, h int) {
 	f.star.Size = size
 	f.star.RandomSize = f.show.Cfg.RandomSize
 	f.trail = startrail.New(seed)
+	f.done = false
 	if !f.show.closedLoop() {
-		f.show.cross = RandomCrossing(seed, f.uw, f.uh)
+		if f.show.once {
+			f.show.cross = OnceCrossing(f.uw, f.uh)
+		} else {
+			f.show.cross = RandomCrossing(seed, f.uw, f.uh)
+		}
 		f.lap = f.show.cross.length()
 		if f.lap < 1 {
 			f.lap = 1
@@ -128,10 +143,27 @@ func (f *Flyer) Update(dt float64) {
 		return
 	}
 	_ = startrail.Use(f.show.Cfg.Trail())
+	if f.done {
+		if f.trail != nil {
+			f.trail.Update(dt)
+		}
+		return
+	}
 	f.clock += dt
 	if !f.show.closedLoop() {
 		speed := f.show.Cfg.Speed
 		if f.clock*speed >= f.lap {
+			if f.show.once {
+				f.done = true
+				if f.star != nil {
+					f.star.Stop()
+					f.star = nil
+				}
+				if f.trail != nil {
+					f.trail.Update(dt)
+				}
+				return
+			}
 			f.clock = 0
 			f.show.Seed++
 			f.show.cross = RandomCrossing(f.show.Seed, f.uw, f.uh)

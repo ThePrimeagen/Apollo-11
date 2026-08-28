@@ -1,19 +1,21 @@
 package explorer
 
-// Tests written FIRST: the explorer scene is the big Internet
-// Explorer logo — the blue e under its golden swoosh, moon-sized —
-// parked at center stage under a twinkling sky. The stars fly the new
-// twinkle mode: the sky holds where it scattered and some stars fade
-// in and out on the knobs the scene's config carries. Assemble pushes
-// the scene's knobs onto the stars package, so Play (Stop then Start)
-// rebuilds the breathing from whatever the knobs hold now, and a
-// tuner can retune it live between plays.
+// Tests written FIRST: the explorer scene is the Big E — the moon-sized
+// Internet Explorer logo as its own component, under the blinky-star
+// background as its own component, plus one shooting star that falls
+// once from top mid-right to bottom mid-left and does not come back.
+// The stars fly the twinkle mode: the sky holds where it scattered
+// and some stars fade in and out on the knobs the scene's config
+// carries. Assemble pushes the scene's knobs onto the stars package,
+// so Play (Stop then Start) rebuilds the breathing from whatever the
+// knobs hold now, and a tuner can retune it live between plays.
 
 import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/bigstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/ie"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
@@ -60,6 +62,18 @@ func inkCells(scr *screenplay.Screen, ink int) int {
 		}
 	}
 	return n
+}
+
+func meteorCell(scr *screenplay.Screen) (x, y int, ok bool) {
+	for y = 0; y < stageH; y++ {
+		for x = 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c != nil && c.Content == string(bigstar.CoreGlyph) {
+				return x, y, true
+			}
+		}
+	}
+	return 0, 0, false
 }
 
 func starCells(scr *screenplay.Screen) map[[2]int]string {
@@ -121,6 +135,45 @@ func TestExplorerScene(t *testing.T) {
 		}
 		if len(starCells(opening)) == 0 {
 			t.Fatal("the logo plays under the stars")
+		}
+		x, y, ok := meteorCell(opening)
+		if !ok {
+			t.Fatal("one shooting star must already be on stage")
+		}
+		if x < stageW/2 {
+			t.Fatalf("the shooting star must enter from the right, col %d", x)
+		}
+		if y > stageH/2 {
+			t.Fatalf("the shooting star must enter from the top, row %d", y)
+		}
+	})
+	t.Run("happy: one shooting star falls top mid-right to bottom mid-left, then is gone", func(t *testing.T) {
+		reset()
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		x0, y0, ok := meteorCell(paint(sc))
+		if !ok {
+			t.Fatal("need the shooting star on stage to watch it fly")
+		}
+		tick(sc, 0.4)
+		x1, y1, ok := meteorCell(paint(sc))
+		if !ok {
+			t.Fatal("the shooting star must still be on stage a beat later")
+		}
+		if x1 >= x0 {
+			t.Fatalf("the shooting star must travel right-to-left, col %d → %d", x0, x1)
+		}
+		if y1 < y0 {
+			t.Fatalf("the shooting star must fall, row %d → %d", y0, y1)
+		}
+		tick(sc, 6)
+		if _, _, ok := meteorCell(paint(sc)); ok {
+			t.Fatal("after the crossing the shooting star must leave the stage")
+		}
+		tick(sc, 3)
+		if _, _, ok := meteorCell(paint(sc)); ok {
+			t.Fatal("a second shooting star must not appear — the Big E fires once")
 		}
 	})
 	t.Run("happy: the sky twinkles — stars fade while the sky holds its scatter", func(t *testing.T) {

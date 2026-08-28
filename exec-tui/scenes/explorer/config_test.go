@@ -18,11 +18,13 @@ import (
 	"testing"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 )
 
 func reset() {
 	Reset()
 	stars.ResetTwinkle()
+	shootingstar.Reset()
 }
 
 func TestConfigDefaults(t *testing.T) {
