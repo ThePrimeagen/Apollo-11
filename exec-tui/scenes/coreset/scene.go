@@ -353,23 +353,33 @@ func (d *director) paintMove(stage sprite.Sprite, t float64) {
 
 // loneHome is the parked box's top-center spot.
 func (d *director) loneHome() (x, y int) {
-	return (d.w - pools.BoxW) / 2, 1
+	return loneHomeFor(d.w)
+}
+
+// loneHomeFor is the parked box's top-center spot on a w-wide stage.
+func loneHomeFor(w int) (x, y int) {
+	return (w - pools.BoxW) / 2, 1
 }
 
 // barGeometry is the twelve-word bar: word width, bar left, bar top.
 func (d *director) barGeometry() (wordW, barX, barY int) {
-	wordW = (d.w - 4) / 12
+	return barGeometryFor(d.w)
+}
+
+// barGeometryFor is the twelve-word bar on a w-wide stage.
+func barGeometryFor(w int) (wordW, barX, barY int) {
+	wordW = (w - 4) / 12
 	if wordW < 6 {
 		wordW = 6
 	}
 	if wordW > 9 {
 		wordW = 9
 	}
-	barX = (d.w - 12*wordW) / 2
+	barX = (w - 12*wordW) / 2
 	if barX < 0 {
 		barX = 0
 	}
-	_, y := d.loneHome()
+	_, y := loneHomeFor(w)
 	barY = y + pools.BoxH + 1
 	return
 }
@@ -448,28 +458,40 @@ func (d *director) paintZoom(stage sprite.Sprite, t float64) {
 
 // prioHome is where the PRIORITY word parks for the bit breakdown.
 func (d *director) prioHome(wordW int) (x, y int) {
-	y = d.h/2 - 8
+	return prioHomeFor(d.w, d.h, wordW)
+}
+
+// prioHomeFor is the PRIORITY word's parking spot on a w×h stage.
+func prioHomeFor(w, h, wordW int) (x, y int) {
+	y = h/2 - 8
 	if y < 4 {
 		y = 4
 	}
-	return (d.w - wordW) / 2, y
+	return (w - wordW) / 2, y
 }
 
-// paintBits parks PRIORITY and breaks the 15-bit word open: six
-// priority bits over nine VAC-address bits, octal digits under each
-// group of three, and both field labels seated on one shared line —
-// the row is paced wide enough (bitPitch per bit, fieldGapW between
-// the fields) that neither label crowds the other.
+// paintBits parks PRIORITY and breaks the 15-bit word open.
 func (d *director) paintBits(stage sprite.Sprite) {
-	wordW, _, _ := d.barGeometry()
-	px, py := d.prioHome(wordW)
+	PaintBits(stage, d.w, d.h)
+}
+
+// PaintBits paints the bits act's held frame onto a w×h stage: the
+// parked PRIORITY word broken open into six priority bits over nine
+// VAC-address bits, octal digits under each group of three, and both
+// field labels seated on one shared line — the row paced wide enough
+// (bitPitch per bit, fieldGapW between the fields) that neither label
+// crowds the other. This is the frame the scene holds at its cut, and
+// the exact frame Core Sets Two opens on.
+func PaintBits(stage sprite.Sprite, w, h int) {
+	wordW, _, _ := barGeometryFor(w)
+	px, py := prioHomeFor(w, h, wordW)
 	paintWord(stage, 11, px, py, wordW)
 
 	bitRow := py + pools.BoxH + 2
 	prioW := bitPitch*(PrioBitCount-1) + 1
 	vacW := bitPitch*(VACBitCount-1) + 1
 	vacX := prioW + fieldGapW
-	bx := (d.w - (vacX + vacW)) / 2
+	bx := (w - (vacX + vacW)) / 2
 	if bx < 0 {
 		bx = 0
 	}

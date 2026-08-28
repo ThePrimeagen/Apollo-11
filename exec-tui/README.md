@@ -40,6 +40,9 @@ cmd/          every runnable: editors, demos, tuners
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   coreset/    the Core Set scene: the memory unit drains to one core set, its
               twelve words, then the priority bits — 6 of PRIO over 9 of VAC address
+  coreset2/   Core Sets Two: picks up on the held priority word — the six-job
+              roster, the EJSCAN loop as code, then two scans with the full word
+              math (PRIO + VAC address) where the newest SERVICER copy always wins
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser
