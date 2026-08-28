@@ -5,9 +5,8 @@ package main
 // seconds of drifting sky, then a starfield that translates with the
 // westbound craft as it slides in from the right wing — hull only, no
 // booster fire — then parks and bobbles at center stage. Space cuts to scene two, "dsky": the craft
-// parked, the right third of the sky blanked, and the DSKY simply
-// there — docked whole on the cut's first frame, no entrance
-// animation. Space cuts to scene
+// parked, the right third of the sky wipes away one column at a time
+// (~500ms), and the DSKY docks in that space. Space cuts to scene
 // three, "descent orbit": the pixelated moon with the lone gold craft
 // circling it eastward over the top — no line, the craft alone traces
 // the path — where the craft was, and why it flies sideways. Space
@@ -25,7 +24,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
@@ -83,24 +81,6 @@ func skyColumns(v string, n int) string {
 			rs = rs[:n]
 		}
 		b.WriteString(string(rs))
-		b.WriteString("\n")
-	}
-	return b.String()
-}
-
-// dockStrip is the rightmost n columns of every sky row, ANSI stripped,
-// the status line dropped (its hint text carries a ·) — on the dsky
-// scene that strip is the dock, where no star may shine. Rows pad to
-// the stage width first so a trimmed line never slides the window.
-func dockStrip(v string, n int) string {
-	lines := strings.Split(ansiPat.ReplaceAllString(v, ""), "\n")
-	if len(lines) > 0 {
-		lines = lines[:len(lines)-1]
-	}
-	var b strings.Builder
-	for _, line := range lines {
-		rs := []rune(pad(line, defaultW))
-		b.WriteString(string(rs[len(rs)-n:]))
 		b.WriteString("\n")
 	}
 	return b.String()
@@ -173,25 +153,25 @@ func TestPremiere(t *testing.T) {
 			t.Fatal("a frame must schedule the next tick")
 		}
 	})
-	t.Run("happy: space cuts to scene 2/4 — the DSKY is simply there, no entrance", func(t *testing.T) {
+	t.Run("happy: space cuts to scene 2/4 — DSKY docks after the wipe", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, 90)
 		m = press(m, space())
 		opening := m.View().Content
-		for _, want := range []string{"2/4", "dsky", "VERB", "NOUN", "PROG"} {
+		for _, want := range []string{"2/4", "dsky"} {
 			if !strings.Contains(opening, want) {
-				t.Fatalf("the cut's first frame is missing %q — the DSKY must be whole at once", want)
+				t.Fatalf("the dsky scene is missing %q", want)
 			}
 		}
-		if !strings.ContainsRune(opening, '▌') {
-			t.Fatal("the parked craft is on stage from the cut's first frame")
+		if strings.Contains(opening, "VERB") {
+			t.Fatal("the opening frame of the dock must not yet show the DSKY")
 		}
-		m = frames(m, 15)
+		m = frames(m, 15) // 500ms at 30 fps
 		v := m.View().Content
 		for _, want := range []string{"VERB", "NOUN", "PROG"} {
 			if !strings.Contains(v, want) {
-				t.Fatalf("the docked DSKY is missing %q", want)
+				t.Fatalf("after the wipe the DSKY is missing %q", want)
 			}
 		}
 		if !strings.ContainsRune(v, '▌') {
@@ -205,29 +185,6 @@ func TestPremiere(t *testing.T) {
 		}
 		if !hasStar(v) {
 			t.Fatal("the left sky must keep drifting beside the dock")
-		}
-	})
-	t.Run("happy: the dock is instant — no star shines through the docked third", func(t *testing.T) {
-		m := newModel(0)
-		_ = m.View()
-		m = frames(m, 30)
-		m = press(m, space())
-		dock := stars.DockCols(defaultW, dsky.Width)
-		if hasStar(dockStrip(m.View().Content, dock)) {
-			t.Fatal("the docked third must hold no stars on the cut's first frame")
-		}
-		m = frames(m, 45)
-		if hasStar(dockStrip(m.View().Content, dock)) {
-			t.Fatal("the dock must stay star-free as the sky flies on")
-		}
-	})
-	t.Run("unhappy: the instant dock never over-blanks — the west sky keeps its stars", func(t *testing.T) {
-		m := newModel(0)
-		_ = m.View()
-		m = frames(m, 30)
-		m = press(m, space())
-		if !hasStar(skyColumns(m.View().Content, 12)) {
-			t.Fatal("the sky west of the dock must keep its stars on the opening frame")
 		}
 	})
 	t.Run("happy: space cuts to scene 3/4 — the moon and its descent path", func(t *testing.T) {

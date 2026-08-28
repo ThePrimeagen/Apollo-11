@@ -6,8 +6,8 @@
 // flies, so the whole scene rushes left as the ship comes in, then the
 // sky settles back into its own drift once the craft parks. Hull only,
 // cold engine. Scene 2, "dsky": the
-// parked craft stays, the right third of the sky goes dark, and the
-// DSKY is simply there — docked whole on the cut. Scene 3,
+// parked craft stays, the right third of the sky wipes away one column
+// at a time (~500ms), and the DSKY docks in that space. Scene 3,
 // "descent orbit": the pixelated moon with a lone gold craft circling
 // it eastward over the top of a perfectly still sky — no line drawn,
 // the craft alone traces the path: where the craft was, and why it
@@ -65,9 +65,7 @@ func premiere() *screenplay.Screenplay {
 		screenplay.Entry{Name: "dsky", Scene: &screenplay.Ensemble{
 			Assemble: func() []screenplay.Component {
 				return []screenplay.Component{
-					// Zero seconds: the dock is dark from the first
-					// frame, matching the panel's instant arrival.
-					stars.NewTunedStarfield().Dock(dsky.Width, 0),
+					stars.NewTunedStarfield().Dock(dsky.Width, dsky.WipeSeconds),
 					lander.NewShip(11).Dark().Parked(),
 					dsky.NewPanel(dsky.MonitorState()),
 				}
