@@ -1,9 +1,12 @@
 // explorer: the Big E scene from scenes/explorer — the moon-sized IE
 // logo under blinking stars, plus one shooting star — and the editable
-// screen for its four knobs. j/k select a knob, h/l tune it LIVE (the
-// sky reads the knobs on the next frame): min/max cycle move 250ms at
-// a time, min/max fade 50ms, every knob railed and no pair crossing.
-// q quits.
+// screen for its knobs. j/k select a knob, h/l tune it LIVE (the sky
+// and the flying meteor read the knobs on the next frame): min/max
+// cycle move 250ms at a time, min/max fade 50ms, every twinkle knob
+// railed and no pair crossing, and the ten star knobs walk the
+// shooting-star tuner's own steps. The scene opens on the shooting-
+// star scene's saved knobs when its own config carries no star
+// section, and s pins the scene's copy. q quits.
 //
 //	p / enter / space   play from the top
 //	j / k               select knob
@@ -25,16 +28,16 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 const (
 	defaultW   = 72
-	defaultH   = 28
+	defaultH   = 38
 	minW       = 10
 	minH       = 4
 	frameMs    = 1000.0 / 30
@@ -98,12 +101,13 @@ func (m model) move(delta int) model {
 	return m
 }
 
-// nudge walks the selected knob and pushes the result onto the sky at
-// once — the breathing retunes live, no replay needed. A nudged knob
-// is clamped valid by construction, so the push cannot be refused.
+// nudge walks the selected knob and pushes the result onto the stage
+// at once — the breathing and the flying meteor retune live, no
+// replay needed. A nudged knob is valid by construction, so the push
+// cannot be refused.
 func (m model) nudge(dir int) model {
 	m.show.Cfg.Nudge(m.cursor, dir)
-	_ = stars.UseTwinkle(m.show.Cfg.Twinkle())
+	m.show.Retune()
 	return m
 }
 
@@ -185,6 +189,37 @@ func (m model) View() tea.View {
 	return v
 }
 
+// knobValue paints one knob's reading: seconds for the twinkle
+// ranges, the shooting-star tuner's own units for the star knobs.
+func (m model) knobValue(i explorer.Knob) string {
+	c := m.show.Cfg
+	switch i {
+	case explorer.KnobStarSize:
+		return fmt.Sprintf("%7d", c.Star.Size)
+	case explorer.KnobStarRandomSize:
+		if c.Star.RandomSize {
+			return "     on"
+		}
+		return "    off"
+	case explorer.KnobStarSpeed:
+		return fmt.Sprintf("%7.1f", c.Star.Speed)
+	case explorer.KnobStarCount:
+		return fmt.Sprintf("%7d", c.Star.Count)
+	case explorer.KnobStarPeriod:
+		return fmt.Sprintf("%6.3fs", c.Star.Period)
+	case explorer.KnobStarMinLife, explorer.KnobStarMaxLife:
+		return fmt.Sprintf("%6.2fs", c.Value(i))
+	case explorer.KnobStarNozzle:
+		return fmt.Sprintf("%7.1f", c.Star.Nozzle)
+	case explorer.KnobStarPeak:
+		return fmt.Sprintf("%7.1f", c.Star.Peak)
+	case explorer.KnobStarTaper:
+		return fmt.Sprintf("%7.2f", c.Star.Taper)
+	default:
+		return fmt.Sprintf("%6.2fs", c.Value(i))
+	}
+}
+
 func (m model) status(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
@@ -199,7 +234,7 @@ func (m model) status(w int) []string {
 		if i == m.cursor {
 			marker, color = "> ", hot
 		}
-		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %6.2fs", marker, explorer.KnobLabel(i), m.show.Cfg.Value(i)), w)+reset)
+		rows = append(rows, color+pad(fmt.Sprintf("%s%-16s %s", marker, explorer.KnobLabel(i), m.knobValue(i)), w)+reset)
 	}
 	return rows
 }
@@ -221,9 +256,16 @@ func main() {
 	seconds := flag.Float64("seconds", 0, "auto-quit after N seconds (0 = interactive)")
 	cfgPath := flag.String("config", explorer.DefaultConfigPath,
 		"explorer knobs JSON; a missing file keeps the stock knobs")
+	starPath := flag.String("star", shootingstar.DefaultConfigPath,
+		"shooting-star knobs JSON the Big E inherits while its own config carries no star section")
 	flag.Parse()
 	cfgFile := menu.Resolve(*cfgPath)
-	c, err := explorer.LoadOrDefault(cfgFile)
+	star, err := shootingstar.LoadOrDefault(menu.Resolve(*starPath))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "explorer:", err)
+		os.Exit(1)
+	}
+	c, err := explorer.LoadOrInherit(cfgFile, star)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "explorer:", err)
 		os.Exit(1)

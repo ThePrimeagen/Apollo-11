@@ -4,12 +4,18 @@
 // mid-right to bottom mid-left, behind the logo. The stars fly the
 // twinkle mode — the sky holds where it scattered and some stars fade
 // in and out on the four knobs the scene's config carries: the cycle
-// range and the fade range, each a min and a max in seconds.
+// range and the fade range, each a min and a max in seconds. The
+// meteor flies the scene's own star section — the same knobs the
+// shooting-star tuner walks, editable here so the Big E's copy can
+// drift from the shooting-star scene's.
 //
-// Four live knobs retune the scene: min/max cycle (±250ms) and
-// min/max fade (±50ms). The standalone runner walks them live —
-// the sky reads the active twinkle every frame — and s saves them to
-// scenes/explorer/config.json.
+// The live knobs retune the scene: min/max cycle (±250ms), min/max
+// fade (±50ms), and the ten star knobs on the shooting-star steps.
+// The standalone runner walks them live — the sky reads the active
+// twinkle every frame and Retune hands the star knobs to the flying
+// meteor — and s saves them to scenes/explorer/config.json. A config
+// without a star section inherits the shooting-star scene's saved
+// knobs (see LoadOrInherit).
 package explorer
 
 import (
@@ -47,12 +53,24 @@ func (s *Show) assemble() []screenplay.Component {
 	if s.sky != nil {
 		field = field.Seed(s.sky)
 	}
-	s.meteor = shootingstar.NewOnce()
+	s.meteor = shootingstar.NewOnceWith(s.Cfg.Star)
 	return []screenplay.Component{
 		field,
 		s.meteor,
 		ie.NewBig(),
 	}
+}
+
+// Retune pushes the current knobs onto the cast already on stage:
+// the sky breathes the twinkle and the flying meteor swaps onto the
+// star knobs — live, no replay needed. Broken twinkle knobs are
+// refused and the sky keeps its last good breath.
+func (s *Show) Retune() {
+	if s == nil {
+		return
+	}
+	_ = stars.UseTwinkle(s.Cfg.Twinkle())
+	s.meteor.Retune(s.Cfg.Star)
 }
 
 // Bill is the Big E as a one-scene screenplay, handy for the

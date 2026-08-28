@@ -8,9 +8,11 @@
 // cloud drains at DustLoss specks per millisecond instead of blinking
 // out.
 //
-// Fourteen live knobs retune the scene. Time knobs move 50ms at a time;
-// dust loss moves 0.005/ms. s saves them to scenes/landing/config.json.
-// 02. Walkthrough plays that same file.
+// The live knobs retune the scene. Time knobs move 50ms at a time;
+// dust loss moves 0.005/ms; the scene's own shooting-star knobs walk
+// the shooting-star package's steps, so the landing meteor is tuned
+// here without touching any other scene's star. s saves them to
+// scenes/landing/config.json. 02. Walkthrough plays that same file.
 package landing
 
 import (
@@ -66,9 +68,9 @@ const (
 	LandCaptionHold = 3.0
 )
 
-// Show is the landing as a live scene: Cfg is the fourteen knobs
-// Assemble reads on each Start, so Play (Stop then Start) rebuilds
-// the craft from whatever they hold now.
+// Show is the landing as a live scene: Cfg is the knobs Assemble
+// reads on each Start, so Play (Stop then Start) rebuilds the craft
+// and the meteor from whatever they hold now.
 type Show struct {
 	Cfg Config
 	sky *stars.Continuity
@@ -96,7 +98,7 @@ func (s *Show) assemble() []screenplay.Component {
 		DustLoss(s.Cfg.DustLoss)
 	cast := []screenplay.Component{
 		field,
-		shootingstar.NewMeteor(),
+		shootingstar.NewMeteorWith(s.Cfg.Star),
 		&hullMask{ship: ship, land: s.Cfg.LandSeconds},
 		moon.NewHorizon(),
 		ship,

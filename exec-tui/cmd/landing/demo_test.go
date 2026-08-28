@@ -18,6 +18,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 )
 
 func frames(m model, n int) model {
@@ -57,7 +58,10 @@ func TestLandingSceneRunner(t *testing.T) {
 	t.Run("happy: the house opens on scene 1/1 — landing, moon floor, craft off the top", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"landing", "play", "50ms", "save", "quit", "land", "dust", "fire", "loss", "1202", "LAND"} {
+		for _, want := range []string{"landing", "play", "50ms", "save", "quit", "land", "dust", "fire", "loss", "1202", "LAND",
+			"star size", "star random size", "star speed", "star count",
+			"star period", "star min life", "star max life", "star nozzle",
+			"star peak", "star taper"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
@@ -162,6 +166,34 @@ func TestLandingSceneRunner(t *testing.T) {
 			t.Fatal("the selected knob must be marked")
 		}
 	})
+	t.Run("happy: the star knobs walk the shooting-star steps from the panel", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m.cursor = landing.KnobStarSpeed
+		m = press(m, runeKey('l'))
+		want := landing.DefaultConfig().Star.Speed + shootingstar.StepSpeed
+		if got := m.show.Cfg.Star.Speed; math.Abs(got-want) > 1e-9 {
+			t.Fatalf("star speed after +1 is %v, want %v", got, want)
+		}
+		m.cursor = landing.KnobStarSize
+		m = press(m, runeKey('l'))
+		if got, want := m.show.Cfg.Star.Size, landing.DefaultConfig().Star.Size+1; got != want {
+			t.Fatalf("star size after +1 is %v, want %v", got, want)
+		}
+	})
+	t.Run("unhappy: a star nudge never moves the timing knobs", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m.cursor = landing.KnobStarSpeed
+		for i := 0; i < 20; i++ {
+			m = press(m, runeKey('h'))
+		}
+		want := landing.DefaultConfig()
+		want.Star = m.show.Cfg.Star
+		if m.show.Cfg != want {
+			t.Fatalf("star nudges moved a timing knob: %+v", m.show.Cfg)
+		}
+	})
 	t.Run("unhappy: the land floor is 50ms, dust start and run will not go negative, and space does not quit", func(t *testing.T) {
 		m := newModel(0)
 		m.show.Cfg.LandSeconds = landing.StepSeconds
@@ -248,6 +280,8 @@ func TestLandingSceneRunner(t *testing.T) {
 		m.show.Cfg.Fire25 = 3.0
 		m.show.Cfg.FireOff = 4.0
 		m.show.Cfg.DustLoss = 0.075
+		m.show.Cfg.Star.Size = 2
+		m.show.Cfg.Star.Speed = 44
 		mm, cmd := m.Update(runeKey('s'))
 		if cmd != nil {
 			t.Fatal("s must save, not quit")

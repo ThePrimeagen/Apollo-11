@@ -1,17 +1,24 @@
 package landing
 
-// Tests written FIRST: Config is the seven live knobs — land duration,
-// dust start offset, dust run, and the four booster-stage offsets from
-// t=0 — nudged 50ms at a time. Play rebuilds the landing from the
-// current knobs so iteration does not require a restart. Save/Load
-// round-trip the JSON; Use is what New and the walkthrough play on the
-// first curtain. An older file without fire keys keeps the stock fire.
+// Tests written FIRST: Config is the live knobs — land duration,
+// dust start offset, dust run, the four booster-stage offsets from
+// t=0, the caption cues, and the scene's own copy of the shooting-
+// star knobs so the landing meteor is editable right here, apart from
+// every other scene the star appears in. Time knobs nudge 50ms at a
+// time; the star knobs walk the shooting-star package's own steps.
+// Play rebuilds the landing from the current knobs so iteration does
+// not require a restart. Save/Load round-trip the JSON; Use is what
+// New and the walkthrough play on the first curtain. An older file
+// without fire keys keeps the stock fire, and one without a star
+// section keeps the stock small meteor.
 
 import (
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 )
 
 func TestConfig(t *testing.T) {
@@ -38,11 +45,75 @@ func TestConfig(t *testing.T) {
 		if StepLoss != 0.005 {
 			t.Fatalf("loss step %v, want 0.005/ms", StepLoss)
 		}
-		if KnobCount != 14 {
-			t.Fatalf("KnobCount %d, want 14 (land, dust, loss, four fire stages, two 1202s, LAND)", KnobCount)
+		if KnobCount != 24 {
+			t.Fatalf("KnobCount %d, want 24 (land, dust, loss, four fire stages, two 1202s, LAND, ten star knobs)", KnobCount)
 		}
 		if Code1At < 0 || Code2At <= Code1At || LandCaptionAt < Code2At {
 			t.Fatalf("stock captions must run 1202, 1202, LAND — at %v then %v then %v", Code1At, Code2At, LandCaptionAt)
+		}
+		if c.Star != shootingstar.MeteorConfig() {
+			t.Fatalf("the stock star is %+v, want the stock small meteor %+v", c.Star, shootingstar.MeteorConfig())
+		}
+	})
+	t.Run("happy: every star knob wears a label and reads its value", func(t *testing.T) {
+		c := DefaultConfig()
+		want := map[Knob]struct {
+			label string
+			value float64
+		}{
+			KnobStarSize:       {"star size", float64(c.Star.Size)},
+			KnobStarRandomSize: {"star random size", 0},
+			KnobStarSpeed:      {"star speed", c.Star.Speed},
+			KnobStarCount:      {"star count", float64(c.Star.Count)},
+			KnobStarPeriod:     {"star period", c.Star.Period},
+			KnobStarMinLife:    {"star min life", c.Star.MinLife},
+			KnobStarMaxLife:    {"star max life", c.Star.MaxLife},
+			KnobStarNozzle:     {"star nozzle", c.Star.Nozzle},
+			KnobStarPeak:       {"star peak", c.Star.Peak},
+			KnobStarTaper:      {"star taper", c.Star.Taper},
+		}
+		for k, w := range want {
+			if KnobLabel(k) != w.label {
+				t.Fatalf("knob %d is labeled %q, want %q", k, KnobLabel(k), w.label)
+			}
+			if c.Value(k) != w.value {
+				t.Fatalf("knob %q reads %v, want %v", w.label, c.Value(k), w.value)
+			}
+		}
+	})
+	t.Run("unhappy: the tuner-only path knob stays off the panel, and star nudges never move the timing", func(t *testing.T) {
+		for k := Knob(0); k < KnobCount; k++ {
+			if KnobLabel(k) == "star path" {
+				t.Fatal("the landing meteor has no path to pick — the path knob belongs to the shooting-star tuner alone")
+			}
+		}
+		c := DefaultConfig()
+		for i := 0; i < 40; i++ {
+			c.Nudge(KnobStarSpeed, 1)
+			c.Nudge(KnobStarSize, -1)
+		}
+		d := DefaultConfig()
+		d.Star = c.Star
+		if c != d {
+			t.Fatalf("star nudges moved a timing knob: %+v", c)
+		}
+	})
+	t.Run("happy: the star knobs walk the shooting-star steps", func(t *testing.T) {
+		c := DefaultConfig()
+		c.Nudge(KnobStarSpeed, 1)
+		if got, want := c.Star.Speed, DefaultConfig().Star.Speed+shootingstar.StepSpeed; math.Abs(got-want) > 1e-9 {
+			t.Fatalf("star speed after +1 is %v, want %v", got, want)
+		}
+		c.Nudge(KnobStarSize, 1)
+		if got, want := c.Star.Size, DefaultConfig().Star.Size+1; got != want {
+			t.Fatalf("star size after +1 is %v, want %v", got, want)
+		}
+		c.Nudge(KnobStarPeriod, -1)
+		if got, want := c.Star.Period, DefaultConfig().Star.Period-shootingstar.StepPeriod; math.Abs(got-want) > 1e-9 {
+			t.Fatalf("star period after -1 is %v, want %v", got, want)
+		}
+		if err := c.Validate(); err != nil {
+			t.Fatalf("nudged star knobs must validate: %v", err)
 		}
 	})
 	t.Run("happy: Nudge walks the selected knob by 50ms and stays on the grid", func(t *testing.T) {
@@ -113,7 +184,7 @@ func TestConfig(t *testing.T) {
 			t.Fatalf("a bad cursor must not change the knobs, got %+v", c)
 		}
 	})
-	t.Run("happy: Save then Load round-trips the seven knobs", func(t *testing.T) {
+	t.Run("happy: Save then Load round-trips the knobs, star section included", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "landing.json")
 		c := DefaultConfig()
 		c.LandSeconds = 4.25
@@ -124,6 +195,9 @@ func TestConfig(t *testing.T) {
 		c.Fire25 = 3.0
 		c.FireOff = 4.0
 		c.DustLoss = 0.075
+		c.Star.Size = 2
+		c.Star.Speed = 44
+		c.Star.Taper = 0.5
 		if err := c.Save(path); err != nil {
 			t.Fatalf("Save: %v", err)
 		}
@@ -141,6 +215,9 @@ func TestConfig(t *testing.T) {
 			math.Abs(got.DustLoss-c.DustLoss) > 1e-9 {
 			t.Fatalf("round-trip %+v, want %+v", got, c)
 		}
+		if got.Star != c.Star {
+			t.Fatalf("round-trip lost the star: %+v vs %+v", got.Star, c.Star)
+		}
 	})
 	t.Run("happy: a file without fire keys keeps the stock fire offsets", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "old.json")
@@ -156,6 +233,35 @@ func TestConfig(t *testing.T) {
 		}
 		if got.DustLoss != DustLoss {
 			t.Fatalf("missing dust-loss key loaded %v, want stock %v", got.DustLoss, DustLoss)
+		}
+		if got.Star != shootingstar.MeteorConfig() {
+			t.Fatalf("a file without a star section loaded %+v, want the stock small meteor", got.Star)
+		}
+	})
+	t.Run("unhappy: a broken star section refuses to load, save, or play", func(t *testing.T) {
+		t.Cleanup(Reset)
+		bad := filepath.Join(t.TempDir(), "badstar.json")
+		if err := os.WriteFile(bad, []byte(`{"landSeconds":4.25,"dustStart":2.0,"dustRun":1.5,"star":{"path":"zigzag"}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(bad); err == nil {
+			t.Fatal("a broken star section must refuse to load")
+		}
+		c := DefaultConfig()
+		c.Star.Path = "zigzag"
+		never := filepath.Join(t.TempDir(), "never.json")
+		if err := c.Save(never); err == nil {
+			t.Fatal("a broken star must not save")
+		}
+		if _, err := os.Stat(never); !os.IsNotExist(err) {
+			t.Fatal("a refused save must leave no file")
+		}
+		before := Active()
+		if err := Use(c); err == nil {
+			t.Fatal("Use must reject a broken star")
+		}
+		if Active() != before {
+			t.Fatalf("Active after a rejected Use is %+v, want %+v", Active(), before)
 		}
 	})
 	t.Run("happy: LoadOrDefault is stock when the file is missing, and Use is that config", func(t *testing.T) {

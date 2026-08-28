@@ -52,7 +52,15 @@ func newShow(sky *stars.Continuity, preview bool) *Show {
 // to bottom mid-left, then gone. It carries no sky — a scene casts it
 // over whatever background it already has.
 func NewOnce() *Flyer {
-	s := &Show{Cfg: Active(), Seed: 1, once: true}
+	return NewOnceWith(Active())
+}
+
+// NewOnceWith is NewOnce flying the given knobs instead of the
+// package active — a scene that carries its own star section casts
+// the meteor it tuned, apart from every other scene the star
+// appears in.
+func NewOnceWith(cfg Config) *Flyer {
+	s := &Show{Cfg: cfg, Seed: 1, once: true}
 	return newFlyer(s)
 }
 
@@ -252,15 +260,37 @@ func (f *Flyer) previewAt(clock float64) (pos, heading particle.Vec2) {
 	}
 }
 
+// MeteorConfig is the stock landing meteor: the scene's stock knobs,
+// one cell small.
+func MeteorConfig() Config {
+	cfg := DefaultConfig()
+	cfg.Size = 1
+	return cfg
+}
+
 // NewMeteor is one shooting star from the top left to the bottom
 // right, once: it does not loop, and after it leaves the stage it
 // stays gone. Bare flyer — no sky — so a landing can paint it
 // behind the moon and under the lander.
 func NewMeteor() *Flyer {
-	cfg := DefaultConfig()
-	cfg.Size = 1
+	return NewMeteorWith(MeteorConfig())
+}
+
+// NewMeteorWith is NewMeteor flying the given knobs — the landing
+// tunes its own copy of the star without touching anyone else's.
+func NewMeteorWith(cfg Config) *Flyer {
 	s := &Show{Cfg: cfg, Seed: 11}
 	return &Flyer{show: s, once: true}
+}
+
+// Retune swaps the knobs a flying star reads. Size, speed, and the
+// trail are read every frame, so the change shows at once — no
+// replay needed.
+func (f *Flyer) Retune(cfg Config) {
+	if f == nil || f.show == nil {
+		return
+	}
+	f.show.Cfg = cfg
 }
 
 func (f *Flyer) Render() sprite.Sprite {

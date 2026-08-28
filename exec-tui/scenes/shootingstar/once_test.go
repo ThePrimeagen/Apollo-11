@@ -4,7 +4,9 @@ package shootingstar
 // one meteor, top mid-right to bottom mid-left, then gone. It does
 // not carry a sky of its own: a scene casts it over whatever
 // background it already has. After the crossing the star does not
-// come back.
+// come back. NewOnceWith is the same flyer on a scene's own knobs, so
+// every scene the star appears in can tune its copy, and Retune swaps
+// the knobs mid-flight for live editing.
 
 import (
 	"testing"
@@ -95,5 +97,109 @@ func TestOnceFlyer(t *testing.T) {
 				t.Fatal("a second meteor must not appear — NewOnce shoots once")
 			}
 		}
+	})
+}
+
+func TestNewOnceWith(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: the flyer flies the given knobs, not the package active", func(t *testing.T) {
+		tuned := DefaultConfig()
+		tuned.Speed = 200
+		if err := Use(tuned); err != nil {
+			t.Fatal(err)
+		}
+		slow := DefaultConfig()
+		slow.Speed = 4
+		slow.Size = 3
+		f := NewOnceWith(slow)
+		if f == nil {
+			t.Fatal("NewOnceWith must hand back a flyer")
+		}
+		f.Start(stageW, stageH)
+		defer f.Stop()
+		if f.show == nil || f.show.Cfg != slow {
+			t.Fatalf("the flyer carries %+v, want the given knobs %+v", f.show.Cfg, slow)
+		}
+		if f.star == nil || f.star.Size != 3 {
+			t.Fatal("the given size must reach the star")
+		}
+		const dt = 1.0 / 30
+		for i := 0; i < 60; i++ {
+			f.Update(dt)
+		}
+		if _, _, ok := flyerCore(f.Render()); !ok {
+			t.Fatal("at speed 4 the star must still be crossing — the active knobs must not leak in")
+		}
+		fast := DefaultConfig()
+		fast.Speed = 400
+		g := NewOnceWith(fast)
+		g.Start(stageW, stageH)
+		defer g.Stop()
+		for i := 0; i < 30; i++ {
+			g.Update(dt)
+		}
+		if _, _, ok := flyerCore(g.Render()); ok {
+			t.Fatal("at speed 400 the one crossing must already be over")
+		}
+	})
+	t.Run("happy: NewOnce is NewOnceWith on the active knobs", func(t *testing.T) {
+		Reset()
+		tuned := DefaultConfig()
+		tuned.Size = 3
+		if err := Use(tuned); err != nil {
+			t.Fatal(err)
+		}
+		f := NewOnce()
+		if f.show == nil || f.show.Cfg != tuned {
+			t.Fatalf("NewOnce carries %+v, want the active knobs %+v", f.show.Cfg, tuned)
+		}
+	})
+	t.Run("unhappy: a zero-value config parks the star without a panic", func(t *testing.T) {
+		f := NewOnceWith(Config{})
+		f.Start(stageW, stageH)
+		defer f.Stop()
+		const dt = 1.0 / 30
+		for i := 0; i < 30; i++ {
+			f.Update(dt)
+		}
+		_ = f.Render()
+	})
+}
+
+func TestFlyerRetune(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: a retune mid-flight swaps the knobs the flyer reads", func(t *testing.T) {
+		slow := DefaultConfig()
+		slow.Speed = 2
+		f := NewOnceWith(slow)
+		f.Start(stageW, stageH)
+		defer f.Stop()
+		const dt = 1.0 / 30
+		for i := 0; i < 15; i++ {
+			f.Update(dt)
+		}
+		if _, _, ok := flyerCore(f.Render()); !ok {
+			t.Fatal("test premise: a slow star is still crossing")
+		}
+		fast := DefaultConfig()
+		fast.Speed = 400
+		f.Retune(fast)
+		if f.show.Cfg != fast {
+			t.Fatalf("after Retune the flyer carries %+v, want %+v", f.show.Cfg, fast)
+		}
+		for i := 0; i < 30; i++ {
+			f.Update(dt)
+		}
+		if _, _, ok := flyerCore(f.Render()); ok {
+			t.Fatal("retuned to speed 400 the crossing must already be over")
+		}
+	})
+	t.Run("unhappy: a nil flyer and a flyer without a show hold still, no panic", func(t *testing.T) {
+		var ghost *Flyer
+		ghost.Retune(DefaultConfig())
+		bare := &Flyer{}
+		bare.Retune(DefaultConfig())
+		f := NewOnceWith(DefaultConfig())
+		f.Retune(DefaultConfig())
 	})
 }

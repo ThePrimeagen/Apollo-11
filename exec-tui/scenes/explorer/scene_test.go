@@ -18,6 +18,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/bigstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/ie"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -362,6 +363,66 @@ func TestExplorerScene(t *testing.T) {
 		if got := stars.ActiveTwinkle(); got != held {
 			t.Fatalf("broken knobs moved the sky to %+v", got)
 		}
+	})
+	t.Run("happy: the scene's own star knobs fly the meteor", func(t *testing.T) {
+		reset()
+		slow := New(nil)
+		slow.Cfg.Star.Speed = 2
+		slow.Start()
+		defer slow.Stop()
+		_ = paint(slow)
+		tick(slow, 2)
+		_ = paint(slow)
+		if _, _, ok := flyerCore(slow); !ok {
+			t.Fatal("at star speed 2 the meteor must still be crossing two beats in")
+		}
+		fast := New(nil)
+		fast.Cfg.Star.Speed = 400
+		fast.Start()
+		defer fast.Stop()
+		_ = paint(fast)
+		tick(fast, 1)
+		_ = paint(fast)
+		if _, _, ok := flyerCore(fast); ok {
+			t.Fatal("at star speed 400 the one crossing must already be over")
+		}
+	})
+	t.Run("happy: Retune pushes the live knobs onto the sky and the flying meteor", func(t *testing.T) {
+		reset()
+		sc := New(nil)
+		sc.Cfg.Star.Speed = 2
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		if _, _, ok := flyerCore(sc); !ok {
+			t.Fatal("test premise: the slow meteor is on stage")
+		}
+		sc.Cfg.Star.Speed = 400
+		sc.Cfg.MinCycleSeconds, sc.Cfg.MaxCycleSeconds = 1, 2
+		sc.Retune()
+		if got := stars.ActiveTwinkle(); got != sc.Cfg.Twinkle() {
+			t.Fatalf("after Retune the sky breathes %+v, want %+v", got, sc.Cfg.Twinkle())
+		}
+		tick(sc, 1)
+		_ = paint(sc)
+		if _, _, ok := flyerCore(sc); ok {
+			t.Fatal("retuned to star speed 400 the crossing must already be over")
+		}
+	})
+	t.Run("unhappy: Retune before Start holds still, and a zero-value star still stages the show", func(t *testing.T) {
+		reset()
+		sc := New(nil)
+		sc.Retune()
+		sc.Cfg.Star = shootingstar.Config{}
+		sc.Start()
+		defer sc.Stop()
+		opening := paint(sc)
+		if inkCells(opening, ie.BlueInk) == 0 || len(starCells(opening)) == 0 {
+			t.Fatal("a zero-value star must not black out the stage")
+		}
+		tick(sc, 1)
+		_ = paint(sc)
+		sc.Retune()
 	})
 	t.Run("unhappy: a scene stopped before its first render never panics, and dt<=0 holds", func(t *testing.T) {
 		sc := New(nil)

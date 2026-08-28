@@ -7,50 +7,58 @@ import (
 	"math"
 	"os"
 	"sync"
+
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 )
 
 // Config is the live knobs on the landing: how long the craft takes
 // to come down, when the pad dust starts and how long it blows, how
-// fast specks leave as the engines cut, and the t=0 offsets of each
-// booster step (¾, ½, ¼, off). The standalone runner nudges time
-// knobs 50ms at a time and dust loss 0.005/ms; Play rebuilds the
+// fast specks leave as the engines cut, the t=0 offsets of each
+// booster step (¾, ½, ¼, off), and Star — the scene's own copy of
+// the shooting-star knobs its one meteor flies, editable here apart
+// from every other scene the star appears in. The standalone runner
+// nudges time knobs 50ms at a time, dust loss 0.005/ms, and the star
+// knobs by the shooting-star package's own steps; Play rebuilds the
 // scene from whatever they hold. s writes this JSON next to the
 // scene. 02. Walkthrough plays the same Active config.
 type Config struct {
-	LandSeconds     float64 `json:"landSeconds"`
-	DustStart       float64 `json:"dustStart"`
-	DustRun         float64 `json:"dustRun"`
-	Fire75          float64 `json:"fire75"`
-	Fire50          float64 `json:"fire50"`
-	Fire25          float64 `json:"fire25"`
-	FireOff         float64 `json:"fireOff"`
-	DustLoss        float64 `json:"dustLoss"`
-	Code1At         float64 `json:"code1At"`
-	Code1Hold       float64 `json:"code1Hold"`
-	Code2At         float64 `json:"code2At"`
-	Code2Hold       float64 `json:"code2Hold"`
-	LandCaptionAt   float64 `json:"landCaptionAt"`
-	LandCaptionHold float64 `json:"landCaptionHold"`
+	LandSeconds     float64             `json:"landSeconds"`
+	DustStart       float64             `json:"dustStart"`
+	DustRun         float64             `json:"dustRun"`
+	Fire75          float64             `json:"fire75"`
+	Fire50          float64             `json:"fire50"`
+	Fire25          float64             `json:"fire25"`
+	FireOff         float64             `json:"fireOff"`
+	DustLoss        float64             `json:"dustLoss"`
+	Code1At         float64             `json:"code1At"`
+	Code1Hold       float64             `json:"code1Hold"`
+	Code2At         float64             `json:"code2At"`
+	Code2Hold       float64             `json:"code2Hold"`
+	LandCaptionAt   float64             `json:"landCaptionAt"`
+	LandCaptionHold float64             `json:"landCaptionHold"`
+	Star            shootingstar.Config `json:"star"`
 }
 
-// fileJSON is the on-disk shape. Fire offsets and caption times are
-// pointers so an older file that only had land/dust keeps the stock
-// fire and 1202 / 1202 / LAND times.
+// fileJSON is the on-disk shape. Fire offsets, caption times, and the
+// star section are pointers so an older file that only had land/dust
+// keeps the stock fire, the 1202 / 1202 / LAND times, and the stock
+// small meteor.
 type fileJSON struct {
-	LandSeconds     float64  `json:"landSeconds"`
-	DustStart       float64  `json:"dustStart"`
-	DustRun         float64  `json:"dustRun"`
-	Fire75          *float64 `json:"fire75"`
-	Fire50          *float64 `json:"fire50"`
-	Fire25          *float64 `json:"fire25"`
-	FireOff         *float64 `json:"fireOff"`
-	DustLoss        *float64 `json:"dustLoss"`
-	Code1At         *float64 `json:"code1At"`
-	Code1Hold       *float64 `json:"code1Hold"`
-	Code2At         *float64 `json:"code2At"`
-	Code2Hold       *float64 `json:"code2Hold"`
-	LandCaptionAt   *float64 `json:"landCaptionAt"`
-	LandCaptionHold *float64 `json:"landCaptionHold"`
+	LandSeconds     float64              `json:"landSeconds"`
+	DustStart       float64              `json:"dustStart"`
+	DustRun         float64              `json:"dustRun"`
+	Fire75          *float64             `json:"fire75"`
+	Fire50          *float64             `json:"fire50"`
+	Fire25          *float64             `json:"fire25"`
+	FireOff         *float64             `json:"fireOff"`
+	DustLoss        *float64             `json:"dustLoss"`
+	Code1At         *float64             `json:"code1At"`
+	Code1Hold       *float64             `json:"code1Hold"`
+	Code2At         *float64             `json:"code2At"`
+	Code2Hold       *float64             `json:"code2Hold"`
+	LandCaptionAt   *float64             `json:"landCaptionAt"`
+	LandCaptionHold *float64             `json:"landCaptionHold"`
+	Star            *shootingstar.Config `json:"star"`
 }
 
 // Knob is which timing the cursor is on.
@@ -71,8 +79,29 @@ const (
 	KnobCode2Hold
 	KnobLandCaptionAt
 	KnobLandCaptionHold
+	KnobStarSize
+	KnobStarRandomSize
+	KnobStarSpeed
+	KnobStarCount
+	KnobStarPeriod
+	KnobStarMinLife
+	KnobStarMaxLife
+	KnobStarNozzle
+	KnobStarPeak
+	KnobStarTaper
 	KnobCount
 )
+
+// star maps a panel knob onto the shooting-star package's own. The
+// path knob stays off the panel: the landing meteor flies one fixed
+// diagonal, so the tuner-only flight selector would be an inert knob
+// here.
+func (k Knob) star() (shootingstar.Knob, bool) {
+	if k < KnobStarSize || k > KnobStarTaper {
+		return 0, false
+	}
+	return shootingstar.KnobSize + shootingstar.Knob(k-KnobStarSize), true
+}
 
 // KnobLabel is the panel name of knob k.
 func KnobLabel(k Knob) string {
@@ -106,6 +135,9 @@ func KnobLabel(k Knob) string {
 	case KnobLandCaptionHold:
 		return "LAND hold"
 	default:
+		if sk, ok := k.star(); ok {
+			return "star " + shootingstar.KnobLabel(sk)
+		}
 		return ""
 	}
 }
@@ -142,6 +174,9 @@ func (c Config) Value(k Knob) float64 {
 	case KnobLandCaptionHold:
 		return c.LandCaptionHold
 	default:
+		if sk, ok := k.star(); ok {
+			return c.Star.Value(sk)
+		}
 		return 0
 	}
 }
@@ -171,7 +206,8 @@ var (
 	active   = DefaultConfig()
 )
 
-// DefaultConfig is the portable landing's stock timing.
+// DefaultConfig is the portable landing's stock timing over the
+// stock small meteor.
 func DefaultConfig() Config {
 	return Config{
 		LandSeconds:     LandSeconds,
@@ -188,6 +224,7 @@ func DefaultConfig() Config {
 		Code2Hold:       Code2Hold,
 		LandCaptionAt:   LandCaptionAt,
 		LandCaptionHold: LandCaptionHold,
+		Star:            shootingstar.MeteorConfig(),
 	}
 }
 
@@ -242,16 +279,19 @@ func (c Config) Validate() error {
 			return errCaption
 		}
 	}
-	return nil
+	return c.Star.Validate()
 }
 
-// Load reads a landing-config JSON file.
+// Load reads a landing-config JSON file. A file without a star
+// section keeps the stock small meteor; keys inside a star section
+// merge over it.
 func Load(path string) (Config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, err
 	}
-	var f fileJSON
+	star := shootingstar.MeteorConfig()
+	f := fileJSON{Star: &star}
 	if err := json.Unmarshal(raw, &f); err != nil {
 		return Config{}, fmt.Errorf("landing: %s: %w", path, err)
 	}
@@ -270,6 +310,10 @@ func Load(path string) (Config, error) {
 		Code2Hold:       Code2Hold,
 		LandCaptionAt:   LandCaptionAt,
 		LandCaptionHold: LandCaptionHold,
+		Star:            shootingstar.MeteorConfig(),
+	}
+	if f.Star != nil {
+		c.Star = *f.Star
 	}
 	if f.Fire75 != nil {
 		c.Fire75 = *f.Fire75
@@ -344,12 +388,27 @@ func (c Config) Save(path string) error {
 		"  \"code2At\": %.3f,\n"+
 		"  \"code2Hold\": %.3f,\n"+
 		"  \"landCaptionAt\": %.3f,\n"+
-		"  \"landCaptionHold\": %.3f\n"+
+		"  \"landCaptionHold\": %.3f,\n"+
+		"  \"star\": {\n"+
+		"    \"path\": %q,\n"+
+		"    \"size\": %d,\n"+
+		"    \"randomSize\": %t,\n"+
+		"    \"speed\": %.1f,\n"+
+		"    \"count\": %d,\n"+
+		"    \"period\": %.3f,\n"+
+		"    \"minLife\": %.2f,\n"+
+		"    \"maxLife\": %.2f,\n"+
+		"    \"nozzle\": %.2f,\n"+
+		"    \"peak\": %.1f,\n"+
+		"    \"taper\": %.2f\n"+
+		"  }\n"+
 		"}\n",
 		c.LandSeconds, c.DustStart, c.DustRun,
 		c.Fire75, c.Fire50, c.Fire25, c.FireOff, c.DustLoss,
 		c.Code1At, c.Code1Hold, c.Code2At, c.Code2Hold,
-		c.LandCaptionAt, c.LandCaptionHold))
+		c.LandCaptionAt, c.LandCaptionHold,
+		c.Star.Path, c.Star.Size, c.Star.RandomSize, c.Star.Speed, c.Star.Count,
+		c.Star.Period, c.Star.MinLife, c.Star.MaxLife, c.Star.Nozzle, c.Star.Peak, c.Star.Taper))
 	return os.WriteFile(path, raw, 0o644)
 }
 
@@ -457,10 +516,15 @@ func (c *Config) set(k Knob, v float64) {
 }
 
 // Nudge walks the selected knob by dir steps. Time knobs move 50ms;
-// dust loss moves 0.005/ms. Land will not go below one time step;
-// every other knob will not go negative. A bad cursor is a no-op.
+// dust loss moves 0.005/ms; star knobs walk the shooting-star
+// package's own steps. Land will not go below one time step; every
+// other time knob will not go negative. A bad cursor is a no-op.
 func (c *Config) Nudge(k Knob, dir int) {
 	if c == nil || dir == 0 || k < 0 || k >= KnobCount {
+		return
+	}
+	if sk, ok := k.star(); ok {
+		c.Star.Nudge(sk, dir)
 		return
 	}
 	if k == KnobDustLoss {
