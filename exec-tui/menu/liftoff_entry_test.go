@@ -38,8 +38,8 @@ func TestCatalogCarriesTheInverseWalkthroughScreenplay(t *testing.T) {
 
 func TestCatalogCarriesTheLiftoffAndBobbleScenes(t *testing.T) {
 	// happy: Liftoff and Bobble are portable scenes on the Scenes
-	// shelf, right after Skies, each with its own tuner
-	liftoff, bobble, skies := -1, -1, -1
+	// shelf, right after the Core Set, each with its own tuner
+	liftoff, bobble, coreset := -1, -1, -1
 	c := Catalog()
 	for i := range c {
 		switch c[i].ID {
@@ -47,8 +47,8 @@ func TestCatalogCarriesTheLiftoffAndBobbleScenes(t *testing.T) {
 			liftoff = i
 		case "bobble":
 			bobble = i
-		case "skies":
-			skies = i
+		case "coreset":
+			coreset = i
 		}
 	}
 	if liftoff < 0 || bobble < 0 {
@@ -68,8 +68,8 @@ func TestCatalogCarriesTheLiftoffAndBobbleScenes(t *testing.T) {
 	if !strings.Contains(bo.Desc, "knobs") {
 		t.Fatalf("bobble desc %q must sell its live knobs", bo.Desc)
 	}
-	if skies < 0 || liftoff != skies+1 || bobble != liftoff+1 {
-		t.Fatalf("scenes sit at skies=%d liftoff=%d bobble=%d, want skies then liftoff then bobble", skies, liftoff, bobble)
+	if coreset < 0 || liftoff != coreset+1 || bobble != liftoff+1 {
+		t.Fatalf("scenes sit at coreset=%d liftoff=%d bobble=%d, want the core set then liftoff then bobble", coreset, liftoff, bobble)
 	}
 }
 

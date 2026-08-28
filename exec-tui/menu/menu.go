@@ -51,6 +51,7 @@ func Catalog() []Entry {
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the flag fades in from black, then the giant eagle crosses, a shotgun blasting in each talon — nine live knobs", Pkg: "./cmd/america"},
 		{ID: "moonwalk", Section: "Scenes", Title: "Moonwalk", Desc: "the astronaut climbs three crates, rides the flagpole down as the flag goes up, then boards the LM — eleven live knobs", Pkg: "./cmd/astronaut"},
 		{ID: "skies", Section: "Scenes", Title: "Skies", Desc: "blue sky tilts up into clouds, then the flag crossfades in as the floor and the eagle flies in with talon shotguns — fifteen live knobs", Pkg: "./cmd/skies"},
+		{ID: "coreset", Section: "Scenes", Title: "Core Set", Desc: "the memory unit torn open — the pools drain to one core set, its twelve words, then the priority bits: PRIO over VAC address", Pkg: "./cmd/coreset"},
 		{ID: "liftoff", Section: "Scenes", Title: "Liftoff", Desc: "the landing backwards: ignition on the pad, mirrored dust, then the climb off the top — nine live knobs", Pkg: "./cmd/liftoff"},
 		{ID: "bobble", Section: "Scenes", Title: "Bobble", Desc: "the west-facing lander parked at center, bobbling on a sine, with or without its engine — three live knobs", Pkg: "./cmd/bobble"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},

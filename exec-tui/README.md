@@ -27,6 +27,9 @@ components/   everything a scene puts together
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)
+  pools/      the Executive's job memory, two layers: Box is one slot (the pill
+              that turns on/off in a job's ink) and Panel composes them — the
+              core set panel (8, alarm 1202) and the VAC panel (5, alarm 1201)
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + Compose
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
@@ -37,6 +40,8 @@ cmd/          every runnable: editors, demos, tuners
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
   inverse/    runs 03. Inverse Walkthrough (space past the last scene ends it)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
+  coreset/    the Core Set scene: the memory unit drains to one core set, its
+              twelve words, then the priority bits — 6 of PRIO over 9 of VAC address
   liftoff/    the liftoff scene — the landing backwards: ignition, mirrored
               dust, the climb off the top (scenes/liftoff, nine live knobs)
   bobble/     the west-facing lander parked and bobbling, engine on or off

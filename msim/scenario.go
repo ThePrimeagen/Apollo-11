@@ -10,6 +10,7 @@ package msim
 //	V16N68 again  +346 s → ENTR at t0+57.8 s
 //	ALARM 1202 #2 +356/8 → t0+66-68 s
 //	third V16N68  +374 s → ENTR t0+84 s; KEY REL +380 s → t0+90 s; no alarm
+//
 // Sub-second phases are free parameters (the 1969 event log has one-second
 // resolution). The .995 phase puts the monitor's 1 Hz refresh request just
 // before the guidance boundary — where the radar gates and the stub pile
@@ -53,18 +54,19 @@ type descent struct {
 	// stopped kills the READACCS/R10,R11 re-arm chains — the command
 	// screen's DESCENT switch. The flight scenarios never set it.
 	stopped bool
+	// oneshot lets only the run's FIRST READACCS enter a SERVICER — the
+	// graphs screen's single-cycle portrait. The lattice itself keeps
+	// firing. The flight scenarios never set it.
+	oneshot       bool
+	servicerCount int
+	// approach is early P64: the pass carries REDESIG, the display request
+	// is the flashing V06N64, HIGATJOB parks on its VAC.
+	approach bool
 }
 
 func newDescent(radarBug bool) *descent {
 	d := &descent{lastGyroNs: -Second}
-	script, err := ServicerScript(P63Locked)
-	if err != nil {
-		panic(err)
-	}
-	d.servicer = script.WithHooks(Hooks{
-		Pipa:     d.pipaHook,
-		Dispexit: d.dispexitHook,
-	})
+	d.loadServicer()
 	d.e = NewEngine(Config{
 		RadarBug:    radarBug,
 		Interrupts:  true,
@@ -74,6 +76,23 @@ func newDescent(radarBug bool) *descent {
 	d.armReadaccs(0)
 	d.armR10R11(250 * Millisecond)
 	return d
+}
+
+// loadServicer (re)builds the pass for the current phase — P63 locked, or
+// the approach with its REDESIG sections — with the spawn hooks attached.
+func (d *descent) loadServicer() {
+	phase := P63Locked
+	if d.approach {
+		phase = P64Approach
+	}
+	script, err := ServicerScript(phase)
+	if err != nil {
+		panic(err)
+	}
+	d.servicer = script.WithHooks(Hooks{
+		Pipa:     d.pipaHook,
+		Dispexit: d.dispexitHook,
+	})
 }
 
 // pipaHook is 1/PIPA's gyro-compensation gate: two pulses accumulate in
@@ -86,13 +105,17 @@ func (d *descent) pipaHook(e *Engine) {
 	}
 }
 
-// dispexitHook is P63DISPS: the static V06N63 display request — a NOVAC
-// MAKEPLAY one priority above SERVICER (DISPLAY_INTERFACE_ROUTINES.agc
-// L836-L847).
+// dispexitHook is the pass's display request. P63DISPS enters the static
+// V06N63 — a NOVAC MAKEPLAY one priority above SERVICER (DISPLAY_INTERFACE_
+// ROUTINES.agc L836-L847). The approach's request is early P64's FLASHING
+// V06N64, which takes a VAC and sleeps holding it until the crew keys PRO.
 func (d *descent) dispexitHook(e *Engine) {
+	if d.approach {
+		SpawnDisplayJob(e, DisplayFlashing, 20)
+		return
+	}
 	SpawnDisplayJob(e, DisplayStatic, 20)
 }
-
 
 // armReadaccs is GOREADAX: CA 2SECS / TC VARDELAY — unconditional, punctual,
 // and blind to whether the previous SERVICER finished (SERVICER.agc L80-L81).
@@ -114,6 +137,10 @@ func (d *descent) armReadaccs(at Nanos) {
 		en.ScheduleTask(en.Now()+1950*Millisecond, "LRHTASK", 200*Microsecond, func(en2 *Engine) {
 			en2.Spawn(lrhSpec())
 		})
+		if d.oneshot && d.servicerCount > 0 {
+			return // the portrait's rule: the servicer alone does not repeat
+		}
+		d.servicerCount++
 		en.Spawn(JobSpec{Name: "SERVICER", Prio: 20, VAC: true, Script: d.servicer})
 	})
 }

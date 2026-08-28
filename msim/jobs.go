@@ -160,6 +160,35 @@ func Keystroke(e *Engine, at Nanos, key string) {
 	})
 }
 
+// ---------- HIGATJOB: the high-gate antenna reposition ----------
+//
+// SERVICER.agc L740-L755: HIGATASK is entered about six seconds before
+// high gate; it sets the HIGATE and LR-inhibit flags and enters HIGATJOB.
+// HIGATJOB (PRIO32, FINDVAC) starts the LRPOS2 antenna reposition and goes
+// to sleep — HOLDING ITS CORE SET AND VAC — until the antenna reaches
+// position 2 (L1657-L1670; the listing allows it up to 22 s). The tail
+// (POSGOOD, L1672-L1679) rebuilds the beam transforms and ends the job.
+// Through the approach's opening seconds this is one VAC, parked.
+
+// HigatSlew is the modeled antenna slew: seconds of held memory.
+const HigatSlew Nanos = 8 * Second
+
+func higatSpec() JobSpec {
+	return JobSpec{Name: "HIGATJOB", Prio: 32, VAC: true, Script: Script{
+		{Section: "HIGATJOB", Op: "BASIC", Ref: "SERVICER.agc:1666", Cost: 2 * Millisecond,
+			SleepNs: HigatSlew},
+		{Section: "HIGATJOB", Op: "BASIC", Ref: "SERVICER.agc:1672", Cost: 2 * Millisecond},
+	}}
+}
+
+// StartHigate is HIGATASK (SERVICER.agc L747-L755): one waitlist fire that
+// flags the gate and enters the antenna job. One fire, one HIGATJOB.
+func StartHigate(e *Engine, at Nanos) {
+	e.ScheduleTask(at, "HIGATASK", 200*Microsecond, func(en *Engine) {
+		en.Spawn(higatSpec())
+	})
+}
+
 // ---------- the landing-radar read gates ----------
 //
 // Cherry's job table (Exegesis pp. 11-12) and the outline's cycle map put

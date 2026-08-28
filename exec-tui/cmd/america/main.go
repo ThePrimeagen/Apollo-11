@@ -1,18 +1,20 @@
 // america: the portable America scene from scenes/america. The house
 // opens on pure black; the full-screened American flag fades in
 // fast, and once it is fully in, the very large bald eagle crosses
-// the stage right to left with the flag flying beneath it. After the
-// flyover the flag flies alone.
+// the stage right to left with the flag flying beneath it and this
+// scene's own armed composite — stock one shotgun on the leading
+// talon. After the flyover the flag flies alone.
 //
-// Nine live knobs retune the scene, the same way the landing runner
+// Eleven live knobs retune the scene, the same way the landing runner
 // tunes: flag fade, eagle delay, eagle cross (the eagle's speed),
 // eagle start / eagle end (where the flight begins and ends, as
-// fractions of the full off-right-to-off-left span), left/right
-// shots (how many shells each talon's shotgun fires across one
-// crossing) and left/right aim (which of the eight compass points
-// each barrel faces). The time knobs step 50ms, the path knobs 0.05
-// of the span, the shots one shell, the aims one compass point with
-// wrap. Play rebuilds from the current knobs; s saves them to
+// fractions of the full off-right-to-off-left span), left/right on
+// (whether each talon carries a gun), left/right shots (how many
+// shells that gun fires across one crossing) and left/right aim
+// (which of the eight compass points the barrel faces). The time
+// knobs step 50ms, the path knobs 0.05 of the span, the on knobs
+// flip, the shots one shell, the aims one compass point with wrap.
+// Play rebuilds from the current knobs; s saves them to
 // scenes/america/config.json.
 //
 //	p / enter / space   play from the top

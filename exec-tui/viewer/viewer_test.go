@@ -27,6 +27,8 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustparticle"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
@@ -88,6 +90,11 @@ func TestCatalog(t *testing.T) {
 			"armed":      KindComponent,
 			"moon":       KindComponent,
 			"dsky":       KindComponent,
+			"coreset":    KindComponent,
+			"coresets":   KindComponent,
+			"vac":        KindComponent,
+			"vacs":       KindComponent,
+			"breakdown":  KindScene,
 			"title":      KindComponent,
 			"astronaut":  KindComponent,
 			"rocket":     KindComponent,
@@ -316,6 +323,7 @@ func TestEdit(t *testing.T) {
 			{"america", "./cmd/america"},
 			{"moonwalk", "./cmd/astronaut"},
 			{"skies", "./cmd/skies"},
+			{"breakdown", "./cmd/coreset"},
 			{"liftoff", "./cmd/liftoff"},
 			{"bobble", "./cmd/bobble"},
 		}
@@ -450,6 +458,327 @@ func TestEdit(t *testing.T) {
 		}
 		if m.Index() != 0 {
 			t.Fatalf("empty catalog cursor moved to %d", m.Index())
+		}
+	})
+}
+
+// Tests written FIRST: the CORE SETS and VAC AREAS items are the two
+// pool views wrapped in a play-button demo. Space (the viewer's
+// trigger key) starts a scripted walk of the whole lifecycle — add
+// three jobs, drop those three, add four, drop those four, then fill
+// every slot to raise the pool's program alarm, hold the full pool on
+// stage for poolAlarmHoldBeats so the chip can be read, and drain it
+// back to empty — one step every poolStepSeconds, each job wearing
+// its own ink so the colors read against the other graphs. The bottom
+// row carries the hint while idle and the current action while
+// playing. Firing mid-walk is refused; when the walk ends the trigger
+// is live again.
+
+func spawnDemo(t *testing.T, id string) *poolDemo {
+	t.Helper()
+	it := Catalog()[findItem(t, KindComponent, id)]
+	comp := it.spawn()
+	d, ok := comp.(*poolDemo)
+	if !ok {
+		t.Fatalf("%s must spawn the pool demo, got %T", id, comp)
+	}
+	d.Start(80, 19)
+	return d
+}
+
+// playSteps ticks the demo across n script boundaries.
+func playSteps(d *poolDemo, n int) {
+	for i := 0; i < n; i++ {
+		d.Update(poolStepSeconds + 0.001)
+	}
+}
+
+func demoRow(sp sprite.Sprite, r int) string {
+	rs := make([]rune, sp.Width)
+	for c := 0; c < sp.Width; c++ {
+		ch := sp.At(r, c).Ch
+		if ch == 0 {
+			ch = ' '
+		}
+		rs[c] = ch
+	}
+	return string(rs)
+}
+
+func demoText(sp sprite.Sprite, text string) bool {
+	for r := 0; r < sp.Height; r++ {
+		if strings.Contains(demoRow(sp, r), text) {
+			return true
+		}
+	}
+	return false
+}
+
+func distinctInks(t *testing.T, d *poolDemo, names []string) {
+	t.Helper()
+	seen := map[int]bool{}
+	for i, name := range names {
+		j, ok := d.view.JobAt(i)
+		if !ok || j.Name != name {
+			t.Fatalf("slot %d holds %q ok=%v, want %q", i, j.Name, ok, name)
+		}
+		if j.Ink <= 0 {
+			t.Fatalf("demo job %q carries no ink — every job wears a color", name)
+		}
+		if seen[j.Ink] {
+			t.Fatalf("ink %d repeats on %q — the demo colors must differ", j.Ink, name)
+		}
+		seen[j.Ink] = true
+	}
+}
+
+func TestPoolDemo(t *testing.T) {
+	t.Run("happy: space plays the core set lifecycle — add 3, drop 3, add 4, drop 4, fill to 1202, drain", func(t *testing.T) {
+		d := spawnDemo(t, "coresets")
+		if d.view.Cap() != 8 {
+			t.Fatalf("the core set demo wraps %d slots, want 8", d.view.Cap())
+		}
+		if !d.Fire() {
+			t.Fatal("the idle trigger must start the walk")
+		}
+		if d.view.Busy() != 1 {
+			t.Fatalf("the trigger lands the first job at once, busy %d", d.view.Busy())
+		}
+		playSteps(d, 2)
+		if d.view.Busy() != 3 {
+			t.Fatalf("after the add-3 act busy is %d, want 3", d.view.Busy())
+		}
+		distinctInks(t, d, []string{"SERVICER", "CHARIN", "MONITOR"})
+		playSteps(d, 3)
+		if d.view.Busy() != 0 {
+			t.Fatalf("after the drop-3 act busy is %d, want 0", d.view.Busy())
+		}
+		playSteps(d, 4)
+		if d.view.Busy() != 4 {
+			t.Fatalf("after the add-4 act busy is %d, want 4", d.view.Busy())
+		}
+		distinctInks(t, d, []string{"RR READ", "LR READ", "GYRO COMP", "DAP"})
+		playSteps(d, 4)
+		if d.view.Busy() != 0 {
+			t.Fatalf("after the drop-4 act busy is %d, want 0", d.view.Busy())
+		}
+		playSteps(d, 8)
+		if !d.view.Full() {
+			t.Fatalf("the fill act must reach every slot, busy %d", d.view.Busy())
+		}
+		sp := d.Render()
+		if !demoText(sp, "→ 1202") {
+			t.Fatal("a full core set pool must raise the 1202 chip")
+		}
+		playSteps(d, poolAlarmHoldBeats)
+		if !d.view.Full() || !d.playing {
+			t.Fatalf("the alarm must hold the full pool on stage, busy %d playing %v", d.view.Busy(), d.playing)
+		}
+		if !demoText(d.Render(), "→ 1202") {
+			t.Fatal("the chip must stay up through the hold")
+		}
+		playSteps(d, 8)
+		if d.view.Busy() != 0 || d.playing {
+			t.Fatalf("the drain act must empty the pool and end the walk, busy %d playing %v", d.view.Busy(), d.playing)
+		}
+		if !d.Fire() {
+			t.Fatal("a finished walk must be replayable")
+		}
+		if d.view.Busy() != 1 {
+			t.Fatalf("the replay lands the first job again, busy %d", d.view.Busy())
+		}
+	})
+	t.Run("happy: the VAC demo walks the same script to 1201 on five slots", func(t *testing.T) {
+		d := spawnDemo(t, "vacs")
+		if d.view.Cap() != 5 {
+			t.Fatalf("the VAC demo wraps %d slots, want 5", d.view.Cap())
+		}
+		if !d.Fire() {
+			t.Fatal("the idle trigger must start the walk")
+		}
+		playSteps(d, 2)
+		distinctInks(t, d, []string{"SERVICER", "CHARIN", "MONITOR"})
+		playSteps(d, 3+4+4)
+		playSteps(d, 5)
+		if !d.view.Full() {
+			t.Fatalf("the fill act must reach all five VACs, busy %d", d.view.Busy())
+		}
+		sp := d.Render()
+		if !demoText(sp, "→ 1201") {
+			t.Fatal("a full VAC pool must raise the 1201 chip")
+		}
+		if demoText(sp, "1202") {
+			t.Fatal("the VAC pool never raises the core sets' 1202")
+		}
+		playSteps(d, poolAlarmHoldBeats)
+		if !d.view.Full() || !demoText(d.Render(), "→ 1201") {
+			t.Fatalf("the alarm must hold all five VACs on stage, busy %d", d.view.Busy())
+		}
+		playSteps(d, 5)
+		if d.view.Busy() != 0 || d.playing {
+			t.Fatalf("the drain act must empty the pool and end the walk, busy %d playing %v", d.view.Busy(), d.playing)
+		}
+	})
+	t.Run("happy: the viewer's space key pulls the trigger", func(t *testing.T) {
+		m := sized(New(findItem(t, KindComponent, "coresets")), 80, 24)
+		m = key(m, ' ')
+		d, ok := m.preview.(*poolDemo)
+		if !ok {
+			t.Fatalf("the coresets item must stage the pool demo, got %T", m.preview)
+		}
+		if d.view.Busy() != 1 {
+			t.Fatalf("space must start the walk, busy %d", d.view.Busy())
+		}
+	})
+	t.Run("happy: the bottom row hints the play button while idle and the action while playing", func(t *testing.T) {
+		d := spawnDemo(t, "vacs")
+		sp := d.Render()
+		if !strings.Contains(demoRow(sp, sp.Height-1), "space plays") {
+			t.Fatalf("the idle hint must name the button:\n%q", demoRow(sp, sp.Height-1))
+		}
+		d.Fire()
+		sp = d.Render()
+		bottom := demoRow(sp, sp.Height-1)
+		if !strings.Contains(bottom, "+ SERVICER") {
+			t.Fatalf("the playing hint must show the action, got %q", bottom)
+		}
+		if strings.Contains(bottom, "space plays") {
+			t.Fatal("the idle hint must clear during the walk")
+		}
+		playSteps(d, len(d.script))
+		sp = d.Render()
+		if !strings.Contains(demoRow(sp, sp.Height-1), "space plays") {
+			t.Fatal("the finished walk must bring the play hint back")
+		}
+	})
+	t.Run("unhappy: firing mid-walk is refused and the script keeps its place", func(t *testing.T) {
+		d := spawnDemo(t, "coresets")
+		if !d.Fire() {
+			t.Fatal("the first trigger must start the walk")
+		}
+		d.Update(0.1)
+		if d.Fire() {
+			t.Fatal("a walk already playing must refuse the trigger")
+		}
+		if d.view.Busy() != 1 {
+			t.Fatalf("the refused trigger changed the pool, busy %d", d.view.Busy())
+		}
+		playSteps(d, 2)
+		if d.view.Busy() != 3 {
+			t.Fatalf("the script lost its place — busy %d, want 3", d.view.Busy())
+		}
+	})
+	t.Run("unhappy: the alarm chip colors match the pools package inks", func(t *testing.T) {
+		d := spawnDemo(t, "vacs")
+		d.Fire()
+		playSteps(d, 2+3+4+4+5)
+		sp := d.Render()
+		found := false
+		for r := 0; r < sp.Height && !found; r++ {
+			row := demoRow(sp, r)
+			i := strings.Index(row, "→ 1201")
+			if i < 0 {
+				continue
+			}
+			found = true
+			cell := sp.At(r, len([]rune(row[:i])))
+			if cell.FG != pools.AlarmFG || cell.BG != pools.AlarmBG {
+				t.Fatalf("the chip wears %d on %d, want %d on %d", cell.FG, cell.BG, pools.AlarmFG, pools.AlarmBG)
+			}
+		}
+		if !found {
+			t.Fatal("the full pool must show its chip")
+		}
+	})
+}
+
+// Tests written FIRST: the CORE SET and VAC items are single Box
+// components wrapped in a toggle demo. Space turns the slot on
+// through four different job inks, one per press, then off again —
+// the little pill that lights up in different colors with a bit of
+// text inside. The bottom row hints the button.
+
+func spawnBox(t *testing.T, id string) *boxDemo {
+	t.Helper()
+	it := Catalog()[findItem(t, KindComponent, id)]
+	comp := it.spawn()
+	d, ok := comp.(*boxDemo)
+	if !ok {
+		t.Fatalf("%s must spawn the box demo, got %T", id, comp)
+	}
+	d.Start(80, 19)
+	return d
+}
+
+func TestBoxDemo(t *testing.T) {
+	t.Run("happy: space cycles the slot through four job inks, then off, then round again", func(t *testing.T) {
+		d := spawnBox(t, "coreset")
+		if d.view.Busy() {
+			t.Fatal("the demo opens on a free slot")
+		}
+		seen := map[int]bool{}
+		var names []string
+		for i := 0; i < 4; i++ {
+			if !d.Fire() {
+				t.Fatal("the toggle must always take")
+			}
+			j, ok := d.view.Job()
+			if !ok {
+				t.Fatalf("press %d must light the slot", i+1)
+			}
+			if j.Ink <= 0 || seen[j.Ink] {
+				t.Fatalf("press %d wears ink %d — four presses, four different inks", i+1, j.Ink)
+			}
+			seen[j.Ink] = true
+			names = append(names, j.Name)
+		}
+		if !d.Fire() {
+			t.Fatal("the fifth press must take")
+		}
+		if d.view.Busy() {
+			t.Fatal("the fifth press turns the slot off")
+		}
+		if !d.Fire() {
+			t.Fatal("the sixth press must take")
+		}
+		j, ok := d.view.Job()
+		if !ok || j.Name != names[0] {
+			t.Fatalf("the cycle must wrap to %q, got %+v ok=%v", names[0], j, ok)
+		}
+	})
+	t.Run("happy: the box demo shows its unnumbered label and the hint", func(t *testing.T) {
+		d := spawnBox(t, "coreset")
+		sp := d.Render()
+		found := false
+		for r := 0; r < sp.Height; r++ {
+			if strings.Contains(demoRow(sp, r), "CORE SET") {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("the core set box wears the plain CORE SET label — no number")
+		}
+		if !strings.Contains(demoRow(sp, sp.Height-1), "space toggles") {
+			t.Fatalf("the hint must name the button, got %q", demoRow(sp, sp.Height-1))
+		}
+		v := spawnBox(t, "vac")
+		sp = v.Render()
+		if !demoText(sp, "VAC") {
+			t.Fatal("the VAC box wears its plain VAC label")
+		}
+	})
+	t.Run("unhappy: before Start the demo renders nothing and never panics", func(t *testing.T) {
+		it := Catalog()[findItem(t, KindComponent, "vac")]
+		d, ok := it.spawn().(*boxDemo)
+		if !ok {
+			t.Fatalf("vac must spawn the box demo, got %T", it.spawn())
+		}
+		if sp := d.Render(); sp.Width != 0 || sp.Height != 0 {
+			t.Fatalf("before Start the demo renders %dx%d, want nothing", sp.Width, sp.Height)
+		}
+		d.Update(1)
+		if !d.Fire() {
+			t.Fatal("the toggle works even before the curtain — state is identity, the stage is not")
 		}
 	})
 }

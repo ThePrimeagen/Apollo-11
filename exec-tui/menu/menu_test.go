@@ -413,7 +413,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup", "inverse",
-			"viewer", "landing", "america", "moonwalk", "skies", "liftoff", "bobble",
+			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "liftoff", "bobble",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config",
 			"legacy", "timeline",
@@ -439,6 +439,7 @@ func TestCatalog(t *testing.T) {
 			"america":        "Scenes",
 			"moonwalk":       "Scenes",
 			"skies":          "Scenes",
+			"coreset":        "Scenes",
 			"liftoff":        "Scenes",
 			"bobble":         "Scenes",
 			"flame":          "CONFIG",
@@ -628,6 +629,30 @@ func TestCatalog(t *testing.T) {
 		}
 		if seen != 1 {
 			t.Fatalf("Skies must be listed exactly once, saw %d", seen)
+		}
+	})
+	t.Run("happy: Scenes lists Core Set right after Skies", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 10 {
+			t.Fatal("catalog must hold the Core Set scene after Skies")
+		}
+		if c[9].ID != "coreset" || c[9].Title != "Core Set" || c[9].Section != "Scenes" || c[9].Pkg != "./cmd/coreset" {
+			t.Fatalf("tenth entry must be Core Set under Scenes → ./cmd/coreset, got %+v", c[9])
+		}
+	})
+	t.Run("unhappy: Core Set is a scene, not a config, and never doubles up", func(t *testing.T) {
+		seen := 0
+		for _, e := range Catalog() {
+			if e.ID != "coreset" {
+				continue
+			}
+			seen++
+			if e.Section != "Scenes" {
+				t.Fatalf("Core Set must sit under Scenes, found %+v", e)
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("Core Set must be listed exactly once, saw %d", seen)
 		}
 	})
 	t.Run("unhappy: old MAIN PROGRAM / SCREENPLAY / MOON SCREENPLAY / LUNAR LANDER CLOSE-UP labels are gone", func(t *testing.T) {
