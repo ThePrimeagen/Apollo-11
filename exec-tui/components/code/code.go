@@ -301,7 +301,9 @@ func paintAGC(line string) []int {
 	return inks
 }
 
-// keywords is the pseudocode dialect's iris set — the danzig card's.
+// keywords is the pseudocode dialect's iris set — the danzig card's,
+// plus the C-style words the allocation walks speak. "new" is NOT a
+// keyword: it is the walked function's own variable.
 var keywords = map[string]bool{
 	"if":       true,
 	"for":      true,
@@ -311,6 +313,8 @@ var keywords = map[string]bool{
 	"swap":     true,
 	"first":    true,
 	"free":     true,
+	"return":   true,
+	"throw":    true,
 }
 
 func isIdentStart(r rune) bool { return unicode.IsLetter(r) || r == '_' }

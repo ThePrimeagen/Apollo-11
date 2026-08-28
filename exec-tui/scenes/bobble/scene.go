@@ -2,7 +2,7 @@
 // alone, parked at center stage under the drifting sky, bobbling up
 // and down on a sine — with or without its engine on. It is the
 // reusable middle of two shows: 02. Walkthrough plays this state
-// engine off and then engine on across its cuts; 03. Inverse
+// engine off and then engine on across its cuts; 04. Inverse
 // Walkthrough plays it engine on ("engines on") and then engine off
 // ("engines off"), holding the dark ride ad infinitum. Each flip is a
 // cut on the bill, not a timer in here.

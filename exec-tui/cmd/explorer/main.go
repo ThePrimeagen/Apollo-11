@@ -1,5 +1,5 @@
-// explorer: the explorer scene from scenes/explorer — the big IE logo
-// parked at center stage under the twinkling sky — and the editable
+// explorer: the Big E scene from scenes/explorer — the moon-sized IE
+// logo under blinking stars, plus one shooting star — and the editable
 // screen for its four knobs. j/k select a knob, h/l tune it LIVE (the
 // sky reads the knobs on the next frame): min/max cycle move 250ms at
 // a time, min/max fade 50ms, every knob railed and no pair crossing.
@@ -189,7 +189,7 @@ func (m model) status(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
 	reset := "\x1b[0m"
-	help := dim + pad("explorer   p play  j/k select  h/l tune (live)  s save  q quit", w) + reset
+	help := dim + pad("big e   p play  j/k select  h/l tune (live)  s save  q quit", w) + reset
 	if m.note != "" {
 		help = dim + pad(m.note, w) + reset
 	}

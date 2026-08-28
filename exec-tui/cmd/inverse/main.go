@@ -1,4 +1,4 @@
-// inverse: 03. Inverse Walkthrough — the composable three-scene bill
+// inverse: 04. Inverse Walkthrough — the composable three-scene bill
 // from shows/inverse, the walkthrough played backwards. The house
 // opens on "liftoff": the lander parked on the moon horizon ignites
 // (¼, ½, ¾, full), kicks the mirrored pad dust, and climbs off the

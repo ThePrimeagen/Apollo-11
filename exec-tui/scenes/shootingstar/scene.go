@@ -19,6 +19,7 @@ type Show struct {
 	Cfg     Config
 	Seed    int64
 	preview bool
+	once    bool
 	sky     *stars.Continuity
 	flyer   *Flyer
 	cross   Crossing
@@ -45,6 +46,14 @@ func newShow(sky *stars.Continuity, preview bool) *Show {
 	s := &Show{Cfg: Active(), Seed: 11, preview: preview, sky: sky}
 	s.Assemble = s.assemble
 	return s
+}
+
+// NewOnce is the shooting star as a component: one fall, top mid-right
+// to bottom mid-left, then gone. It carries no sky — a scene casts it
+// over whatever background it already has.
+func NewOnce() *Flyer {
+	s := &Show{Cfg: Active(), Seed: 1, once: true}
+	return newFlyer(s)
 }
 
 func (s *Show) assemble() []screenplay.Component {
@@ -109,10 +118,14 @@ func (f *Flyer) Start(w, h int) {
 	if !f.once {
 		f.trail = startrail.New(seed)
 	}
+	f.done = false
 	if !f.show.closedLoop() {
-		if f.once {
+		switch {
+		case f.once:
 			f.show.cross = DiagonalCrossing(f.uw, f.uh)
-		} else {
+		case f.show.once:
+			f.show.cross = OnceCrossing(f.uw, f.uh)
+		default:
 			f.show.cross = RandomCrossing(seed, f.uw, f.uh)
 		}
 		f.lap = f.show.cross.length()
@@ -121,7 +134,6 @@ func (f *Flyer) Start(w, h int) {
 		}
 	}
 	f.clock = 0
-	f.done = false
 	pos, head := f.at(0)
 	if !f.once {
 		f.star.Heading = head
@@ -140,19 +152,28 @@ func (f *Flyer) Update(dt float64) {
 	if f == nil || dt <= 0 || f.show == nil {
 		return
 	}
+	_ = startrail.Use(f.show.Cfg.Trail())
 	if f.done {
+		if f.trail != nil {
+			f.trail.Update(dt)
+		}
 		return
 	}
-	_ = startrail.Use(f.show.Cfg.Trail())
 	f.clock += dt
 	if !f.show.closedLoop() {
 		speed := f.show.Cfg.Speed
-		if speed < 1 {
-			speed = 1
-		}
 		if f.clock*speed >= f.lap {
-			if f.once {
+			if f.once || f.show.once {
 				f.done = true
+				if f.show.once {
+					if f.star != nil {
+						f.star.Stop()
+						f.star = nil
+					}
+					if f.trail != nil {
+						f.trail.Update(dt)
+					}
+				}
 				return
 			}
 			f.clock = 0
@@ -192,9 +213,6 @@ func (f *Flyer) at(clock float64) (pos, heading particle.Vec2) {
 		return f.previewAt(clock)
 	}
 	speed := f.show.Cfg.Speed
-	if speed < 1 {
-		speed = 1
-	}
 	t := 0.0
 	if f.lap > 0 {
 		t = clock * speed / f.lap
@@ -208,9 +226,6 @@ func (f *Flyer) at(clock float64) (pos, heading particle.Vec2) {
 func (f *Flyer) previewAt(clock float64) (pos, heading particle.Vec2) {
 	cx, cy := f.uw/2, f.uh/2
 	speed := f.show.Cfg.Speed
-	if speed < 1 {
-		speed = 1
-	}
 	switch f.show.Cfg.Path {
 	case PathSquare:
 		m := math.Min(f.uw, f.uh) * 0.18
@@ -249,7 +264,10 @@ func NewMeteor() *Flyer {
 }
 
 func (f *Flyer) Render() sprite.Sprite {
-	if f == nil || f.w < 1 || f.h < 1 || f.done {
+	if f == nil || f.w < 1 || f.h < 1 {
+		return sprite.Sprite{}
+	}
+	if f.once && f.done {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(f.w, f.h)

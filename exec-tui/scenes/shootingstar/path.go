@@ -95,6 +95,29 @@ func DiagonalCrossing(w, h float64) Crossing {
 	return Crossing{Start: start, Ctrl: ctrl, End: end}
 }
 
+// OnceCrossing is the Big E meteor: one fall from top mid-right to
+// bottom mid-left. The same box always draws the same path. A light
+// bend keeps it from being a ruler; the heading stays leftward.
+func OnceCrossing(w, h float64) Crossing {
+	if w <= 0 || h <= 0 {
+		return Crossing{}
+	}
+	start := particle.Vec2{X: w * 0.72, Y: h * 0.12}
+	end := particle.Vec2{X: w * 0.28, Y: h * 0.82}
+	mid := particle.Vec2{X: (start.X + end.X) / 2, Y: (start.Y + end.Y) / 2}
+	dx, dy := end.X-start.X, end.Y-start.Y
+	n := math.Hypot(dx, dy)
+	if n < 1e-6 {
+		return Crossing{Start: start, Ctrl: mid, End: end}
+	}
+	px, py := -dy/n, dx/n
+	mag := 0.10 * n
+	ctrl := particle.Vec2{X: mid.X + px*mag, Y: mid.Y + py*mag}
+	ctrl.X = clamp(ctrl.X, 0, w)
+	ctrl.Y = clamp(ctrl.Y, 0, h)
+	return Crossing{Start: start, Ctrl: ctrl, End: end}
+}
+
 // At samples the bezier at t in [0,1] and the heading along it.
 func (c Crossing) At(t float64) (pos, heading particle.Vec2) {
 	if t < 0 {

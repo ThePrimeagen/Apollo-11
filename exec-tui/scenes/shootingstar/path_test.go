@@ -162,6 +162,68 @@ func TestRandomCrossing(t *testing.T) {
 	})
 }
 
+func TestOnceCrossing(t *testing.T) {
+	t.Run("happy: one fall from top mid-right to bottom mid-left", func(t *testing.T) {
+		c := OnceCrossing(boxW, boxH)
+		if c.Start.X <= boxW*0.55 || c.Start.X >= boxW*0.95 {
+			t.Fatalf("start X=%.2f is not mid-right of a %.0f-wide box", c.Start.X, boxW)
+		}
+		if c.Start.Y >= boxH*0.30 {
+			t.Fatalf("start Y=%.2f is not near the top", c.Start.Y)
+		}
+		if c.End.X >= boxW*0.45 || c.End.X <= boxW*0.05 {
+			t.Fatalf("end X=%.2f is not mid-left of a %.0f-wide box", c.End.X, boxW)
+		}
+		if c.End.Y <= boxH*0.55 {
+			t.Fatalf("end Y=%.2f is not near the bottom", c.End.Y)
+		}
+		if c.Start.X <= c.End.X {
+			t.Fatalf("must run right-to-left, %+v → %+v", c.Start, c.End)
+		}
+		if c.Start.Y >= c.End.Y {
+			t.Fatalf("must fall downward, %+v → %+v", c.Start, c.End)
+		}
+		p0, h0 := c.At(0)
+		if math.Abs(p0.X-c.Start.X) > 1e-9 || math.Abs(p0.Y-c.Start.Y) > 1e-9 {
+			t.Fatalf("At(0) %+v, want start %+v", p0, c.Start)
+		}
+		if h0.X >= 0 {
+			t.Fatalf("heading at start %+v must point left", h0)
+		}
+		p1, h1 := c.At(1)
+		if math.Abs(p1.X-c.End.X) > 1e-9 || math.Abs(p1.Y-c.End.Y) > 1e-9 {
+			t.Fatalf("At(1) %+v, want end %+v", p1, c.End)
+		}
+		if h1 == (particle.Vec2{}) {
+			t.Fatal("the heading at t=1 must still point along the flight")
+		}
+		same := OnceCrossing(boxW, boxH)
+		if c != same {
+			t.Fatalf("the same box must draw the same once-crossing, %+v vs %+v", c, same)
+		}
+	})
+	t.Run("unhappy: the once-crossing never runs left-to-right or up, and a zero box does not panic", func(t *testing.T) {
+		c := OnceCrossing(boxW, boxH)
+		if c.Start.X <= c.End.X {
+			t.Fatalf("ran left-to-right: %+v → %+v", c.Start, c.End)
+		}
+		if c.Start.Y >= c.End.Y {
+			t.Fatalf("ran up or level: %+v → %+v", c.Start, c.End)
+		}
+		if math.Abs(c.Start.X-boxW) < 1e-6 || math.Abs(c.End.X) < 1e-6 {
+			t.Fatal("the once-crossing is mid-right to mid-left, not edge to edge")
+		}
+		z := OnceCrossing(0, 0)
+		p, h := z.At(0.5)
+		_ = p
+		if h == (particle.Vec2{}) {
+			// a collapsed box may park; it must not panic.
+		}
+		z.At(-1)
+		z.At(2)
+	})
+}
+
 func onEdge(p particle.Vec2, w, h float64) bool {
 	const eps = 1e-6
 	return p.X <= eps || p.X >= w-eps || p.Y <= eps || p.Y >= h-eps

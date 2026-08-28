@@ -35,17 +35,17 @@ type Entry struct {
 }
 
 // Catalog lists every runnable program by category: the screenplays
-// (MAIN, 01. Moon Orbit, 02. Walkthrough, then 03. Inverse
+// (01. Moon Orbit, 02. Walkthrough, 03. Mario, then 04. Inverse
 // Walkthrough), then the portable scenes, then the config editors,
 // then the particle tuners, then the legacy TUIs.
 // Everything this module owns launches out of its own cmd/ folder;
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
 	return []Entry{
-		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
-		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
+		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then a fly-in into orbit", Pkg: "./cmd/moon"},
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
-		{ID: "inverse", Section: "Screenplays", Title: "03. Inverse Walkthrough", Desc: "the walkthrough backwards, three scenes: liftoff off the pad, engines on parked sideways, then engines off — bobbling forever", Pkg: "./cmd/inverse"},
+		{ID: "mario", Section: "Screenplays", Title: "03. Mario", Desc: "three scenes: he runs the crates, rides the flagpole as the flag goes up, then boards the LM", Pkg: "./cmd/mario"},
+		{ID: "inverse", Section: "Screenplays", Title: "04. Inverse Walkthrough", Desc: "the walkthrough backwards, three scenes: liftoff off the pad, engines on parked sideways, then engines off — bobbling forever", Pkg: "./cmd/inverse"},
 		{ID: "viewer", Section: "Scenes", Title: "Component Viewer", Desc: "cycle every component, particle and scene — e edits, closing resumes", Pkg: "./cmd/viewer"},
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the flag fades in from black, then the giant eagle crosses, a shotgun blasting in each talon — nine live knobs", Pkg: "./cmd/america"},
@@ -55,8 +55,11 @@ func Catalog() []Entry {
 		{ID: "coreset2", Section: "Scenes", Title: "Core Sets Two", Desc: "the scan, picked up from the priority word — the job roster, the EJSCAN loop as code, and the full-word compares where the newest SERVICER copy always wins", Pkg: "./cmd/coreset2"},
 		{ID: "liftoff", Section: "Scenes", Title: "Liftoff", Desc: "the landing backwards: ignition on the pad, mirrored dust, then the climb off the top — nine live knobs", Pkg: "./cmd/liftoff"},
 		{ID: "bobble", Section: "Scenes", Title: "Bobble", Desc: "the west-facing lander parked at center, bobbling on a sine, with or without its engine — three live knobs", Pkg: "./cmd/bobble"},
-		{ID: "interpreter", Section: "Scenes", Title: "Interpreter", Desc: "the real MUNRVG scrolls by behind a Rose Pine vignette — five spotlit chunks of SERVICER, each ending in its own look for the DANZIG check — two live knobs", Pkg: "./cmd/interpreter"},
+		{ID: "interpreter", Section: "Scenes", Title: "Interpreter", Desc: "the real MUNRVG slimmed to five plain blocks — one comment on top, bare ops, and the DANZIG check as one pseudo call — two live knobs", Pkg: "./cmd/interpreter"},
+		{ID: "checkprio", Section: "Scenes", Title: "Check Priority", Desc: "the DANZIG check as one C-style function — every core set's data[11] read, new against old, the highest priority wins the cpu", Pkg: "./cmd/checkprio"},
+		{ID: "alarms", Section: "Scenes", Title: "Alarms", Desc: "find_free_core_set or throw 1202, find_free_vac_area or throw 1201 — the allocation code walked to both alarms", Pkg: "./cmd/alarms"},
 		{ID: "shootingstar", Section: "Scenes", Title: "Shooting Star", Desc: "a larger star with a persist-particle comet trail, right to left (high right to low left) — eleven live knobs (fall / circle / square; peak + taper)", Pkg: "./cmd/shootingstar"},
+		{ID: "explorer", Section: "Scenes", Title: "Big E", Desc: "the moon-sized IE logo under blinking stars, plus one shooting star from top mid-right to bottom mid-left — four live knobs", Pkg: "./cmd/explorer"},
 		{ID: "fall", Section: "Scenes", Title: "Spacelander Fall", Desc: "the north-facing LM drops top to bottom under a twinkle sky — one live knob (drop duration)", Pkg: "./cmd/fall"},
 		{ID: "climb", Section: "Scenes", Title: "Spacelander Climb", Desc: "the north-facing LM rises from the bottom of the stage to the top under twinkling stars — one live knob (climb duration)", Pkg: "./cmd/climb"},
 		{ID: "prog", Section: "Scenes", Title: "Program Alarms", Desc: "the spacelander drops and pauses 1202, then 1202, then 1201 — seven live knobs (four drops, three holds)", Pkg: "./cmd/prog"},

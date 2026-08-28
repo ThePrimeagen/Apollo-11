@@ -4,11 +4,12 @@ package main
 // — the composable two-scene bill from shows/moonshow. The house opens
 // on "the moon": the bare disc alone under a parked sky, nothing
 // moving. Waiting never conjures the lander — space cuts to "orbit",
-// where the lander is already on the ring and circles indefinitely.
-// Space on the last scene ends the show — there is nothing left, so
-// the program quits. q and ctrl+c quit anywhere. The view is the
-// rendered screen plus one status line, always exactly window-height
-// lines.
+// where the lander streaks in off the left wing, brakes onto the
+// ring, and circles indefinitely. It must not already sit on the ring
+// at the cut. Space on the last scene ends the show — there is
+// nothing left, so the program quits. q and ctrl+c quit anywhere.
+// The view is the rendered screen plus one status line, always
+// exactly window-height lines.
 
 import (
 	"regexp"
@@ -116,7 +117,7 @@ func TestMoonScreenplay(t *testing.T) {
 			t.Fatal("the lander must not appear until space cuts — there is no delay cue")
 		}
 	})
-	t.Run("happy: space cuts to scene 2/2 — the lander is already orbiting", func(t *testing.T) {
+	t.Run("happy: space cuts to scene 2/2 — the lander streaks in and orbits indefinitely", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, 30)
@@ -127,20 +128,25 @@ func TestMoonScreenplay(t *testing.T) {
 				t.Fatalf("the orbit scene is missing %q", want)
 			}
 		}
-		r0, c0, ok := markerCell(opening)
-		if !ok {
-			t.Fatal("the lander must be on the ring from the first frame of scene two")
+		if strings.ContainsRune(opening, moon.MarkerGlyph) {
+			t.Fatal("the lander opens off the left wing — not on stage yet")
 		}
-		m = frames(m, 90)
+		m = frames(m, 30) // one second: mid-streak
+		streak := m.View().Content
+		r0, c0, ok := markerCell(streak)
+		if !ok {
+			t.Fatal("one second in, the fast lander must be streaking across")
+		}
+		m = frames(m, 60) // two more: settled into the orbit
 		orbit1 := m.View().Content
 		r1, c1, ok := markerCell(orbit1)
 		if !ok {
-			t.Fatal("the lander must keep orbiting")
+			t.Fatal("the lander must settle into the orbit")
 		}
 		if r0 == r1 && c0 == c1 {
-			t.Fatal("the orbit must carry the lander on")
+			t.Fatal("frames must carry the lander from the streak onto the ring")
 		}
-		m = frames(m, 45)
+		m = frames(m, 45) // and on it goes — the orbit never parks
 		r2, c2, ok := markerCell(m.View().Content)
 		if !ok {
 			t.Fatal("the lander must keep orbiting until the next cut")
@@ -150,6 +156,27 @@ func TestMoonScreenplay(t *testing.T) {
 		}
 		if skyColumns(orbit1, 12) != skyColumns(m.View().Content, 12) {
 			t.Fatal("the stars behind the orbit hold still")
+		}
+	})
+	t.Run("unhappy: the first frame of scene two never parks the lander on the ring", func(t *testing.T) {
+		m := newModel(0)
+		_ = m.View()
+		m = press(m, space())
+		v := m.View().Content
+		row, col := moon.MarkerAt(defaultW, defaultH-1, 0)
+		lines := strings.Split(ansiPat.ReplaceAllString(v, ""), "\n")
+		if row < 0 || row >= len(lines) {
+			t.Fatalf("MarkerAt row %d is off the %d-row view", row, len(lines))
+		}
+		rs := []rune(lines[row])
+		if col < 0 || col >= len(rs) {
+			t.Fatalf("MarkerAt col %d is off the %d-col view", col, len(rs))
+		}
+		if rs[col] == moon.MarkerGlyph {
+			t.Fatal("the stock orbit start still holds the lander — it must fly in, not appear")
+		}
+		if _, _, ok := markerCell(v); ok {
+			t.Fatal("no lander on the first frame of scene two — appearing anywhere is the same cheat")
 		}
 	})
 	t.Run("happy: space on the last scene ends the show — nothing left", func(t *testing.T) {

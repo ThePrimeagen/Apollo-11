@@ -21,7 +21,7 @@ components/   everything a scene puts together
   sky/        the moveable blue gradient — owns its config.json
   cloud/      the pool-particle cloud generator — owns its config.json
   stars/      the four-layer starfield — owns its config.json
-  bigstar/    the larger multi-cell star (size 1..5)
+  bigstar/    the larger multi-cell star (any size >= 1; no ceiling)
   startrail/  persist-particle comet wake — owns its config.json
               (peak spawn, life taper)
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component
@@ -29,7 +29,8 @@ components/   everything a scene puts together
   moon/       Moon (the reusable pixelated disc) + Orbit (the craft circling it)
   ie/         the old Internet Explorer logo: the blue e and its golden swoosh,
               a fixed 14×7 card in half-cell pixels (EXPLORER in the viewer)
-              plus Big, the moon-sized geometry-drawn sibling that fills a stage
+              plus Big, the moon-sized geometry-drawn sibling (BIG E in the
+              viewer) that fills a stage
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   caption/    timed side banners (1202 / 1201 / LAND) in the same face
@@ -41,11 +42,12 @@ screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + C
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
   lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing on a huge moon horizon
-  inverse/    03. Inverse Walkthrough: liftoff, engines on, engines off — the walkthrough backwards
+  mario/      03. Mario: the astronaut runs the crates, rides the flagpole, boards the LM
+  inverse/    04. Inverse Walkthrough: liftoff, engines on, engines off — the walkthrough backwards
 cmd/          every runnable: editors, demos, tuners
-  premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
-  inverse/    runs 03. Inverse Walkthrough (space past the last scene ends it)
+  mario/      runs 03. Mario (space past the last scene ends it)
+  inverse/    runs 04. Inverse Walkthrough (space past the last scene ends it)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   coreset/    the Core Set scene: the memory unit drains to one core set, its
               twelve words, then the priority bits — 6 of PRIO over 9 of VAC address
@@ -61,14 +63,16 @@ cmd/          every runnable: editors, demos, tuners
               the scene falls right-to-left, high right to low left
               (scenes/shootingstar, eleven live knobs: peak piles spawn
               on the spine, taper cuts fringe life)
+  explorer/   the Big E scene: moon-sized IE logo under blinking stars,
+              plus one shooting star (top mid-right to bottom mid-left)
+              (scenes/explorer, four live knobs: min/max twinkle cycle
+              and min/max fade)
   fall/       the north-facing LM dropping top to bottom under twinkling
               stars (scenes/fall, one live knob: drop duration)
   climb/      the same craft rising bottom to top (scenes/climb, one
               live knob: climb duration)
   prog/       the drop that pauses 1202, then 1202, then 1201
               (scenes/prog, seven live knobs: four drops, three holds)
-  explorer/   the big IE logo under the twinkling sky (scenes/explorer,
-              four live knobs: min/max twinkle cycle and min/max fade)
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser
@@ -88,7 +92,7 @@ Components live one lifecycle (see `screenplay/README.md`): `Start(w, h)`
 allocates for the stage, `Update(dt)` runs the clock, `Render()` returns a
 stage-sized `sprite.Sprite`, `Stop()` frees — and `Start` may come again.
 Each component's tuning file sits beside its code, so the tuners and the
-premiere read the same home. The lunar atlases are the one exception:
+screenplays read the same home. The lunar atlases are the one exception:
 they all live in `assets/`, the folder the editor opens by default.
 
 ## The legacy Executive sim

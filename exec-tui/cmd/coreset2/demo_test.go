@@ -4,11 +4,13 @@ package main
 // Two scene standalone. The house opens on the pickup — scene one's
 // held bits frame, the PRIORITY word over its fifteen bits — under a
 // one-line marquee, and the scene plays itself: the six-job roster,
-// the sweep, the EJSCAN loop in code, the five-set scan with the word
-// math and the arrow, then the redo with the duplicated SERVICER and
-// the newest copy selected. space (or p, or enter) replays from the
-// top, -seconds brings the curtain down on time, q and ctrl+c quit
-// anywhere, and the view is always exactly window-height lines.
+// the sweep, the check_for_higher_priority_jobs() function revealing
+// on the right half, the five-set scan with the word math and the
+// arrow while a cursor walks the code, then the redo with the
+// duplicated SERVICER and the newest copy selected. space (or p, or
+// enter) replays from the top, -seconds brings the curtain down on
+// time, q and ctrl+c quit anywhere, and the view is always exactly
+// window-height lines.
 
 import (
 	"regexp"
@@ -56,7 +58,7 @@ func TestCoreset2DemoOpens(t *testing.T) {
 	t.Run("unhappy: the code and the scan are nowhere before their acts", func(t *testing.T) {
 		m := newModel(0)
 		v := plain(m)
-		if strings.Contains(v, "EJSCAN") {
+		if strings.Contains(v, "EJSCAN") || strings.Contains(v, "check_for_higher_priority_jobs") {
 			t.Fatal("the code must wait for its act")
 		}
 		if strings.Contains(v, "SELECTED") || strings.Contains(v, "◀") {
@@ -69,18 +71,21 @@ func TestCoreset2DemoPlays(t *testing.T) {
 	t.Run("happy: the acts advance on their own clock", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
-		m = frames(m, toSeconds(coreset2.CodeStart+6*coreset2.CodeBeat+0.3))
+		m = frames(m, toSeconds(coreset2.ScanOneStart-0.3))
 		v := plain(m)
-		if !strings.Contains(v, "EJSCAN") || !strings.Contains(v, coreset2.CodeLines()[3]) {
-			t.Fatal("past the reveal the scan loop must be on stage")
+		if !strings.Contains(v, "EJSCAN") || !strings.Contains(v, strings.TrimSpace(coreset2.CodeLines()[3])) {
+			t.Fatal("past the reveal the whole scan function must be on stage")
 		}
 		if strings.Contains(v, "VAC ADDRESS — OCT 400") {
 			t.Fatal("the pickup must be long gone by the code act")
 		}
-		m = frames(m, toSeconds(coreset2.SelectOneStart-coreset2.CodeStart-6*coreset2.CodeBeat-0.3+0.5))
+		m = frames(m, toSeconds(coreset2.SelectOneStart-coreset2.ScanOneStart+0.3+0.5))
 		v = plain(m)
 		if !strings.Contains(v, "SELECTED") || !strings.Contains(v, "RR READ·32") {
 			t.Fatal("scan one must end with the third box down selected")
+		}
+		if !strings.Contains(v, strings.TrimSpace(coreset2.CodeLines()[0])) {
+			t.Fatal("the code must still stand beside the finished scan")
 		}
 	})
 	t.Run("happy: space, p and enter replay from the top", func(t *testing.T) {

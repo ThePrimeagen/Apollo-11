@@ -14,7 +14,7 @@ import (
 // full — the landing throttle run backwards), and the pad dust
 // window. The standalone runner nudges time knobs 50ms at a time and
 // dust loss 0.005/ms; Play rebuilds the scene from whatever they
-// hold. s writes this JSON next to the scene. 03. Inverse Walkthrough
+// hold. s writes this JSON next to the scene. 04. Inverse Walkthrough
 // plays the same Active config.
 type Config struct {
 	RiseSeconds float64 `json:"riseSeconds"`

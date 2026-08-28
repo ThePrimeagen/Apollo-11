@@ -1,6 +1,6 @@
 package main
 
-// Demo harness tests, written first: cmd/inverse runs 03. Inverse
+// Demo harness tests, written first: cmd/inverse runs 04. Inverse
 // Walkthrough — the composable three-scene bill from shows/inverse.
 // The house opens on "liftoff": the lander parked on the moon floor
 // ignites, kicks the mirrored dust, and climbs off the top; the empty

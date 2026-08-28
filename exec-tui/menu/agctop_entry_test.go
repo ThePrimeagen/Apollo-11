@@ -28,7 +28,7 @@ func TestCommandScreenAppendsWithoutReordering(t *testing.T) {
 	// order (the screenplay entries stay at the top, and the command
 	// screen leads the EXECUTIVE tail)
 	c := Catalog()
-	if c[0].ID != "screenplay" || c[1].ID != "moon" || c[2].ID != "closeup" {
+	if c[0].ID != "moon" || c[1].ID != "closeup" || c[2].ID != "mario" {
 		t.Fatalf("existing catalog head disturbed: %s, %s, %s", c[0].ID, c[1].ID, c[2].ID)
 	}
 	if c[len(c)-2].ID != "agctop" {

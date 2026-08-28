@@ -6,11 +6,11 @@ import (
 )
 
 func TestCatalogCarriesTheSpacelanderScenes(t *testing.T) {
-	// happy: Fall, Climb, and Prog sit on the Scenes shelf after the
-	// shooting star, each with its own tuner — the talk's three
-	// spacelander beats (top to bottom, bottom to top, then 1202 /
-	// 1202 / 1201).
-	fall, climb, prog, shoot := -1, -1, -1, -1
+	// happy: Fall, Climb, and Prog sit on the Scenes shelf after Big E
+	// (itself after the shooting star), each with its own tuner — the
+	// talk's three spacelander beats (top to bottom, bottom to top,
+	// then 1202 / 1202 / 1201).
+	fall, climb, prog, explorer := -1, -1, -1, -1
 	c := Catalog()
 	for i := range c {
 		switch c[i].ID {
@@ -20,15 +20,15 @@ func TestCatalogCarriesTheSpacelanderScenes(t *testing.T) {
 			climb = i
 		case "prog":
 			prog = i
-		case "shootingstar":
-			shoot = i
+		case "explorer":
+			explorer = i
 		}
 	}
 	if fall < 0 || climb < 0 || prog < 0 {
 		t.Fatal("catalog missing a spacelander scene (fall / climb / prog)")
 	}
-	if shoot < 0 || fall != shoot+1 || climb != fall+1 || prog != climb+1 {
-		t.Fatalf("fall/climb/prog sit at %d/%d/%d, want right after shootingstar at %d", fall, climb, prog, shoot)
+	if explorer < 0 || fall != explorer+1 || climb != fall+1 || prog != climb+1 {
+		t.Fatalf("fall/climb/prog sit at %d/%d/%d, want right after Big E at %d", fall, climb, prog, explorer)
 	}
 	if e := c[fall]; e.Title != "Spacelander Fall" || e.Pkg != "./cmd/fall" || e.Section != "Scenes" {
 		t.Fatalf("fall entry = %+v, want Spacelander Fall out of ./cmd/fall", e)
