@@ -69,9 +69,9 @@ type movieDoc struct {
 }
 
 type frameDoc struct {
-	FrameNumber int       `json:"frameNumber"`
-	Delay       float64   `json:"delay"`
-	Contents    []string  `json:"contents"`
+	FrameNumber int        `json:"frameNumber"`
+	Delay       float64    `json:"delay"`
+	Contents    []string   `json:"contents"`
 	ColorMap    [][][2]int `json:"colorMap"`
 }
 
