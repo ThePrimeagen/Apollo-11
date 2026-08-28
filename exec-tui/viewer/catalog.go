@@ -28,8 +28,10 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/startrail"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/alarms"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/checkprio"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset2"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
@@ -110,6 +112,8 @@ func Catalog() []Item {
 		{ID: "bobble", Title: "BOBBLE", Kind: KindScene, Path: bobble.DefaultConfigPath, Program: "./cmd/bobble", spawn: func() screenplay.Component { return wrapScene(bobble.New(nil)) }},
 		{ID: "explorer", Title: "BIG E", Kind: KindScene, Path: explorer.DefaultConfigPath, Program: "./cmd/explorer", spawn: func() screenplay.Component { return wrapScene(explorer.New(nil)) }},
 		{ID: "interpreter", Title: "INTERPRETER", Kind: KindScene, Path: interpreter.DefaultConfigPath, Program: "./cmd/interpreter", spawn: func() screenplay.Component { return wrapScene(interpreter.New()) }},
+		{ID: "checkprio", Title: "CHECK PRIORITY", Kind: KindScene, Path: "scenes/checkprio", Program: "./cmd/checkprio", spawn: func() screenplay.Component { return wrapScene(checkprio.New()) }},
+		{ID: "alarms", Title: "ALARMS", Kind: KindScene, Path: "scenes/alarms", Program: "./cmd/alarms", spawn: func() screenplay.Component { return wrapScene(alarms.New()) }},
 		{ID: "shootingstar", Title: "SHOOTING STAR", Kind: KindScene, Path: shootingstar.DefaultConfigPath, Program: "./cmd/shootingstar", spawn: func() screenplay.Component { return wrapScene(shootingstar.New(nil)) }},
 	}
 }

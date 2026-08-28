@@ -195,6 +195,39 @@ func TestColoring(t *testing.T) {
 			t.Fatalf("an ident wears %d, want text %d", got, Text)
 		}
 	})
+	t.Run("happy: the C-style dialect — return and throw are keywords, new stays a plain variable", func(t *testing.T) {
+		c := New(LangPseudo, []string{
+			"    new = core_sets[i].data[11]",
+			"    return i",
+			"  throw new error(1202)",
+		})
+		art := c.Art()
+		if got := fgArt(t, art, "return"); got != Iris {
+			t.Fatalf("return wears %d, want the keyword iris %d", got, Iris)
+		}
+		if got := fgArt(t, art, "throw"); got != Iris {
+			t.Fatalf("throw wears %d, want the keyword iris %d", got, Iris)
+		}
+		if got := fgArt(t, art, "new"); got != Text {
+			t.Fatalf("new wears %d, want plain text %d — it is the walked function's variable", got, Text)
+		}
+		if got := fgArt(t, art, "1202"); got != Gold {
+			t.Fatalf("the alarm code wears %d, want gold %d", got, Gold)
+		}
+		if got := fgArt(t, art, "error"); got != Text {
+			t.Fatalf("error wears %d, want plain text %d", got, Text)
+		}
+	})
+	t.Run("unhappy: a keyword-shaped substring inside an ident never turns iris", func(t *testing.T) {
+		c := New(LangPseudo, []string{"returned = throwaway"})
+		art := c.Art()
+		if got := fgArt(t, art, "returned"); got != Text {
+			t.Fatalf("returned wears %d, want plain text %d — only whole words are keywords", got, Text)
+		}
+		if got := fgArt(t, art, "throwaway"); got != Text {
+			t.Fatalf("throwaway wears %d, want plain text %d", got, Text)
+		}
+	})
 	t.Run("happy: the palette is the danzig card's Rose Pine", func(t *testing.T) {
 		pairs := [][2]int{
 			{Base, danzig.Base256}, {Text, danzig.Text256}, {Muted, danzig.Muted256},

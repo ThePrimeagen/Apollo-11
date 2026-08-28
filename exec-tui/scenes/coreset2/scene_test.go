@@ -8,19 +8,24 @@ package coreset2
 // Act two, the roster: the word burns away while six real jobs land
 // one per JobBeat, each wearing its own ink and its own priority —
 // six different numbers. Act three, the sweep: the roster dissolves
-// to an empty stage. Act four, the code: the EJSCAN loop reveals one
-// line per CodeBeat — walk every core set, read the PRIORITY word,
-// keep the highest — created by showing it. Act five, scan one: five
-// core sets redraw with the full word math beside each box (priority
-// plus VAC address; the NOVAC jobs carry 000), the scan speaks every
-// comparison beat by beat, the arrow tracks the leader, and the third
-// box down — RR READ at 32000 — is SELECTED. Act six, scan two: the
-// redo with a duplicated job — three SERVICER copies at the same
-// PRIO 20 but ascending VAC addresses (the real 400, 454, 530) — the
-// equal-priority compares fall to the VAC address, the newest copy is
-// always selected, and the old copies are tagged as the stubs they
-// become. The scene holds there. A resize keeps the clock; Stop then
-// Start replays; a nil screen never panics.
+// to an empty stage. Act four, the code: the very function the Check
+// Priority scene walks — check_for_higher_priority_jobs(), the
+// C-style scan of every core set's data[11] — reveals one line per
+// CodeBeat on the right half of the stage, and it STAYS there. Act
+// five, scan one: five core sets redraw on the left with the full
+// word math beside each box, the scan speaks every comparison beat
+// by beat, the box cursor rides the examined set, the arrow tracks
+// the leader — and a second cursor walks the code itself: the winner
+// line when a set takes the lead, the if line when the compare says
+// no, the read line when a free set turns up -0, the run line when
+// the walk ends SELECTED. Act six, scan two: the redo with three
+// SERVICER copies at the same PRIO 20 climbing the real VAC
+// addresses 400, 454, 530 — the full word falls to the VAC address,
+// the newest copy is always selected, the passed-over copies are
+// tagged as the stubs they become — and the same code walks beside
+// it, so you watch it select the latest one. The scene holds there.
+// A resize keeps the clock; Stop then Start replays; a nil screen
+// never panics.
 
 import (
 	"strings"
@@ -29,6 +34,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/checkprio"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
@@ -126,6 +132,39 @@ func fgAt(scr *screenplay.Screen, x, y int) int {
 		return int(ic)
 	}
 	return -1
+}
+
+// cursorRows is every row a ▸ cursor sits on, in reading order.
+func cursorRows(scr *screenplay.Screen) []int {
+	var rows []int
+	_, h := scr.Size()
+	for row := 0; row < h; row++ {
+		if strings.Contains(rowText(scr, row), "▸") {
+			rows = append(rows, row)
+		}
+	}
+	return rows
+}
+
+// codeRow is the stage row the given code line paints on, found by
+// its own trimmed text.
+func codeRow(t *testing.T, scr *screenplay.Screen, line int) int {
+	t.Helper()
+	_, y := mustSee(t, scr, strings.TrimSpace(CodeLines()[line]))
+	return y
+}
+
+// mustCursorOnCode asserts one of the cursors rides the given code
+// line's row.
+func mustCursorOnCode(t *testing.T, scr *screenplay.Screen, line int) {
+	t.Helper()
+	want := codeRow(t, scr, line)
+	for _, r := range cursorRows(scr) {
+		if r == want {
+			return
+		}
+	}
+	t.Fatalf("no cursor on code line %d's row %d — cursors sit on %v", line, want, cursorRows(scr))
 }
 
 // stepOneAt is the clock time scan one's step i speaks.
@@ -253,34 +292,48 @@ func TestClearAct(t *testing.T) {
 }
 
 func TestCodeAct(t *testing.T) {
-	t.Run("happy: the scan loop is real code — walk the sets, compare the full word", func(t *testing.T) {
+	t.Run("happy: the code is exactly the function the Check Priority scene walks", func(t *testing.T) {
 		lines := CodeLines()
-		if len(lines) != 6 {
-			t.Fatalf("the loop reads in %d lines, want 6", len(lines))
+		want := checkprio.Lines()
+		if len(lines) != len(want) {
+			t.Fatalf("the code act carries %d lines, want checkprio's %d", len(lines), len(want))
 		}
-		joined := strings.Join(lines, "\n")
-		for _, want := range []string{"core set", "PRIORITY", "word > best", "EJSCAN", "VAC address"} {
-			if !strings.Contains(joined, want) {
-				t.Fatalf("the code must speak %q:\n%s", want, joined)
+		for i := range want {
+			if lines[i] != want[i] {
+				t.Fatalf("line %d is %q, want checkprio's %q — one function, two scenes", i, lines[i], want[i])
 			}
 		}
+		if float64(CodeLineCount) != float64(len(lines)) {
+			t.Fatalf("CodeLineCount %d must match the function's %d lines — the act clock depends on it", CodeLineCount, len(lines))
+		}
 	})
-	t.Run("happy: the code reveals one line per CodeBeat under the sourced caption", func(t *testing.T) {
+	t.Run("happy: the code reveals one line per CodeBeat on the right half, under the sourced caption", func(t *testing.T) {
 		s := opened(t)
 		scr := seek(t, s, CodeStart+0.6*CodeBeat)
-		mustSee(t, scr, CodeLines()[0])
-		mustNotSee(t, scr, CodeLines()[1])
-		scr = seek(t, s, 6*CodeBeat-0.6*CodeBeat+0.1)
+		x, _ := mustSee(t, scr, CodeLines()[0])
+		if x <= stageW/2 {
+			t.Fatalf("the code seats on the right half where the scan will read beside it, found it at column %d", x)
+		}
+		mustNotSee(t, scr, strings.TrimSpace(CodeLines()[checkprio.LineOld]))
+		scr = seek(t, s, float64(CodeLineCount)*CodeBeat-0.6*CodeBeat+0.1)
 		for _, line := range CodeLines() {
-			mustSee(t, scr, line)
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			mustSee(t, scr, strings.TrimSpace(line))
 		}
 		mustSee(t, scr, CaptionCode)
 	})
-	t.Run("unhappy: the code burns away as scan one opens", func(t *testing.T) {
+	t.Run("unhappy: the code never burns away — it stays beside both scans", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, ScanOneStart+CodeFadeSeconds+0.15)
-		mustNotSee(t, scr, CodeLines()[1])
+		scr := seek(t, s, ScanOneStart+BuildSeconds/2)
+		mustSee(t, scr, CodeLines()[0])
 		mustSee(t, scr, "CS1")
+		mustNotSee(t, scr, "▸")
+		scr = seek(t, s, ScanTwoStart-ScanOneStart-BuildSeconds/2-SwapSeconds/2)
+		mustSee(t, scr, CodeLines()[0])
+		scr = seek(t, s, SwapSeconds/2+BuildSeconds+0.1)
+		mustSee(t, scr, CodeLines()[0])
 	})
 }
 
@@ -336,7 +389,7 @@ func TestScanData(t *testing.T) {
 			t.Fatalf("the winner is slot %d, want 3 — the newest copy", w)
 		}
 	})
-	t.Run("happy: the steps speak every comparison — seed, greater, lesser, equal-priority, skip", func(t *testing.T) {
+	t.Run("happy: the steps speak every comparison and walk the right code lines", func(t *testing.T) {
 		one := Steps(ScanOne())
 		if len(one) != 5 {
 			t.Fatalf("scan one speaks %d steps, want 5", len(one))
@@ -348,9 +401,16 @@ func TestScanData(t *testing.T) {
 			"CS4 — 26454 < 32000 · CS3 keeps the lead",
 			"CS5 — 30000 < 32000 · CS3 keeps the lead",
 		}
+		wantOneLines := []int{
+			checkprio.LineWinner, checkprio.LineWinner, checkprio.LineWinner,
+			checkprio.LineIf, checkprio.LineIf,
+		}
 		for i, w := range wantOne {
 			if one[i].Text != w {
 				t.Fatalf("scan one step %d says %q, want %q", i, one[i].Text, w)
+			}
+			if one[i].Line != wantOneLines[i] {
+				t.Fatalf("scan one step %d walks code line %d, want %d", i, one[i].Line, wantOneLines[i])
 			}
 		}
 		if one[4].Best != 2 {
@@ -364,9 +424,16 @@ func TestScanData(t *testing.T) {
 			"CS4 — PRIO 20 = 20 · VAC 530 > 454 · the newer copy leads",
 			"CS5 — PRIORITY -0 · free · skipped",
 		}
+		wantTwoLines := []int{
+			checkprio.LineWinner, checkprio.LineIf, checkprio.LineWinner,
+			checkprio.LineWinner, checkprio.LineRead,
+		}
 		for i, w := range wantTwo {
 			if two[i].Text != w {
 				t.Fatalf("scan two step %d says %q, want %q", i, two[i].Text, w)
+			}
+			if two[i].Line != wantTwoLines[i] {
+				t.Fatalf("scan two step %d walks code line %d, want %d", i, two[i].Line, wantTwoLines[i])
 			}
 		}
 		if two[4].Best != 3 {
@@ -388,6 +455,9 @@ func TestScanData(t *testing.T) {
 			}
 			if st.Best != -1 {
 				t.Fatalf("nothing leads an empty pool, best=%d", st.Best)
+			}
+			if st.Line != checkprio.LineRead {
+				t.Fatalf("a free set's step rests on the read line %d, got %d — the read comes up -0", checkprio.LineRead, st.Line)
 			}
 		}
 		if w := Winner(slots); w != -1 {
@@ -412,6 +482,9 @@ func TestScanData(t *testing.T) {
 		if !strings.Contains(steps[1].Text, "tie") || !strings.Contains(steps[1].Text, "earlier") {
 			t.Fatalf("the tie must speak the rule, step says %q", steps[1].Text)
 		}
+		if steps[1].Line != checkprio.LineIf {
+			t.Fatalf("a tie rests on the if line %d — the compare says no — got %d", checkprio.LineIf, steps[1].Line)
+		}
 		older := []Slot{
 			{Label: "CS1", Job: pools.Job{Name: "S", Prio: 20}, VACAddr: 0o454},
 			{Label: "CS2", Job: pools.Job{Name: "S", Prio: 20}, VACAddr: 0o400},
@@ -422,6 +495,9 @@ func TestScanData(t *testing.T) {
 		}
 		if !strings.Contains(st.Text, "VAC 400 < 454") {
 			t.Fatalf("the equal-priority loss must show the VAC compare, step says %q", st.Text)
+		}
+		if st.Line != checkprio.LineIf {
+			t.Fatalf("a losing compare rests on the if line %d, got %d", checkprio.LineIf, st.Line)
 		}
 	})
 }
@@ -443,6 +519,15 @@ func TestScanOneAct(t *testing.T) {
 		}
 		mustSee(t, scr, CaptionScanOne)
 	})
+	t.Run("happy: the boxes keep left of the code — both on stage at once", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, ScanOneStart+BuildSeconds+0.1)
+		bx, _ := mustSee(t, scr, "CS1")
+		cx, _ := mustSee(t, scr, CodeLines()[0])
+		if bx >= cx {
+			t.Fatalf("the boxes (column %d) must sit left of the code (column %d)", bx, cx)
+		}
+	})
 	t.Run("happy: the NOVAC rows wear empty low bits — 000 in the dim ink, real addresses in the VAC ink", func(t *testing.T) {
 		s := opened(t)
 		scr := seek(t, s, ScanOneStart+BuildSeconds+0.1)
@@ -457,7 +542,7 @@ func TestScanOneAct(t *testing.T) {
 			t.Fatalf("a NOVAC address wears %d, want the dim ink %d — the low bits are empty", got, pools.DimInk)
 		}
 	})
-	t.Run("happy: the scan speaks each comparison and the arrow tracks the leader", func(t *testing.T) {
+	t.Run("happy: the scan speaks each comparison, the arrow tracks the leader, the cursor walks the code", func(t *testing.T) {
 		s := opened(t)
 		steps := Steps(ScanOne())
 		scr := seek(t, s, stepOneAt(0)+0.3)
@@ -467,6 +552,7 @@ func TestScanOneAct(t *testing.T) {
 		if lead0 != cs1 {
 			t.Fatalf("after the seed the arrow sits on row %d, want CS1's row %d", lead0, cs1)
 		}
+		mustCursorOnCode(t, scr, steps[0].Line)
 		scr = seek(t, s, CompareBeat)
 		mustSee(t, scr, steps[1].Text)
 		mustNotSee(t, scr, steps[0].Text)
@@ -475,6 +561,7 @@ func TestScanOneAct(t *testing.T) {
 		if lead1 != cs2 {
 			t.Fatalf("after step one the arrow sits on row %d, want CS2's row %d", lead1, cs2)
 		}
+		mustCursorOnCode(t, scr, steps[1].Line)
 		scr = seek(t, s, 2*CompareBeat)
 		mustSee(t, scr, steps[3].Text)
 		_, lead3 := mustSee(t, scr, "◀ best")
@@ -482,8 +569,9 @@ func TestScanOneAct(t *testing.T) {
 		if lead3 != cs3 {
 			t.Fatalf("losing compares must not move the arrow: row %d, want CS3's row %d", lead3, cs3)
 		}
+		mustCursorOnCode(t, scr, steps[3].Line)
 	})
-	t.Run("happy: the third box down is SELECTED", func(t *testing.T) {
+	t.Run("happy: the third box down is SELECTED and the cursor rests on the run line", func(t *testing.T) {
 		s := opened(t)
 		scr := seek(t, s, SelectOneStart+0.3)
 		_, selY := mustSee(t, scr, "◀ SELECTED")
@@ -493,11 +581,16 @@ func TestScanOneAct(t *testing.T) {
 		}
 		mustSee(t, scr, CaptionWinnerOne)
 		mustNotSee(t, scr, "◀ best")
+		mustCursorOnCode(t, scr, checkprio.LineRun)
+		if rows := cursorRows(scr); len(rows) != 1 {
+			t.Fatalf("only the code cursor survives the walk, found cursors on rows %v", rows)
+		}
 	})
 	t.Run("unhappy: no comparison speaks before the build completes", func(t *testing.T) {
 		s := opened(t)
 		scr := seek(t, s, ScanOneStart+BuildSeconds-0.1)
 		mustNotSee(t, scr, "◀")
+		mustNotSee(t, scr, "▸")
 		mustNotSee(t, scr, Steps(ScanOne())[0].Text)
 	})
 	t.Run("unhappy: nothing is SELECTED before the last compare lands", func(t *testing.T) {
@@ -530,6 +623,7 @@ func TestScanTwoAct(t *testing.T) {
 		if leadY != cs3 {
 			t.Fatalf("the newer copy must take the lead: arrow on row %d, want row %d", leadY, cs3)
 		}
+		mustCursorOnCode(t, scr, steps[2].Line)
 		scr = seek(t, s, SelectTwoStart-stepTwoAt(2)-0.3+0.3)
 		_, selY := mustSee(t, scr, "◀ SELECTED")
 		_, newest := mustSee(t, scr, "20 + 530 = 20530")
@@ -537,6 +631,7 @@ func TestScanTwoAct(t *testing.T) {
 			t.Fatalf("SELECTED sits on row %d, want the newest copy's row %d", selY, newest)
 		}
 		mustSee(t, scr, CaptionWinnerTwo)
+		mustCursorOnCode(t, scr, checkprio.LineRun)
 	})
 	t.Run("happy: the passed-over copies are the stubs — tagged, starving", func(t *testing.T) {
 		s := opened(t)
@@ -559,7 +654,7 @@ func TestScanTwoAct(t *testing.T) {
 			t.Fatalf("the hold drifted:\n%q\n%q", before, got)
 		}
 	})
-	t.Run("unhappy: the free set is skipped — never a job, spoken as free", func(t *testing.T) {
+	t.Run("unhappy: the free set is skipped — spoken as free, the cursor on the read line", func(t *testing.T) {
 		s := opened(t)
 		scr := seek(t, s, stepTwoAt(4)+0.3)
 		mustSee(t, scr, Steps(ScanTwo())[4].Text)
@@ -567,6 +662,7 @@ func TestScanTwoAct(t *testing.T) {
 		if got := countOn(scr, "SERVICER"); got != 3 {
 			t.Fatalf("the free set must stay empty — %d SERVICERs on stage, want 3", got)
 		}
+		mustCursorOnCode(t, scr, checkprio.LineRead)
 	})
 	t.Run("unhappy: scan one's cast is gone from the redo", func(t *testing.T) {
 		s := opened(t)
