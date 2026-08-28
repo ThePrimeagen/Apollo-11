@@ -83,6 +83,18 @@ func RandomCrossing(seed int64, w, h float64) Crossing {
 	return Crossing{Start: start, Ctrl: ctrl, End: end}
 }
 
+// DiagonalCrossing is one meteor from high on the left to low on the
+// right — the landing's shooting star. A collapsed box parks.
+func DiagonalCrossing(w, h float64) Crossing {
+	if w <= 0 || h <= 0 {
+		return Crossing{}
+	}
+	start := particle.Vec2{X: 0.04 * w, Y: 0.08 * h}
+	end := particle.Vec2{X: 0.96 * w, Y: 0.88 * h}
+	ctrl := particle.Vec2{X: (start.X + end.X) / 2, Y: (start.Y + end.Y) / 2}
+	return Crossing{Start: start, Ctrl: ctrl, End: end}
+}
+
 // OnceCrossing is the Big E meteor: one fall from top mid-right to
 // bottom mid-left. The same box always draws the same path. A light
 // bend keeps it from being a ruler; the heading stays leftward.

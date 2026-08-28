@@ -57,7 +57,7 @@ func TestLandingSceneRunner(t *testing.T) {
 	t.Run("happy: the house opens on scene 1/1 — landing, moon floor, craft off the top", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"landing", "play", "50ms", "save", "quit", "land", "dust", "fire", "loss"} {
+		for _, want := range []string{"landing", "play", "50ms", "save", "quit", "land", "dust", "fire", "loss", "1202", "LAND"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}

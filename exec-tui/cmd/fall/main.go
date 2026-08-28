@@ -1,18 +1,16 @@
-// landing: the portable landing scene from scenes/landing. A huge moon
-// horizon as a colored floor and the north-facing lander coming down
-// onto it — booster full, then ¾, ½, ¼, then off, each at its own
-// t=0 offset. Pad dust starts at DustStart and blows for DustRun.
-// Play rebuilds from the current knobs; j/k select a knob, h/l walk
-// it 50ms. q quits.
+// fall: the portable spacelander fall from scenes/fall. The north-
+// facing lander dropping top to bottom under twinkling stars. One
+// live knob: drop duration (±50ms). Play rebuilds from the current
+// knobs; j/k select, h/l walk it. q quits.
 //
 //	p / enter / space   play from the top
 //	j / k               select knob
 //	h / l               −50ms / +50ms
-//	s                   save knobs to scenes/landing/config.json
+//	s                   save knobs to scenes/fall/config.json
 //	q                   quit
 //
-//	go run ./cmd/landing
-//	go run ./cmd/landing -seconds 15
+//	go run ./cmd/fall
+//	go run ./cmd/fall -seconds 15
 package main
 
 import (
@@ -25,10 +23,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
-	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/fall"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
@@ -36,16 +33,13 @@ import (
 
 const (
 	defaultW   = 72
-	defaultH   = 32
+	defaultH   = 28
 	minW       = 10
 	minH       = 4
 	frameMs    = 1000.0 / 30
-	statusRows = 1 + int(landing.KnobCount)
+	statusRows = 1 + int(fall.KnobCount)
 )
 
-// applySky loads a tuned sky config and makes it the active sky. A
-// missing file quietly keeps the stock sky; a broken file is an error
-// worth stopping for.
 func applySky(path string) error {
 	c, err := stars.LoadSky(path)
 	if err != nil {
@@ -57,20 +51,6 @@ func applySky(path string) error {
 	return stars.UseSky(c)
 }
 
-// applyPuff loads a tuned dust config and makes it the active kick.
-// A missing file quietly keeps the stock puff; a broken file is an
-// error worth stopping for.
-func applyPuff(path string) error {
-	c, err := dust.LoadPuff(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	return dust.UsePuff(c)
-}
-
 func forcedColorProfile() (colorprofile.Profile, bool) {
 	if os.Getenv("CLICOLOR_FORCE") != "" {
 		return colorprofile.ANSI256, true
@@ -80,10 +60,10 @@ func forcedColorProfile() (colorprofile.Profile, bool) {
 
 type model struct {
 	w, h    int
-	show    *landing.Show
+	show    *fall.Show
 	play    *screenplay.Screenplay
 	screen  *screenplay.Screen
-	cursor  landing.Knob
+	cursor  fall.Knob
 	seconds float64
 	elapsed float64
 	path    string
@@ -91,8 +71,8 @@ type model struct {
 }
 
 func newModel(seconds float64) model {
-	show := landing.New(nil)
-	play := screenplay.New(screenplay.Entry{Name: "landing", Scene: show})
+	show := fall.New(nil)
+	play := screenplay.New(screenplay.Entry{Name: "fall", Scene: show})
 	play.Start()
 	return model{
 		w:       defaultW,
@@ -101,7 +81,7 @@ func newModel(seconds float64) model {
 		play:    play,
 		screen:  screenplay.NewScreen(defaultW, defaultH-statusRows),
 		seconds: seconds,
-		path:    landing.DefaultConfigPath,
+		path:    fall.DefaultConfigPath,
 	}
 }
 
@@ -126,8 +106,8 @@ func (m model) replay() model {
 }
 
 func (m model) move(delta int) model {
-	n := int(landing.KnobCount)
-	m.cursor = landing.Knob((int(m.cursor) + delta%n + n) % n)
+	n := int(fall.KnobCount)
+	m.cursor = fall.Knob((int(m.cursor) + delta%n + n) % n)
 	return m
 }
 
@@ -140,7 +120,7 @@ func (m model) save() model {
 		m.note = "save failed: " + err.Error()
 		return m
 	}
-	if err := landing.Use(m.show.Cfg); err != nil {
+	if err := fall.Use(m.show.Cfg); err != nil {
 		m.note = "save failed: " + err.Error()
 		return m
 	}
@@ -215,27 +195,22 @@ func (m model) status(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
 	reset := "\x1b[0m"
-	help := dim + pad("landing   p play  j/k select  h/l ±50ms  s save  q quit", w) + reset
+	help := dim + pad("fall   p play  j/k select  h/l ±50ms  s save  q quit", w) + reset
 	if m.note != "" {
 		help = dim + pad(m.note, w) + reset
 	}
 	rows := []string{help}
-	for i := landing.Knob(0); i < landing.KnobCount; i++ {
+	for i := fall.Knob(0); i < fall.KnobCount; i++ {
 		marker, color := "  ", dim
 		if i == m.cursor {
 			marker, color = "> ", hot
 		}
-		unit := "s"
-		if i == landing.KnobDustLoss {
-			unit = "/ms"
-		}
-		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %6.3f%s", marker, landing.KnobLabel(i), m.show.Cfg.Value(i), unit), w)+reset)
+		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %6.3fs", marker, fall.KnobLabel(i), m.show.Cfg.Value(i)), w)+reset)
 	}
 	return rows
 }
 
 func pad(s string, w int) string {
-	// strip the width of ANSI so the pad matches the cell count
 	plain := s
 	for _, seq := range []string{"\x1b[38;5;240m", "\x1b[38;5;214m", "\x1b[0m"} {
 		plain = strings.ReplaceAll(plain, seq, "")
@@ -251,29 +226,22 @@ func main() {
 	seconds := flag.Float64("seconds", 0, "auto-quit after N seconds (0 = interactive)")
 	skyPath := flag.String("stars", "components/stars/config.json",
 		"sky config JSON (adjuststars); a missing file keeps the stock sky")
-	puffPath := flag.String("dust", "components/dust/config.json",
-		"dust puff JSON (adjustdust); a missing file keeps the stock kick")
-	cfgPath := flag.String("config", landing.DefaultConfigPath,
-		"landing timing JSON; a missing file keeps the stock knobs")
+	cfgPath := flag.String("config", fall.DefaultConfigPath,
+		"fall timing JSON; a missing file keeps the stock knobs")
 	flag.Parse()
 	skyFile := menu.Resolve(*skyPath)
-	puffFile := menu.Resolve(*puffPath)
 	cfgFile := menu.Resolve(*cfgPath)
 	if err := applySky(skyFile); err != nil {
-		fmt.Fprintln(os.Stderr, "landing:", err)
+		fmt.Fprintln(os.Stderr, "fall:", err)
 		os.Exit(1)
 	}
-	if err := applyPuff(puffFile); err != nil {
-		fmt.Fprintln(os.Stderr, "landing:", err)
-		os.Exit(1)
-	}
-	c, err := landing.LoadOrDefault(cfgFile)
+	c, err := fall.LoadOrDefault(cfgFile)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "landing:", err)
+		fmt.Fprintln(os.Stderr, "fall:", err)
 		os.Exit(1)
 	}
-	if err := landing.Use(c); err != nil {
-		fmt.Fprintln(os.Stderr, "landing:", err)
+	if err := fall.Use(c); err != nil {
+		fmt.Fprintln(os.Stderr, "fall:", err)
 		os.Exit(1)
 	}
 	m := newModel(*seconds)
@@ -283,7 +251,7 @@ func main() {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
 	if _, err := termreset.Run(m, opts...); err != nil {
-		fmt.Fprintln(os.Stderr, "landing:", err)
+		fmt.Fprintln(os.Stderr, "fall:", err)
 		os.Exit(1)
 	}
 }

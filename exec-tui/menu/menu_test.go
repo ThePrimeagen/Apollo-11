@@ -52,7 +52,7 @@ func keyCode(m Model, code rune) Model {
 func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
 		// tall enough that the whole grown catalog fits on one screen
-		m := sized(New(Catalog(), ""), 100, 48)
+		m := sized(New(Catalog(), ""), 100, 56)
 		v := stripAnsi(m.View().Content)
 		for _, want := range []string{"01. Moon Orbit", "02. Walkthrough", "03. Mario", "04. Inverse Walkthrough", "Landing", "America", "Skies", "FLAME", "STARS", "LEGACY"} {
 			if !strings.Contains(v, want) {
@@ -112,7 +112,7 @@ func entryLine(v, title string) int {
 func TestMenuSections(t *testing.T) {
 	t.Run("happy: each category header renders once, above its entries", func(t *testing.T) {
 		// tall enough that the whole grown catalog fits on one screen
-		v := stripAnsi(sized(New(Catalog(), ""), 100, 48).View().Content)
+		v := stripAnsi(sized(New(Catalog(), ""), 100, 56).View().Content)
 		order := []struct{ header, first string }{
 			{"Screenplays", "01. Moon Orbit"},
 			{"Scenes", "Component Viewer"},
@@ -146,7 +146,7 @@ func TestMenuSections(t *testing.T) {
 		}
 	})
 	t.Run("happy: 01. Moon Orbit then 02. Walkthrough then 03. Mario then 04. Inverse sit under Screenplays", func(t *testing.T) {
-		v := stripAnsi(sized(New(Catalog(), ""), 100, 48).View().Content)
+		v := stripAnsi(sized(New(Catalog(), ""), 100, 56).View().Content)
 		hi := headerLine(v, "Screenplays")
 		orbit := entryLine(v, "01. Moon Orbit")
 		walk := entryLine(v, "02. Walkthrough")
@@ -172,7 +172,7 @@ func TestMenuSections(t *testing.T) {
 		}
 	})
 	t.Run("happy: headers are never selectable — j walks entry to entry", func(t *testing.T) {
-		m := sized(New(Catalog(), ""), 100, 48)
+		m := sized(New(Catalog(), ""), 100, 56)
 		m = key(m, 'j')
 		if got := Catalog()[m.sel].ID; got != "closeup" {
 			t.Fatalf("j from moon must land on closeup, got %q", got)
@@ -419,7 +419,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"moon", "closeup", "mario", "inverse",
-			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "checkprio", "alarms", "shootingstar", "explorer",
+			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "checkprio", "alarms", "shootingstar", "explorer", "fall", "climb", "prog",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config", "startrail-config",
 			"dsky",
@@ -455,6 +455,9 @@ func TestCatalog(t *testing.T) {
 			"alarms":           "Scenes",
 			"shootingstar":     "Scenes",
 			"explorer":         "Scenes",
+			"fall":             "Scenes",
+			"climb":            "Scenes",
+			"prog":             "Scenes",
 			"flame":            "CONFIG",
 			"stars-config":     "CONFIG",
 			"sky-config":       "CONFIG",

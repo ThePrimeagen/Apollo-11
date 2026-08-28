@@ -13,6 +13,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/bigstar"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/caption"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
@@ -172,6 +174,7 @@ func TestLandingBill(t *testing.T) {
 
 func TestLandingScene(t *testing.T) {
 	t.Cleanup(Reset)
+	t.Cleanup(stars.ResetTwinkle)
 	t.Run("happy: a huge moon horizon the lander comes down onto", func(t *testing.T) {
 		sc := New(nil)
 		sc.Start()
@@ -351,29 +354,154 @@ func TestLandingScene(t *testing.T) {
 			t.Fatal("an in-flight craft must keep the land it launched with")
 		}
 	})
-	t.Run("happy: a seeded still sky freezes on the cut frame", func(t *testing.T) {
-		sky := stars.NewContinuity()
-		prior := stars.NewTunedStarfield().Seed(sky)
-		prior.Start(stageW, stageH)
-		for i := 0; i < 45; i++ {
-			prior.Update(1.0 / 30)
-		}
-		_ = prior.Render()
-		prior.Stop()
-
-		sc := New(sky)
+	t.Run("happy: the landing sky twinkles — stars fade while the scatter holds", func(t *testing.T) {
+		stars.ResetTwinkle()
+		sc := New(nil)
 		sc.Start()
 		defer sc.Stop()
-		opening := starCells(paint(sc))
-		tick(sc, 1.0)
-		later := starCells(paint(sc))
-		for pos, ch := range later {
-			if opening[pos] != ch {
-				t.Fatalf("the still landing sky crawled: star at (%d,%d) %q -> %q", pos[0], pos[1], opening[pos], ch)
+		before := starCells(paint(sc))
+		if len(before) == 0 {
+			t.Fatal("the landing sky must show stars above the horizon")
+		}
+		// Only the sky above the ridge can twinkle — the hull and the
+		// moon floor will cover stars on the way down.
+		sky := map[[2]int]string{}
+		for pos, ch := range before {
+			if pos[1] < stageH/2 {
+				sky[pos] = ch
 			}
 		}
-		if len(later) == 0 {
-			t.Fatal("the landing sky must show stars above the horizon")
+		if len(sky) == 0 {
+			t.Fatal("test premise: stars sit above the horizon")
+		}
+		var faded bool
+		for i := 0; i < 8; i++ {
+			tick(sc, 0.5)
+			now := starCells(paint(sc))
+			held := 0
+			for pos, ch := range now {
+				was, ok := sky[pos]
+				if !ok {
+					continue
+				}
+				if was != ch {
+					t.Fatalf("the star at (%d,%d) changed glyph %q→%q — fade, not shapeshift", pos[0], pos[1], was, ch)
+				}
+				held++
+			}
+			if held == 0 {
+				t.Fatal("the steady stars must hold the sky while the breathers fade")
+			}
+			for pos := range sky {
+				if _, ok := now[pos]; !ok {
+					faded = true
+				}
+			}
+		}
+		if !faded {
+			t.Fatal("across a full cycle some star must fade out — the pad is not a freeze frame")
+		}
+	})
+	t.Run("happy: one shooting star falls top-left to bottom-right, behind the moon, not behind the lander", func(t *testing.T) {
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		var seen bool
+		var leftX, leftY int
+		for i := 0; i < 45; i++ {
+			tick(sc, 1.0/30)
+			scr := paint(sc)
+			x, y, ok := findGlyph(scr, bigstar.CoreGlyph)
+			if !ok {
+				continue
+			}
+			if !seen {
+				seen = true
+				leftX, leftY = x, y
+				if x > stageW/3 || y > stageH/3 {
+					t.Fatalf("the meteor must enter top-left, at (%d,%d)", x, y)
+				}
+			} else if x < leftX || y < leftY {
+				t.Fatalf("the meteor must travel down-right, (%d,%d) → (%d,%d)", leftX, leftY, x, y)
+			}
+			if isMoonBG(scr, x, y) {
+				t.Fatalf("the meteor core at (%d,%d) sat on the moon floor — it must go behind the horizon", x, y)
+			}
+			clock := float64(i+1) / 30
+			hr, hc := lander.LandPath(stageW, stageH, clock, sc.Cfg.LandSeconds)
+			if x >= hc && x < hc+lander.BodyCols && y >= hr && y < hr+lander.BodyRows {
+				t.Fatalf("the meteor core at (%d,%d) sits in the hull box — the lander must paint on top", x, y)
+			}
+		}
+		if !seen {
+			t.Fatal("the landing must fly one shooting star")
+		}
+		// Land the craft and make sure a hull cell is never the meteor core.
+		tick(sc, LandSeconds)
+		scr := paint(sc)
+		if x, y, ok := findGlyph(scr, bigstar.CoreGlyph); ok {
+			hr, hc := lander.LandPath(stageW, stageH, 45.0/30+LandSeconds, sc.Cfg.LandSeconds)
+			if x >= hc && x < hc+lander.BodyCols && y >= hr && y < hr+lander.BodyRows {
+				t.Fatal("the meteor must sit behind the lander, not on top of the hull")
+			}
+		}
+	})
+	t.Run("happy: right before touchdown the side says 1202, 1202, then LAND", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.Code1At, sc.Cfg.Code1Hold = 0.4, 0.4
+		sc.Cfg.Code2At, sc.Cfg.Code2Hold = 1.0, 0.4
+		sc.Cfg.LandCaptionAt, sc.Cfg.LandCaptionHold = 1.6, 0.8
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.5)
+		if !hasBanner(paint(sc), "1202") {
+			t.Fatal("the first 1202 must be up before the pad")
+		}
+		if hasBanner(paint(sc), "LAND") {
+			t.Fatal("LAND waits for touchdown")
+		}
+		tick(sc, 0.7)
+		if !hasBanner(paint(sc), "1202") {
+			t.Fatal("the second 1202 must follow the first")
+		}
+		tick(sc, 0.7)
+		if !hasBanner(paint(sc), "LAND") {
+			t.Fatal("touchdown must say LAND — 1202, 1202, LAND")
+		}
+		if hasBanner(paint(sc), "1201") {
+			t.Fatal("the pad scene does not flash 1201 — that alarm already played on the way down")
+		}
+	})
+	t.Run("unhappy: captions stay dark before their offset, and a looping meteor is refused", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.Code1At, sc.Cfg.Code1Hold = 0.8, 0.4
+		sc.Cfg.Code2At, sc.Cfg.Code2Hold = 2.0, 0.4
+		sc.Cfg.LandCaptionAt, sc.Cfg.LandCaptionHold = 3.0, 1.0
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.3)
+		if hasBanner(paint(sc), "1202") || hasBanner(paint(sc), "LAND") {
+			t.Fatal("no caption may paint before its offset")
+		}
+		// One meteor: after a long burn it must not reappear on the left.
+		var cores int
+		leftHits := 0
+		for i := 0; i < 240; i++ {
+			tick(sc, 1.0/30)
+			x, _, ok := findGlyph(paint(sc), bigstar.CoreGlyph)
+			if !ok {
+				continue
+			}
+			cores++
+			if cores > 8 && x < stageW/4 {
+				leftHits++
+			}
+		}
+		if leftHits > 4 {
+			t.Fatal("the landing meteor must not loop back to the left")
 		}
 	})
 	t.Run("unhappy: the horizon is not a round disc in the middle of the sky", func(t *testing.T) {
@@ -413,4 +541,20 @@ func starCells(scr *screenplay.Screen) map[[2]int]string {
 		}
 	}
 	return out
+}
+
+func findGlyph(scr *screenplay.Screen, g rune) (x, y int, ok bool) {
+	for y = 0; y < stageH; y++ {
+		for x = 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c != nil && c.Content == string(g) {
+				return x, y, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+func hasBanner(scr *screenplay.Screen, text string) bool {
+	return caption.Painted(scr, text)
 }

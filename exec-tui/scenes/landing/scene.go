@@ -8,15 +8,18 @@
 // cloud drains at DustLoss specks per millisecond instead of blinking
 // out.
 //
-// Eight live knobs retune the scene. Time knobs move 50ms at a time;
+// Fourteen live knobs retune the scene. Time knobs move 50ms at a time;
 // dust loss moves 0.005/ms. s saves them to scenes/landing/config.json.
 // 02. Walkthrough plays that same file.
 package landing
 
 import (
+	"github.com/theprimeagen/apollo-11/exec-tui/components/caption"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -51,9 +54,19 @@ const (
 	// the engines start cutting. Stock matches the dust component's
 	// LossPerMs (50 specks a second).
 	DustLoss = 0.05
+
+	// Code1At / Code1Hold is the first 1202, Code2At / Code2Hold the
+	// second — both right before touchdown. LandCaptionAt / Hold is
+	// LAND on the pad. Stock order is 1202, 1202, LAND.
+	Code1At         = LandSeconds - 1.80
+	Code1Hold       = 0.80
+	Code2At         = LandSeconds - 0.90
+	Code2Hold       = 0.70
+	LandCaptionAt   = LandSeconds
+	LandCaptionHold = 3.0
 )
 
-// Show is the landing as a live scene: Cfg is the eight knobs
+// Show is the landing as a live scene: Cfg is the fourteen knobs
 // Assemble reads on each Start, so Play (Stop then Start) rebuilds
 // the craft from whatever they hold now.
 type Show struct {
@@ -62,9 +75,9 @@ type Show struct {
 	screenplay.Ensemble
 }
 
-// New is the landing scene. A non-nil sky seeds the still starfield
-// so a cut into this scene freezes on the frame the last scene left;
-// a nil sky is a fresh parked sky of its own.
+// New is the landing scene. A non-nil sky seeds the twinkling
+// starfield so a cut into this scene opens mid-breath where the last
+// scene left; a nil sky is a fresh sky of its own.
 func New(sky *stars.Continuity) *Show {
 	s := &Show{Cfg: Active(), sky: sky}
 	s.Assemble = s.assemble
@@ -72,20 +85,65 @@ func New(sky *stars.Continuity) *Show {
 }
 
 func (s *Show) assemble() []screenplay.Component {
-	field := stars.NewTunedStarfield()
+	field := stars.NewStarfield(stars.Twinkle)
 	if s.sky != nil {
 		field = field.Seed(s.sky)
 	}
-	return []screenplay.Component{
-		field.Still(),
+	ship := lander.NewShip(11).North().
+		Land(s.Cfg.LandSeconds).
+		ThrottleAt(s.Cfg.Fire75, s.Cfg.Fire50, s.Cfg.Fire25, s.Cfg.FireOff).
+		DustAt(s.Cfg.DustStart, s.Cfg.DustRun).
+		DustLoss(s.Cfg.DustLoss)
+	cast := []screenplay.Component{
+		field,
+		shootingstar.NewMeteor(),
+		&hullMask{ship: ship, land: s.Cfg.LandSeconds},
 		moon.NewHorizon(),
-		lander.NewShip(11).North().
-			Land(s.Cfg.LandSeconds).
-			ThrottleAt(s.Cfg.Fire75, s.Cfg.Fire50, s.Cfg.Fire25, s.Cfg.FireOff).
-			DustAt(s.Cfg.DustStart, s.Cfg.DustRun).
-			DustLoss(s.Cfg.DustLoss),
+		ship,
 	}
+	if board := caption.New(
+		caption.Cue{Text: "1202", At: s.Cfg.Code1At, Hold: s.Cfg.Code1Hold},
+		caption.Cue{Text: "1202", At: s.Cfg.Code2At, Hold: s.Cfg.Code2Hold},
+		caption.Cue{Text: "LAND", At: s.Cfg.LandCaptionAt, Hold: s.Cfg.LandCaptionHold},
+	); board != nil {
+		cast = append(cast, board)
+	}
+	return cast
 }
+
+// hullMask paints an opaque pad the size of the LM bounding box so a
+// meteor crossing the craft sits behind it, even in the hull's
+// transparent gaps.
+type hullMask struct {
+	ship *lander.Ship
+	land float64
+	w, h int
+}
+
+func (m *hullMask) Start(w, h int) {
+	if m == nil {
+		return
+	}
+	m.w, m.h = w, h
+}
+
+func (m *hullMask) Update(dt float64) {}
+
+func (m *hullMask) Render() sprite.Sprite {
+	if m == nil || m.ship == nil || m.w < 1 || m.h < 1 {
+		return sprite.Sprite{}
+	}
+	stage := sprite.New(m.w, m.h)
+	row, col := lander.LandPath(m.w, m.h, m.ship.Clock(), m.land)
+	for r := 0; r < lander.BodyRows; r++ {
+		for c := 0; c < lander.BodyCols; c++ {
+			stage.Set(row+r, col+c, sprite.Cell{Ch: ' ', FG: 0, BG: 0})
+		}
+	}
+	return stage
+}
+
+func (m *hullMask) Stop() {}
 
 // Bill is the landing as a one-scene screenplay, handy for the
 // standalone runner. After it there is nothing left.

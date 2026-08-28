@@ -82,6 +82,8 @@ type Ship struct {
 	hold        float64
 	heading     sprite.Heading
 	dropSec     float64
+	beats       []DropBeat
+	climbSec    float64
 	landSec     float64
 	liftAt      float64
 	liftSec     float64
@@ -436,6 +438,34 @@ func (s *Ship) Drop(seconds float64) *Ship {
 	return s
 }
 
+// Climb rises from fully off the bottom of the stage to fully off
+// the top over seconds — Drop run the other way, linear, no pad,
+// no ease. Call before Start. Nil-safe.
+func (s *Ship) Climb(seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.climbSec = seconds
+	return s
+}
+
+// DropBeat is one segment of a pausing fall: Drop seconds of motion
+// then Hold seconds parked. A zero hold skips the pause.
+type DropBeat struct {
+	Drop, Hold float64
+}
+
+// DropBeats falls the north-facing craft with pauses: each beat
+// drops, then holds. Drop distances share the top-to-bottom span
+// in proportion to each Drop duration. Call before Start. Nil-safe.
+func (s *Ship) DropBeats(beats []DropBeat) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.beats = append([]DropBeat(nil), beats...)
+	return s
+}
+
 // Land falls from fully off the top onto the moon-horizon pad over
 // seconds, then stays put. Call before Start. Nil-safe.
 func (s *Ship) Land(seconds float64) *Ship {
@@ -561,19 +591,25 @@ func (s *Ship) dustOrDefault() float64 {
 	return dust.FadeSeconds
 }
 
-// position is this frame's hull top-left: a landing path, a drop, a
-// liftoff, or the westbound fly-in, depending on how the ship was
-// asked to fly.
+// position is this frame's hull top-left: a landing path, a pausing
+// drop, a drop, a liftoff, a climb, or the westbound fly-in, depending
+// on how the ship was asked to fly.
 func (s *Ship) position() (row, col int) {
 	t := s.clock - s.hold
 	if s.landSec > 0 {
 		return LandPath(s.w, s.h, t, s.landSec)
+	}
+	if len(s.beats) > 0 {
+		return DropBeatPath(s.w, s.h, t, s.beats)
 	}
 	if s.dropSec > 0 {
 		return DropPath(s.w, s.h, t, s.dropSec)
 	}
 	if s.liftSec > 0 {
 		return LiftPath(s.w, s.h, t, s.liftAt, s.liftSec)
+	}
+	if s.climbSec > 0 {
+		return ClimbPath(s.w, s.h, t, s.climbSec)
 	}
 	if s.bobSet {
 		return flightPath(s.w, s.h, t, s.bobPeriod, s.bobCells)
@@ -655,6 +691,98 @@ func DropPath(stageW, stageH int, t, seconds float64) (row, col int) {
 	}
 	p := t / seconds
 	return start + int(math.Round(p*float64(end-start))), col
+}
+
+// ClimbPath is DropPath run the other way: fully off the bottom at
+// t=0, fully off the top at t=seconds, centered horizontally. Time
+// before the curtain clamps to the start. seconds<=0 snaps off the
+// top.
+func ClimbPath(stageW, stageH int, t, seconds float64) (row, col int) {
+	if t < 0 {
+		t = 0
+	}
+	col = (stageW - BodyCols) / 2
+	start, end := stageH, -BodyRows
+	if seconds <= 0 || t >= seconds {
+		return end, col
+	}
+	p := t / seconds
+	return start + int(math.Round(p*float64(end-start))), col
+}
+
+// DropBeatPath is the hull's top-left at t seconds of a pausing
+// fall: fully off the top at t=0, fully off the bottom after the
+// last beat, centered. Each beat drops, then holds. Drop distances
+// share the span in proportion to each Drop duration, so equal
+// drops travel equal rows. Empty beats or all-zero drops snap off
+// the bottom. Time before the curtain clamps to the start.
+func DropBeatPath(stageW, stageH int, t float64, beats []DropBeat) (row, col int) {
+	if t < 0 {
+		t = 0
+	}
+	col = (stageW - BodyCols) / 2
+	start, finish := -BodyRows, stageH
+	var totalDrop float64
+	for _, b := range beats {
+		if b.Drop > 0 {
+			totalDrop += b.Drop
+		}
+	}
+	if totalDrop <= 0 {
+		return finish, col
+	}
+	span := float64(finish - start)
+	elapsed := t
+	traveled := 0.0
+	for _, b := range beats {
+		drop := b.Drop
+		if drop < 0 {
+			drop = 0
+		}
+		hold := b.Hold
+		if hold < 0 {
+			hold = 0
+		}
+		if drop > 0 && elapsed < drop {
+			frac := elapsed / drop
+			return start + int(math.Round((traveled+frac*drop)/totalDrop*span)), col
+		}
+		elapsed -= drop
+		traveled += drop
+		if elapsed < hold {
+			return start + int(math.Round(traveled/totalDrop*span)), col
+		}
+		elapsed -= hold
+	}
+	return finish, col
+}
+
+// DropBeatHold is the index of the beat currently parked at t, or
+// -1 while falling (and after the last beat).
+func DropBeatHold(t float64, beats []DropBeat) int {
+	if t < 0 {
+		t = 0
+	}
+	elapsed := t
+	for i, b := range beats {
+		drop := b.Drop
+		if drop < 0 {
+			drop = 0
+		}
+		hold := b.Hold
+		if hold < 0 {
+			hold = 0
+		}
+		if elapsed < drop {
+			return -1
+		}
+		elapsed -= drop
+		if elapsed < hold {
+			return i
+		}
+		elapsed -= hold
+	}
+	return -1
 }
 
 // LandPadRow is where the hull's top-left parks on a landing: the

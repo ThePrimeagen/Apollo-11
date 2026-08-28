@@ -33,6 +33,7 @@ components/   everything a scene puts together
               viewer) that fills a stage
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
+  caption/    timed side banners (1202 / 1201 / LAND) in the same face
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)
   pools/      the Executive's job memory, two layers: Box is one slot (the pill
               that turns on/off in a job's ink) and Panel composes them — the
@@ -66,6 +67,12 @@ cmd/          every runnable: editors, demos, tuners
               plus one shooting star (top mid-right to bottom mid-left)
               (scenes/explorer, four live knobs: min/max twinkle cycle
               and min/max fade)
+  fall/       the north-facing LM dropping top to bottom under twinkling
+              stars (scenes/fall, one live knob: drop duration)
+  climb/      the same craft rising bottom to top (scenes/climb, one
+              live knob: climb duration)
+  prog/       the drop that pauses 1202, then 1202, then 1201
+              (scenes/prog, seven live knobs: four drops, three holds)
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser
