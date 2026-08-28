@@ -3,9 +3,10 @@ package interpreter
 // Tests written FIRST: the Interpreter walkthrough slims down. The
 // five spotlit blocks keep the real MUNRVG ops — verbatim SERVICER
 // opcodes and operands, comments stripped — but every block now
-// reads the same simple way: ONE plain-English comment on top
-// ("# THIS BLOCK ..."), the bare instructions, a blank row, and the
-// whole DANZIG construction as one pseudo call:
+// reads the same simple way: ONE plain comment on top that just
+// says what the block does (no "THIS BLOCK" narration), the bare
+// instructions, a blank row, and the whole DANZIG construction as
+// one pseudo call:
 //
 //	check_for_higher_priority_jobs()    # DANZIG
 //
@@ -251,6 +252,9 @@ func TestLegitimacy(t *testing.T) {
 			if strings.Contains(c, "\n") {
 				t.Fatalf("comment %q must be a single line", c)
 			}
+			if strings.Contains(c, "THIS BLOCK") {
+				t.Fatalf("comment %q narrates — just say what the block does", c)
+			}
 			if ops[stripComment(c)] && stripComment(c) != "" {
 				t.Fatalf("comment %q poses as flight code", c)
 			}
@@ -280,8 +284,11 @@ func TestRoster(t *testing.T) {
 			if ch.Name == "" || len(ch.Source) == 0 {
 				t.Fatalf("block %d must carry a name and real source", i)
 			}
-			if !strings.HasPrefix(ch.Comment, "# THIS BLOCK") {
-				t.Fatalf("%s comment %q must open plainly with '# THIS BLOCK'", ch.Name, ch.Comment)
+			if !strings.HasPrefix(ch.Comment, "# ") {
+				t.Fatalf("%s comment %q must open plainly with a #", ch.Name, ch.Comment)
+			}
+			if strings.Contains(ch.Comment, "THIS BLOCK") {
+				t.Fatalf("%s comment %q narrates — just say what the block does", ch.Name, ch.Comment)
 			}
 			if seen[ch.Comment] {
 				t.Fatalf("%s repeats another block's comment — each block says what IT does", ch.Name)

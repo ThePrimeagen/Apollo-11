@@ -3,10 +3,11 @@ package main
 // Demo harness tests, written first: cmd/interpreter runs the
 // Interpreter scene standalone, and it is the scene's tuner too. The
 // house opens on the slimmed-down walkthrough — the ΔV load under
-// the spotlight: one plain "# THIS BLOCK ..." comment on top, the
-// bare MUNRVG ops under it, and the whole DANZIG construction as the
-// one pseudo call check_for_higher_priority_jobs() — over a marquee
-// and the two knob rows. The scene plays itself: the camera glides
+// the spotlight: one plain comment on top that just says what the
+// block does, the bare MUNRVG ops under it, and the whole DANZIG
+// construction as the one pseudo call
+// check_for_higher_priority_jobs() — over a marquee and the two
+// knob rows. The scene plays itself: the camera glides
 // stop to stop through the five blocks and holds on the V cross V.
 // j/k walk the knob cursor with wrap, h/l nudge the selected knob
 // one 50ms step and the panel shows the new reading, s saves the
@@ -57,10 +58,13 @@ func TestInterpreterDemoOpens(t *testing.T) {
 	t.Run("happy: the house opens on the spotlit ΔV load — its comment, its ops, its call, the knob rows", func(t *testing.T) {
 		m := newModel(0)
 		v := plain(m)
-		for _, want := range []string{"MUNRVG", "VLOAD", "KPIP2", "INTPRET", "# THIS BLOCK", "check_for_higher_priority_jobs()", "# DANZIG", "Interpreter", "replay", "quit", "save"} {
+		for _, want := range []string{"MUNRVG", "VLOAD", "KPIP2", "INTPRET", interpreter.Chunks()[0].Comment, "check_for_higher_priority_jobs()", "# DANZIG", "Interpreter", "replay", "quit", "save"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the opening view is missing %q", want)
 			}
+		}
+		if strings.Contains(v, "THIS BLOCK") {
+			t.Fatal("the comments must say what the block does — no narration")
 		}
 		for k := interpreter.Knob(0); k < interpreter.KnobCount; k++ {
 			if !strings.Contains(v, interpreter.KnobLabel(k)) {
