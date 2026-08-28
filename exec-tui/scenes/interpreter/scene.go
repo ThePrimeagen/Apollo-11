@@ -4,9 +4,9 @@
 // of the powered descent: the real opcodes and operands from
 // Luminary099/SERVICER.agc, consecutive from TC INTPRET through RVQ,
 // with the listing's dense inline comments stripped away. Every
-// spotlit block reads the same simple way: ONE plain-English comment
-// on top ("# THIS BLOCK ..."), the bare instructions, and the whole
-// DANZIG construction as one pseudo call —
+// spotlit block reads the same simple way: ONE plain comment on top
+// that just says what the block does, the bare instructions, and
+// the whole DANZIG construction as one pseudo call —
 //
 //	check_for_higher_priority_jobs()    # DANZIG
 //
@@ -59,7 +59,7 @@ type Chunk struct {
 // TC INTPRET, riding dark above the first block.
 func PrologueLines() []string {
 	return []string{
-		"# SERVICER HANDS THE DESCENT MATH TO THE INTERPRETER",
+		"# HAND THE DESCENT MATH TO THE INTERPRETER",
 		"\t\tTC\tINTPRET",
 	}
 }
@@ -112,7 +112,7 @@ func Chunks() []Chunk {
 	return []Chunk{
 		{
 			Name:    "VLOAD VXSC",
-			Comment: "# THIS BLOCK LOADS THE VELOCITY CHANGE MEASURED THIS CYCLE",
+			Comment: "# LOAD THE VELOCITY CHANGE MEASURED THIS CYCLE",
 			Source: []string{
 				"MUNRVG\t\tVLOAD\tVXSC",
 				"\t\t\tDELV",
@@ -124,7 +124,7 @@ func Chunks() []Chunk {
 		},
 		{
 			Name:    "PDDL DDV",
-			Comment: "# THIS BLOCK AVERAGES IT AND DIVIDES BY THE GUIDANCE PERIOD",
+			Comment: "# AVERAGE THE VELOCITY AND DIVIDE BY THE GUIDANCE PERIOD",
 			Source: []string{
 				"\t\tPUSH\tVAD",
 				"\t\t\tV",
@@ -136,7 +136,7 @@ func Chunks() []Chunk {
 		},
 		{
 			Name:    "STCALL R1S",
-			Comment: "# THIS BLOCK MOVES THE POSITION FORWARD AND CALLS GRAVITY",
+			Comment: "# UPDATE THE POSITION AND CALL GRAVITY",
 			Source: []string{
 				"\t\tVXSC",
 				"\t\tVAD",
@@ -148,7 +148,7 @@ func Chunks() []Chunk {
 		},
 		{
 			Name:    "STORE V1S",
-			Comment: "# THIS BLOCK MOVES THE VELOCITY FORWARD AND SAVES THE SPEED",
+			Comment: "# UPDATE THE VELOCITY AND SAVE THE SPEED FOR DISPLAYS",
 			Source: []string{
 				"\t\tVAD\tVAD",
 				"\t\tVAD",
@@ -161,7 +161,7 @@ func Chunks() []Chunk {
 		},
 		{
 			Name:    "VXV VSL2",
-			Comment: "# THIS BLOCK CORRECTS FOR THE MOON TURNING BENEATH THE LANDER",
+			Comment: "# CORRECT FOR THE MOON TURNING BENEATH THE LANDER",
 			Source: []string{
 				"\t\tVXV\tVSL2",
 				"\t\t\tWM",
