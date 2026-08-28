@@ -1,9 +1,12 @@
 // Package dsky renders a compact, vertical terminal DSKY — the Apollo
-// Display and Keyboard unit — built for embedding into larger TUIs. Top: the
-// four story-relevant lights only (PROG, RESTART, and the LM's ALT and VEL
-// landing-radar lights). Below: the electroluminescent display — COMP ACTY,
+// Display and Keyboard unit — built for embedding into larger TUIs. A gray
+// plastic bezel (Game Boy / DS style) frames the whole unit. Top: the four
+// story-relevant lights (PROG, RESTART, and the LM's ALT and VEL
+// landing-radar lights). Middle: the electroluminescent display — COMP ACTY,
 // PROG, VERB, NOUN in seven-segment digits, and three signed five-digit
-// registers separated by thin lines.
+// registers. Bottom: the 16-key keypad (VERB/NOUN/CLR/ENTR and the
+// digit / sign keys). Digits being keyed render dull orange; a depressed
+// key lights the same orange so a keystroke is obvious.
 //
 // Output is raw ANSI 256-color (no terminal profile detection, so captures
 // always keep color) and the footprint is a constant Width×Height grid in
@@ -12,15 +15,18 @@ package dsky
 
 import "strings"
 
-// Fixed footprint.
+// Fixed footprint: 1-cell gray bezel around a 23-wide face, display on
+// top, keypad under the registers.
 const (
 	Width  = 25
-	Height = 23
+	Height = 30
+	innerW = Width - 2
 )
 
 // Palette (xterm-256).
 const (
 	colSeg     = 48  // electroluminescent green segments
+	colTyping  = 172 // dull orange: digits being keyed / key held down
 	colLabel   = 245 // panel labels
 	colRule    = 29  // dim green separators
 	colLitBG   = 220 // amber caution light background
@@ -28,6 +34,11 @@ const (
 	colDarkBox = 234 // unlit light-box background
 	colDarkFG  = 240 // unlit light-box label
 	colActyBG  = 40  // COMP ACTY green
+	colFrame   = 244 // gray plastic outline
+	colBody    = 236 // gray plastic fill
+	colWell    = 232 // recessed display well
+	colKeyBG   = 241 // unpressed key — a shade above the plastic
+	colKeyFG   = 252 // unpressed key legend
 )
 
 // Lights is the compact caution panel: the alarm lamps and the LM's
@@ -39,6 +50,26 @@ type Lights struct {
 	Vel     bool
 }
 
+// Key is a DSKY keypad key. Digit keys are '0'..'9'; the rest match the
+// engine's PressKey bytes: V, N, E, C, +, -. Zero means none.
+type Key byte
+
+const (
+	KeyNone  Key = 0
+	KeyVerb  Key = 'V'
+	KeyNoun  Key = 'N'
+	KeyEntr  Key = 'E'
+	KeyClr   Key = 'C'
+	KeyPlus  Key = '+'
+	KeyMinus Key = '-'
+)
+
+// Typing marks which display fields are currently being keyed. Those
+// digits render dull orange instead of electroluminescent green.
+type Typing struct {
+	Verb, Noun, Prog bool
+}
+
 // State is everything the DSKY shows. Empty strings blank their fields.
 // Registers are "+DDDDD"/"-DDDDD"; malformed values render blank.
 type State struct {
@@ -47,6 +78,10 @@ type State struct {
 	CompActy         bool
 	Flash            bool // VERB/NOUN flash (hidden on the off blink phase)
 	Lights           Lights
+	// Pressed is the keypad key currently held down. It lights dull
+	// orange so a keystroke is visible. Zero means none.
+	Pressed Key
+	Typing  Typing
 }
 
 // segFont is the classic thin-stroke seven-segment shape per digit.
@@ -168,18 +203,80 @@ func regRow(v string, row int) string {
 	return out
 }
 
-// lightBox renders one 12-wide caution light.
+// lightBox renders one 11-wide caution light (fits the 23-wide well).
 func lightBox(l *line, label string, lit bool) {
-	pad := 12 - len(label)
+	const boxW = 11
+	pad := boxW - len(label)
+	if pad < 0 {
+		pad = 0
+		label = label[:boxW]
+	}
 	text := strings.Repeat(" ", pad/2) + label + strings.Repeat(" ", pad-pad/2)
 	if label == "" {
-		l.add(text, -1, -1)
+		l.add(text, -1, colWell)
 		return
 	}
 	if lit {
 		l.add(text, colLitFG, colLitBG)
 	} else {
 		l.add(text, colDarkFG, colDarkBox)
+	}
+}
+
+func (l *line) frameStart() { l.add("│", colFrame, colBody) }
+
+func (l *line) finish(fillBG int) {
+	for l.width < Width-1 {
+		l.add(" ", -1, fillBG)
+	}
+	l.add("│", colFrame, colBody)
+}
+
+func borderRow(left, right rune) *line {
+	l := &line{}
+	l.add(string(left), colFrame, colBody)
+	l.add(strings.Repeat("─", innerW), colFrame, colBody)
+	l.add(string(right), colFrame, colBody)
+	return l
+}
+
+type keyCap struct {
+	key   Key
+	label string // exactly 5 cells
+}
+
+var keypad = [][]keyCap{
+	{{KeyVerb, "VERB "}, {KeyNoun, "NOUN "}, {KeyClr, " CLR "}, {KeyEntr, "ENTR "}},
+	{{KeyPlus, "  +  "}, {'7', "  7  "}, {'8', "  8  "}, {'9', "  9  "}},
+	{{KeyMinus, "  -  "}, {'4', "  4  "}, {'5', "  5  "}, {'6', "  6  "}},
+	{{'0', "  0  "}, {'1', "  1  "}, {'2', "  2  "}, {'3', "  3  "}},
+}
+
+func paintKeypad(l *line, row []keyCap, pressed Key) {
+	l.frameStart()
+	for i, k := range row {
+		if i > 0 {
+			l.add(" ", -1, colBody)
+		}
+		fg, bg := colKeyFG, colKeyBG
+		if pressed != KeyNone && pressed == k.key {
+			fg, bg = colLitFG, colTyping
+		}
+		l.add(k.label, fg, bg)
+	}
+	l.finish(colBody)
+}
+
+func fieldColor(typing bool) int {
+	if typing {
+		return colTyping
+	}
+	return colSeg
+}
+
+func wellPad(l *line, to int) {
+	for l.width < to {
+		l.add(" ", -1, colWell)
 	}
 }
 
@@ -193,6 +290,8 @@ func Render(s State, blinkOn bool) string {
 		return l
 	}
 
+	rows = append(rows, borderRow('┌', '┐'))
+
 	// --- caution lights: the four that matter, two columns ----------------
 	lightRows := []struct {
 		left, right string
@@ -203,15 +302,18 @@ func Render(s State, blinkOn bool) string {
 	}
 	for _, lr := range lightRows {
 		l := newLine()
+		l.frameStart()
 		lightBox(l, lr.left, lr.litL)
-		l.add(" ", -1, -1)
+		l.add(" ", -1, colWell)
 		lightBox(l, lr.right, lr.litR)
-		l.pad(Width)
+		l.finish(colWell)
 	}
 
 	rule := func() {
 		l := newLine()
-		l.add(strings.Repeat("─", Width), colRule, -1)
+		l.frameStart()
+		l.add(strings.Repeat("─", innerW), colRule, colWell)
+		l.finish(colWell)
 	}
 	rule()
 
@@ -220,37 +322,48 @@ func Render(s State, blinkOn bool) string {
 	if s.Flash && !blinkOn {
 		verb, noun = "", ""
 	}
-	compFG, compBG := colDarkFG, -1
+	compFG, compBG := colDarkFG, colWell
 	if s.CompActy {
 		compFG, compBG = colLitFG, colActyBG
 	}
+	progCol := fieldColor(s.Typing.Prog)
+	verbCol := fieldColor(s.Typing.Verb)
+	nounCol := fieldColor(s.Typing.Noun)
 	{
 		l := newLine()
+		l.frameStart()
 		l.add(" COMP ", compFG, compBG)
-		l.pad(Width - 4)
-		l.add("PROG", colLabel, -1)
+		wellPad(l, Width-1-4)
+		l.add("PROG", colLabel, colWell)
+		l.finish(colWell)
 	}
 	for row := 0; row < 3; row++ {
 		l := newLine()
+		l.frameStart()
 		if row == 0 {
 			l.add(" ACTY ", compFG, compBG)
 		}
-		l.pad(Width - 7)
-		l.add(twoDigits(s.Prog, row), colSeg, -1)
+		wellPad(l, Width-1-7)
+		l.add(twoDigits(s.Prog, row), progCol, colWell)
+		l.finish(colWell)
 	}
 
 	// --- VERB + NOUN --------------------------------------------------------
 	{
 		l := newLine()
-		l.add("VERB", colLabel, -1)
-		l.pad(Width - 4)
-		l.add("NOUN", colLabel, -1)
+		l.frameStart()
+		l.add("VERB", colLabel, colWell)
+		wellPad(l, Width-1-4)
+		l.add("NOUN", colLabel, colWell)
+		l.finish(colWell)
 	}
 	for row := 0; row < 3; row++ {
 		l := newLine()
-		l.add(twoDigits(verb, row), colSeg, -1)
-		l.pad(Width - 7)
-		l.add(twoDigits(noun, row), colSeg, -1)
+		l.frameStart()
+		l.add(twoDigits(verb, row), verbCol, colWell)
+		wellPad(l, Width-1-7)
+		l.add(twoDigits(noun, row), nounCol, colWell)
+		l.finish(colWell)
 	}
 
 	// --- registers ----------------------------------------------------------
@@ -258,10 +371,23 @@ func Render(s State, blinkOn bool) string {
 		rule()
 		for row := 0; row < 3; row++ {
 			l := newLine()
-			l.add(regRow(reg, row), colSeg, -1)
-			l.pad(Width)
+			l.frameStart()
+			l.add(regRow(reg, row), colSeg, colWell)
+			l.finish(colWell)
 		}
 	}
+
+	// --- bezel between the screen well and the keypad ---------------------
+	{
+		l := newLine()
+		l.frameStart()
+		l.finish(colBody)
+	}
+	for _, row := range keypad {
+		paintKeypad(newLine(), row, s.Pressed)
+	}
+
+	rows = append(rows, borderRow('└', '┘'))
 
 	outs := make([]string, len(rows))
 	for i, l := range rows {

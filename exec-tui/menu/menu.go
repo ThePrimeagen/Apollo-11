@@ -35,9 +35,9 @@ type Entry struct {
 }
 
 // Catalog lists every runnable program by category: the screenplays
-// (MAIN, 01. Moon Orbit, then 02. Walkthrough), then the portable
-// scenes, then the config editors, then the particle tuners, then the
-// legacy TUIs.
+// (MAIN, 01. Moon Orbit, 02. Walkthrough, then 03. Inverse
+// Walkthrough), then the portable scenes, then the config editors,
+// then the particle tuners, then the legacy TUIs.
 // Everything this module owns launches out of its own cmd/ folder;
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
@@ -45,13 +45,16 @@ func Catalog() []Entry {
 		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
 		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
+		{ID: "inverse", Section: "Screenplays", Title: "03. Inverse Walkthrough", Desc: "the walkthrough backwards, three scenes: liftoff off the pad, engines on parked sideways, then engines off — bobbling forever", Pkg: "./cmd/inverse"},
 		{ID: "viewer", Section: "Scenes", Title: "Component Viewer", Desc: "cycle every component, particle and scene — e edits, closing resumes", Pkg: "./cmd/viewer"},
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the flag fades in from black, then the giant eagle crosses, a shotgun blasting in each talon — nine live knobs", Pkg: "./cmd/america"},
 		{ID: "moonwalk", Section: "Scenes", Title: "Moonwalk", Desc: "the astronaut climbs three crates, rides the flagpole down as the flag goes up, then boards the LM — eleven live knobs", Pkg: "./cmd/astronaut"},
 		{ID: "skies", Section: "Scenes", Title: "Skies", Desc: "blue sky tilts up into clouds, then the flag crossfades in as the floor and the eagle flies in with talon shotguns — fifteen live knobs", Pkg: "./cmd/skies"},
-		{ID: "coreset", Section: "Scenes", Title: "Core Set", Desc: "the memory unit torn open — the pools drain to one core set, its twelve words, then the priority bits: PRIO over VAC address", Pkg: "./cmd/coreset"},
+		{ID: "coreset", Section: "Scenes", Title: "Core Set", Desc: "the memory unit torn open — the pools drain to one core set, its twelve words, then the priority bits: PRIO over VAC address — nine live knobs", Pkg: "./cmd/coreset"},
 		{ID: "coreset2", Section: "Scenes", Title: "Core Sets Two", Desc: "the scan, picked up from the priority word — the job roster, the EJSCAN loop as code, and the full-word compares where the newest SERVICER copy always wins", Pkg: "./cmd/coreset2"},
+		{ID: "liftoff", Section: "Scenes", Title: "Liftoff", Desc: "the landing backwards: ignition on the pad, mirrored dust, then the climb off the top — nine live knobs", Pkg: "./cmd/liftoff"},
+		{ID: "bobble", Section: "Scenes", Title: "Bobble", Desc: "the west-facing lander parked at center, bobbling on a sine, with or without its engine — three live knobs", Pkg: "./cmd/bobble"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "sky-config", Section: "CONFIG", Title: "SKY CONFIG", Desc: "tune the blue sky gradient — angle, light ink, dark ink", Pkg: "./cmd/adjustsky/main"},
@@ -61,6 +64,7 @@ func Catalog() []Entry {
 		{ID: "dust-config", Section: "Particles", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},
 		{ID: "gunfire-config", Section: "Particles", Title: "GUNFIRE CONFIG", Desc: "tune the Doom muzzle flame — all eight headings play at once, like flame", Pkg: "./cmd/adjustgunfire/main"},
 		{ID: "cloud-config", Section: "Particles", Title: "CLOUD CONFIG", Desc: "tune the cloud generator — pool puffs, radius, white/gray ladder", Pkg: "./cmd/adjustcloud/main"},
+		{ID: "dsky", Section: "Labs", Title: "DSKY", Desc: "the styled DSKY — gray bezel, keypad, orange typed digits; d replays the descent, 0-9/V/N/E type on the pad", Module: "dsky-lab", Pkg: "."},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
 		{ID: "agctop", Section: "EXECUTIVE", Title: "COMMAND SCREEN", Desc: "live msim processes — VAC jobs, coreset jobs, no-priority ops; d/1/r switches", Pkg: "./cmd/agctop"},

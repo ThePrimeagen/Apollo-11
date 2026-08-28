@@ -115,9 +115,12 @@ func TestDanzigFootprintFitsTheGap(t *testing.T) {
 		}
 	})
 	t.Run("unhappy: compact height still holds with the card beside the rows", func(t *testing.T) {
+		// The styled DSKY unit (bezel + keypad) is 30 rows, so the sim's
+		// right column sets a 37-line idle height; the card beside the
+		// rows must never stretch past it.
 		_, m := newWideTestModel()
-		if got := len(strings.Split(m.View().Content, "\n")); got > 33 {
-			t.Fatalf("idle+card must still fit in 33 lines, got %d", got)
+		if got := len(strings.Split(m.View().Content, "\n")); got > 37 {
+			t.Fatalf("idle+card must still fit in 37 lines, got %d", got)
 		}
 	})
 }

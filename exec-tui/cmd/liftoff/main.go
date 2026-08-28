@@ -1,27 +1,19 @@
-// coreset: the Core Set scene from scenes/coreset, standalone — and
-// the scene's tuner. The memory unit — the core set panel beside the
-// VAC panel — drains away to one survivor, the unnumbered CORE SET
-// box glides to the top center, lands, settles, and only then do its
-// twelve words build as a bar (MPAC…MPAC+6, MODE, LOC, BANKSET,
-// PUSHLOC, PRIORITY); the PRIORITY word then breaks open into its
-// fifteen bits: six of priority over nine of VAC address — SERVICER
-// at PRIO 20 in VAC1 at 400, OCT 20400. The scene plays itself and
-// holds on the bits.
+// liftoff: the portable liftoff scene from scenes/liftoff — the
+// landing played backwards. The house opens on the landing's final
+// frame: the north lander parked on the moon floor, engine cold. The
+// booster ignites (¼, ½, ¾, full), pad dust blows both ways, the
+// craft climbs off the top on the landing's mirrored ease, and the
+// empty moon holds. Play rebuilds from the current knobs; j/k select
+// a knob, h/l walk it 50ms (dust loss 0.005/ms). q quits.
 //
-// Nine live knobs retune it, the same way the America runner tunes:
-// unit hold, fade beat, dissolve, move, settle, word beat, word
-// hold, zoom fade and zoom glide — every one in seconds, stepping
-// 50ms. Play rebuilds from the current knobs; s saves them to
-// scenes/coreset/config.json and installs them as the Active timing.
-//
-//	space / p / enter   replay from the top
+//	p / enter / space   play from the top
 //	j / k               select knob
-//	h / l               nudge the knob down / up one step
-//	s                   save knobs to scenes/coreset/config.json
-//	q / ctrl+c          quit
+//	h / l               −50ms / +50ms
+//	s                   save knobs to scenes/liftoff/config.json
+//	q                   quit
 //
-//	go run ./cmd/coreset
-//	go run ./cmd/coreset -seconds 30
+//	go run ./cmd/liftoff
+//	go run ./cmd/liftoff -seconds 15
 package main
 
 import (
@@ -34,23 +26,52 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
-	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
+
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
 )
 
 const (
-	defaultW   = 100
+	defaultW   = 72
 	defaultH   = 30
 	minW       = 10
 	minH       = 4
 	frameMs    = 1000.0 / 30
-	statusRows = 1 + int(coreset.KnobCount)
+	statusRows = 1 + int(liftoff.KnobCount)
 )
 
-// forcedColorProfile mirrors the other runners: CLICOLOR_FORCE keeps
-// the colors alive in detached ptys (tmux capture, CI).
+// applySky loads a tuned sky config and makes it the active sky. A
+// missing file quietly keeps the stock sky; a broken file is an error
+// worth stopping for.
+func applySky(path string) error {
+	c, err := stars.LoadSky(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	return stars.UseSky(c)
+}
+
+// applyPuff loads a tuned dust config and makes it the active kick.
+// A missing file quietly keeps the stock puff; a broken file is an
+// error worth stopping for.
+func applyPuff(path string) error {
+	c, err := dust.LoadPuff(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	return dust.UsePuff(c)
+}
+
 func forcedColorProfile() (colorprofile.Profile, bool) {
 	if os.Getenv("CLICOLOR_FORCE") != "" {
 		return colorprofile.ANSI256, true
@@ -60,10 +81,10 @@ func forcedColorProfile() (colorprofile.Profile, bool) {
 
 type model struct {
 	w, h    int
-	show    *coreset.Show
+	show    *liftoff.Show
 	play    *screenplay.Screenplay
 	screen  *screenplay.Screen
-	cursor  coreset.Knob
+	cursor  liftoff.Knob
 	seconds float64
 	elapsed float64
 	path    string
@@ -71,8 +92,8 @@ type model struct {
 }
 
 func newModel(seconds float64) model {
-	show := coreset.New()
-	play := screenplay.New(screenplay.Entry{Name: "Core Set", Scene: show})
+	show := liftoff.New(nil)
+	play := screenplay.New(screenplay.Entry{Name: "liftoff", Scene: show})
 	play.Start()
 	return model{
 		w:       defaultW,
@@ -81,7 +102,7 @@ func newModel(seconds float64) model {
 		play:    play,
 		screen:  screenplay.NewScreen(defaultW, defaultH-statusRows),
 		seconds: seconds,
-		path:    coreset.DefaultConfigPath,
+		path:    liftoff.DefaultConfigPath,
 	}
 }
 
@@ -96,23 +117,18 @@ func tick() tea.Cmd {
 
 func (m model) Init() tea.Cmd { return tick() }
 
-// replay is Stop then Start: a fresh director from the current knobs,
-// back to the memory unit.
 func (m model) replay() model {
 	m.show.Stop()
 	m.show.Start()
 	return m
 }
 
-// move walks the knob cursor with wrap.
 func (m model) move(delta int) model {
-	n := int(coreset.KnobCount)
-	m.cursor = coreset.Knob((int(m.cursor) + delta%n + n) % n)
+	n := int(liftoff.KnobCount)
+	m.cursor = liftoff.Knob((int(m.cursor) + delta%n + n) % n)
 	return m
 }
 
-// save writes the knobs to the config path and makes them the Active
-// timing, so the launcher's next Core Set plays them too.
 func (m model) save() model {
 	if m.path == "" {
 		m.note = "no config path"
@@ -122,7 +138,7 @@ func (m model) save() model {
 		m.note = "save failed: " + err.Error()
 		return m
 	}
-	if err := coreset.Use(m.show.Cfg); err != nil {
+	if err := liftoff.Use(m.show.Cfg); err != nil {
 		m.note = "save failed: " + err.Error()
 		return m
 	}
@@ -172,11 +188,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() tea.View {
 	m.play.Render(m.screen)
 	w, h := m.screen.Size()
-	stage := strings.Split(m.screen.Render(), "\n")
-	for len(stage) < h {
-		stage = append(stage, "")
+	sky := strings.Split(m.screen.Render(), "\n")
+	for len(sky) < h {
+		sky = append(sky, "")
 	}
-	body := strings.Join(stage, "\n") + "\n" + strings.Join(m.status(w), "\n")
+	body := strings.Join(sky, "\n") + "\n" + strings.Join(m.status(w), "\n")
 	lines := strings.Split(body, "\n")
 	winH := m.h
 	if winH < 1 {
@@ -197,17 +213,21 @@ func (m model) status(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
 	reset := "\x1b[0m"
-	help := dim + pad(" Core Set   p replay  j/k select  h/l adjust  s save  q quit", w) + reset
+	help := dim + pad("liftoff   p play  j/k select  h/l ±50ms  s save  q quit", w) + reset
 	if m.note != "" {
-		help = dim + pad(" "+m.note, w) + reset
+		help = dim + pad(m.note, w) + reset
 	}
 	rows := []string{help}
-	for i := coreset.Knob(0); i < coreset.KnobCount; i++ {
+	for i := liftoff.Knob(0); i < liftoff.KnobCount; i++ {
 		marker, color := "  ", dim
 		if i == m.cursor {
 			marker, color = "> ", hot
 		}
-		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %s", marker, coreset.KnobLabel(i), m.show.Cfg.Display(i)), w)+reset)
+		unit := "s"
+		if i == liftoff.KnobDustLoss {
+			unit = "/ms"
+		}
+		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %6.3f%s", marker, liftoff.KnobLabel(i), m.show.Cfg.Value(i), unit), w)+reset)
 	}
 	return rows
 }
@@ -227,17 +247,31 @@ func pad(s string, w int) string {
 
 func main() {
 	seconds := flag.Float64("seconds", 0, "auto-quit after N seconds (0 = interactive)")
-	cfgPath := flag.String("config", coreset.DefaultConfigPath,
-		"Core Set timing JSON; a missing file keeps the stock knobs")
+	skyPath := flag.String("stars", "components/stars/config.json",
+		"sky config JSON (adjuststars); a missing file keeps the stock sky")
+	puffPath := flag.String("dust", "components/dust/config.json",
+		"dust puff JSON (adjustdust); a missing file keeps the stock kick")
+	cfgPath := flag.String("config", liftoff.DefaultConfigPath,
+		"liftoff timing JSON; a missing file keeps the stock knobs")
 	flag.Parse()
+	skyFile := menu.Resolve(*skyPath)
+	puffFile := menu.Resolve(*puffPath)
 	cfgFile := menu.Resolve(*cfgPath)
-	c, err := coreset.LoadOrDefault(cfgFile)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "coreset:", err)
+	if err := applySky(skyFile); err != nil {
+		fmt.Fprintln(os.Stderr, "liftoff:", err)
 		os.Exit(1)
 	}
-	if err := coreset.Use(c); err != nil {
-		fmt.Fprintln(os.Stderr, "coreset:", err)
+	if err := applyPuff(puffFile); err != nil {
+		fmt.Fprintln(os.Stderr, "liftoff:", err)
+		os.Exit(1)
+	}
+	c, err := liftoff.LoadOrDefault(cfgFile)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "liftoff:", err)
+		os.Exit(1)
+	}
+	if err := liftoff.Use(c); err != nil {
+		fmt.Fprintln(os.Stderr, "liftoff:", err)
 		os.Exit(1)
 	}
 	m := newModel(*seconds)
@@ -247,7 +281,7 @@ func main() {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
 	if _, err := termreset.Run(m, opts...); err != nil {
-		fmt.Fprintln(os.Stderr, "coreset:", err)
+		fmt.Fprintln(os.Stderr, "liftoff:", err)
 		os.Exit(1)
 	}
 }

@@ -140,7 +140,7 @@ func TestPickupAct(t *testing.T) {
 		one.Start()
 		oneScr := screenplay.NewScreen(stageW, stageH)
 		one.Render(oneScr)
-		tick(one, coreset.BitsStart+1)
+		tick(one, one.Cfg.BitsStart()+1)
 		oneScr = screenplay.NewScreen(stageW, stageH)
 		one.Render(oneScr)
 

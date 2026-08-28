@@ -83,6 +83,8 @@ type Ship struct {
 	heading     sprite.Heading
 	dropSec     float64
 	landSec     float64
+	liftAt      float64
+	liftSec     float64
 	stageSec    float64
 	dustSec     float64
 	dustStart   float64
@@ -93,6 +95,14 @@ type Ship struct {
 	th50        float64
 	th25        float64
 	thOff       float64
+	igTimed     bool
+	ig25        float64
+	ig50        float64
+	ig75        float64
+	igFull      float64
+	bobSet      bool
+	bobPeriod   float64
+	bobCells    int
 	dustLoss    float64
 	dustLossSet bool
 	flameBase   particle.Config
@@ -131,6 +141,10 @@ func (s *Ship) Start(w, h int) {
 	if s.landSec > 0 {
 		s.armLandPlume()
 		s.applyLandThrottle()
+	}
+	if s.liftSec > 0 {
+		s.armLandPlume()
+		s.applyLiftThrottle()
 	}
 }
 
@@ -200,6 +214,27 @@ func (s *Ship) applyLandThrottle() {
 	if s.thTimed {
 		th = throttleAt(s.clock-s.hold, s.th75, s.th50, s.th25, s.thOff)
 	}
+	s.throttleTo(th)
+}
+
+// applyLiftThrottle runs the liftoff ignition: cold on the pad until
+// the first offset, then ¼, ½, ¾, and full power — the landing
+// throttle played backwards. A lift with no ignition schedule burns
+// full from the opening.
+func (s *Ship) applyLiftThrottle() {
+	if s == nil || s.Flame == nil {
+		return
+	}
+	th := 1.0
+	if s.igTimed {
+		th = igniteAt(s.clock-s.hold, s.ig25, s.ig50, s.ig75, s.igFull)
+	}
+	s.throttleTo(th)
+}
+
+// throttleTo scales the booster to strength th from the armed base —
+// count, life, and reach all follow — and zero cuts the fire outright.
+func (s *Ship) throttleTo(th float64) {
 	cfg := s.flameBase
 	if th <= 0 {
 		cfg.Count = 0
@@ -218,7 +253,7 @@ func (s *Ship) applyLandThrottle() {
 }
 
 // Update moves the ship's clock, burns the fire, and runs the landing
-// dust kicks. dt <= 0 holds.
+// or liftoff dust kicks. dt <= 0 holds.
 func (s *Ship) Update(dt float64) {
 	if s == nil || dt <= 0 {
 		return
@@ -227,6 +262,10 @@ func (s *Ship) Update(dt float64) {
 	if s.landSec > 0 {
 		s.applyLandThrottle()
 		s.updateLandDust(dt)
+	}
+	if s.liftSec > 0 {
+		s.applyLiftThrottle()
+		s.updateLiftDust(dt)
 	}
 	if s.Flame != nil {
 		s.Flame.Update(dt)
@@ -297,6 +336,17 @@ func (s *Ship) updateTimedDust(dt float64) {
 		s.dustFading = true
 	}
 	s.padDust.Update(dt)
+}
+
+// updateLiftDust runs the liftoff pad dust. A liftoff has no stock
+// choreography to inherit from the landing: the cloud only kicks when
+// DustAt schedules it, and it drains at DustLoss when the run ends. A
+// dark or unstarted ship kicks nothing.
+func (s *Ship) updateLiftDust(dt float64) {
+	if s.dark || s.Body.Width < 1 || !s.dustTimed {
+		return
+	}
+	s.updateTimedDust(dt)
 }
 
 func (s *Ship) shouldDrain(t, end float64) bool {
@@ -396,6 +446,46 @@ func (s *Ship) Land(seconds float64) *Ship {
 	return s
 }
 
+// Lift flies the liftoff: the hull opens parked on the moon-horizon
+// pad, holds it until `at` seconds into the scene, then rises fully
+// off the top over `seconds` — the landing played backwards. Pad dust
+// comes only from DustAt: a liftoff has no stock dust choreography.
+// Call before Start. Nil-safe.
+func (s *Ship) Lift(at, seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.liftAt = at
+	s.liftSec = seconds
+	return s
+}
+
+// IgniteAt times the liftoff ignition from t=0: cold until at25, then
+// ¼ until at50, ½ until at75, ¾ until full, then full power — the
+// landing throttle run backwards. Full at 0 burns from the opening.
+// Ignition only speaks in lift mode. Call before Start. Nil-safe.
+func (s *Ship) IgniteAt(at25, at50, at75, full float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.ig25, s.ig50, s.ig75, s.igFull = at25, at50, at75, full
+	s.igTimed = true
+	return s
+}
+
+// Bob retunes the parked ride: one full up-and-down every period
+// seconds, riding cells rows from center. A non-positive period or
+// amplitude holds the park level. Call before Start. Nil-safe.
+func (s *Ship) Bob(period float64, cells int) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.bobPeriod = period
+	s.bobCells = cells
+	s.bobSet = true
+	return s
+}
+
 // ThrottleStage sets how long each landing booster step (¾, ½, ¼)
 // lasts. seconds <= 0 keeps the stock ThrottleStageSeconds. Call
 // before Start. Nil-safe.
@@ -471,8 +561,9 @@ func (s *Ship) dustOrDefault() float64 {
 	return dust.FadeSeconds
 }
 
-// position is this frame's hull top-left: a landing path, a drop, or
-// the westbound fly-in, depending on how the ship was asked to fly.
+// position is this frame's hull top-left: a landing path, a drop, a
+// liftoff, or the westbound fly-in, depending on how the ship was
+// asked to fly.
 func (s *Ship) position() (row, col int) {
 	t := s.clock - s.hold
 	if s.landSec > 0 {
@@ -480,6 +571,12 @@ func (s *Ship) position() (row, col int) {
 	}
 	if s.dropSec > 0 {
 		return DropPath(s.w, s.h, t, s.dropSec)
+	}
+	if s.liftSec > 0 {
+		return LiftPath(s.w, s.h, t, s.liftAt, s.liftSec)
+	}
+	if s.bobSet {
+		return flightPath(s.w, s.h, t, s.bobPeriod, s.bobCells)
 	}
 	return FlightPath(s.w, s.h, t)
 }
@@ -512,6 +609,12 @@ func (s *Ship) Stop() {
 // by FlyInSeconds, then a ±BobAmplitudeCells sine bobble with a
 // BobPeriodSeconds period.
 func FlightPath(stageW, stageH int, t float64) (row, col int) {
+	return flightPath(stageW, stageH, t, BobPeriodSeconds, BobAmplitudeCells)
+}
+
+// flightPath is FlightPath with the parked ride retuned: the same
+// fly-in, then a ±cells sine with the given period.
+func flightPath(stageW, stageH int, t, period float64, cells int) (row, col int) {
 	if t < 0 {
 		t = 0
 	}
@@ -523,9 +626,18 @@ func FlightPath(stageW, stageH int, t float64) (row, col int) {
 		eased := 1 - math.Pow(1-p, 3)
 		return row, stageW + int(math.Round(eased*float64(park-stageW)))
 	}
-	phase := 2 * math.Pi * (t - FlyInSeconds) / BobPeriodSeconds
-	bob := int(math.Round(BobAmplitudeCells * math.Sin(phase)))
-	return row - bob, park
+	return row - ParkBob(t-FlyInSeconds, period, cells), park
+}
+
+// ParkBob is how many cells above center the parked bobble rides at t
+// seconds after the park: a ±cells sine with the given period. A
+// non-positive period or amplitude — or time before the park — holds
+// the ride level.
+func ParkBob(t, period float64, cells int) int {
+	if t < 0 || period <= 0 || cells <= 0 {
+		return 0
+	}
+	return int(math.Round(float64(cells) * math.Sin(2*math.Pi*t/period)))
 }
 
 // DropPath is the hull's top-left at t seconds of a seconds-long fall
@@ -628,6 +740,52 @@ func LandPath(stageW, stageH int, t, seconds float64) (row, col int) {
 	p := t / seconds
 	eased := 1 - math.Pow(1-p, LandEasePower)
 	return start + int(math.Round(eased*float64(end-start))), col
+}
+
+// LiftPath is the hull's top-left at t seconds of a liftoff that
+// leaves the pad at `at` and takes `seconds` to clear the stage: the
+// landing path played backwards. The craft holds the horizon pad
+// until lift-at, then rises on the mirrored ease (p^LandEasePower) —
+// a slow, heavy crawl off the pad that rockets off the top — and is
+// fully gone by at+seconds. Time before the curtain clamps to the
+// pad.
+func LiftPath(stageW, stageH int, t, at, seconds float64) (row, col int) {
+	if t < 0 {
+		t = 0
+	}
+	col = (stageW - BodyCols) / 2
+	start, end := LandPadRow(stageH), -BodyRows
+	if t < at {
+		return start, col
+	}
+	if seconds <= 0 || t >= at+seconds {
+		return end, col
+	}
+	p := (t - at) / seconds
+	eased := math.Pow(p, LandEasePower)
+	return start + int(math.Round(eased*float64(end-start))), col
+}
+
+// igniteAt is booster strength at t seconds when the four ignition
+// offsets are set from t=0 — throttleAt run backwards: cold, then ¼,
+// ½, ¾, then full power from `full` on.
+func igniteAt(t, at25, at50, at75, full float64) float64 {
+	if t < 0 {
+		t = 0
+	}
+	if t >= full {
+		return 1
+	}
+	if t >= at75 {
+		return 0.75
+	}
+	if t >= at50 {
+		return 0.5
+	}
+	if t >= at25 {
+		return 0.25
+	}
+	return 0
 }
 
 // stripPlume drops the art's baked '~'/'≈' exhaust; the live particle

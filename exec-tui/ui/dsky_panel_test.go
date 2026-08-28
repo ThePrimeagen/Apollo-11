@@ -102,6 +102,18 @@ func TestDSKYStateMapping(t *testing.T) {
 			t.Fatal("PROG stays lit after the code display expires")
 		}
 	})
+	t.Run("happy: digits being keyed on the panel turn dull orange", func(t *testing.T) {
+		e, m := newTestModel()
+		e.PressKey('V')
+		e.PressKey('1')
+		st := m.dskyState()
+		if st.Verb != "1" || !st.Typing.Verb {
+			t.Fatalf("mid-entry verb must be typed, got V%q typing=%v", st.Verb, st.Typing.Verb)
+		}
+		if !strings.Contains(m.View().Content, "38;5;172") {
+			t.Fatal("typed digits must render dull orange on the embedded panel")
+		}
+	})
 	t.Run("unhappy: COMP ACTY is dark on an idle machine at least sometimes", func(t *testing.T) {
 		e, m := newTestModel()
 		sawDark := false
@@ -121,7 +133,7 @@ func TestDSKYPanelEmbedded(t *testing.T) {
 	t.Run("happy: the panel renders with its labels and lights", func(t *testing.T) {
 		_, m := newTestModel()
 		v := m.View().Content
-		for _, want := range []string{"VERB", "NOUN", "PROG", "RESTART", "ALT", "VEL"} {
+		for _, want := range []string{"VERB", "NOUN", "PROG", "RESTART", "ALT", "VEL", "ENTR", "CLR"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("embedded DSKY missing %q", want)
 			}

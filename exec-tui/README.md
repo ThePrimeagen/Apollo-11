@@ -34,15 +34,21 @@ screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + C
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
   lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing on a huge moon horizon
+  inverse/    03. Inverse Walkthrough: liftoff, engines on, engines off — the walkthrough backwards
 cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
+  inverse/    runs 03. Inverse Walkthrough (space past the last scene ends it)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   coreset/    the Core Set scene: the memory unit drains to one core set, its
               twelve words, then the priority bits — 6 of PRIO over 9 of VAC address
   coreset2/   Core Sets Two: picks up on the held priority word — the six-job
               roster, the EJSCAN loop as code, then two scans with the full word
               math (PRIO + VAC address) where the newest SERVICER copy always wins
+  liftoff/    the liftoff scene — the landing backwards: ignition, mirrored
+              dust, the climb off the top (scenes/liftoff, nine live knobs)
+  bobble/     the west-facing lander parked and bobbling, engine on or off
+              (scenes/bobble, three live knobs)
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser

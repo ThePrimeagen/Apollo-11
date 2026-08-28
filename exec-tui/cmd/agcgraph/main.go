@@ -4,8 +4,8 @@
 // 2.00 s guidance boundary, and a text legend for every process that ran.
 // The SERVICER is entered exactly once per portrait — everything else
 // keeps its timer — so its single ~1.36 s pass visibly stretches past the
-// white line as load is switched on. Never animated; every toggle
-// re-simulates the portrait.
+// white line as load is switched on, its overrun painted red. Never
+// animated; every toggle re-simulates the portrait.
 //
 //	d   DESCENT — the whole P63 job chain
 //	1   1668 — Buzz's V16N68 DELTAH monitor (drops P64)

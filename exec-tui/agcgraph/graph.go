@@ -1,10 +1,12 @@
 // Package agcgraph is the graphs screen: a STILL — 2.5 seconds of "here is
 // what the CPU operates with" under the current switch states, never
 // animated. No header chrome: one row per process that consumed CPU,
-// grouped under VAC JOBS / CORESET JOBS / NO-PRIORITY OPS headers, names
-// inside a 20-column gutter, light-gray vertical gridlines every 100 ms
-// (brighter on the seconds) and a HARD WHITE line on the 2.00 s guidance
-// boundary, then a plain-text legend describing every process that ran —
+// grouped under VAC JOBS / CORESET JOBS / NO-PRIORITY OPS / COUNTER THEFT
+// headers (the last is the RR CDU steal itself — ~15% of every
+// millisecond, hardware, no job, no memory), names inside a 20-column
+// gutter, light-gray vertical gridlines every 100 ms (brighter on the
+// seconds) and a HARD WHITE line on the 2.00 s guidance boundary, then a
+// plain-text legend describing every process that ran —
 //
 //	DOWNRUPT: 25.0ms total :: wakes up every 20ms and runs for 0.2ms
 //
@@ -13,10 +15,11 @@
 // is the single ~1.36 s pass stretching toward the white line as load is
 // switched on: descent alone fits, the radar steal is the knife edge, and
 // the 1668 monitor or the P64 approach guidance push the pass PAST the
-// boundary. 1668 and P64 cannot share the DSKY: keying either drops the
-// other. Every toggle re-simulates a fresh 2.5 s snapshot; with everything
-// off only the hardware cadences remain. The opening portrait is the
-// healthy CPU: descent on, monitor off, radar steal off, approach off.
+// boundary — where its bar turns RED, the overflow to come made visible.
+// 1668 and P64 cannot share the DSKY: keying either drops the other.
+// Every toggle re-simulates a fresh 2.5 s snapshot; with everything off
+// only the hardware cadences remain. The opening portrait is the healthy
+// CPU: descent on, monitor off, radar steal off, approach off.
 package agcgraph
 
 import (
@@ -133,6 +136,8 @@ var (
 	sGrid   = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	sGridS  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	sBound  = lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true)
+	sOver   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	sTheft  = lipgloss.NewStyle().Foreground(lipgloss.Color("135"))
 	sDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	sName   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	sOn     = lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Bold(true)
@@ -142,15 +147,18 @@ var (
 
 var blockRunes = []rune("▁▂▃▄▅▆▇█")
 
-// process groups: who holds what while consuming the CPU.
+// process groups: who holds what while consuming the CPU. The last group
+// is not software at all — the RR CDU counter theft, which holds nothing
+// and answers to nobody.
 const (
 	groupVac = iota
 	groupCore
 	groupOps
+	groupTheft
 )
 
-var groupLabels = [...]string{"VAC JOBS", "CORESET JOBS", "NO-PRIORITY OPS"}
-var groupStyles = [...]lipgloss.Style{sVac, sCore, sOps}
+var groupLabels = [...]string{"VAC JOBS", "CORESET JOBS", "NO-PRIORITY OPS", "COUNTER THEFT"}
+var groupStyles = [...]lipgloss.Style{sVac, sCore, sOps, sTheft}
 
 // proc is one describable process: its lane group under the current
 // switches, how it is activated, and how often.
@@ -211,10 +219,10 @@ type column struct {
 	grid  int // 0 none, 1 light (100 ms), 2 strong (1 s)
 }
 
-// columns buckets the snapshot's window into `plot` columns for one
-// per-sample series.
-func (m Model) columns(plot int, series func(msim.Sample) msim.Nanos) []column {
-	samples := m.live.Engine().Samples()
+// columns buckets the snapshot's window into `plot` columns, levelling
+// each column's busy time (0..8 eighths of one row) from the given
+// busy(loMs, hiMs) accumulator.
+func (m Model) columns(plot int, busy func(loMs, hiMs int) msim.Nanos) []column {
 	out := make([]column, plot)
 	for i := 0; i < plot; i++ {
 		loMs := i * windowMS / plot
@@ -228,16 +236,10 @@ func (m Model) columns(plot int, series func(msim.Sample) msim.Nanos) []column {
 				out[i].grid = 2
 			}
 		}
-		var busy msim.Nanos
-		for ms := loMs; ms < hiMs; ms++ {
-			if ms < 0 || ms >= len(samples) {
-				continue
-			}
-			busy += series(samples[ms])
-		}
+		b := busy(loMs, hiMs)
 		span := msim.Nanos(hiMs-loMs) * msim.Millisecond
-		lvl := int((busy*8 + span/2) / span)
-		if busy > 0 && lvl == 0 {
+		lvl := int((b*8 + span/2) / span)
+		if b > 0 && lvl == 0 {
 			lvl = 1 // sub-slice work must stay visible
 		}
 		if lvl > 8 {
@@ -248,16 +250,46 @@ func (m Model) columns(plot int, series func(msim.Sample) msim.Nanos) []column {
 	return out
 }
 
+// sampleBusy accumulates one named consumer's per-millisecond attribution.
+func (m Model) sampleBusy(name string) func(int, int) msim.Nanos {
+	samples := m.live.Engine().Samples()
+	return func(lo, hi int) msim.Nanos {
+		var b msim.Nanos
+		for ms := lo; ms < hi && ms < len(samples); ms++ {
+			if ms >= 0 {
+				b += samples[ms].ByName[name]
+			}
+		}
+		return b
+	}
+}
+
+// theftBusy accumulates the hardware skim, exact per the engine's ledger.
+func (m Model) theftBusy() func(int, int) msim.Nanos {
+	e := m.live.Engine()
+	return func(lo, hi int) msim.Nanos {
+		return e.TheftNsBefore(msim.Nanos(hi)*msim.Millisecond) -
+			e.TheftNsBefore(msim.Nanos(lo)*msim.Millisecond)
+	}
+}
+
 // laneRow renders one process's row: bars over gridlines, with the hard
-// white boundary line cutting through everything — bars included.
-func laneRow(st lipgloss.Style, cols []column, bcol int) string {
+// white boundary line cutting through everything — bars included. Bars in
+// columns past the boundary render under `over` — for the SERVICER that is
+// the alarm red of work that no longer fits its own cycle; every other
+// process keeps its color (their timers legitimately run on).
+func laneRow(st, over lipgloss.Style, cols []column, bcol int) string {
 	var b strings.Builder
 	for i, c := range cols {
 		switch {
 		case i == bcol:
 			b.WriteString(sBound.Render("│"))
 		case c.level > 0:
-			b.WriteString(st.Render(string(blockRunes[c.level-1])))
+			if i > bcol {
+				b.WriteString(over.Render(string(blockRunes[c.level-1])))
+			} else {
+				b.WriteString(st.Render(string(blockRunes[c.level-1])))
+			}
 		case c.grid == 2:
 			b.WriteString(sGridS.Render("│"))
 		case c.grid == 1:
@@ -277,7 +309,7 @@ func ms1(n msim.Nanos) string {
 }
 
 // legend lists every process that ran in the window, with its totals, in
-// the same order as the lanes.
+// the same order as the lanes — and the theft's stolen total last.
 func (m Model) legend() []string {
 	e := m.live.Engine()
 	var out []string
@@ -297,6 +329,12 @@ func (m Model) legend() []string {
 					sDim.Render(fmt.Sprintf(" %s total :: wakes up every %s and runs for %s",
 						ms1(busy), p.period, ms1(avg))))
 		}
+	}
+	if stolen := e.TheftNsBefore(windowMS * msim.Millisecond); stolen > 0 {
+		out = append(out,
+			sName.Render(" RR CDU:")+
+				sDim.Render(fmt.Sprintf(" %s total :: hardware counter steal — 12,800 pulses/s, time only, zero memory",
+					ms1(stolen))))
 	}
 	return out
 }
@@ -366,21 +404,32 @@ func (m Model) View() tea.View {
 		return st.Render(fmt.Sprintf("%-*s", g, text))
 	}
 
-	none := func(msim.Sample) msim.Nanos { return 0 }
-	byName := func(name string) func(msim.Sample) msim.Nanos {
-		return func(s msim.Sample) msim.Nanos { return s.ByName[name] }
-	}
+	none := func(int, int) msim.Nanos { return 0 }
 
 	var lines []string
 	for gi, label := range groupLabels {
-		lines = append(lines, gutterCell(sLabel, label)+laneRow(sGrid, m.columns(plot, none), bcol))
+		lines = append(lines, gutterCell(sLabel, label)+laneRow(sGrid, sGrid, m.columns(plot, none), bcol))
+		if gi == groupTheft {
+			if e.TheftNsBefore(windowMS*msim.Millisecond) > 0 {
+				lines = append(lines,
+					gutterCell(sTheft, " RR CDU")+
+						laneRow(sTheft, sTheft, m.columns(plot, m.theftBusy()), bcol))
+			}
+			continue
+		}
 		for _, p := range procs {
 			if p.group(m) != gi || !running(e, p.name) {
 				continue
 			}
+			over := groupStyles[gi]
+			if p.name == "SERVICER" {
+				// a single-cycle pass still running past its own boundary
+				// is the overflow: paint the overrun red
+				over = sOver
+			}
 			lines = append(lines,
 				gutterCell(groupStyles[gi], " "+p.name)+
-					laneRow(groupStyles[gi], m.columns(plot, byName(p.name)), bcol))
+					laneRow(groupStyles[gi], over, m.columns(plot, m.sampleBusy(p.name)), bcol))
 		}
 	}
 	lines = append(lines, pad+axisRow(plot))

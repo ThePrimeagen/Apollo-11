@@ -1,10 +1,11 @@
 package dsky
 
 // Tests written FIRST. The component contract: a compact, vertical terminal
-// DSKY built for embedding — only the story-relevant lights on top (PROG,
-// RESTART, and the LM's ALT/VEL landing-radar lights), then COMP ACTY +
-// PROG, VERB + NOUN, and three signed 5-digit registers in seven-segment
-// digits. Raw ANSI 256-color, a fixed footprint in every state, pure
+// DSKY built for embedding — a gray Game Boy / DS bezel around the
+// story-relevant lights (PROG, RESTART, ALT/VEL), COMP ACTY + PROG, VERB +
+// NOUN, three signed 5-digit registers in seven-segment digits, and a
+// keypad underneath. Digits being keyed (and the held key) light dull
+// orange. Raw ANSI 256-color, a fixed footprint in every state, pure
 // Render. Happy + unhappy throughout.
 
 import (
@@ -95,8 +96,18 @@ func TestSevenSegmentDigits(t *testing.T) {
 		if !strings.Contains(plain(out), "_") {
 			t.Fatal("alarm-code registers must render their digits")
 		}
-		if strings.Contains(plain(out), "+") || strings.Contains(plain(out), "−") {
-			t.Fatal("a blank-sign register must carry no sign glyph")
+		// The keypad carries a '+' key; the register sign lives just inside
+		// the left frame on the middle row of R1 (row 14 of the 30-line face).
+		ls := lines(plain(out))
+		if len(ls) < 15 {
+			t.Fatal("panel too short to hold R1")
+		}
+		row := []rune(ls[14])
+		if len(row) < 4 {
+			t.Fatalf("R1 middle row too short: %q", ls[14])
+		}
+		if got := string(row[1:4]); got != "   " {
+			t.Fatalf("a blank-sign register must carry no sign glyph, got %q", got)
 		}
 	})
 	t.Run("unhappy: malformed register strings degrade to blanks, not panics", func(t *testing.T) {
@@ -179,6 +190,102 @@ func TestLights(t *testing.T) {
 		out := Render(State{}, true)
 		if strings.Contains(out, "48;5;220") {
 			t.Fatal("no amber blocks may render while every light is off")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// bezel, keypad, typing orange
+// ---------------------------------------------------------------------------
+
+func TestBezel(t *testing.T) {
+	t.Run("happy: a gray outline boxes the whole unit", func(t *testing.T) {
+		out := Render(State{}, true)
+		if !strings.Contains(out, "38;5;244") {
+			t.Fatal("the bezel must render in gray")
+		}
+		ls := lines(plain(out))
+		top, bot := ls[0], ls[len(ls)-1]
+		if !strings.HasPrefix(top, "┌") || !strings.HasSuffix(top, "┐") {
+			t.Fatalf("top bezel must be a gray cap, got %q", top)
+		}
+		if !strings.HasPrefix(bot, "└") || !strings.HasSuffix(bot, "┘") {
+			t.Fatalf("bottom bezel must be a gray cap, got %q", bot)
+		}
+		for i, l := range ls[1 : len(ls)-1] {
+			if !strings.HasPrefix(l, "│") || !strings.HasSuffix(l, "│") {
+				t.Fatalf("row %d missing side bezel: %q", i+1, l)
+			}
+		}
+	})
+	t.Run("unhappy: every state keeps the same bezel, never panics", func(t *testing.T) {
+		for _, s := range []State{{}, {Pressed: '9'}, {Typing: Typing{Verb: true}, Verb: "16"}} {
+			ls := lines(plain(Render(s, true)))
+			if !strings.HasPrefix(ls[0], "┌") || !strings.HasPrefix(ls[len(ls)-1], "└") {
+				t.Fatalf("bezel collapsed for %+v", s)
+			}
+		}
+	})
+}
+
+func TestKeypad(t *testing.T) {
+	t.Run("happy: the keypad carries digits 0-9 and VERB/NOUN/CLR/ENTR", func(t *testing.T) {
+		out := plain(Render(State{}, true))
+		for _, want := range []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "ENTR"} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("keypad missing %q", want)
+			}
+		}
+		// VERB/NOUN already label the display; they must also sit on the
+		// keypad row beneath the registers (last content rows).
+		keys := strings.Join(lines(out)[len(lines(out))-5:len(lines(out))-1], "\n")
+		if !strings.Contains(keys, "VERB") || !strings.Contains(keys, "NOUN") {
+			t.Fatal("VERB and NOUN must appear on the keypad, not only as display labels")
+		}
+	})
+	t.Run("happy: a depressed digit key lights dull orange", func(t *testing.T) {
+		lit := Render(State{Pressed: '1'}, true)
+		dark := Render(State{}, true)
+		if !strings.Contains(lit, "48;5;172") {
+			t.Fatal("a held key must have the dull-orange background")
+		}
+		if strings.Contains(dark, "48;5;172") {
+			t.Fatal("no key may be orange while none is pressed")
+		}
+	})
+	t.Run("unhappy: an unknown Pressed value lights no key", func(t *testing.T) {
+		out := Render(State{Pressed: '?'}, true)
+		if strings.Contains(out, "48;5;172") {
+			t.Fatal("a key that is not on the pad must not light anything")
+		}
+	})
+}
+
+func TestTypingOrange(t *testing.T) {
+	t.Run("happy: verb digits turn dull orange while being keyed", func(t *testing.T) {
+		out := Render(State{Verb: "37", Typing: Typing{Verb: true}}, true)
+		if !strings.Contains(out, "38;5;172") {
+			t.Fatal("keyed verb digits must render dull orange")
+		}
+		if !strings.Contains(plain(out), "_") {
+			t.Fatal("the orange verb must still show its segments")
+		}
+	})
+	t.Run("happy: committed digits stay electroluminescent green", func(t *testing.T) {
+		out := Render(State{Verb: "06", Noun: "63", Prog: "63"}, true)
+		if strings.Contains(out, "38;5;172") {
+			t.Fatal("a committed display must not be orange")
+		}
+		if !strings.Contains(out, "38;5;48") {
+			t.Fatal("committed digits must stay EL green")
+		}
+	})
+	t.Run("unhappy: typing an empty field paints no orange segments", func(t *testing.T) {
+		out := Render(State{Typing: Typing{Verb: true, Noun: true, Prog: true}}, true)
+		// The field is marked typing, but there are no digits to color —
+		// orange SGR may wrap blanks, but no segment glyphs may appear.
+		if strings.Contains(plain(out), "_") || strings.Contains(plain(out), "|") {
+			t.Fatal("an empty typing field must stay segment-dark")
 		}
 	})
 }
