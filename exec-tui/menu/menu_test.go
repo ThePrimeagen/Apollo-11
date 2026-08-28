@@ -110,7 +110,8 @@ func entryLine(v, title string) int {
 
 func TestMenuSections(t *testing.T) {
 	t.Run("happy: each category header renders once, above its entries", func(t *testing.T) {
-		v := stripAnsi(sized(New(Catalog(), ""), 100, 40).View().Content)
+		// tall enough that the whole grown catalog fits on one screen
+		v := stripAnsi(sized(New(Catalog(), ""), 100, 48).View().Content)
 		order := []struct{ header, first string }{
 			{"Screenplays", "MAIN"},
 			{"Scenes", "Component Viewer"},
@@ -413,7 +414,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup", "inverse",
-			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble",
+			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config",
 			"dsky",
@@ -444,6 +445,7 @@ func TestCatalog(t *testing.T) {
 			"coreset2":       "Scenes",
 			"liftoff":        "Scenes",
 			"bobble":         "Scenes",
+			"interpreter":    "Scenes",
 			"flame":          "CONFIG",
 			"stars-config":   "CONFIG",
 			"sky-config":     "CONFIG",

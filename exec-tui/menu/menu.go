@@ -55,6 +55,7 @@ func Catalog() []Entry {
 		{ID: "coreset2", Section: "Scenes", Title: "Core Sets Two", Desc: "the scan, picked up from the priority word — the job roster, the EJSCAN loop as code, and the full-word compares where the newest SERVICER copy always wins", Pkg: "./cmd/coreset2"},
 		{ID: "liftoff", Section: "Scenes", Title: "Liftoff", Desc: "the landing backwards: ignition on the pad, mirrored dust, then the climb off the top — nine live knobs", Pkg: "./cmd/liftoff"},
 		{ID: "bobble", Section: "Scenes", Title: "Bobble", Desc: "the west-facing lander parked at center, bobbling on a sine, with or without its engine — three live knobs", Pkg: "./cmd/bobble"},
+		{ID: "interpreter", Section: "Scenes", Title: "Interpreter", Desc: "the real MUNRVG scrolls by behind a Rose Pine vignette — five spotlit chunks of SERVICER, each ending in its own look for the DANZIG check — two live knobs", Pkg: "./cmd/interpreter"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "sky-config", Section: "CONFIG", Title: "SKY CONFIG", Desc: "tune the blue sky gradient — angle, light ink, dark ink", Pkg: "./cmd/adjustsky/main"},

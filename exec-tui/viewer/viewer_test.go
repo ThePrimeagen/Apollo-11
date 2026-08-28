@@ -35,6 +35,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/interpreter"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
@@ -89,39 +90,40 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("first item must be the SHOTGUN component, got %+v", c[0])
 		}
 		want := map[string]Kind{
-			"shotgun":    KindComponent,
-			"stars":      KindComponent,
-			"sky":        KindComponent,
-			"cloud":      KindComponent,
-			"lander":     KindComponent,
-			"flag":       KindComponent,
-			"transition": KindComponent,
-			"eagle":      KindComponent,
-			"armed":      KindComponent,
-			"moon":       KindComponent,
-			"ie":         KindComponent,
-			"dsky":       KindComponent,
-			"coreset":    KindComponent,
-			"coresets":   KindComponent,
-			"vac":        KindComponent,
-			"vacs":       KindComponent,
-			"cpugraph":   KindComponent,
-			"breakdown":  KindScene,
-			"scan":       KindScene,
-			"title":      KindComponent,
-			"astronaut":  KindComponent,
-			"rocket":     KindComponent,
-			"gunfire":    KindParticle,
-			"flame":      KindParticle,
-			"dust":       KindParticle,
-			"nyan":       KindParticle,
-			"landing":    KindScene,
-			"america":    KindScene,
-			"moonwalk":   KindScene,
-			"skies":      KindScene,
-			"liftoff":    KindScene,
-			"bobble":     KindScene,
-			"explorer":   KindScene,
+			"shotgun":     KindComponent,
+			"stars":       KindComponent,
+			"sky":         KindComponent,
+			"cloud":       KindComponent,
+			"lander":      KindComponent,
+			"flag":        KindComponent,
+			"transition":  KindComponent,
+			"eagle":       KindComponent,
+			"armed":       KindComponent,
+			"moon":        KindComponent,
+			"ie":          KindComponent,
+			"dsky":        KindComponent,
+			"coreset":     KindComponent,
+			"coresets":    KindComponent,
+			"vac":         KindComponent,
+			"vacs":        KindComponent,
+			"cpugraph":    KindComponent,
+			"breakdown":   KindScene,
+			"scan":        KindScene,
+			"title":       KindComponent,
+			"astronaut":   KindComponent,
+			"rocket":      KindComponent,
+			"gunfire":     KindParticle,
+			"flame":       KindParticle,
+			"dust":        KindParticle,
+			"nyan":        KindParticle,
+			"landing":     KindScene,
+			"america":     KindScene,
+			"moonwalk":    KindScene,
+			"skies":       KindScene,
+			"liftoff":     KindScene,
+			"bobble":      KindScene,
+			"explorer":    KindScene,
+			"interpreter": KindScene,
 		}
 		seen := map[string]bool{}
 		for _, it := range c {
@@ -342,6 +344,7 @@ func TestEdit(t *testing.T) {
 			{"liftoff", liftoff.DefaultConfigPath, "./cmd/liftoff"},
 			{"bobble", bobble.DefaultConfigPath, "./cmd/bobble"},
 			{"explorer", explorer.DefaultConfigPath, "./cmd/explorer"},
+			{"interpreter", interpreter.DefaultConfigPath, "./cmd/interpreter"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)

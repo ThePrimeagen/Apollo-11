@@ -31,6 +31,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset2"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/interpreter"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
@@ -103,6 +104,7 @@ func Catalog() []Item {
 		{ID: "liftoff", Title: "LIFTOFF", Kind: KindScene, Path: liftoff.DefaultConfigPath, Program: "./cmd/liftoff", spawn: func() screenplay.Component { return wrapScene(liftoff.New(nil)) }},
 		{ID: "bobble", Title: "BOBBLE", Kind: KindScene, Path: bobble.DefaultConfigPath, Program: "./cmd/bobble", spawn: func() screenplay.Component { return wrapScene(bobble.New(nil)) }},
 		{ID: "explorer", Title: "BIG E", Kind: KindScene, Path: explorer.DefaultConfigPath, Program: "./cmd/explorer", spawn: func() screenplay.Component { return wrapScene(explorer.New(nil)) }},
+		{ID: "interpreter", Title: "INTERPRETER", Kind: KindScene, Path: interpreter.DefaultConfigPath, Program: "./cmd/interpreter", spawn: func() screenplay.Component { return wrapScene(interpreter.New()) }},
 	}
 }
 
