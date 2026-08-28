@@ -8,17 +8,25 @@ package coreset
 // two, the drain: every box dissolves away one FadeBeat at a time —
 // VACs first, then the core sets from the bottom of the stack — until
 // only CS1 is left standing. Act three, the move: the survivor,
-// relabeled plain CORE SET with no number, glides to the top center.
-// Act four, the anatomy: a long twelve-word bar builds under it one
-// word per WordBeat — MPAC through MPAC+6, MODE, LOC, BANKSET,
-// PUSHLOC, PRIORITY, the exact page-99 layout — each group wearing
-// its own ink with its own sourced caption. Act five, the zoom: the
-// other eleven words and the top box fade, PRIO glides to center
-// stage, and the 15-bit word breaks open: the top six bits are the
-// job's priority, the low nine its VAC area address — SERVICER at
-// PRIO 20 over VAC1 at 400, OCT 20400 in one word. The scene holds
-// there. A resize keeps the clock; Stop then Start replays from the
-// top; a nil screen never panics.
+// relabeled plain CORE SET with no number, glides to the top center,
+// LANDS EXACTLY on its parking spot, and rests there for the settle —
+// only after the rest does the layout begin. The old cut moved the
+// box one more cell on the very frame the words arrived; these tests
+// pin the landing so the transition finishes first and the core set's
+// contents display second. Act four, the anatomy: a long twelve-word
+// bar builds under it one word per WordBeat — MPAC through MPAC+6,
+// MODE, LOC, BANKSET, PUSHLOC, PRIORITY, the exact page-99 layout —
+// each group wearing its own ink with its own sourced caption. Act
+// five, the zoom: the other eleven words and the top box fade, PRIO
+// glides to center stage — parked on its seat BEFORE the bits break
+// open — and the 15-bit word splits: the top six bits the job's
+// priority, the low nine its VAC area address — SERVICER at PRIO 20
+// over VAC1 at 400, OCT 20400 in one word. The scene holds there.
+// Every timing is a knob now: the acts run on the DefaultConfig
+// clock, New plays the Active config, a replay picks up nudged knobs,
+// and a mid-play nudge never warps the running show. A resize keeps
+// the clock; Stop then Start replays from the top; a nil screen never
+// panics.
 
 import (
 	"strings"
@@ -34,6 +42,10 @@ const (
 	stageW = 100
 	stageH = 30
 )
+
+// stock is the scene's default clock — the acts' marks in every test
+// that plays the stock show.
+var stock = DefaultConfig()
 
 func paint(sc screenplay.Scene) *screenplay.Screen {
 	scr := screenplay.NewScreen(stageW, stageH)
@@ -125,6 +137,12 @@ func fgAt(scr *screenplay.Screen, x, y int) int {
 	return -1
 }
 
+// parkedLabel is where the CORE SET label sits once the box is parked
+// at the top center: one cell inside the box's border.
+func parkedLabel() (x, y int) {
+	return (stageW-pools.BoxW)/2 + 1, 2
+}
+
 func TestUnitAct(t *testing.T) {
 	t.Run("happy: the memory unit — both panels side by side, tops aligned, jobs alive", func(t *testing.T) {
 		s := opened(t)
@@ -149,7 +167,7 @@ func TestUnitAct(t *testing.T) {
 	t.Run("unhappy: waiting before the first render never burns the act", func(t *testing.T) {
 		s := New()
 		s.Start()
-		tick(s, UnitSeconds+2)
+		tick(s, stock.UnitSeconds+2)
 		scr := paint(s)
 		mustSee(t, scr, "VAC AREAS")
 		mustSee(t, scr, "CORE SETS")
@@ -159,11 +177,11 @@ func TestUnitAct(t *testing.T) {
 func TestFadeAct(t *testing.T) {
 	t.Run("happy: the boxes drain away beat by beat — VACs first, CS1 last standing", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, FadeStart+DissolveSeconds+0.06)
+		scr := seek(t, s, stock.FadeStart()+stock.DissolveSeconds+0.06)
 		mustNotSee(t, scr, "VC5")
 		mustSee(t, scr, "VC1")
 		mustSee(t, scr, "CS2")
-		scr = seek(t, s, MoveStart-FadeStart-DissolveSeconds-0.06-0.02)
+		scr = seek(t, s, stock.MoveStart()-stock.FadeStart()-stock.DissolveSeconds-0.06-0.02)
 		_ = scr
 		scr = paint(s)
 		mustNotSee(t, scr, "VC1")
@@ -176,7 +194,7 @@ func TestFadeAct(t *testing.T) {
 	})
 	t.Run("unhappy: CS1 never dissolves at any point of the drain", func(t *testing.T) {
 		s := opened(t)
-		for at := 0.5; at < MoveStart-0.05; at += 0.5 {
+		for at := 0.5; at < stock.MoveStart()-0.05; at += 0.5 {
 			tick(s, 0.5)
 			scr := paint(s)
 			if _, _, ok := findOn(scr, "CS1"); !ok {
@@ -189,28 +207,63 @@ func TestFadeAct(t *testing.T) {
 func TestMoveAct(t *testing.T) {
 	t.Run("happy: the survivor drops its number and glides to the top center", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, MoveStart+0.05)
+		scr := seek(t, s, stock.MoveStart()+0.05)
 		mustSee(t, scr, "CORE SET")
 		mustNotSee(t, scr, "CS1")
 		_, y1 := mustSee(t, scr, "CORE SET")
-		scr = seek(t, s, MoveSeconds/2)
+		scr = seek(t, s, stock.MoveSeconds/2)
 		_, y2 := mustSee(t, scr, "CORE SET")
 		if y2 > y1 {
 			t.Fatalf("the box must glide upward: row %d then %d", y1, y2)
 		}
-		scr = seek(t, s, MoveSeconds/2-0.02)
+		scr = seek(t, s, stock.MoveSeconds/2-0.02)
 		x, y := mustSee(t, scr, "CORE SET")
-		if y > 3 {
-			t.Fatalf("at the move's end the box sits on row %d, want the top of the stage", y)
+		wantX, wantY := parkedLabel()
+		if x != wantX || y != wantY {
+			t.Fatalf("at the move's end the box label sits at (%d,%d), want exactly (%d,%d)", x, y, wantX, wantY)
 		}
-		wantX := (stageW-pools.BoxW)/2 + 1
-		if x < wantX-2 || x > wantX+2 {
-			t.Fatalf("the box label sits at column %d, want the top center near %d", x, wantX)
+	})
+	t.Run("happy: the survivor lands and rests through the settle before the first word", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, stock.SettleStart()+0.02)
+		x0, y0 := mustSee(t, scr, "CORE SET")
+		mustNotSee(t, scr, "MPAC")
+		wantX, wantY := parkedLabel()
+		if x0 != wantX || y0 != wantY {
+			t.Fatalf("the landed box label sits at (%d,%d), want exactly (%d,%d) — the glide finishes before the layout", x0, y0, wantX, wantY)
+		}
+		scr = seek(t, s, stock.SettleSeconds-0.04)
+		x1, y1 := mustSee(t, scr, "CORE SET")
+		mustNotSee(t, scr, "MPAC")
+		mustSee(t, scr, CaptionMove)
+		if x1 != x0 || y1 != y0 {
+			t.Fatalf("the parked box drifted (%d,%d)→(%d,%d) during the settle", x0, y0, x1, y1)
+		}
+	})
+	t.Run("unhappy: the landing never shares a frame with the word bar", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, stock.WordsStart()-0.05)
+		bx, by := mustSee(t, scr, "CORE SET")
+		mustNotSee(t, scr, "MPAC")
+		scr = seek(t, s, 0.1)
+		mustSee(t, scr, "MPAC")
+		x, y := mustSee(t, scr, "CORE SET")
+		if x != bx || y != by {
+			t.Fatalf("the box hopped (%d,%d)→(%d,%d) on the very frame the words arrived — first the transition, then the layout", bx, by, x, y)
+		}
+	})
+	t.Run("unhappy: the glide's last frame already rests on the landing spot — no hop into the settle", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, stock.SettleStart()-0.02)
+		x, y := mustSee(t, scr, "CORE SET")
+		wantX, wantY := parkedLabel()
+		if x != wantX || y != wantY {
+			t.Fatalf("one frame before the settle the box label sits at (%d,%d), want (%d,%d)", x, y, wantX, wantY)
 		}
 	})
 	t.Run("unhappy: the move carries no panel leftovers and no job text", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, MoveStart+MoveSeconds/2)
+		scr := seek(t, s, stock.MoveStart()+stock.MoveSeconds/2)
 		mustNotSee(t, scr, "SERVICER")
 		mustNotSee(t, scr, "VAC")
 		mustNotSee(t, scr, "CS1")
@@ -250,11 +303,11 @@ func TestAnatomyAct(t *testing.T) {
 	})
 	t.Run("happy: the bar builds one word per beat under the parked box", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, WordsStart+2.5*WordBeat)
+		scr := seek(t, s, stock.WordsStart()+2.5*stock.WordBeat)
 		mustSee(t, scr, "MPAC")
 		mustSee(t, scr, "+1")
 		mustNotSee(t, scr, "PRIO")
-		scr = seek(t, s, 12*WordBeat-2.5*WordBeat+0.1)
+		scr = seek(t, s, 12*stock.WordBeat-2.5*stock.WordBeat+0.1)
 		for _, label := range []string{"MPAC", "+1", "+2", "+3", "+4", "+5", "+6", "MODE", "LOC", "BANK", "PUSH", "PRIO"} {
 			mustSee(t, scr, label)
 		}
@@ -270,7 +323,7 @@ func TestAnatomyAct(t *testing.T) {
 	})
 	t.Run("unhappy: the full bar never spills past twelve word labels", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, ZoomStart-0.1)
+		scr := seek(t, s, stock.ZoomStart()-0.1)
 		if got := countOn(scr, "+6"); got != 1 {
 			t.Fatalf("MPAC ends at +6 — seen %d times, want exactly 1", got)
 		}
@@ -279,32 +332,44 @@ func TestAnatomyAct(t *testing.T) {
 }
 
 func TestZoomAct(t *testing.T) {
-	t.Run("happy: the rest fades out for a quarter second while PRIO holds its slot, then it glides to center", func(t *testing.T) {
+	t.Run("happy: the rest fades out while PRIO holds its slot, then it glides to center", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, ZoomStart-0.05)
+		scr := seek(t, s, stock.ZoomStart()-0.05)
 		bx, by := mustSee(t, scr, "PRIO")
-		scr = seek(t, s, 0.05+FadeOutSeconds*0.6)
+		scr = seek(t, s, 0.05+stock.ZoomFadeSeconds*0.6)
 		x, y := mustSee(t, scr, "PRIO")
 		if x != bx || y != by {
 			t.Fatalf("mid-fade PRIO moved from (%d,%d) to (%d,%d) — the glide must wait for the fade", bx, by, x, y)
 		}
 		mustSee(t, scr, CaptionZoom)
-		scr = seek(t, s, FadeOutSeconds*0.4+0.07)
+		scr = seek(t, s, stock.ZoomFadeSeconds*0.4+0.07)
 		mustNotSee(t, scr, "MPAC")
 		mustNotSee(t, scr, "MODE")
 		mustNotSee(t, scr, "BANK")
 		mustNotSee(t, scr, "PUSH")
 		mustNotSee(t, scr, "CORE SET")
-		scr = seek(t, s, ZoomSeconds-FadeOutSeconds-0.07-0.02-0.05)
+		scr = seek(t, s, stock.ZoomGlideSeconds-0.07-0.02-0.05)
 		x2, _ := mustSee(t, scr, "PRIO")
 		center := stageW / 2
 		if x2 < center-12 || x2 > center+12 {
 			t.Fatalf("PRIO sits at column %d, want near the center %d", x2, center)
 		}
 	})
+	t.Run("happy: the priority word is parked on its seat before the bits break open", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, stock.BitsStart()-0.05)
+		bx, by := mustSee(t, scr, "PRIO")
+		mustNotSee(t, scr, "VAC ADDRESS")
+		scr = seek(t, s, 0.1)
+		mustSee(t, scr, "VAC ADDRESS")
+		x, y := mustSee(t, scr, "PRIO")
+		if x != bx || y != by {
+			t.Fatalf("PRIO hopped (%d,%d)→(%d,%d) on the very frame the bits arrived — the glide must land first", bx, by, x, y)
+		}
+	})
 	t.Run("unhappy: the glide never begins before the fade-out completes", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, ZoomStart+0.02)
+		scr := seek(t, s, stock.ZoomStart()+0.02)
 		bx, by := mustSee(t, scr, "PRIO")
 		for _, dt := range []float64{0.1, 0.1} {
 			scr = seek(t, s, dt)
@@ -314,9 +379,23 @@ func TestZoomAct(t *testing.T) {
 			}
 		}
 	})
+	t.Run("unhappy: the glide's last frames never wobble the parked word", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, stock.BitsStart()-0.09)
+		x0, y0 := mustSee(t, scr, "PRIO")
+		scr = seek(t, s, 0.05)
+		x1, y1 := mustSee(t, scr, "PRIO")
+		mustNotSee(t, scr, "VAC ADDRESS")
+		scr = seek(t, s, 0.1)
+		mustSee(t, scr, "VAC ADDRESS")
+		x2, y2 := mustSee(t, scr, "PRIO")
+		if x0 != x1 || y0 != y1 || x1 != x2 || y1 != y2 {
+			t.Fatalf("PRIO wobbled at the end of the glide: (%d,%d) (%d,%d) (%d,%d)", x0, y0, x1, y1, x2, y2)
+		}
+	})
 	t.Run("unhappy: the parked CORE SET box fades with the rest", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, BitsStart-0.05)
+		scr := seek(t, s, stock.BitsStart()-0.05)
 		mustNotSee(t, scr, "CORE SET")
 	})
 }
@@ -335,7 +414,7 @@ func TestBitsAct(t *testing.T) {
 	})
 	t.Run("happy: fifteen bits on stage, the top six in the priority ink, the low nine in the VAC ink", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, BitsStart+1)
+		scr := seek(t, s, stock.BitsStart()+1)
 		wantBits := ""
 		for i := 14; i >= 0; i-- {
 			wantBits += string(rune('0' + (PriorityWord>>i)&1))
@@ -383,7 +462,7 @@ func TestBitsAct(t *testing.T) {
 	})
 	t.Run("happy: the field labels share one row, spaced under their own fields", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, BitsStart+1)
+		scr := seek(t, s, stock.BitsStart()+1)
 		px, py := mustSee(t, scr, "PRIORITY — OCT 20")
 		vx, vy := mustSee(t, scr, "VAC ADDRESS — OCT 400")
 		if py != vy {
@@ -396,7 +475,7 @@ func TestBitsAct(t *testing.T) {
 	})
 	t.Run("happy: the bits sit wide enough to carry both labels beneath them", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, BitsStart+1)
+		scr := seek(t, s, stock.BitsStart()+1)
 		wantBits := ""
 		for i := 14; i >= 0; i-- {
 			wantBits += string(rune('0' + (PriorityWord>>i)&1))
@@ -431,7 +510,7 @@ func TestBitsAct(t *testing.T) {
 	})
 	t.Run("happy: the scene holds on the bits — a long wait changes nothing", func(t *testing.T) {
 		s := opened(t)
-		scr := seek(t, s, BitsStart+1)
+		scr := seek(t, s, stock.BitsStart()+1)
 		before := rowText(scr, stageH/2)
 		scr = seek(t, s, 10)
 		if got := rowText(scr, stageH/2); got != before {
@@ -448,10 +527,47 @@ func TestBitsAct(t *testing.T) {
 	})
 }
 
+func TestScenePlaysConfig(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: New plays the Active knobs on the first curtain", func(t *testing.T) {
+		t.Cleanup(Reset)
+		fast := DefaultConfig()
+		fast.UnitSeconds = 0.5
+		if err := Use(fast); err != nil {
+			t.Fatalf("Use: %v", err)
+		}
+		s := opened(t)
+		scr := seek(t, s, 0.7)
+		mustSee(t, scr, CaptionFade)
+		mustNotSee(t, scr, CaptionUnit)
+	})
+	t.Run("happy: a nudged knob is what the replay plays", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, 0.7)
+		mustSee(t, scr, CaptionUnit)
+		s.Stop()
+		s.Cfg.UnitSeconds = 0.5
+		s.Start()
+		_ = paint(s)
+		scr = seek(t, s, 0.7)
+		mustSee(t, scr, CaptionFade)
+		mustNotSee(t, scr, CaptionUnit)
+	})
+	t.Run("unhappy: changing knobs mid-flight never retimes the running show", func(t *testing.T) {
+		s := opened(t)
+		scr := seek(t, s, 0.3)
+		mustSee(t, scr, CaptionUnit)
+		s.Cfg.UnitSeconds = 0.1
+		scr = seek(t, s, 0.5)
+		mustSee(t, scr, CaptionUnit)
+		mustNotSee(t, scr, CaptionFade)
+	})
+}
+
 func TestSceneLifecycle(t *testing.T) {
 	t.Run("happy: a resize keeps the clock — no fall back to the first act", func(t *testing.T) {
 		s := opened(t)
-		_ = seek(t, s, WordsStart+12*WordBeat+0.2)
+		_ = seek(t, s, stock.WordsStart()+12*stock.WordBeat+0.2)
 		big := screenplay.NewScreen(110, 32)
 		s.Render(big)
 		if _, _, ok := findOn(big, "MPAC"); !ok {
@@ -463,7 +579,7 @@ func TestSceneLifecycle(t *testing.T) {
 	})
 	t.Run("happy: Stop then Start replays from the top", func(t *testing.T) {
 		s := opened(t)
-		_ = seek(t, s, BitsStart+1)
+		_ = seek(t, s, stock.BitsStart()+1)
 		s.Stop()
 		s.Start()
 		scr := paint(s)

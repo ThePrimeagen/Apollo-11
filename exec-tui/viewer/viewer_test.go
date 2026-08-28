@@ -29,6 +29,11 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
 	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
@@ -313,15 +318,15 @@ func TestEdit(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: e on a scene opens that scene's tuner", func(t *testing.T) {
+	t.Run("happy: e on a scene opens that scene's tuner on its config", func(t *testing.T) {
 		cases := []struct {
-			id, wantPkg string
+			id, wantPath, wantPkg string
 		}{
-			{"landing", "./cmd/landing"},
-			{"america", "./cmd/america"},
-			{"moonwalk", "./cmd/astronaut"},
-			{"skies", "./cmd/skies"},
-			{"breakdown", "./cmd/coreset"},
+			{"landing", landing.DefaultConfigPath, "./cmd/landing"},
+			{"america", america.DefaultConfigPath, "./cmd/america"},
+			{"moonwalk", moonwalk.DefaultConfigPath, "./cmd/astronaut"},
+			{"skies", skies.DefaultConfigPath, "./cmd/skies"},
+			{"breakdown", coreset.DefaultConfigPath, "./cmd/coreset"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
@@ -333,6 +338,9 @@ func TestEdit(t *testing.T) {
 			}
 			if ed.Kind != KindScene {
 				t.Fatalf("%s: edit kind %s, want scene", tc.id, ed.Kind)
+			}
+			if ed.Path != tc.wantPath {
+				t.Fatalf("%s: edit path %q, want %q — the tuner opens on the scene's own knobs", tc.id, ed.Path, tc.wantPath)
 			}
 			if ed.Program != tc.wantPkg {
 				t.Fatalf("%s: edit program %q, want %q", tc.id, ed.Program, tc.wantPkg)
