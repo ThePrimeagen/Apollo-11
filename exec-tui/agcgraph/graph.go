@@ -13,10 +13,11 @@
 // is the single ~1.36 s pass stretching toward the white line as load is
 // switched on: descent alone fits, the radar steal is the knife edge, and
 // the 1668 monitor or the P64 approach guidance push the pass PAST the
-// boundary. 1668 and P64 cannot share the DSKY: keying either drops the
-// other. Every toggle re-simulates a fresh 2.5 s snapshot; with everything
-// off only the hardware cadences remain. The opening portrait is the
-// healthy CPU: descent on, monitor off, radar steal off, approach off.
+// boundary — where its bar turns RED, the overflow to come made visible.
+// 1668 and P64 cannot share the DSKY: keying either drops the other.
+// Every toggle re-simulates a fresh 2.5 s snapshot; with everything off
+// only the hardware cadences remain. The opening portrait is the healthy
+// CPU: descent on, monitor off, radar steal off, approach off.
 package agcgraph
 
 import (
@@ -133,6 +134,7 @@ var (
 	sGrid   = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	sGridS  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	sBound  = lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Bold(true)
+	sOver   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	sDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	sName   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	sOn     = lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Bold(true)
@@ -249,15 +251,22 @@ func (m Model) columns(plot int, series func(msim.Sample) msim.Nanos) []column {
 }
 
 // laneRow renders one process's row: bars over gridlines, with the hard
-// white boundary line cutting through everything — bars included.
-func laneRow(st lipgloss.Style, cols []column, bcol int) string {
+// white boundary line cutting through everything — bars included. Bars in
+// columns past the boundary render under `over` — for the SERVICER that is
+// the alarm red of work that no longer fits its own cycle; every other
+// process keeps its color (their timers legitimately run on).
+func laneRow(st, over lipgloss.Style, cols []column, bcol int) string {
 	var b strings.Builder
 	for i, c := range cols {
 		switch {
 		case i == bcol:
 			b.WriteString(sBound.Render("│"))
 		case c.level > 0:
-			b.WriteString(st.Render(string(blockRunes[c.level-1])))
+			if i > bcol {
+				b.WriteString(over.Render(string(blockRunes[c.level-1])))
+			} else {
+				b.WriteString(st.Render(string(blockRunes[c.level-1])))
+			}
 		case c.grid == 2:
 			b.WriteString(sGridS.Render("│"))
 		case c.grid == 1:
@@ -373,14 +382,20 @@ func (m Model) View() tea.View {
 
 	var lines []string
 	for gi, label := range groupLabels {
-		lines = append(lines, gutterCell(sLabel, label)+laneRow(sGrid, m.columns(plot, none), bcol))
+		lines = append(lines, gutterCell(sLabel, label)+laneRow(sGrid, sGrid, m.columns(plot, none), bcol))
 		for _, p := range procs {
 			if p.group(m) != gi || !running(e, p.name) {
 				continue
 			}
+			over := groupStyles[gi]
+			if p.name == "SERVICER" {
+				// a single-cycle pass still running past its own boundary
+				// is the overflow: paint the overrun red
+				over = sOver
+			}
 			lines = append(lines,
 				gutterCell(groupStyles[gi], " "+p.name)+
-					laneRow(groupStyles[gi], m.columns(plot, byName(p.name)), bcol))
+					laneRow(groupStyles[gi], over, m.columns(plot, byName(p.name)), bcol))
 		}
 	}
 	lines = append(lines, pad+axisRow(plot))
