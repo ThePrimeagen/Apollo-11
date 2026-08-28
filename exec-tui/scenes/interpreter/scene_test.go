@@ -1,24 +1,23 @@
 package interpreter
 
-// Tests written FIRST: the Interpreter scene is now a composition —
-// the code component displays the cards, the scrollcode component
-// moves them, and the scene only chooses what to show: the REAL
-// SERVICER interpreter code. The scroll is MUNRVG, the average-G
-// integration that ran during the powered descent, verbatim from
-// Luminary099/SERVICER.agc and consecutive from TC INTPRET to RVQ:
-// a prologue (the routine's own header comments and the TC INTPRET
-// hand-off), five spotlit chunks — the ΔV load, the guidance push,
-// the position out, the velocity out, and the VXV cross product the
-// scene is named for — one unfocused chunk between the last two
-// stops (the DOT altitude-rate block the camera scrolls through),
-// and three trailing chunks (through MUNGRAV to RVQ) so the fade
-// below the last stop still has code to sink through. Each spotlit
-// chunk ends in an annotated check to DANZIG in its own dress —
-// the real assembly (verbatim INTERPRETER.agc), pseudocode, a fork,
-// a weighing, a stamp — with every NEWJOB marked in love ink and
-// the VXV op itself marked gold. The vignette fades four levels on
-// both sides of the spotlight. A resize keeps the clock; Stop then
-// Start replays; a nil screen never panics.
+// Tests written FIRST: the Interpreter walkthrough slims down. The
+// five spotlit blocks keep the real MUNRVG ops — verbatim SERVICER
+// opcodes and operands, comments stripped — but every block now
+// reads the same simple way: ONE plain-English comment on top
+// ("# THIS BLOCK ..."), the bare instructions, a blank row, and the
+// whole DANZIG construction as one pseudo call:
+//
+//	check_for_higher_priority_jobs()    # DANZIG
+//
+// No more five dresses — no assembly CCS, no fork, no weighing, no
+// stamp. The call is the same line in every block, wears the love
+// mark, and names exactly the function the Check Priority scene
+// walks. The prologue is one plain comment over the real TC INTPRET;
+// the DOT block and the three-chunk tail still scroll by, stripped
+// of their inline comments, so the run stays consecutive and the
+// fade below the last stop still has code to sink through. A resize
+// keeps the clock; Stop then Start replays; a nil screen never
+// panics.
 
 import (
 	"fmt"
@@ -32,6 +31,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/code"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/danzig"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/scrollcode"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/checkprio"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -44,8 +44,8 @@ const (
 // plays the stock show steers by.
 var stock = DefaultConfig()
 
-// anchor is where the spotlit chunk's first row parks: the scroll
-// plays on the stage minus the caption's two rows.
+// anchor is where the spotlit block's first row (its comment) parks:
+// the scroll plays on the stage minus the caption's two rows.
 func anchor() int { return scrollcode.AnchorY(stageH - 2) }
 
 func paint(sc screenplay.Scene) *screenplay.Screen {
@@ -144,65 +144,81 @@ func fgOf(t *testing.T, scr *screenplay.Screen, text string) int {
 	return fgAt(scr, x, y)
 }
 
-// fileLines is a set of every line of an AGC source file.
-func fileLines(t *testing.T, path string) map[string]bool {
+// stripComment cuts a listing line at its # and trims the tail — the
+// shape every displayed op line must already be in.
+func stripComment(line string) string {
+	if i := strings.Index(line, "#"); i >= 0 {
+		line = line[:i]
+	}
+	return strings.TrimRight(line, " \t")
+}
+
+// servicerOps is every op line of the flight source, comments
+// stripped, in file order.
+func servicerOps(t *testing.T) []string {
 	t.Helper()
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile("../../../Luminary099/SERVICER.agc")
 	if err != nil {
 		t.Fatalf("the flight source must be readable: %v", err)
 	}
-	set := map[string]bool{}
+	var ops []string
 	for _, line := range strings.Split(string(raw), "\n") {
-		set[line] = true
+		if s := stripComment(line); s != "" {
+			ops = append(ops, s)
+		}
+	}
+	return ops
+}
+
+// opSet is the stripped file as a set.
+func opSet(t *testing.T) map[string]bool {
+	t.Helper()
+	set := map[string]bool{}
+	for _, op := range servicerOps(t) {
+		set[op] = true
 	}
 	return set
 }
 
+// run is the whole displayed op sequence in scroll order: the
+// prologue's hand-off, four blocks, the DOT block, the last block,
+// then the tail.
+func run() []string {
+	var out []string
+	out = append(out, PrologueLines()[len(PrologueLines())-1])
+	chunks := Chunks()
+	for _, ch := range chunks[:4] {
+		out = append(out, ch.Source...)
+	}
+	out = append(out, MidLines()...)
+	out = append(out, chunks[4].Source...)
+	for _, ep := range EpilogueBlocks() {
+		out = append(out, ep...)
+	}
+	return out
+}
+
 func TestLegitimacy(t *testing.T) {
-	t.Run("happy: every source line on the scroll is verbatim SERVICER.agc", func(t *testing.T) {
-		servicer := fileLines(t, "../../../Luminary099/SERVICER.agc")
-		check := func(kind string, lines []string) {
-			t.Helper()
-			for _, line := range lines {
-				if !servicer[line] {
-					t.Fatalf("%s line %q is not in SERVICER.agc — the code must be the real one", kind, line)
-				}
+	t.Run("happy: every op on the scroll is a real SERVICER op, comments already stripped", func(t *testing.T) {
+		ops := opSet(t)
+		for _, line := range run() {
+			if stripComment(line) != line {
+				t.Fatalf("op line %q still carries a comment — the blocks lead with one plain comment instead", line)
 			}
-		}
-		check("prologue", PrologueLines())
-		for _, ch := range Chunks() {
-			check(ch.Name, ch.Source)
-		}
-		check("mid", MidLines())
-		for i, ep := range EpilogueBlocks() {
-			check(fmt.Sprintf("epilogue %d", i), ep)
+			if !ops[line] {
+				t.Fatalf("op line %q is not in SERVICER.agc — the code must be the real one", line)
+			}
 		}
 	})
-	t.Run("happy: the run is one consecutive stretch of SERVICER — TC INTPRET through RVQ", func(t *testing.T) {
-		raw, err := os.ReadFile("../../../Luminary099/SERVICER.agc")
-		if err != nil {
-			t.Fatal(err)
-		}
-		file := strings.Split(string(raw), "\n")
-		var run []string
-		run = append(run, PrologueLines()[len(PrologueLines())-1]) // TC INTPRET
-		chunks := Chunks()
-		for _, ch := range chunks[:4] {
-			run = append(run, ch.Source...)
-		}
-		run = append(run, MidLines()...)
-		run = append(run, chunks[4].Source...)
-		for _, ep := range EpilogueBlocks() {
-			run = append(run, ep...)
-		}
-		// TC INTPRET recurs through SERVICER — the run must line up
-		// whole against one of its occurrences.
+	t.Run("happy: the run is one consecutive stretch of SERVICER ops — TC INTPRET through RVQ", func(t *testing.T) {
+		file := servicerOps(t)
+		want := run()
 		matches := func(start int) bool {
-			if start+len(run) > len(file) {
+			if start+len(want) > len(file) {
 				return false
 			}
-			for j, want := range run {
-				if file[start+j] != want {
+			for j, w := range want {
+				if file[start+j] != w {
 					return false
 				}
 			}
@@ -210,92 +226,92 @@ func TestLegitimacy(t *testing.T) {
 		}
 		found := false
 		for i := range file {
-			if file[i] == run[0] && matches(i) {
+			if file[i] == want[0] && matches(i) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatal("the scroll must be one real consecutive stretch of SERVICER.agc")
+			t.Fatal("the scroll must be one real consecutive stretch of SERVICER ops")
 		}
-		if last := run[len(run)-1]; !strings.Contains(last, "RVQ") {
+		if last := want[len(want)-1]; !strings.Contains(last, "RVQ") {
 			t.Fatalf("the run must close on the interpreter's own return, got %q", last)
 		}
 	})
-	t.Run("happy: the assembly check is verbatim INTERPRETER.agc — the real DANZIG lines", func(t *testing.T) {
-		interp := fileLines(t, "../../../Luminary099/INTERPRETER.agc")
-		var assembly *Chunk
-		for i := range Chunks() {
-			if Chunks()[i].Style == "assembly" {
-				c := Chunks()[i]
-				assembly = &c
+	t.Run("unhappy: the comments declare themselves and never quote the flight file", func(t *testing.T) {
+		ops := opSet(t)
+		comments := append([]string{PrologueLines()[0]}, nil...)
+		for _, ch := range Chunks() {
+			comments = append(comments, ch.Comment)
+		}
+		for _, c := range comments {
+			if !strings.HasPrefix(c, "# ") {
+				t.Fatalf("comment %q must declare itself with a leading #", c)
 			}
-		}
-		if assembly == nil {
-			t.Fatal("one check must be the real assembly")
-		}
-		for _, line := range assembly.Check {
-			if !interp[line] {
-				t.Fatalf("assembly check line %q is not in INTERPRETER.agc", line)
+			if strings.Contains(c, "\n") {
+				t.Fatalf("comment %q must be a single line", c)
+			}
+			if ops[stripComment(c)] && stripComment(c) != "" {
+				t.Fatalf("comment %q poses as flight code", c)
 			}
 		}
 	})
-	t.Run("unhappy: the dressed-up checks never pose as flight code", func(t *testing.T) {
-		servicer := fileLines(t, "../../../Luminary099/SERVICER.agc")
-		for _, ch := range Chunks() {
-			if !strings.HasPrefix(ch.Intro, "#") {
-				t.Fatalf("%s intro %q must be a comment — annotations declare themselves", ch.Name, ch.Intro)
-			}
-			if ch.Style == "assembly" {
-				continue
-			}
-			for _, line := range ch.Check {
-				if servicer[line] {
-					t.Fatalf("%s check line %q collides with real SERVICER code", ch.Name, line)
-				}
-			}
+	t.Run("unhappy: the check is declared pseudo — never a line of the flight file", func(t *testing.T) {
+		if opSet(t)[stripComment(CheckLine)] {
+			t.Fatalf("the check %q collides with real SERVICER code", CheckLine)
+		}
+		if !strings.Contains(CheckLine, "()") {
+			t.Fatalf("the check %q must read as a pseudo function call", CheckLine)
+		}
+		if !strings.Contains(CheckLine, "# DANZIG") {
+			t.Fatalf("the check %q must still name the DANZIG construction", CheckLine)
 		}
 	})
 }
 
 func TestRoster(t *testing.T) {
-	t.Run("happy: five spotlit chunks, five dresses for the same check, VXV under the last spotlight", func(t *testing.T) {
+	t.Run("happy: five blocks — one plain comment on top, bare ops, numbered captions", func(t *testing.T) {
 		chunks := Chunks()
 		if len(chunks) != 5 {
-			t.Fatalf("the walkthrough covers %d chunks, want 5", len(chunks))
+			t.Fatalf("the walkthrough covers %d blocks, want 5", len(chunks))
 		}
-		styles := map[string]bool{}
-		checks := map[string]bool{}
+		seen := map[string]bool{}
 		for i, ch := range chunks {
-			if ch.Name == "" || len(ch.Source) == 0 || len(ch.Check) == 0 {
-				t.Fatalf("chunk %d must carry a name, real source, and a check", i)
+			if ch.Name == "" || len(ch.Source) == 0 {
+				t.Fatalf("block %d must carry a name and real source", i)
 			}
-			if styles[ch.Style] {
-				t.Fatalf("style %q repeats — five versions were asked for", ch.Style)
+			if !strings.HasPrefix(ch.Comment, "# THIS BLOCK") {
+				t.Fatalf("%s comment %q must open plainly with '# THIS BLOCK'", ch.Name, ch.Comment)
 			}
-			styles[ch.Style] = true
-			joined := strings.Join(ch.Check, "\n")
-			if checks[joined] {
-				t.Fatalf("%s repeats another chunk's check verbatim", ch.Name)
+			if seen[ch.Comment] {
+				t.Fatalf("%s repeats another block's comment — each block says what IT does", ch.Name)
 			}
-			checks[joined] = true
-			if !strings.Contains(joined, "NEWJOB") && !strings.Contains(joined, "DANZIG") {
-				t.Fatalf("%s check never names the priority machinery", ch.Name)
+			seen[ch.Comment] = true
+			for _, line := range ch.Source {
+				if strings.Contains(line, "#") {
+					t.Fatalf("%s op line %q still carries an inline comment — the block's one comment rides on top", ch.Name, line)
+				}
 			}
 			if !strings.Contains(ch.Caption, fmt.Sprintf("%d/5", i+1)) || !strings.Contains(ch.Caption, ch.Name) {
 				t.Fatalf("%s caption %q must number the stop and name the ops", ch.Name, ch.Caption)
-			}
-		}
-		for _, want := range []string{"assembly", "pseudocode", "fork", "weighing", "stamp"} {
-			if !styles[want] {
-				t.Fatalf("the promised %q look is missing", want)
 			}
 		}
 		if chunks[4].Name != "VXV VSL2" {
 			t.Fatalf("the last spotlight belongs to the cross product, got %q", chunks[4].Name)
 		}
 	})
-	t.Run("happy: the tail is more than an EXIT — three real chunks fade out below the last stop", func(t *testing.T) {
+	t.Run("happy: the check is one simple call, the same in every block, naming the walked function", func(t *testing.T) {
+		if !strings.Contains(CheckLine, "check_for_higher_priority_jobs()") {
+			t.Fatalf("the check %q must be the simple pseudo call", CheckLine)
+		}
+		if !strings.Contains(CheckLine, checkprio.Lines()[0]) {
+			t.Fatalf("the check %q must call exactly the function the Check Priority scene walks, %q", CheckLine, checkprio.Lines()[0])
+		}
+	})
+	t.Run("happy: the tail still scrolls — the DOT block and three stripped chunks below the last stop", func(t *testing.T) {
+		if len(MidLines()) == 0 {
+			t.Fatal("the DOT block between the last two stops must still scroll by")
+		}
 		eps := EpilogueBlocks()
 		if len(eps) < 3 {
 			t.Fatalf("the tail holds %d chunks, want at least 3 so the fade has code to sink through", len(eps))
@@ -304,83 +320,71 @@ func TestRoster(t *testing.T) {
 			if len(ep) == 0 {
 				t.Fatalf("tail chunk %d is empty", i)
 			}
-		}
-		if len(MidLines()) == 0 {
-			t.Fatal("the DOT block between the last two stops must still scroll by")
-		}
-	})
-	t.Run("unhappy: no expanded line outgrows the card and the stamp's borders align", func(t *testing.T) {
-		all := [][]string{PrologueLines(), MidLines()}
-		for _, ch := range Chunks() {
-			all = append(all, ch.Source, []string{ch.Intro}, ch.Check)
-		}
-		all = append(all, EpilogueBlocks()...)
-		for _, group := range all {
-			for _, line := range code.New(code.LangAGC, group).Lines() {
-				if n := len([]rune(line)); n > 88 {
-					t.Fatalf("line %q runs %d runes expanded — past 88 the column no longer fits the stage", line, n)
+			for _, line := range ep {
+				if strings.Contains(line, "#") {
+					t.Fatalf("tail line %q still carries a comment — the whole scroll slims down", line)
 				}
 			}
 		}
-		var stamp []string
+	})
+	t.Run("unhappy: none of the five dresses survive and no line outgrows the card", func(t *testing.T) {
+		var all []string
+		all = append(all, PrologueLines()...)
+		all = append(all, MidLines()...)
 		for _, ch := range Chunks() {
-			if ch.Style == "stamp" {
-				stamp = ch.Check
+			all = append(all, ch.Comment)
+			all = append(all, ch.Source...)
+			all = append(all, CheckLine)
+		}
+		for _, ep := range EpilogueBlocks() {
+			all = append(all, ep...)
+		}
+		for _, line := range code.New(code.LangAGC, all).Lines() {
+			for _, glyph := range []string{"╭", "╰", "▶", "▓", "CCS", "NEWJOB", "CHANG2"} {
+				if strings.Contains(line, glyph) {
+					t.Fatalf("line %q still wears a dressed-up check (%q) — the check is one plain call now", line, glyph)
+				}
 			}
-		}
-		expanded := code.New(code.LangAGC, stamp).Lines()
-		if len(expanded) < 3 {
-			t.Fatalf("the stamp needs a top, a body, and a bottom, got %d lines", len(expanded))
-		}
-		w := len([]rune(expanded[0]))
-		for _, line := range expanded {
-			if len([]rune(line)) != w {
-				t.Fatalf("the stamp's borders tear: %q is not %d runes wide", line, w)
+			if n := len([]rune(line)); n > 88 {
+				t.Fatalf("line %q runs %d runes expanded — past 88 the column no longer fits the stage", line, n)
 			}
 		}
 	})
 }
 
 func TestOpening(t *testing.T) {
-	t.Run("happy: the ΔV load spotlit at the anchor, the prologue dim above, the fade running down", func(t *testing.T) {
+	t.Run("happy: the first block's comment at the anchor, ops below, the prologue dim above", func(t *testing.T) {
 		s := opened(t)
 		defer s.Stop()
 		scr := paint(s)
+		_, cy := mustSee(t, scr, Chunks()[0].Comment)
+		if cy != anchor() {
+			t.Fatalf("the spotlit block's comment sits at %d, want the anchor %d", cy, anchor())
+		}
 		vx, vy := mustSee(t, scr, "VLOAD")
-		if vy != anchor() {
-			t.Fatalf("the spotlit chunk's first row sits at %d, want the anchor %d", vy, anchor())
+		if vy != cy+1 {
+			t.Fatalf("the ops start right under the comment: row %d, want %d", vy, cy+1)
 		}
 		ix, iy := mustSee(t, scr, "INTPRET")
-		if iy >= vy {
-			t.Fatalf("the prologue (row %d) rides above the spotlight (row %d)", iy, vy)
+		if iy >= cy {
+			t.Fatalf("the prologue (row %d) rides above the spotlight (row %d)", iy, cy)
 		}
 		px, py := mustSee(t, scr, "PGUIDE")
 		if py <= vy {
-			t.Fatalf("the next chunk (row %d) waits below the spotlight (row %d)", py, vy)
+			t.Fatalf("the next block (row %d) waits below the spotlight (row %d)", py, vy)
 		}
-		mx, my := mustSee(t, scr, "MUNGRAV")
-		if my <= py {
-			t.Fatalf("the chunk after (row %d) sits lower still (row %d)", my, py)
-		}
-		lit := code.Dim(code.Foam, 0)
-		dim := code.Dim(code.Foam, 1)
-		faint := code.Dim(code.Foam, 2)
 		if got := fgAt(scr, vx, vy); got != code.Dim(code.Iris, 0) {
 			t.Fatalf("the spotlit opcode wears %d, want the lit iris %d", got, code.Dim(code.Iris, 0))
 		}
-		if got := fgOf(t, scr, "KPIP2"); got != lit {
-			t.Fatalf("the spotlit operand wears %d, want the lit foam %d", got, lit)
+		if got := fgOf(t, scr, "KPIP2"); got != code.Dim(code.Foam, 0) {
+			t.Fatalf("the spotlit operand wears %d, want the lit foam %d", got, code.Dim(code.Foam, 0))
 		}
-		if got := fgAt(scr, ix, iy); got != dim {
-			t.Fatalf("the prologue wears %d, want the vignette's dim foam %d", got, dim)
+		if got := fgAt(scr, ix, iy); got != code.Dim(code.Foam, 1) {
+			t.Fatalf("the prologue wears %d, want the vignette's dim foam %d", got, code.Dim(code.Foam, 1))
 		}
-		if got := fgAt(scr, px, py); got != dim {
-			t.Fatalf("one chunk below wears %d, want the same dim foam %d — equally shaded both sides", got, dim)
+		if got := fgAt(scr, px, py); got != code.Dim(code.Foam, 1) {
+			t.Fatalf("one block below wears %d, want the same dim foam %d — equally shaded both sides", got, code.Dim(code.Foam, 1))
 		}
-		if got := fgAt(scr, mx, my); got != faint {
-			t.Fatalf("two chunks below wear %d, want the faint %d", got, faint)
-		}
-		mustNotSee(t, scr, "SL1")
 		mustNotSee(t, scr, "VXV")
 		mustNotSee(t, scr, "RVQ")
 	})
@@ -402,12 +406,15 @@ func TestOpening(t *testing.T) {
 		}
 		mustSee(t, scr, Chunks()[0].Caption)
 	})
-	t.Run("happy: the NEWJOB in the spotlit check wears the love mark", func(t *testing.T) {
+	t.Run("happy: the spotlit call wears the love mark, its DANZIG tag muted", func(t *testing.T) {
 		s := opened(t)
 		defer s.Stop()
 		scr := paint(s)
-		if got := fgOf(t, scr, "NEWJOB"); got != code.Love {
-			t.Fatalf("the marked NEWJOB wears %d, want love %d", got, code.Love)
+		if got := fgOf(t, scr, "check_for_higher_priority_jobs"); got != code.Love {
+			t.Fatalf("the marked call wears %d, want love %d", got, code.Love)
+		}
+		if got := fgOf(t, scr, "# DANZIG"); got != code.Dim(code.Muted, 0) {
+			t.Fatalf("the DANZIG tag wears %d, want the muted comment ink %d", got, code.Dim(code.Muted, 0))
 		}
 	})
 	t.Run("unhappy: a tiny stage still opens without a panic, a nil screen too", func(t *testing.T) {
@@ -446,37 +453,49 @@ func TestScroll(t *testing.T) {
 		s := opened(t)
 		defer s.Stop()
 		scr := seek(t, s, stock.GlideStart(0)+0.3)
-		_, mid := mustSee(t, scr, "2ND PUSH")
+		_, mid := mustSee(t, scr, Chunks()[1].Comment)
 		if mid <= anchor() {
-			t.Fatalf("mid-glide the next chunk still rides below the anchor: %d", mid)
+			t.Fatalf("mid-glide the next block still rides below the anchor: %d", mid)
 		}
 		scr = seek(t, s, 0.2)
-		_, later := mustSee(t, scr, "2ND PUSH")
+		_, later := mustSee(t, scr, Chunks()[1].Comment)
 		if later > mid {
 			t.Fatalf("the code must scroll upward: %d then %d", mid, later)
 		}
 		scr = seek(t, s, stock.StopStart(1)-stock.GlideStart(0)-0.5-0.02)
-		_, before := mustSee(t, scr, "2ND PUSH")
+		_, before := mustSee(t, scr, Chunks()[1].Comment)
 		if before != anchor() {
-			t.Fatalf("one frame before the hold the chunk sits at %d, want the anchor %d", before, anchor())
+			t.Fatalf("one frame before the hold the block sits at %d, want the anchor %d", before, anchor())
 		}
 		scr = seek(t, s, 0.1)
-		if _, after := mustSee(t, scr, "2ND PUSH"); after != before {
-			t.Fatalf("the chunk hopped %d→%d on the very frame its hold began", before, after)
+		if _, after := mustSee(t, scr, Chunks()[1].Comment); after != before {
+			t.Fatalf("the block hopped %d→%d on the very frame its hold began", before, after)
 		}
 	})
-	t.Run("happy: the last stop is the VXV itself, marked gold, the tail fading through three levels", func(t *testing.T) {
+	t.Run("happy: the last stop is the V cross V, its call still lit, the tail fading through three levels", func(t *testing.T) {
 		s := opened(t)
 		defer s.Stop()
 		scr := seek(t, s, stock.StopStart(4)+0.1)
+		_, cy := mustSee(t, scr, Chunks()[4].Comment)
+		if cy != anchor() {
+			t.Fatalf("the last block's comment sits at %d, want the anchor %d", cy, anchor())
+		}
 		vx, vy := mustSee(t, scr, "VXV")
-		if vy != anchor() {
-			t.Fatalf("VXV sits at %d, want the anchor %d", vy, anchor())
+		if vy != cy+1 {
+			t.Fatalf("VXV sits at %d, want right under the comment %d", vy, cy+1)
 		}
-		if got := fgAt(scr, vx, vy); got != code.Gold {
-			t.Fatalf("the V cross V wears %d, want the gold mark %d", got, code.Gold)
+		if got := fgAt(scr, vx, vy); got != code.Dim(code.Iris, 0) {
+			t.Fatalf("the V cross V wears %d, want the plain lit iris %d — the gold dress is gone", got, code.Dim(code.Iris, 0))
 		}
-		mustSee(t, scr, "CARRY ON")
+		checkRow := cy + 1 + len(Chunks()[4].Source) + 1
+		line := rowText(scr, checkRow)
+		ci := strings.Index(line, "check_for_higher_priority_jobs")
+		if ci < 0 {
+			t.Fatalf("the spotlit block must close on its call, row %d reads %q", checkRow, line)
+		}
+		if got := fgAt(scr, len([]rune(line[:ci])), checkRow); got != code.Love {
+			t.Fatalf("the last block's call wears %d, want love %d", got, code.Love)
+		}
 		if got := fgOf(t, scr, "HDOTDISP"); got != code.Dim(code.Foam, 1) {
 			t.Fatalf("the scrolled-past DOT block dims above: %d, want %d", got, code.Dim(code.Foam, 1))
 		}
@@ -505,9 +524,9 @@ func TestScroll(t *testing.T) {
 		if got := fgAt(scr, hx, hy); got == code.Dim(code.Foam, 0) {
 			t.Fatal("the tail stole the spotlight — the walkthrough ends on VXV")
 		}
-		_, vy := mustSee(t, scr, "VXV")
-		if vy != anchor() {
-			t.Fatalf("VXV must still hold the anchor %d, got %d", anchor(), vy)
+		_, cy := mustSee(t, scr, Chunks()[4].Comment)
+		if cy != anchor() {
+			t.Fatalf("the last block must still hold the anchor %d, got %d", anchor(), cy)
 		}
 	})
 }
@@ -525,7 +544,7 @@ func TestScenePlaysConfig(t *testing.T) {
 		defer s.Stop()
 		scr := seek(t, s, fast.StopStart(1)+0.1)
 		if got := fgOf(t, scr, "PGUIDE"); got != code.Dim(code.Foam, 0) {
-			t.Fatalf("a fast hold must already spotlight the second chunk: %d", got)
+			t.Fatalf("a fast hold must already spotlight the second block: %d", got)
 		}
 	})
 	t.Run("happy: a nudged knob is what the replay plays", func(t *testing.T) {

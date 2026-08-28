@@ -124,6 +124,8 @@ func TestCatalog(t *testing.T) {
 			"bobble":      KindScene,
 			"explorer":    KindScene,
 			"interpreter": KindScene,
+			"checkprio":   KindScene,
+			"alarms":      KindScene,
 		}
 		seen := map[string]bool{}
 		for _, it := range c {
@@ -345,6 +347,8 @@ func TestEdit(t *testing.T) {
 			{"bobble", bobble.DefaultConfigPath, "./cmd/bobble"},
 			{"explorer", explorer.DefaultConfigPath, "./cmd/explorer"},
 			{"interpreter", interpreter.DefaultConfigPath, "./cmd/interpreter"},
+			{"checkprio", "scenes/checkprio", "./cmd/checkprio"},
+			{"alarms", "scenes/alarms", "./cmd/alarms"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
