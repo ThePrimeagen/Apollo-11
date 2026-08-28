@@ -1,14 +1,15 @@
 package agcgraph
 
-// The graphs screen, single-cycle edition: 2.5 seconds of "here is what the
-// CPU operates with" under the current switch states — never animated. One
-// row per process that consumed CPU, grouped under VAC JOBS / CORESET JOBS /
-// NO-PRIORITY OPS headers, a ≤20-character name gutter, gridlines, a HARD
-// WHITE line at the 2.00 s guidance boundary, a plain-text legend, and four
-// switches. The SERVICER is entered exactly once — the only process that
-// does not repeat — so its bar shows the single pass stretching toward (and
-// past) the boundary as load is switched on. Every toggle re-simulates a
-// fresh 2.5 s snapshot.
+// The graphs screen, composite edition: 2.5 seconds of "here is what the
+// CPU operates with" under the current switch states — never animated. The
+// screen is now a COMPOSITE built on the standalone cpugraph component:
+// the component owns the portrait (grouped lanes, name gutter, gridlines,
+// the HARD WHITE 2.00 s boundary, the axis) and the whole switch API,
+// while this screen adds the surrounding information — the plain-text
+// legend and the four switches on the bottom row. The SERVICER is entered
+// exactly once — the only process that does not repeat — so its bar shows
+// the single pass stretching toward (and past) the boundary as load is
+// switched on. Every toggle re-simulates a fresh 2.5 s snapshot.
 
 import (
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/cpugraph"
 	msim "github.com/theprimeagen/apollo-11/msim"
 )
 
@@ -75,7 +77,7 @@ func rowIdx(lines []string, name string) int {
 // consumed CPU — the end of the single pass.
 func servicerLastBusyMs(m Model) int {
 	last := -1
-	for _, s := range m.live.Engine().Samples() {
+	for _, s := range m.graph.Engine().Samples() {
 		if s.ByName["SERVICER"] > 0 {
 			last = s.AtMs
 		}
@@ -90,7 +92,7 @@ func TestStaticSnapshotNeverAnimates(t *testing.T) {
 	if cmd := m.Init(); cmd != nil {
 		t.Fatalf("Init scheduled a command — the graphs screen must never animate")
 	}
-	if got := m.live.Engine().Now(); got != 2500*msim.Millisecond {
+	if got := m.graph.Engine().Now(); got != 2500*msim.Millisecond {
 		t.Fatalf("snapshot simulated %d ns, want exactly 2.5 s", got)
 	}
 	m = sized(m, 200, 45)
@@ -106,9 +108,9 @@ func TestHealthyOpenDefaults(t *testing.T) {
 	// no monitor, no radar steal, no approach — with the single SERVICER
 	// pass on its own row and the cadences on theirs
 	m := sized(New(), 200, 45)
-	if !m.descent || m.monitor || m.radar || m.approach {
+	if !m.graph.Descent() || m.graph.Monitor() || m.graph.Radar() || m.graph.Approach() {
 		t.Fatalf("open state = descent %v, monitor %v, radar %v, approach %v; want on/off/off/off (healthy)",
-			m.descent, m.monitor, m.radar, m.approach)
+			m.graph.Descent(), m.graph.Monitor(), m.graph.Radar(), m.graph.Approach())
 	}
 	v := stripAnsi(view(m))
 	lines := strings.Split(v, "\n")
@@ -130,7 +132,7 @@ func TestSingleServicerCycle(t *testing.T) {
 	// READACCS enters the only copy, while the lattice itself keeps firing
 	// all the way through the 2.5 s window
 	m := sized(New(), 200, 45)
-	e := m.live.Engine()
+	e := m.graph.Engine()
 	if got := e.SpawnCount("SERVICER"); got != 1 {
 		t.Fatalf("the portrait entered %d SERVICERs, want exactly 1 — only the servicer does not repeat", got)
 	}
@@ -142,7 +144,7 @@ func TestSingleServicerCycle(t *testing.T) {
 	}
 	// unhappy: descent off — the chain never starts, no SERVICER anywhere
 	m2, _ := keyed(m, 'd')
-	if got := m2.live.Engine().SpawnCount("SERVICER"); got != 0 {
+	if got := m2.graph.Engine().SpawnCount("SERVICER"); got != 0 {
 		t.Fatalf("descent off but %d SERVICERs entered", got)
 	}
 	if v := stripAnsi(view(m2)); strings.Contains(v, "SERVICER") {
@@ -316,10 +318,10 @@ func TestTogglesResimulate(t *testing.T) {
 	m := sized(New(), 200, 45)
 
 	m, _ = keyed(m, 'd')
-	if m.descent {
+	if m.graph.Descent() {
 		t.Fatalf("'d' must switch descent off")
 	}
-	if got := m.live.Engine().Now(); got != 2500*msim.Millisecond {
+	if got := m.graph.Engine().Now(); got != 2500*msim.Millisecond {
 		t.Fatalf("toggle rebuilt a %d ns snapshot, want a fresh 2.5 s", got)
 	}
 	if v := stripAnsi(view(m)); strings.Contains(v, "SERVICER") {
@@ -327,18 +329,18 @@ func TestTogglesResimulate(t *testing.T) {
 	}
 
 	m, _ = keyed(m, '1')
-	if !m.monitor {
+	if !m.graph.Monitor() {
 		t.Fatalf("'1' must key the monitor")
 	}
 	m, _ = keyed(m, 'r')
-	if !m.radar {
+	if !m.graph.Radar() {
 		t.Fatalf("'r' must turn the radar steal on")
 	}
 	m, _ = keyed(m, 'p')
-	if !m.approach {
+	if !m.graph.Approach() {
 		t.Fatalf("'p' must key the approach phase")
 	}
-	if got := m.live.Engine().Now(); got != 2500*msim.Millisecond {
+	if got := m.graph.Engine().Now(); got != 2500*msim.Millisecond {
 		t.Fatalf("'p' rebuilt a %d ns snapshot, want a fresh 2.5 s", got)
 	}
 
@@ -365,7 +367,7 @@ func TestApproachSwitchP64(t *testing.T) {
 	m := sized(New(), 200, 45)
 	m, _ = keyed(m, 'r')
 	m, _ = keyed(m, 'p')
-	if !m.approach {
+	if !m.graph.Approach() {
 		t.Fatalf("'p' must key the approach")
 	}
 	v := stripAnsi(view(m))
@@ -384,7 +386,7 @@ func TestApproachSwitchP64(t *testing.T) {
 	// unhappy: 'p' again — the P64 jobs leave, MAKEPLAY returns to the
 	// coreset group, the pass fits again
 	m, _ = keyed(m, 'p')
-	if m.approach {
+	if m.graph.Approach() {
 		t.Fatalf("'p' must also key the approach back off")
 	}
 	v = stripAnsi(view(m))
@@ -408,12 +410,12 @@ func TestMonitor1668AndP64MutuallyExclusive(t *testing.T) {
 	// DSKY — keying either one drops the other, both ways
 	m := sized(New(), 200, 45)
 	m, _ = keyed(m, '1')
-	if !m.monitor || m.approach {
-		t.Fatalf("after '1': monitor %v, approach %v; want on/off", m.monitor, m.approach)
+	if !m.graph.Monitor() || m.graph.Approach() {
+		t.Fatalf("after '1': monitor %v, approach %v; want on/off", m.graph.Monitor(), m.graph.Approach())
 	}
 	m, _ = keyed(m, 'p')
-	if !m.approach || m.monitor {
-		t.Fatalf("keying P64 must drop the 1668 monitor: monitor %v, approach %v", m.monitor, m.approach)
+	if !m.graph.Approach() || m.graph.Monitor() {
+		t.Fatalf("keying P64 must drop the 1668 monitor: monitor %v, approach %v", m.graph.Monitor(), m.graph.Approach())
 	}
 	v := stripAnsi(view(m))
 	if strings.Contains(v, "MONDO") || !strings.Contains(v, "HIGATJOB") {
@@ -423,8 +425,8 @@ func TestMonitor1668AndP64MutuallyExclusive(t *testing.T) {
 		t.Fatalf("switch row must show 1668 OFF / P64 ON:\n%s", v)
 	}
 	m, _ = keyed(m, '1')
-	if !m.monitor || m.approach {
-		t.Fatalf("keying 1668 must drop P64: monitor %v, approach %v", m.monitor, m.approach)
+	if !m.graph.Monitor() || m.graph.Approach() {
+		t.Fatalf("keying 1668 must drop P64: monitor %v, approach %v", m.graph.Monitor(), m.graph.Approach())
 	}
 	v = stripAnsi(view(m))
 	if !strings.Contains(v, "MONDO") || strings.Contains(v, "HIGATJOB") {
@@ -432,8 +434,8 @@ func TestMonitor1668AndP64MutuallyExclusive(t *testing.T) {
 	}
 	// unhappy: dropping the live switch resurrects nothing
 	m, _ = keyed(m, '1')
-	if m.monitor || m.approach {
-		t.Fatalf("after dropping 1668: monitor %v, approach %v; want both off", m.monitor, m.approach)
+	if m.graph.Monitor() || m.graph.Approach() {
+		t.Fatalf("after dropping 1668: monitor %v, approach %v; want both off", m.graph.Monitor(), m.graph.Approach())
 	}
 	v = stripAnsi(view(m))
 	if strings.Contains(v, "MONDO") || strings.Contains(v, "HIGATJOB") {
@@ -709,4 +711,52 @@ func TestNarrowTerminalShrinksGracefully(t *testing.T) {
 	}
 	tiny := sized(New(), 6, 2)
 	_ = view(tiny)
+}
+
+func TestCompositeEmbedsTheGraphComponent(t *testing.T) {
+	// happy: the screen is the composite — its top rows are EXACTLY the
+	// standalone cpugraph component's rows for the same switches at the
+	// same width, cell for styled cell, so a scene that takes the graph
+	// alone loses nothing the screen had
+	m := sized(New(), 200, 45)
+	g := cpugraph.New()
+	want := g.Rows(200)
+	got := strings.Split(view(m), "\n")
+	if len(got) < len(want) {
+		t.Fatalf("the view carries %d rows, fewer than the component's %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("view row %d differs from the component's row:\n view %q\n comp %q", i, got[i], want[i])
+		}
+	}
+	// parity survives the switches: the screen's keys and the component's
+	// API land on the same portrait
+	m, _ = keyed(m, 'r')
+	m, _ = keyed(m, 'p')
+	g.SetRadar(true)
+	g.SetApproach(true)
+	want = g.Rows(200)
+	got = strings.Split(view(m), "\n")
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("after radar+P64, view row %d differs from the component's:\n view %q\n comp %q", i, got[i], want[i])
+		}
+	}
+	// unhappy: the component's rows carry NONE of the surrounding
+	// information — the legend and the switch row are the composite's,
+	// below the axis only
+	plain := stripAnsi(strings.Join(want, "\n"))
+	for _, banned := range []string{"total ::", "DESCENT", "[1] 1668", "q quit"} {
+		if strings.Contains(plain, banned) {
+			t.Fatalf("the graph component must carry no surrounding information, found %q", banned)
+		}
+	}
+	below := stripAnsi(strings.Join(got[len(want):], "\n"))
+	if !strings.Contains(below, "total ::") {
+		t.Fatalf("the legend must sit below the component's rows:\n%s", below)
+	}
+	if !strings.Contains(below, "[d] DESCENT") || !strings.Contains(below, "[p] P64 ON") {
+		t.Fatalf("the switch row must sit below the component's rows:\n%s", below)
+	}
 }

@@ -101,6 +101,7 @@ func TestCatalog(t *testing.T) {
 			"coresets":   KindComponent,
 			"vac":        KindComponent,
 			"vacs":       KindComponent,
+			"cpugraph":   KindComponent,
 			"breakdown":  KindScene,
 			"title":      KindComponent,
 			"astronaut":  KindComponent,
@@ -789,6 +790,114 @@ func TestBoxDemo(t *testing.T) {
 		d.Update(1)
 		if !d.Fire() {
 			t.Fatal("the toggle works even before the curtain — state is identity, the stage is not")
+		}
+	})
+}
+
+// Tests written FIRST: the CPU GRAPH item is the standalone cpugraph
+// component — the portrait extracted from the graphs screen, shown by
+// itself with no legend and no switch row — wrapped in a switch-walk
+// demo. Space (the viewer's trigger key) steps the component's own
+// switch API through the story one state per press: the healthy
+// portrait (descent alone), the radar-steal knife edge, the 1668
+// monitor crossing the line, P64 crossing it harder, everything off,
+// and around again. The bottom row hints the button and names the
+// state now on stage.
+
+func spawnCPUGraph(t *testing.T) *cpuDemo {
+	t.Helper()
+	it := Catalog()[findItem(t, KindComponent, "cpugraph")]
+	comp := it.spawn()
+	d, ok := comp.(*cpuDemo)
+	if !ok {
+		t.Fatalf("cpugraph must spawn the switch-walk demo, got %T", comp)
+	}
+	d.Start(80, 19)
+	return d
+}
+
+func TestCPUGraphDemo(t *testing.T) {
+	t.Run("happy: space walks the switch story — healthy, knife edge, 1668, P64, idle, around", func(t *testing.T) {
+		d := spawnCPUGraph(t)
+		g := d.view
+		if !g.Descent() || g.Monitor() || g.Radar() || g.Approach() {
+			t.Fatalf("the demo opens on the healthy portrait: descent %v, monitor %v, radar %v, approach %v",
+				g.Descent(), g.Monitor(), g.Radar(), g.Approach())
+		}
+		if !d.Fire() {
+			t.Fatal("the trigger must always take")
+		}
+		if !g.Descent() || !g.Radar() || g.Monitor() || g.Approach() {
+			t.Fatalf("press 1 is the knife edge — descent + radar, got monitor %v radar %v approach %v",
+				g.Monitor(), g.Radar(), g.Approach())
+		}
+		d.Fire()
+		if !g.Monitor() || !g.Radar() || g.Approach() {
+			t.Fatalf("press 2 keys the 1668 monitor over the steal, got monitor %v radar %v approach %v",
+				g.Monitor(), g.Radar(), g.Approach())
+		}
+		d.Fire()
+		if !g.Approach() || g.Monitor() || !g.Radar() {
+			t.Fatalf("press 3 swaps 1668 for P64, got monitor %v radar %v approach %v",
+				g.Monitor(), g.Radar(), g.Approach())
+		}
+		d.Fire()
+		if g.Descent() || g.Monitor() || g.Radar() || g.Approach() {
+			t.Fatalf("press 4 switches everything off, got descent %v monitor %v radar %v approach %v",
+				g.Descent(), g.Monitor(), g.Radar(), g.Approach())
+		}
+		d.Fire()
+		if !g.Descent() || g.Monitor() || g.Radar() || g.Approach() {
+			t.Fatalf("press 5 wraps back to the healthy portrait")
+		}
+	})
+	t.Run("happy: the viewer's space key pulls the trigger", func(t *testing.T) {
+		m := sized(New(findItem(t, KindComponent, "cpugraph")), 80, 24)
+		m = key(m, ' ')
+		d, ok := m.preview.(*cpuDemo)
+		if !ok {
+			t.Fatalf("the cpugraph item must stage the switch-walk demo, got %T", m.preview)
+		}
+		if !d.view.Radar() || d.view.Monitor() {
+			t.Fatalf("space must step to the knife edge, got radar %v monitor %v", d.view.Radar(), d.view.Monitor())
+		}
+	})
+	t.Run("happy: the graph stands alone and the bottom row names the state", func(t *testing.T) {
+		d := spawnCPUGraph(t)
+		sp := d.Render()
+		if !demoText(sp, "VAC JOBS") || !demoText(sp, "SERVICER") {
+			t.Fatalf("the demo must show the portrait's lanes")
+		}
+		for _, banned := range []string{"total ::", "DESCENT", "q quit"} {
+			if demoText(sp, banned) {
+				t.Fatalf("the standalone graph must carry no surrounding information, found %q", banned)
+			}
+		}
+		bottom := demoRow(sp, sp.Height-1)
+		if !strings.Contains(bottom, "space") || !strings.Contains(bottom, "healthy") {
+			t.Fatalf("the idle hint must name the button and the healthy state, got %q", bottom)
+		}
+		d.Fire()
+		bottom = demoRow(d.Render(), d.Render().Height-1)
+		if !strings.Contains(bottom, "knife edge") {
+			t.Fatalf("after one press the hint must name the knife edge, got %q", bottom)
+		}
+	})
+	t.Run("unhappy: before Start the demo renders nothing and the switches still take", func(t *testing.T) {
+		it := Catalog()[findItem(t, KindComponent, "cpugraph")]
+		d, ok := it.spawn().(*cpuDemo)
+		if !ok {
+			t.Fatalf("cpugraph must spawn the switch-walk demo, got %T", it.spawn())
+		}
+		if sp := d.Render(); sp.Width != 0 || sp.Height != 0 {
+			t.Fatalf("before Start the demo renders %dx%d, want nothing", sp.Width, sp.Height)
+		}
+		d.Update(1)
+		if !d.Fire() {
+			t.Fatal("the trigger works before the curtain — state is identity, the stage is not")
+		}
+		if !d.view.Radar() {
+			t.Fatal("the unstaged press must still land on the switch API")
 		}
 	})
 }
