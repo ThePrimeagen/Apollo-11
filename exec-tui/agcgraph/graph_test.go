@@ -459,8 +459,11 @@ func TestServicerBoundaryCrossings(t *testing.T) {
 	}
 	m, _ = keyed(m, '1')
 	dm := servicerLastBusyMs(m)
-	if dm < 2000 || dm >= 2400 {
-		t.Fatalf("descent+radar+1668 pass ended at %d ms, want past the 2000 ms boundary (and inside the window)", dm)
+	// the documented overload arithmetic (operations_and_timing.md "Sanity
+	// check"): with the monitor up the cycle runs a 50-100 ms deficit —
+	// "about 5% over" — so the pass ends in the ~2.04-2.16 s band
+	if dm < 2040 || dm >= 2160 {
+		t.Fatalf("descent+radar+1668 pass ended at %d ms, want 2040-2160 ms (the documented 50-100 ms deficit)", dm)
 	}
 	m, _ = keyed(m, 'p')
 	dp := servicerLastBusyMs(m)
@@ -471,6 +474,48 @@ func TestServicerBoundaryCrossings(t *testing.T) {
 	m, _ = keyed(m, 'd')
 	if got := servicerLastBusyMs(m); got != -1 {
 		t.Fatalf("descent off but the servicer consumed CPU up to %d ms", got)
+	}
+}
+
+func TestCounterTheftLane(t *testing.T) {
+	// happy: with the radar steal on, the theft itself gets its lane — the
+	// screenplay job table's last row ("RR CDU counter theft ... time only,
+	// zero memory") — under its own COUNTER THEFT group: a continuous
+	// ribbon across the whole window, still stealing past the white line,
+	// with a legend line carrying the stolen total (~370 ms of 2.5 s at
+	// the sweep crest, ~15%)
+	m := sized(New(), 200, 45)
+	m, _ = keyed(m, 'r')
+	v := stripAnsi(view(m))
+	lines := strings.Split(v, "\n")
+	iTheft := rowIdx(lines, "COUNTER THEFT")
+	iOps := rowIdx(lines, "NO-PRIORITY OPS")
+	if iTheft < 0 || iTheft <= iOps {
+		t.Fatalf("COUNTER THEFT group header missing or misplaced (theft %d, ops %d)", iTheft, iOps)
+	}
+	ri := rowIdx(lines, "RR CDU")
+	if ri <= iTheft {
+		t.Fatalf("RR CDU row at %d, want under the COUNTER THEFT header (%d)", ri, iTheft)
+	}
+	p := []rune(plotOf(lines[ri]))
+	if !hasBlock(string(p[:144])) || !hasBlock(string(p[145:])) {
+		t.Fatalf("the steal rides the whole window — bars before AND after the white line:\n%s", lines[ri])
+	}
+	if p[144] != '│' {
+		t.Fatalf("the boundary line must cut the theft lane too: %q", string(p[140:149]))
+	}
+	if !regexp.MustCompile(`RR CDU: 3[5-9][0-9]\.[0-9]ms total :: hardware counter steal`).MatchString(v) {
+		t.Fatalf("RR CDU legend line missing or off the ~15%% band:\n%s", v)
+	}
+	// unhappy: with the steal off there is nothing to show — the header
+	// stands, the row and the legend line vanish
+	m, _ = keyed(m, 'r')
+	v = stripAnsi(view(m))
+	if strings.Contains(v, "RR CDU") {
+		t.Fatalf("RR CDU on the portrait with the steal off:\n%s", v)
+	}
+	if rowIdx(strings.Split(v, "\n"), "COUNTER THEFT") < 0 {
+		t.Fatalf("the COUNTER THEFT group header must stand like the other groups")
 	}
 }
 
@@ -528,10 +573,12 @@ func TestLegendDescribesRunningJobs(t *testing.T) {
 	if strings.Contains(v, "MONDO:") {
 		t.Fatalf("MONDO in the legend with the monitor off")
 	}
-	// unhappy→happy: keying 1668 brings MONDO into the lanes and legend
+	// unhappy→happy: keying 1668 brings MONDO into the lanes and legend —
+	// at the calibrated mid-envelope refresh cost (50 ms; the documented
+	// envelope is 30-60 ms)
 	m, _ = keyed(m, '1')
 	v = stripAnsi(view(m))
-	if !regexp.MustCompile(`MONDO: [0-9.]+ms total :: wakes up every 1s and runs for 30\.0ms`).MatchString(v) {
+	if !regexp.MustCompile(`MONDO: [0-9.]+ms total :: wakes up every 1s and runs for 50\.0ms`).MatchString(v) {
 		t.Fatalf("MONDO legend line missing with 1668 on:\n%s", v)
 	}
 	// keying P64 swaps the monitor's legend for the approach's
@@ -575,7 +622,7 @@ func TestNoHeaderChromeAndLaneGeometry(t *testing.T) {
 			t.Fatalf("graph row %d is %d cells wide, want 200 (20 gutter + 180 plot)", i, w)
 		}
 	}
-	for _, want := range []string{"VAC JOBS", "CORESET JOBS", "NO-PRIORITY OPS"} {
+	for _, want := range []string{"VAC JOBS", "CORESET JOBS", "NO-PRIORITY OPS", "COUNTER THEFT"} {
 		i := rowIdx(lines, want)
 		if i < 0 || !strings.HasPrefix(lines[i], want) {
 			t.Fatalf("group header %q not flush left inside the gutter (row %d)", want, i)
