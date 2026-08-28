@@ -100,8 +100,9 @@ type Ship struct {
 	ig50        float64
 	ig75        float64
 	igFull      float64
-	fireCut     float64
-	fireForSet  bool
+	bobSet      bool
+	bobPeriod   float64
+	bobCells    int
 	dustLoss    float64
 	dustLossSet bool
 	flameBase   particle.Config
@@ -144,9 +145,6 @@ func (s *Ship) Start(w, h int) {
 	if s.liftSec > 0 {
 		s.armLandPlume()
 		s.applyLiftThrottle()
-	}
-	if s.fireForSet && s.clock >= s.fireCut {
-		s.Flame = nil
 	}
 }
 
@@ -268,9 +266,6 @@ func (s *Ship) Update(dt float64) {
 	if s.liftSec > 0 {
 		s.applyLiftThrottle()
 		s.updateLiftDust(dt)
-	}
-	if s.fireForSet && s.Flame != nil && s.clock >= s.fireCut {
-		s.Flame = nil
 	}
 	if s.Flame != nil {
 		s.Flame.Update(dt)
@@ -478,17 +473,16 @@ func (s *Ship) IgniteAt(at25, at50, at75, full float64) *Ship {
 	return s
 }
 
-// FireFor burns the plume for `seconds` more of played time — measured
-// from wherever the clock stands now, so call it after Parked or Hold
-// — then cuts it outright. seconds <= 0 never lights, and Dark still
-// wins. The deadline survives a restage: a resize never flashes a
-// doused fire back on. Nil-safe.
-func (s *Ship) FireFor(seconds float64) *Ship {
+// Bob retunes the parked ride: one full up-and-down every period
+// seconds, riding cells rows from center. A non-positive period or
+// amplitude holds the park level. Call before Start. Nil-safe.
+func (s *Ship) Bob(period float64, cells int) *Ship {
 	if s == nil {
 		return nil
 	}
-	s.fireCut = s.clock + seconds
-	s.fireForSet = true
+	s.bobPeriod = period
+	s.bobCells = cells
+	s.bobSet = true
 	return s
 }
 
@@ -581,6 +575,9 @@ func (s *Ship) position() (row, col int) {
 	if s.liftSec > 0 {
 		return LiftPath(s.w, s.h, t, s.liftAt, s.liftSec)
 	}
+	if s.bobSet {
+		return flightPath(s.w, s.h, t, s.bobPeriod, s.bobCells)
+	}
 	return FlightPath(s.w, s.h, t)
 }
 
@@ -612,6 +609,12 @@ func (s *Ship) Stop() {
 // by FlyInSeconds, then a ±BobAmplitudeCells sine bobble with a
 // BobPeriodSeconds period.
 func FlightPath(stageW, stageH int, t float64) (row, col int) {
+	return flightPath(stageW, stageH, t, BobPeriodSeconds, BobAmplitudeCells)
+}
+
+// flightPath is FlightPath with the parked ride retuned: the same
+// fly-in, then a ±cells sine with the given period.
+func flightPath(stageW, stageH int, t, period float64, cells int) (row, col int) {
 	if t < 0 {
 		t = 0
 	}
@@ -623,9 +626,18 @@ func FlightPath(stageW, stageH int, t float64) (row, col int) {
 		eased := 1 - math.Pow(1-p, 3)
 		return row, stageW + int(math.Round(eased*float64(park-stageW)))
 	}
-	phase := 2 * math.Pi * (t - FlyInSeconds) / BobPeriodSeconds
-	bob := int(math.Round(BobAmplitudeCells * math.Sin(phase)))
-	return row - bob, park
+	return row - ParkBob(t-FlyInSeconds, period, cells), park
+}
+
+// ParkBob is how many cells above center the parked bobble rides at t
+// seconds after the park: a ±cells sine with the given period. A
+// non-positive period or amplitude — or time before the park — holds
+// the ride level.
+func ParkBob(t, period float64, cells int) int {
+	if t < 0 || period <= 0 || cells <= 0 {
+		return 0
+	}
+	return int(math.Round(float64(cells) * math.Sin(2*math.Pi*t/period)))
 }
 
 // DropPath is the hull's top-left at t seconds of a seconds-long fall

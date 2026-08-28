@@ -76,7 +76,12 @@ func hasMoonBG(scr *screenplay.Screen) bool {
 			if c == nil || c.Style.Bg == nil {
 				continue
 			}
-			if _, ok := c.Style.Bg.(ansi.IndexedColor); ok {
+			ic, ok := c.Style.Bg.(ansi.IndexedColor)
+			if !ok {
+				continue
+			}
+			switch int(ic) {
+			case 251, 247, 243, 240, 249:
 				return true
 			}
 		}

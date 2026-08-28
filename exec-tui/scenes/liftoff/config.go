@@ -9,13 +9,13 @@ import (
 	"sync"
 )
 
-// Config is the live knobs on the inverse walkthrough: how long the
-// climb takes and when it starts, the four ignition offsets from t=0
-// (¼, ½, ¾, full — the landing throttle run backwards), how long the
-// tail fire holds after the sideways reveal before cutting, and the
-// pad dust window. The standalone runner nudges time knobs 50ms at a
-// time and dust loss 0.005/ms; Play rebuilds the scene from whatever
-// they hold. s writes this JSON next to the scene.
+// Config is the live knobs on the liftoff: how long the climb takes
+// and when it starts, the four ignition offsets from t=0 (¼, ½, ¾,
+// full — the landing throttle run backwards), and the pad dust
+// window. The standalone runner nudges time knobs 50ms at a time and
+// dust loss 0.005/ms; Play rebuilds the scene from whatever they
+// hold. s writes this JSON next to the scene. 03. Inverse Walkthrough
+// plays the same Active config.
 type Config struct {
 	RiseSeconds float64 `json:"riseSeconds"`
 	LiftAt      float64 `json:"liftAt"`
@@ -23,16 +23,9 @@ type Config struct {
 	Fire50      float64 `json:"fire50"`
 	Fire75      float64 `json:"fire75"`
 	FireFull    float64 `json:"fireFull"`
-	FireOff     float64 `json:"fireOff"`
 	DustStart   float64 `json:"dustStart"`
 	DustRun     float64 `json:"dustRun"`
 	DustLoss    float64 `json:"dustLoss"`
-}
-
-// CutSeconds is when the scene cuts from the climbing north craft to
-// the tilted-sideways reveal: the moment the hull clears the top.
-func (c Config) CutSeconds() float64 {
-	return c.LiftAt + c.RiseSeconds
 }
 
 // Knob is which timing the cursor is on.
@@ -45,7 +38,6 @@ const (
 	KnobFire50
 	KnobFire75
 	KnobFireFull
-	KnobFireOff
 	KnobDustStart
 	KnobDustRun
 	KnobDustLoss
@@ -67,8 +59,6 @@ func KnobLabel(k Knob) string {
 		return "fire 3/4"
 	case KnobFireFull:
 		return "fire full"
-	case KnobFireOff:
-		return "fire off"
 	case KnobDustStart:
 		return "dust start"
 	case KnobDustRun:
@@ -95,8 +85,6 @@ func (c Config) Value(k Knob) float64 {
 		return c.Fire75
 	case KnobFireFull:
 		return c.FireFull
-	case KnobFireOff:
-		return c.FireOff
 	case KnobDustStart:
 		return c.DustStart
 	case KnobDustRun:
@@ -127,10 +115,6 @@ const (
 	Fire50   = 0.8
 	Fire75   = 1.2
 	FireFull = 1.6
-
-	// FireOff is how long the tail fire holds after the sideways
-	// reveal before cutting out.
-	FireOff = 3.0
 
 	// DustStart is when the pad cloud kicks, measured from t=0.
 	// Stock is the first ignition.
@@ -173,7 +157,6 @@ func DefaultConfig() Config {
 		Fire50:      Fire50,
 		Fire75:      Fire75,
 		FireFull:    FireFull,
-		FireOff:     FireOff,
 		DustStart:   DustStart,
 		DustRun:     DustRun,
 		DustLoss:    DustLoss,
@@ -214,7 +197,7 @@ func (c Config) Validate() error {
 	}
 	for _, v := range []float64{
 		c.LiftAt, c.Fire25, c.Fire50, c.Fire75, c.FireFull,
-		c.FireOff, c.DustStart, c.DustRun, c.DustLoss,
+		c.DustStart, c.DustRun, c.DustLoss,
 	} {
 		if v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
 			return errKnob
@@ -267,13 +250,12 @@ func (c Config) Save(path string) error {
 		"  \"fire50\": %.3f,\n"+
 		"  \"fire75\": %.3f,\n"+
 		"  \"fireFull\": %.3f,\n"+
-		"  \"fireOff\": %.3f,\n"+
 		"  \"dustStart\": %.3f,\n"+
 		"  \"dustRun\": %.3f,\n"+
 		"  \"dustLoss\": %.3f\n"+
 		"}\n",
 		c.RiseSeconds, c.LiftAt,
-		c.Fire25, c.Fire50, c.Fire75, c.FireFull, c.FireOff,
+		c.Fire25, c.Fire50, c.Fire75, c.FireFull,
 		c.DustStart, c.DustRun, c.DustLoss))
 	return os.WriteFile(path, raw, 0o644)
 }
@@ -295,7 +277,6 @@ func (c Config) snapped() Config {
 	c.Fire50 = math.Max(snap(c.Fire50), 0)
 	c.Fire75 = math.Max(snap(c.Fire75), 0)
 	c.FireFull = math.Max(snap(c.FireFull), 0)
-	c.FireOff = math.Max(snap(c.FireOff), 0)
 	c.DustStart = math.Max(snap(c.DustStart), 0)
 	c.DustRun = math.Max(snap(c.DustRun), 0)
 	c.DustLoss = math.Max(snapLoss(c.DustLoss), 0)
@@ -316,8 +297,6 @@ func (c *Config) set(k Knob, v float64) {
 		c.Fire75 = v
 	case KnobFireFull:
 		c.FireFull = v
-	case KnobFireOff:
-		c.FireOff = v
 	case KnobDustStart:
 		c.DustStart = v
 	case KnobDustRun:

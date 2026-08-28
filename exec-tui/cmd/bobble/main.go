@@ -1,19 +1,17 @@
-// liftoff: the portable liftoff scene from scenes/liftoff — the
-// landing played backwards. The house opens on the landing's final
-// frame: the north lander parked on the moon floor, engine cold. The
-// booster ignites (¼, ½, ¾, full), pad dust blows both ways, the
-// craft climbs off the top on the landing's mirrored ease, and the
-// empty moon holds. Play rebuilds from the current knobs; j/k select
-// a knob, h/l walk it 50ms (dust loss 0.005/ms). q quits.
+// bobble: the portable bobble scene from scenes/bobble — the
+// west-facing lander parked at center stage under the drifting sky,
+// bobbling up and down on a sine, with or without its engine on.
+// Play rebuilds from the current knobs; j/k select a knob, h/l tune
+// it (engine off/on, period ±50ms, amplitude ±1 cell). q quits.
 //
 //	p / enter / space   play from the top
 //	j / k               select knob
-//	h / l               −50ms / +50ms
-//	s                   save knobs to scenes/liftoff/config.json
+//	h / l               tune it down / up
+//	s                   save knobs to scenes/bobble/config.json
 //	q                   quit
 //
-//	go run ./cmd/liftoff
-//	go run ./cmd/liftoff -seconds 15
+//	go run ./cmd/bobble
+//	go run ./cmd/bobble -seconds 15
 package main
 
 import (
@@ -26,10 +24,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/menu"
-	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/exec-tui/termreset"
@@ -37,11 +34,11 @@ import (
 
 const (
 	defaultW   = 72
-	defaultH   = 30
+	defaultH   = 28
 	minW       = 10
 	minH       = 4
 	frameMs    = 1000.0 / 30
-	statusRows = 1 + int(liftoff.KnobCount)
+	statusRows = 1 + int(bobble.KnobCount)
 )
 
 // applySky loads a tuned sky config and makes it the active sky. A
@@ -58,20 +55,6 @@ func applySky(path string) error {
 	return stars.UseSky(c)
 }
 
-// applyPuff loads a tuned dust config and makes it the active kick.
-// A missing file quietly keeps the stock puff; a broken file is an
-// error worth stopping for.
-func applyPuff(path string) error {
-	c, err := dust.LoadPuff(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	return dust.UsePuff(c)
-}
-
 func forcedColorProfile() (colorprofile.Profile, bool) {
 	if os.Getenv("CLICOLOR_FORCE") != "" {
 		return colorprofile.ANSI256, true
@@ -81,10 +64,10 @@ func forcedColorProfile() (colorprofile.Profile, bool) {
 
 type model struct {
 	w, h    int
-	show    *liftoff.Show
+	show    *bobble.Show
 	play    *screenplay.Screenplay
 	screen  *screenplay.Screen
-	cursor  liftoff.Knob
+	cursor  bobble.Knob
 	seconds float64
 	elapsed float64
 	path    string
@@ -92,8 +75,8 @@ type model struct {
 }
 
 func newModel(seconds float64) model {
-	show := liftoff.New(nil)
-	play := screenplay.New(screenplay.Entry{Name: "liftoff", Scene: show})
+	show := bobble.New(nil)
+	play := screenplay.New(screenplay.Entry{Name: "bobble", Scene: show})
 	play.Start()
 	return model{
 		w:       defaultW,
@@ -102,7 +85,7 @@ func newModel(seconds float64) model {
 		play:    play,
 		screen:  screenplay.NewScreen(defaultW, defaultH-statusRows),
 		seconds: seconds,
-		path:    liftoff.DefaultConfigPath,
+		path:    bobble.DefaultConfigPath,
 	}
 }
 
@@ -124,8 +107,8 @@ func (m model) replay() model {
 }
 
 func (m model) move(delta int) model {
-	n := int(liftoff.KnobCount)
-	m.cursor = liftoff.Knob((int(m.cursor) + delta%n + n) % n)
+	n := int(bobble.KnobCount)
+	m.cursor = bobble.Knob((int(m.cursor) + delta%n + n) % n)
 	return m
 }
 
@@ -138,7 +121,7 @@ func (m model) save() model {
 		m.note = "save failed: " + err.Error()
 		return m
 	}
-	if err := liftoff.Use(m.show.Cfg); err != nil {
+	if err := bobble.Use(m.show.Cfg); err != nil {
 		m.note = "save failed: " + err.Error()
 		return m
 	}
@@ -209,25 +192,39 @@ func (m model) View() tea.View {
 	return v
 }
 
+// knobValue is the panel's word for knob i: on/off for the engine,
+// seconds for the period, cells for the amplitude.
+func (m model) knobValue(i bobble.Knob) string {
+	switch i {
+	case bobble.KnobEngine:
+		if m.show.Cfg.Engine {
+			return "    on"
+		}
+		return "   off"
+	case bobble.KnobPeriod:
+		return fmt.Sprintf("%6.3fs", m.show.Cfg.PeriodSeconds)
+	case bobble.KnobAmplitude:
+		return fmt.Sprintf("%6d cells", m.show.Cfg.AmplitudeCells)
+	default:
+		return ""
+	}
+}
+
 func (m model) status(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
 	reset := "\x1b[0m"
-	help := dim + pad("liftoff   p play  j/k select  h/l ±50ms  s save  q quit", w) + reset
+	help := dim + pad("bobble   p play  j/k select  h/l tune  s save  q quit", w) + reset
 	if m.note != "" {
 		help = dim + pad(m.note, w) + reset
 	}
 	rows := []string{help}
-	for i := liftoff.Knob(0); i < liftoff.KnobCount; i++ {
+	for i := bobble.Knob(0); i < bobble.KnobCount; i++ {
 		marker, color := "  ", dim
 		if i == m.cursor {
 			marker, color = "> ", hot
 		}
-		unit := "s"
-		if i == liftoff.KnobDustLoss {
-			unit = "/ms"
-		}
-		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %6.3f%s", marker, liftoff.KnobLabel(i), m.show.Cfg.Value(i), unit), w)+reset)
+		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %s", marker, bobble.KnobLabel(i), m.knobValue(i)), w)+reset)
 	}
 	return rows
 }
@@ -249,29 +246,22 @@ func main() {
 	seconds := flag.Float64("seconds", 0, "auto-quit after N seconds (0 = interactive)")
 	skyPath := flag.String("stars", "components/stars/config.json",
 		"sky config JSON (adjuststars); a missing file keeps the stock sky")
-	puffPath := flag.String("dust", "components/dust/config.json",
-		"dust puff JSON (adjustdust); a missing file keeps the stock kick")
-	cfgPath := flag.String("config", liftoff.DefaultConfigPath,
-		"liftoff timing JSON; a missing file keeps the stock knobs")
+	cfgPath := flag.String("config", bobble.DefaultConfigPath,
+		"bobble ride JSON; a missing file keeps the stock knobs")
 	flag.Parse()
 	skyFile := menu.Resolve(*skyPath)
-	puffFile := menu.Resolve(*puffPath)
 	cfgFile := menu.Resolve(*cfgPath)
 	if err := applySky(skyFile); err != nil {
-		fmt.Fprintln(os.Stderr, "liftoff:", err)
+		fmt.Fprintln(os.Stderr, "bobble:", err)
 		os.Exit(1)
 	}
-	if err := applyPuff(puffFile); err != nil {
-		fmt.Fprintln(os.Stderr, "liftoff:", err)
-		os.Exit(1)
-	}
-	c, err := liftoff.LoadOrDefault(cfgFile)
+	c, err := bobble.LoadOrDefault(cfgFile)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "liftoff:", err)
+		fmt.Fprintln(os.Stderr, "bobble:", err)
 		os.Exit(1)
 	}
-	if err := liftoff.Use(c); err != nil {
-		fmt.Fprintln(os.Stderr, "liftoff:", err)
+	if err := bobble.Use(c); err != nil {
+		fmt.Fprintln(os.Stderr, "bobble:", err)
 		os.Exit(1)
 	}
 	m := newModel(*seconds)
@@ -281,7 +271,7 @@ func main() {
 		opts = append(opts, tea.WithColorProfile(p))
 	}
 	if _, err := termreset.Run(m, opts...); err != nil {
-		fmt.Fprintln(os.Stderr, "liftoff:", err)
+		fmt.Fprintln(os.Stderr, "bobble:", err)
 		os.Exit(1)
 	}
 }

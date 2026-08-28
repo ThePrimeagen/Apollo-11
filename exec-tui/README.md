@@ -31,13 +31,16 @@ screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + C
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
   lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing on a huge moon horizon
+  inverse/    03. Inverse Walkthrough: liftoff, engines on, engines off — the walkthrough backwards
 cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
+  inverse/    runs 03. Inverse Walkthrough (space past the last scene ends it)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
-  liftoff/    03. Inverse Walkthrough — the walkthrough backwards: ignition,
-              liftoff off the top, cut to the sideways craft, fire off,
-              bobbling forever (scenes/liftoff, ten live knobs)
+  liftoff/    the liftoff scene — the landing backwards: ignition, mirrored
+              dust, the climb off the top (scenes/liftoff, nine live knobs)
+  bobble/     the west-facing lander parked and bobbling, engine on or off
+              (scenes/bobble, three live knobs)
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser
