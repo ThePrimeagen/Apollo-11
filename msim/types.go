@@ -97,18 +97,22 @@ type Sample struct {
 	VacNs   Nanos
 	CoreNs  Nanos
 	OpsNs   Nanos
+	// ByName splits the same millisecond's software CPU by consumer name —
+	// jobs via the runner, tasks and interrupts via their activity. Nil on
+	// a millisecond nobody ran in; the theft is nameless hardware.
+	ByName map[string]Nanos
 }
 
 // JobState is the scheduler-visible state of a named job.
 type JobState int
 
 const (
-	JobUnknown JobState = iota
-	JobWaiting          // allocated, never yet run
-	JobRunning          // in slot 0, executing
-	JobParked           // preempted mid-run, holding its memory
-	JobSleeping         // dormant (negative priority), holding its memory
-	JobDone             // reached ENDOFJOB
+	JobUnknown  JobState = iota
+	JobWaiting           // allocated, never yet run
+	JobRunning           // in slot 0, executing
+	JobParked            // preempted mid-run, holding its memory
+	JobSleeping          // dormant (negative priority), holding its memory
+	JobDone              // reached ENDOFJOB
 )
 
 func (s JobState) String() string {
@@ -131,8 +135,9 @@ func (s JobState) String() string {
 type Phase int
 
 const (
-	P63Prelock Phase = iota // braking, before landing-radar lock
-	P63Locked               // braking, radar locked: + the nav-frame conversion
+	P63Prelock  Phase = iota // braking, before landing-radar lock
+	P63Locked                // braking, radar locked: + the nav-frame conversion
+	P64Approach              // approach: + the REDESIG landing-site perturbations
 )
 
 // Config wires an Engine.
@@ -143,4 +148,8 @@ type Config struct {
 	// RestartHook mirrors the restart tables (RESTART_TABLES.agc 5.4SPOT):
 	// invoked after the flush to rebuild the protected chains.
 	RestartHook func(*Engine)
+	// TheftPhaseMS offsets the theft sweep — the waveform's phase is one of
+	// the run's free parameters (msim/RESEARCH.md). Zero is the flight
+	// window: a floor dwell over the monitor keyings.
+	TheftPhaseMS int
 }

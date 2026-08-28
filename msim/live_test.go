@@ -233,6 +233,109 @@ func TestLiveDefaultsMatchTheFlight(t *testing.T) {
 	}
 }
 
+func TestLiveServicerOneShot(t *testing.T) {
+	// happy: one-shot on — the run's FIRST READACCS enters the only
+	// SERVICER; the 2 s lattice itself keeps firing (READACCS, the LR
+	// gates, R10/R11 all stay on their timers)
+	l := NewLive()
+	l.SetRadar(false)
+	l.SetServicerOneShot(true)
+	if !l.ServicerOneShot() {
+		t.Fatalf("SetServicerOneShot(true) did not latch")
+	}
+	l.StepMS(6_500)
+	e := l.Engine()
+	if got := countSpawns(e, "SERVICER"); got != 1 {
+		t.Fatalf("SERVICER spawned %d times in 6.5 s one-shot, want exactly 1", got)
+	}
+	if got := e.TaskFires("READACCS"); got < 3 {
+		t.Fatalf("READACCS fired %d times in 6.5 s, want >= 3 — the lattice must keep firing", got)
+	}
+	if got := e.TaskFires("LRVTASK"); got < 3 {
+		t.Fatalf("LRVTASK fired %d times in 6.5 s, want >= 3 — the radar gates ride every cycle", got)
+	}
+	// unhappy: double-set stays one-shot
+	l.SetServicerOneShot(true)
+	l.StepMS(2_000)
+	if got := countSpawns(e, "SERVICER"); got != 1 {
+		t.Fatalf("SERVICER spawned %d times after a double-set, want still exactly 1", got)
+	}
+	// unhappy-guard: the default machine is the flight's — a fresh copy
+	// every cycle
+	l2 := NewLive()
+	l2.SetRadar(false)
+	if l2.ServicerOneShot() {
+		t.Fatalf("one-shot must default OFF — the flight scenarios respawn every 2 s")
+	}
+	l2.StepMS(4_100)
+	if got := countSpawns(l2.Engine(), "SERVICER"); got < 2 {
+		t.Fatalf("default machine spawned SERVICER %d times in 4.1 s, want >= 2", got)
+	}
+}
+
+func TestLiveApproachP64(t *testing.T) {
+	// happy: approach on — HIGATASK enters HIGATJOB once, which sleeps
+	// holding a VAC on the antenna position-2 discrete; the pass's display
+	// request is the flashing V06N64 (sleeps holding a VAC until PRO); and
+	// the pass itself carries the REDESIG load
+	l := NewLive()
+	l.SetRadar(false)
+	l.SetServicerOneShot(true)
+	l.SetApproach(true)
+	if !l.ApproachOn() {
+		t.Fatalf("SetApproach(true) did not latch")
+	}
+	l.StepMS(2_400)
+	e := l.Engine()
+	if got := countSpawns(e, "HIGATJOB"); got != 1 {
+		t.Fatalf("HIGATJOB spawned %d times, want exactly 1 (the high-gate antenna job)", got)
+	}
+	if st := e.JobState("HIGATJOB"); st != JobSleeping {
+		t.Fatalf("HIGATJOB state %v, want sleeping on the position-2 discrete", st)
+	}
+	if st := e.JobState("MAKEPLAY"); st != JobSleeping {
+		t.Fatalf("MAKEPLAY state %v, want the flashing V06N64 asleep awaiting PRO", st)
+	}
+	if got := e.VACsHeld(); got < 2 {
+		t.Fatalf("VACsHeld = %d, want >= 2 (HIGATJOB + the flashing display)", got)
+	}
+	if got := e.BusyNs("SERVICER"); got < 1450*Millisecond {
+		t.Fatalf("the finished approach pass consumed %d ms, want >= 1450 ms — the REDESIG sections are missing",
+			got/Millisecond)
+	}
+	// unhappy: double-on arms a single HIGATJOB
+	l2 := NewLive()
+	l2.SetRadar(false)
+	l2.SetServicerOneShot(true)
+	l2.SetApproach(true)
+	l2.SetApproach(true)
+	l2.StepMS(2_400)
+	if got := countSpawns(l2.Engine(), "HIGATJOB"); got != 1 {
+		t.Fatalf("double SetApproach(true) spawned HIGATJOB %d times, want 1", got)
+	}
+	// unhappy: approach off before the run restores the P63 pass — no
+	// HIGATJOB, no REDESIG cost, a static display that finishes
+	l3 := NewLive()
+	l3.SetRadar(false)
+	l3.SetServicerOneShot(true)
+	l3.SetApproach(true)
+	l3.SetApproach(false)
+	if l3.ApproachOn() {
+		t.Fatalf("SetApproach(false) did not clear")
+	}
+	l3.StepMS(2_400)
+	e3 := l3.Engine()
+	if got := countSpawns(e3, "HIGATJOB"); got != 0 {
+		t.Fatalf("HIGATJOB spawned %d times with approach keyed off before the run, want 0", got)
+	}
+	if got := e3.BusyNs("SERVICER"); got > 1400*Millisecond {
+		t.Fatalf("the pass consumed %d ms with approach off, want the P63 pass (<= 1400 ms)", got/Millisecond)
+	}
+	if st := e3.JobState("MAKEPLAY"); st != JobDone {
+		t.Fatalf("MAKEPLAY state %v with approach off, want done — the static V06N63 pastes and ends", st)
+	}
+}
+
 func countSpawns(e *Engine, name string) int {
 	n := 0
 	for _, ev := range e.Events() {

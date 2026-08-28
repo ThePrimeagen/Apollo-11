@@ -57,6 +57,52 @@ func TestTheftStealsEvenWhileIdle(t *testing.T) {
 	}
 }
 
+func TestTheftPhaseShiftsTheSweep(t *testing.T) {
+	// The sweep's period, phase and dwell are the run's free parameters
+	// (msim/RESEARCH.md): the loss depends on where the RR angle geometry
+	// happens to sit. The flight window opens on a floor dwell; a still
+	// portrait may instead open on the worst-case crest.
+	//
+	// happy: at TheftPeakPhaseMS the first full 2 s guidance cycle rides
+	// the crest — strictly more stolen than the default phase, near the
+	// theoretical ceiling, with every millisecond still inside the band
+	floor := NewEngine(Config{RadarBug: true})
+	floor.RunMS(2_000)
+	peak := NewEngine(Config{RadarBug: true})
+	peak.SetTheftPhaseMS(TheftPeakPhaseMS)
+	peak.RunMS(2_000)
+	if peak.TheftNs() <= floor.TheftNs() {
+		t.Fatalf("peak-phase theft %d <= default-phase theft %d over the first 2 s",
+			peak.TheftNs(), floor.TheftNs())
+	}
+	frac := float64(peak.TheftNs()) / float64(2*Second)
+	if frac < 0.140 || frac > 0.150 {
+		t.Fatalf("peak-phase 2 s theft fraction = %.4f, want the crest [0.140, 0.150]", frac)
+	}
+	for ms := Nanos(0); ms < 2_000; ms += 100 {
+		skim := peak.TheftNsBefore((ms+1)*Millisecond) - peak.TheftNsBefore(ms*Millisecond)
+		if skim < TheftMinPerMs || skim > TheftMaxPerMs {
+			t.Fatalf("peak-phase skim at ms %d = %d ns, outside [%d, %d]",
+				ms, skim, TheftMinPerMs, TheftMaxPerMs)
+		}
+	}
+	// unhappy: the phase knob without the bug steals nothing, and the
+	// default phase remains the flight window (zero offset)
+	off := NewEngine(Config{})
+	off.SetTheftPhaseMS(TheftPeakPhaseMS)
+	off.RunMS(1_000)
+	if got := off.TheftNs(); got != 0 {
+		t.Fatalf("TheftNs = %d with the bug off, want 0 at any phase", got)
+	}
+	zero := NewEngine(Config{RadarBug: true})
+	zero.SetTheftPhaseMS(0)
+	zero.RunMS(2_000)
+	if zero.TheftNs() != floor.TheftNs() {
+		t.Fatalf("explicit phase 0 stole %d, default stole %d — they must be the same sweep",
+			zero.TheftNs(), floor.TheftNs())
+	}
+}
+
 // ---------- interrupt cadences ----------
 //
 // DOWNRUPT every 20 ms (DOWN_TELEMETRY_PROGRAM.agc L43), DAP every 100 ms

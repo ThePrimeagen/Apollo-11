@@ -104,3 +104,64 @@ func TestServicerUnknownPhaseErrors(t *testing.T) {
 		t.Fatalf("ServicerScript(99) returned nil error, want explicit unknown-phase error")
 	}
 }
+
+func TestServicerScriptP64ApproachRedesignation(t *testing.T) {
+	// happy: the P64 approach pass is the locked P63 pass plus REDESIG —
+	// the landing-site perturbation equations (LUNAR_LANDING_GUIDANCE_
+	// EQUATIONS.agc L335-L408), entered from the WCHPHASE dispatch after
+	// TTFINCR and falling into RGVGCALC. The delta is the approach phase's
+	// unsheddable extra guidance (Eyles: P64 margin < 10%).
+	p64, err := ServicerScript(P64Approach)
+	if err != nil {
+		t.Fatalf("ServicerScript(P64Approach): %v", err)
+	}
+	p63, err := ServicerScript(P63Locked)
+	if err != nil {
+		t.Fatalf("ServicerScript(P63Locked): %v", err)
+	}
+	delta := p64.Total() - p63.Total()
+	if delta < 100*Millisecond || delta > 160*Millisecond {
+		t.Fatalf("P64Approach-P63Locked delta = %d ms, want 100-160 ms (the REDESIG load)", delta/Millisecond)
+	}
+	sawRedesig := false
+	for i, in := range p64 {
+		if in.Cost <= 0 || in.Cost > 5*Millisecond {
+			t.Fatalf("instr %d (%s %s) cost %d ns, want in (0, 5 ms] — the DANZIG grain", i, in.Section, in.Op, in.Cost)
+		}
+		if !strings.Contains(in.Ref, ".agc") {
+			t.Fatalf("instr %d (%s) ref %q — every instruction cites its source line", i, in.Op, in.Ref)
+		}
+		if in.Section == "REDESIG" {
+			sawRedesig = true
+			if !strings.Contains(in.Ref, "LUNAR_LANDING_GUIDANCE_EQUATIONS.agc") {
+				t.Fatalf("REDESIG instr %d cites %q, want the guidance-equations listing", i, in.Ref)
+			}
+		}
+	}
+	if !sawRedesig {
+		t.Fatalf("P64Approach script carries no REDESIG section")
+	}
+	first := map[string]int{}
+	for i, in := range p64 {
+		if _, seen := first[in.Section]; !seen {
+			first[in.Section] = i
+		}
+	}
+	if !(first["GUIDANCE"] < first["REDESIG"] && first["REDESIG"] < first["RGVGCALC"]) {
+		t.Fatalf("REDESIG must run after the guidance entry and fall into RGVGCALC (GUIDANCE %d, REDESIG %d, RGVGCALC %d)",
+			first["GUIDANCE"], first["REDESIG"], first["RGVGCALC"])
+	}
+	// unhappy: neither P63 phase carries redesignation work — P63 skips
+	// the REDESIG branch entirely
+	for _, ph := range []Phase{P63Prelock, P63Locked} {
+		s, err := ServicerScript(ph)
+		if err != nil {
+			t.Fatalf("ServicerScript(%d): %v", int(ph), err)
+		}
+		for _, in := range s {
+			if in.Section == "REDESIG" {
+				t.Fatalf("phase %d carries a REDESIG section — that is P64's load", int(ph))
+			}
+		}
+	}
+}

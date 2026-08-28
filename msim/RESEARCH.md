@@ -100,6 +100,38 @@ covers one full guidance cycle near each monitor keying — the sim's stand-in
 for whatever benign dither geometry the real flight happened to be in when
 the keying cycles demonstrably completed (the monitor did come up).
 
+## The P64 approach load
+
+`ServicerScript(P64Approach)` is the locked P63 pass plus REDESIG — the
+landing-site perturbation equations (LLGE L335-L408), reached through the
+WCHPHASE dispatch (APPRQUAD's table entry, L59) after TTFINCR and falling
+into RGVGCALC. Transcribed at the same opcode costs it adds ~132 ms
+(≈6.6% of the cycle), which is the approach's unsheddable extra guidance:
+[Eyles] "the essential software by itself left a duty-cycle margin of less
+than 10%". Two more pieces arrive with the phase, both memory pressure more
+than CPU: HIGATJOB (SERVICER.agc L740-L755, L1657-L1679 — PRIO32 FINDVAC,
+~2 ms, then asleep on the antenna position-2 discrete holding core + VAC
+for seconds), and the flashing V06N64 display request replacing the static
+V06N63 at DISPEXIT (SPVAC — it sleeps holding core + VAC until PRO).
+
+## The single-cycle portrait (the graphs screen)
+
+The graphs screen freezes 2.5 s under two portrait rules, both built from
+the model's documented free parameters rather than new physics:
+
+- **one SERVICER**: `Live.SetServicerOneShot` lets only the run's first
+  READACCS enter a SERVICER. Everything else keeps its timer, so the one
+  pass's extent IS its completion time — with the steal on it reaches
+  ~1.94 s (the knife edge), and either the 1668 monitor or the P64
+  REDESIG load pushes it past its own 2.00 s boundary, the same "misses
+  completion" beat the flight timelines latch on.
+- **the crest window**: `Engine.SetTheftPhaseMS(TheftPeakPhaseMS)` centers
+  the sweep's worst-case crest (~14.8%) over the portrait's first cycle —
+  the "worst 2 s window" above — where the flight scenarios keep the floor
+  dwell over the keyings. The monitor, when keyed, is already up at the
+  window's open on the flight's ENTR phase (.985), its second refresh
+  straddling the boundary.
+
 ## What the timelines show (the mechanism)
 
 1. **Baseline**: the pass fits with tens of milliseconds to spare; at the

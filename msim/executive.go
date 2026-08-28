@@ -222,6 +222,7 @@ func (x *Executive) runFor(budget Nanos) Nanos {
 			x.e.msCore += c
 		}
 		x.e.busyByName[r.name] += c
+		x.e.msByName[r.name] += c
 		x.e.lastRan[r.name] = x.e.Now()
 		if r.rem > 0 {
 			return consumed // budget exhausted mid-instruction

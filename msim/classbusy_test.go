@@ -93,3 +93,64 @@ func TestClassBusyIdleAndTheftUncounted(t *testing.T) {
 		t.Fatalf("theft should still accumulate on the idle machine")
 	}
 }
+
+// ---------- per-millisecond per-consumer busy time ----------
+//
+// The graphs screen draws one lane per process, so every millisecond's
+// Sample also carries WHO consumed it: Sample.ByName maps each consumer
+// (jobs via the runner, tasks and interrupts via their activity) to its
+// share of that millisecond.
+
+func TestSampleByNameAttribution(t *testing.T) {
+	// happy: a job, a waitlist task and the hardware cadences each land
+	// per-millisecond under their own names; the per-name series sums to
+	// the cumulative BusyNs ledger and to the class fields exactly
+	e := NewEngine(Config{Interrupts: true})
+	e.Spawn(JobSpec{Name: "V", Prio: 20, VAC: true, Script: Script{
+		{Section: "V", Op: "VXV", Cost: 30 * Millisecond}}})
+	e.ScheduleTask(40*Millisecond, "PING", 2*Millisecond, func(*Engine) {})
+	e.RunMS(100)
+
+	sums := map[string]Nanos{}
+	for _, s := range e.Samples() {
+		var total Nanos
+		for name, ns := range s.ByName {
+			if ns <= 0 {
+				t.Fatalf("ms %d carries a non-positive ByName entry %q = %d", s.AtMs, name, ns)
+			}
+			sums[name] += ns
+			total += ns
+		}
+		if total != s.VacNs+s.CoreNs+s.OpsNs {
+			t.Fatalf("ms %d ByName sums to %d, class fields sum to %d — every named nanosecond has a class",
+				s.AtMs, total, s.VacNs+s.CoreNs+s.OpsNs)
+		}
+	}
+	for _, name := range []string{"V", "PING", "DAP", "T4RUPT", "DOWNRUPT"} {
+		if sums[name] != e.BusyNs(name) {
+			t.Fatalf("ByName total for %s = %d, BusyNs = %d — the series must telescope to the ledger",
+				name, sums[name], e.BusyNs(name))
+		}
+	}
+	if sums["V"] != 30*Millisecond {
+		t.Fatalf("ByName total for V = %d, want exactly 30 ms", sums["V"])
+	}
+	if sums["PING"] != 2*Millisecond {
+		t.Fatalf("ByName total for PING = %d, want exactly 2 ms", sums["PING"])
+	}
+}
+
+func TestSampleByNameIdleAndUnknown(t *testing.T) {
+	// unhappy: an idle machine's samples carry no ByName entries at all —
+	// the theft is nameless hardware — and reading an unknown name is zero
+	e := NewEngine(Config{RadarBug: true})
+	e.RunMS(50)
+	for _, s := range e.Samples() {
+		if len(s.ByName) != 0 {
+			t.Fatalf("idle ms %d carries ByName entries: %+v", s.AtMs, s.ByName)
+		}
+	}
+	if got := e.Samples()[10].ByName["NOBODY"]; got != 0 {
+		t.Fatalf("unknown name reads %d, want 0", got)
+	}
+}

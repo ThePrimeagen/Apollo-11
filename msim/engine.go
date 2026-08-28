@@ -73,6 +73,9 @@ type Engine struct {
 	msVac  Nanos
 	msCore Nanos
 	msOps  Nanos
+	// name-attributed busy time inside the current millisecond — handed to
+	// the Sample whole, so a fresh map is only allocated after a busy ms
+	msByName map[string]Nanos
 }
 
 // NewEngine builds a machine. With cfg.Interrupts the three hardware
@@ -86,6 +89,7 @@ func NewEngine(cfg Config) *Engine {
 		taskFires:  map[string]int{},
 		lastFired:  map[string]Nanos{},
 		busyByName: map[string]Nanos{},
+		msByName:   map[string]Nanos{},
 	}
 	e.exec = newExecutive(e)
 	if cfg.Interrupts {
@@ -156,8 +160,8 @@ const ticksPerMs = int(Millisecond / tickNs)
 
 // tickSkim is the theft taken in slice k (0..9) of millisecond ms: the
 // Bresenham split of the waveform value, telescoping to it exactly.
-func tickSkim(ms, k Nanos) Nanos {
-	v := theftAtMs(ms)
+func (e *Engine) tickSkim(ms, k Nanos) Nanos {
+	v := e.theftAt(ms)
 	return v*(k+1)/Nanos(ticksPerMs) - v*k/Nanos(ticksPerMs)
 }
 
@@ -191,7 +195,7 @@ func (e *Engine) tick() {
 	budget := tickNs
 	kInMs := (e.now % Millisecond) / tickNs
 	if e.cfg.RadarBug {
-		skim := tickSkim(e.now/Millisecond, kInMs)
+		skim := e.tickSkim(e.now/Millisecond, kInMs)
 		e.theftNs += skim
 		e.subTick = skim
 		budget -= skim
@@ -211,6 +215,7 @@ func (e *Engine) tick() {
 			e.softwareNs += c
 			e.msOps += c
 			e.busyByName[a.name] += c
+			e.msByName[a.name] += c
 			if a.remaining == 0 {
 				e.active = e.active[1:]
 			}
@@ -228,6 +233,11 @@ func (e *Engine) tick() {
 
 	// one occupancy sample per millisecond, at its final slice
 	if kInMs == Nanos(ticksPerMs-1) {
+		var byName map[string]Nanos
+		if len(e.msByName) > 0 {
+			byName = e.msByName
+			e.msByName = make(map[string]Nanos, len(byName))
+		}
 		e.samples = append(e.samples, Sample{
 			AtMs:    int(e.now / Millisecond),
 			Cores:   e.CoresHeld(),
@@ -236,6 +246,7 @@ func (e *Engine) tick() {
 			VacNs:   e.msVac,
 			CoreNs:  e.msCore,
 			OpsNs:   e.msOps,
+			ByName:  byName,
 		})
 		e.msVac, e.msCore, e.msOps = 0, 0, 0
 	}
@@ -295,9 +306,9 @@ func (e *Engine) drainDue(list *[]*wtask, isWaitlist bool) {
 
 // ---------- accounting ----------
 
-func (e *Engine) TheftNs() Nanos      { return e.theftNs }
+func (e *Engine) TheftNs() Nanos        { return e.theftNs }
 func (e *Engine) SoftwareBusyNs() Nanos { return e.softwareNs }
-func (e *Engine) IdleNs() Nanos       { return e.idleNs }
+func (e *Engine) IdleNs() Nanos         { return e.idleNs }
 
 // theftAtMs is the deterministic dither sweep: the loss depends on the RR
 // shaft/trunnion angle geometry (worst near 90/270 deg), so it wanders
@@ -321,6 +332,22 @@ func theftAtMs(ms Nanos) Nanos {
 	return TheftMinPerMs + p*(TheftMaxPerMs-TheftMinPerMs)/(period/2-dwell)
 }
 
+// TheftPeakPhaseMS positions the sweep's crest over the run's first full
+// 2 s guidance cycle — RESEARCH.md's "worst 2 s window", where the baseline
+// demand reaches ~98%. A still portrait opened at this phase shows the
+// theft at the geometry's worst instead of the flight window's floor dwell.
+const TheftPeakPhaseMS = 7_500
+
+// SetTheftPhaseMS repositions the sweep for this run. The waveform's phase
+// is a free parameter of the model — it stands in for wherever the RR angle
+// geometry happened to sit. The flight scenarios keep the default zero.
+func (e *Engine) SetTheftPhaseMS(ms int) { e.cfg.TheftPhaseMS = ms }
+
+// theftAt is the sweep sampled under this run's phase.
+func (e *Engine) theftAt(ms Nanos) Nanos {
+	return theftAtMs(ms + Nanos(e.cfg.TheftPhaseMS))
+}
+
 // TheftNsBefore is the theft accumulated by exact machine time t, mirroring
 // the engine's per-tick Bresenham skim.
 func (e *Engine) TheftNsBefore(t Nanos) Nanos {
@@ -330,14 +357,14 @@ func (e *Engine) TheftNsBefore(t Nanos) Nanos {
 	fullMs := t / Millisecond
 	var total Nanos
 	for ms := Nanos(0); ms < fullMs; ms++ {
-		total += theftAtMs(ms)
+		total += e.theftAt(ms)
 	}
 	rem := t % Millisecond
 	k := rem / tickNs
 	off := rem % tickNs
 	// full slices of the current millisecond telescope to v*k/10
-	total += theftAtMs(fullMs) * k / Nanos(ticksPerMs)
-	if s := tickSkim(fullMs, k); off > s {
+	total += e.theftAt(fullMs) * k / Nanos(ticksPerMs)
+	if s := e.tickSkim(fullMs, k); off > s {
 		off = s
 	}
 	return total + off
@@ -372,18 +399,18 @@ func (e *Engine) InterruptFiresBefore(name string, t Nanos) int {
 
 // ---------- pool / job introspection ----------
 
-func (e *Engine) CoresHeld() int      { return e.exec.coresHeld() }
-func (e *Engine) VACsHeld() int       { return e.exec.vacsHeld() }
-func (e *Engine) RunningJob() string  { return e.exec.runningName() }
+func (e *Engine) CoresHeld() int             { return e.exec.coresHeld() }
+func (e *Engine) VACsHeld() int              { return e.exec.vacsHeld() }
+func (e *Engine) RunningJob() string         { return e.exec.runningName() }
 func (e *Engine) JobState(n string) JobState { return e.exec.jobState(n) }
 
-func (e *Engine) Events() []Event { return e.events }
-func (e *Engine) Samples() []Sample { return e.samples }
-func (e *Engine) Alarms() []Alarm { return e.alarms }
-func (e *Engine) RestartCount() int { return len(e.restarts) }
+func (e *Engine) Events() []Event       { return e.events }
+func (e *Engine) Samples() []Sample     { return e.samples }
+func (e *Engine) Alarms() []Alarm       { return e.alarms }
+func (e *Engine) RestartCount() int     { return len(e.restarts) }
 func (e *Engine) RestartAt(i int) Nanos { return e.restarts[i] }
-func (e *Engine) MaxCores() int { return e.maxCores }
-func (e *Engine) MaxVACs() int  { return e.maxVACs }
+func (e *Engine) MaxCores() int         { return e.maxCores }
+func (e *Engine) MaxVACs() int          { return e.maxVACs }
 
 // Note records a scenario-level timeline event.
 func (e *Engine) Note(kind, job, detail string) {
