@@ -168,8 +168,24 @@ func TestInverseWalkthroughBill(t *testing.T) {
 		if strings.ContainsRune(gone, '▟') {
 			t.Fatal("past lift-at plus rise the craft must have cleared the top")
 		}
+		p.Render(scr)
+		if hotBraille(scr) {
+			t.Fatal("past the climb the booster fire must have left with the hull")
+		}
 		if strings.ContainsRune(gone, '▌') {
 			t.Fatal("the sideways craft waits for the cut")
+		}
+	})
+	t.Run("unhappy: the climb is not a flame cut — the booster burns the whole way up", func(t *testing.T) {
+		p, scr := openShow()
+		defer p.Stop()
+		run(p, liftoff.FireFull+0.3)
+		p.Render(scr)
+		if !hotBraille(scr) {
+			t.Fatal("on the pad, past full power, the booster must still be burning")
+		}
+		if !strings.ContainsRune(frame(p, scr), '▟') {
+			t.Fatal("early in the show the hull is still on the pad — a flame cut is not a liftoff")
 		}
 	})
 	t.Run("happy: the liftoff→engines-on cut keeps every star the horizon was not hiding", func(t *testing.T) {

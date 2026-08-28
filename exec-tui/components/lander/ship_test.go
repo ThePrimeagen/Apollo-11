@@ -1122,14 +1122,32 @@ func livePad(s *Ship) int {
 // backwards. LiftPath is the landing path time-reversed — the hull
 // opens parked on the horizon pad, holds it until lift-at, then rises
 // on the mirrored ease (a slow, heavy crawl off the pad that rockets
-// off the top). IgniteAt is ThrottleAt run backwards: dark on the pad,
-// then ¼, ½, ¾, and full power, each at its own t=0 offset. FireFor
-// lets a parked ship burn its tail fire for so many seconds of played
-// time and then cut it — the walkthrough's fire scene reversed. A
-// liftoff kicks pad dust through DustAt/DustLoss only: there is no
-// stock dust choreography to inherit from the landing.
+// off the top). "Off the top" means the hull AND the down-firing
+// booster: a hull-only exit at -BodyRows still paints the plume on
+// the first rows of the stage. IgniteAt is ThrottleAt run backwards:
+// dark on the pad, then ¼, ½, ¾, and full power, each at its own t=0
+// offset. FireFor lets a parked ship burn its tail fire for so many
+// seconds of played time and then cut it — the walkthrough's fire
+// scene reversed. A liftoff kicks pad dust through DustAt/DustLoss
+// only: there is no stock dust choreography to inherit from the
+// landing.
 
 const liftRise = 5.0
+
+// liftGoneRow pins the tests to the exported clearance mark.
+const liftGoneRow = LiftGoneRow
+
+func countFlame(sp sprite.Sprite) int {
+	n := 0
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			if flameGlyph(sp.At(r, c).Ch) {
+				n++
+			}
+		}
+	}
+	return n
+}
 
 func TestLiftPath(t *testing.T) {
 	pad := LandPadRow(screenH)
@@ -1154,16 +1172,16 @@ func TestLiftPath(t *testing.T) {
 			prev = row
 		}
 		gone, _ := LiftPath(screenW, screenH, 1.6+liftRise, 1.6, liftRise)
-		if gone != -BodyRows {
-			t.Fatalf("at the end of the climb row %d, want %d (fully off the top)", gone, -BodyRows)
+		if gone != liftGoneRow {
+			t.Fatalf("at the end of the climb row %d, want %d (fully off the top)", gone, liftGoneRow)
 		}
 		late, _ := LiftPath(screenW, screenH, 1000, 1.6, liftRise)
-		if late != -BodyRows {
-			t.Fatalf("long after the climb row %d drifted, want %d", late, -BodyRows)
+		if late != liftGoneRow {
+			t.Fatalf("long after the climb row %d drifted, want %d", late, liftGoneRow)
 		}
 	})
 	t.Run("happy: the climb is the landing's mirror — a heavy crawl off the pad, then it rockets", func(t *testing.T) {
-		span := float64(pad - (-BodyRows))
+		span := float64(pad - liftGoneRow)
 		rowAt := func(tSec float64) int {
 			row, _ := LiftPath(screenW, screenH, tSec, 0, liftRise)
 			return row
@@ -1175,7 +1193,7 @@ func TestLiftPath(t *testing.T) {
 			t.Fatalf("at 40%% of the climb the hull is already %.2f of the way — want a heavy ease-in under 0.15", got)
 		}
 		first := pad - rowAt(0.2*liftRise)
-		last := rowAt(0.8*liftRise) - (-BodyRows)
+		last := rowAt(0.8*liftRise) - liftGoneRow
 		if first >= last {
 			t.Fatalf("first 20%% of time climbed %d rows, last 20%% climbed %d — the launch must sprint at the end", first, last)
 		}
@@ -1196,12 +1214,47 @@ func TestLiftPath(t *testing.T) {
 			t.Fatalf("a Lift ship must ride the mirrored path, at (%d,%d) want (%d,%d)", gotRow, gotCol, wantRow, wantCol)
 		}
 	})
-	t.Run("unhappy: negative time is the pad, no duration snaps off the top, and Lift on nil stays nil", func(t *testing.T) {
+	t.Run("happy: past the climb the hull and the booster fire are both gone", func(t *testing.T) {
+		gone, _ := LiftPath(screenW, screenH, 1.6+liftRise, 1.6, liftRise)
+		if gone != liftGoneRow {
+			t.Fatalf("at the end of the climb row %d, want %d (hull and plume both off the top)", gone, liftGoneRow)
+		}
+		late, _ := LiftPath(screenW, screenH, 1000, 1.6, liftRise)
+		if late != liftGoneRow {
+			t.Fatalf("long after the climb row %d drifted, want %d", late, liftGoneRow)
+		}
+		s := NewShip(48).North().Lift(0, 0.8)
+		s.Start(screenW, screenH)
+		warmShip(s, 0.5)
+		if countFlame(s.Render()) == 0 {
+			t.Fatal("test premise: mid-climb the booster must still burn on stage")
+		}
+		warmShip(s, 0.4)
+		stage := s.Render()
+		if opaqueCells(stage) != 0 {
+			t.Fatalf("past the climb the stage still holds %d cells — hull and booster must have left together", opaqueCells(stage))
+		}
+		if countFlame(stage) != 0 {
+			t.Fatalf("past the climb %d fire cells remain — the plume must leave with the hull", countFlame(stage))
+		}
+	})
+	t.Run("unhappy: a hull-only exit is not gone, no duration must take the fire too, and Lift on nil stays nil", func(t *testing.T) {
 		if row, _ := LiftPath(screenW, screenH, -3, 1.6, liftRise); row != pad {
 			t.Fatalf("t<0 row %d, want the pad %d", row, pad)
 		}
-		if row, _ := LiftPath(screenW, screenH, 2, 0, 0); row != -BodyRows {
-			t.Fatalf("seconds<=0 row %d, want %d (already gone)", row, -BodyRows)
+		gone, _ := LiftPath(screenW, screenH, 1.6+liftRise, 1.6, liftRise)
+		if gone >= -BodyRows {
+			t.Fatalf("end row %d only clears the hull (row %d) — the down-firing booster still hangs on stage", gone, -BodyRows)
+		}
+		snap, _ := LiftPath(screenW, screenH, 2, 0, 0)
+		if snap != liftGoneRow {
+			t.Fatalf("seconds<=0 row %d, want %d (already gone, fire included)", snap, liftGoneRow)
+		}
+		hullOnly := NewShip(49).North().Climb(0)
+		hullOnly.Start(screenW, screenH)
+		warmShip(hullOnly, 0.3)
+		if countFlame(hullOnly.Render()) == 0 {
+			t.Fatal("a climb that only clears the hull must still paint the down-firing booster — that is why the liftoff has to go further")
 		}
 		var ghost *Ship
 		if ghost.Lift(1.6, liftRise) != nil {

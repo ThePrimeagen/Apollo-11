@@ -254,6 +254,58 @@ func TestLiftoffScene(t *testing.T) {
 			}
 		}
 	})
+	t.Run("happy: a full-power climb takes the booster fire off the top with the hull", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.LiftAt = 0.2
+		sc.Cfg.RiseSeconds = 0.4
+		sc.Cfg.Fire25 = 0
+		sc.Cfg.Fire50 = 0
+		sc.Cfg.Fire75 = 0
+		sc.Cfg.FireFull = 0
+		sc.Cfg.DustStart = 0
+		sc.Cfg.DustRun = 0
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.35)
+		mid := paint(sc)
+		if hullRow(mid, "▟") < 0 {
+			t.Fatal("mid-climb the hull must still be on stage")
+		}
+		if !hotBraille(mid) {
+			t.Fatal("test premise: a full-power climb must burn on the way up")
+		}
+		tick(sc, 0.4)
+		gone := paint(sc)
+		if hullRow(gone, "▟") >= 0 {
+			t.Fatal("past lift-at plus rise the hull must have cleared the top")
+		}
+		if hotBraille(gone) {
+			t.Fatal("past the climb the booster fire must have left with the hull")
+		}
+	})
+	t.Run("unhappy: the climb is not a flame cut — mid-flight the booster is still on stage", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.LiftAt = 0.2
+		sc.Cfg.RiseSeconds = 0.8
+		sc.Cfg.Fire25 = 0
+		sc.Cfg.Fire50 = 0
+		sc.Cfg.Fire75 = 0
+		sc.Cfg.FireFull = 0
+		sc.Cfg.DustStart = 0
+		sc.Cfg.DustRun = 0
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.5)
+		mid := paint(sc)
+		if hullRow(mid, "▟") < 0 {
+			t.Fatal("mid-climb the hull must still be on stage")
+		}
+		if !hotBraille(mid) {
+			t.Fatal("mid-climb the booster must still burn — the fire leaves only when the hull does")
+		}
+	})
 	t.Run("unhappy: the west-facing hull never plays this scene", func(t *testing.T) {
 		sc := New(nil)
 		sc.Cfg.LiftAt = 0.2
