@@ -146,7 +146,7 @@ func TestMenuSections(t *testing.T) {
 		}
 	})
 	t.Run("happy: MAIN then 01. Moon Orbit then 02. Walkthrough sit directly under Screenplays", func(t *testing.T) {
-		v := stripAnsi(sized(New(Catalog(), ""), 100, 40).View().Content)
+		v := stripAnsi(sized(New(Catalog(), ""), 100, 48).View().Content)
 		hi := headerLine(v, "Screenplays")
 		main := entryLine(v, "MAIN")
 		orbit := entryLine(v, "01. Moon Orbit")
@@ -168,7 +168,7 @@ func TestMenuSections(t *testing.T) {
 		}
 	})
 	t.Run("happy: headers are never selectable — j walks entry to entry", func(t *testing.T) {
-		m := sized(New(Catalog(), ""), 100, 40)
+		m := sized(New(Catalog(), ""), 100, 48)
 		m = key(m, 'j')
 		if got := Catalog()[m.sel].ID; got != "moon" {
 			t.Fatalf("j from MAIN must land on moon, got %q", got)
@@ -415,9 +415,9 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup", "inverse",
-			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "checkprio", "alarms",
+			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "checkprio", "alarms", "shootingstar",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
-			"particle", "dust-config", "gunfire-config", "cloud-config",
+			"particle", "dust-config", "gunfire-config", "cloud-config", "startrail-config",
 			"dsky",
 			"legacy", "timeline",
 			"agctop", "agcgraph",
@@ -433,36 +433,38 @@ func TestCatalog(t *testing.T) {
 	})
 	t.Run("happy: entries group under their category headers in order", func(t *testing.T) {
 		wantSections := map[string]string{
-			"screenplay":     "Screenplays",
-			"moon":           "Screenplays",
-			"closeup":        "Screenplays",
-			"inverse":        "Screenplays",
-			"viewer":         "Scenes",
-			"landing":        "Scenes",
-			"america":        "Scenes",
-			"moonwalk":       "Scenes",
-			"skies":          "Scenes",
-			"coreset":        "Scenes",
-			"coreset2":       "Scenes",
-			"liftoff":        "Scenes",
-			"bobble":         "Scenes",
-			"interpreter":    "Scenes",
-			"checkprio":      "Scenes",
-			"alarms":         "Scenes",
-			"flame":          "CONFIG",
-			"stars-config":   "CONFIG",
-			"sky-config":     "CONFIG",
-			"armed-config":   "CONFIG",
-			"editor":         "CONFIG",
-			"particle":       "Particles",
-			"dust-config":    "Particles",
-			"gunfire-config": "Particles",
-			"cloud-config":   "Particles",
-			"dsky":           "Labs",
-			"legacy":         "LEGACY TUIS",
-			"timeline":       "LEGACY TUIS",
-			"agctop":         "EXECUTIVE",
-			"agcgraph":       "EXECUTIVE",
+			"screenplay":       "Screenplays",
+			"moon":             "Screenplays",
+			"closeup":          "Screenplays",
+			"inverse":          "Screenplays",
+			"viewer":           "Scenes",
+			"landing":          "Scenes",
+			"america":          "Scenes",
+			"moonwalk":         "Scenes",
+			"skies":            "Scenes",
+			"coreset":          "Scenes",
+			"coreset2":         "Scenes",
+			"liftoff":          "Scenes",
+			"bobble":           "Scenes",
+			"interpreter":      "Scenes",
+			"checkprio":        "Scenes",
+			"alarms":           "Scenes",
+			"shootingstar":     "Scenes",
+			"flame":            "CONFIG",
+			"stars-config":     "CONFIG",
+			"sky-config":       "CONFIG",
+			"armed-config":     "CONFIG",
+			"editor":           "CONFIG",
+			"particle":         "Particles",
+			"dust-config":      "Particles",
+			"gunfire-config":   "Particles",
+			"cloud-config":     "Particles",
+			"startrail-config": "Particles",
+			"dsky":             "Labs",
+			"legacy":           "LEGACY TUIS",
+			"timeline":         "LEGACY TUIS",
+			"agctop":           "EXECUTIVE",
+			"agcgraph":         "EXECUTIVE",
 		}
 		seen := map[string]bool{}
 		last := ""
@@ -535,6 +537,7 @@ func TestCatalog(t *testing.T) {
 			{"dust-config", "DUSTOFF CONFIG", "./cmd/adjustdust/main"},
 			{"gunfire-config", "GUNFIRE CONFIG", "./cmd/adjustgunfire/main"},
 			{"cloud-config", "CLOUD CONFIG", "./cmd/adjustcloud/main"},
+			{"startrail-config", "STAR TRAIL CONFIG", "./cmd/shootingstar"},
 		}
 		got := make([]Entry, 0, 3)
 		for _, e := range c {

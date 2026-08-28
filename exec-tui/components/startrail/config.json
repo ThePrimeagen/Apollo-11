@@ -1,0 +1,9 @@
+{
+  "count": 3,
+  "period": 0.015,
+  "minLife": 0.50,
+  "maxLife": 0.90,
+  "nozzle": 4.00,
+  "peak": 6.0,
+  "taper": 0.85
+}

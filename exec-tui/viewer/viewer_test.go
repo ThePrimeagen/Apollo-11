@@ -31,6 +31,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/startrail"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
@@ -39,7 +40,9 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
+	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
@@ -90,42 +93,45 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("first item must be the SHOTGUN component, got %+v", c[0])
 		}
 		want := map[string]Kind{
-			"shotgun":     KindComponent,
-			"stars":       KindComponent,
-			"sky":         KindComponent,
-			"cloud":       KindComponent,
-			"lander":      KindComponent,
-			"flag":        KindComponent,
-			"transition":  KindComponent,
-			"eagle":       KindComponent,
-			"armed":       KindComponent,
-			"moon":        KindComponent,
-			"ie":          KindComponent,
-			"dsky":        KindComponent,
-			"coreset":     KindComponent,
-			"coresets":    KindComponent,
-			"vac":         KindComponent,
-			"vacs":        KindComponent,
-			"cpugraph":    KindComponent,
-			"breakdown":   KindScene,
-			"scan":        KindScene,
-			"title":       KindComponent,
-			"astronaut":   KindComponent,
-			"rocket":      KindComponent,
-			"gunfire":     KindParticle,
-			"flame":       KindParticle,
-			"dust":        KindParticle,
-			"nyan":        KindParticle,
-			"landing":     KindScene,
-			"america":     KindScene,
-			"moonwalk":    KindScene,
-			"skies":       KindScene,
-			"liftoff":     KindScene,
-			"bobble":      KindScene,
-			"explorer":    KindScene,
-			"interpreter": KindScene,
-			"checkprio":   KindScene,
-			"alarms":      KindScene,
+			"shotgun":      KindComponent,
+			"stars":        KindComponent,
+			"sky":          KindComponent,
+			"cloud":        KindComponent,
+			"lander":       KindComponent,
+			"flag":         KindComponent,
+			"transition":   KindComponent,
+			"eagle":        KindComponent,
+			"armed":        KindComponent,
+			"moon":         KindComponent,
+			"ie":           KindComponent,
+			"dsky":         KindComponent,
+			"coreset":      KindComponent,
+			"coresets":     KindComponent,
+			"vac":          KindComponent,
+			"vacs":         KindComponent,
+			"cpugraph":     KindComponent,
+			"breakdown":    KindScene,
+			"scan":         KindScene,
+			"title":        KindComponent,
+			"astronaut":    KindComponent,
+			"rocket":       KindComponent,
+			"gunfire":      KindParticle,
+			"flame":        KindParticle,
+			"dust":         KindParticle,
+			"nyan":         KindParticle,
+			"startrail":    KindParticle,
+			"landing":      KindScene,
+			"america":      KindScene,
+			"moonwalk":     KindScene,
+			"skies":        KindScene,
+			"liftoff":      KindScene,
+			"bobble":       KindScene,
+			"explorer":     KindScene,
+			"interpreter":  KindScene,
+			"checkprio":    KindScene,
+			"alarms":       KindScene,
+			"shootingstar": KindScene,
+			"bigstar":      KindComponent,
 		}
 		seen := map[string]bool{}
 		for _, it := range c {
@@ -310,6 +316,7 @@ func TestEdit(t *testing.T) {
 			{"flame", adjustflame.DefaultConfigPath, "./cmd/adjustflame/main"},
 			{"dust", adjustdust.DefaultConfigPath, "./cmd/adjustdust/main"},
 			{"nyan", adjustparticle.DefaultConfigPath, "./cmd/adjustparticle/main"},
+			{"startrail", startrail.DefaultConfigPath, "./cmd/shootingstar"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindParticle, tc.id)), 80, 24)
@@ -349,6 +356,7 @@ func TestEdit(t *testing.T) {
 			{"interpreter", interpreter.DefaultConfigPath, "./cmd/interpreter"},
 			{"checkprio", "scenes/checkprio", "./cmd/checkprio"},
 			{"alarms", "scenes/alarms", "./cmd/alarms"},
+			{"shootingstar", shootingstar.DefaultConfigPath, "./cmd/shootingstar"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
@@ -379,6 +387,7 @@ func TestEdit(t *testing.T) {
 			{"sky", adjustsky.DefaultConfigPath, "./cmd/adjustsky/main"},
 			{"cloud", adjustcloud.DefaultConfigPath, "./cmd/adjustcloud/main"},
 			{"armed", adjustarmed.DefaultConfigPath, "./cmd/adjustarmed/main"},
+			{"bigstar", shootingstar.DefaultConfigPath, "./cmd/shootingstar"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindComponent, tc.id)), 80, 24)
@@ -1031,4 +1040,237 @@ func TestCPUGraphDemo(t *testing.T) {
 			t.Fatal("the unstaged press must still land on the switch API")
 		}
 	})
+}
+
+// Tests written FIRST: F toggles a fullscreen look at the item on
+// stage. The title, the type line, and the footer all leave so the
+// component or the scene owns every cell. F again brings the chrome
+// back. n/p still cycle while fullscreen; space still fires; F itself
+// is no longer a trigger. An empty catalog and a tiny terminal never
+// panic, and unknown keys never enter the mode.
+
+type sizeSpy struct {
+	w, h int
+}
+
+func (s *sizeSpy) Start(w, h int) { s.w, s.h = w, h }
+func (s *sizeSpy) Update(float64) {}
+func (s *sizeSpy) Stop()          {}
+
+func (s *sizeSpy) Render() sprite.Sprite {
+	if s.w < 1 || s.h < 1 {
+		return sprite.Sprite{}
+	}
+	sp := sprite.New(s.w, s.h)
+	for c := 0; c < s.w; c++ {
+		sp.Set(0, c, sprite.Cell{Ch: 'X', FG: 196, BG: -1})
+		if s.h > 1 {
+			sp.Set(s.h-1, c, sprite.Cell{Ch: 'Y', FG: 196, BG: -1})
+		}
+	}
+	return sp
+}
+
+func spyViewer(t *testing.T, w, h int) (Model, *sizeSpy) {
+	t.Helper()
+	spy := &sizeSpy{}
+	m := sized(NewWith([]Item{{
+		ID:    "spy",
+		Title: "SPY",
+		Kind:  KindComponent,
+		spawn: func() screenplay.Component { return spy },
+	}}, 0), w, h)
+	return m, spy
+}
+
+func viewRows(m Model) []string {
+	return strings.Split(stripAnsi(m.View().Content), "\n")
+}
+
+func hasChrome(v string) bool {
+	plain := stripAnsi(v)
+	return strings.Contains(plain, "n/p cycle") || strings.Contains(plain, "e edit")
+}
+
+func TestFullscreen(t *testing.T) {
+	t.Run("happy: F hides the title, the type and the footer and gives the preview the whole window", func(t *testing.T) {
+		m, spy := spyViewer(t, 80, 24)
+		if m.Fullscreen() {
+			t.Fatal("the viewer must open with chrome, not fullscreen")
+		}
+		if spy.w != 80 || spy.h != 24-headerH-footerH {
+			t.Fatalf("chrome preview is %dx%d, want 80x%d", spy.w, spy.h, 24-headerH-footerH)
+		}
+		rows := viewRows(m)
+		if len(rows) < 4 {
+			t.Fatalf("chrome view is too short:\n%s", m.View().Content)
+		}
+		if strings.Contains(rows[0], "XXXX") {
+			t.Fatal("chrome must keep the title on top, not the preview")
+		}
+		_, kind := headerLines(m.View().Content)
+		if kind != "component" {
+			t.Fatalf("chrome type line %q, want component", kind)
+		}
+		if !hasChrome(m.View().Content) {
+			t.Fatal("chrome must keep the footer")
+		}
+
+		m = key(m, 'f')
+		if !m.Fullscreen() {
+			t.Fatal("F must enter fullscreen")
+		}
+		if spy.w != 80 || spy.h != 24 {
+			t.Fatalf("fullscreen preview is %dx%d, want the whole 80x24 window", spy.w, spy.h)
+		}
+		rows = viewRows(m)
+		if len(rows) == 0 || !strings.Contains(rows[0], "XXXX") {
+			t.Fatalf("fullscreen must put the preview on row 0, got %q", firstRow(rows))
+		}
+		if !strings.Contains(rows[len(rows)-1], "YYYY") {
+			t.Fatalf("fullscreen must put the preview on the last row, got %q", rows[len(rows)-1])
+		}
+		if hasChrome(m.View().Content) {
+			t.Fatal("fullscreen must drop the title, the type and the footer")
+		}
+		if strings.Contains(stripAnsi(m.View().Content), "component") {
+			t.Fatal("fullscreen must not print the type line")
+		}
+	})
+	t.Run("happy: F again restores the chrome and shrinks the preview back", func(t *testing.T) {
+		m, spy := spyViewer(t, 80, 24)
+		m = key(m, 'f')
+		m = key(m, 'f')
+		if m.Fullscreen() {
+			t.Fatal("a second F must leave fullscreen")
+		}
+		if spy.w != 80 || spy.h != 24-headerH-footerH {
+			t.Fatalf("restored preview is %dx%d, want 80x%d", spy.w, spy.h, 24-headerH-footerH)
+		}
+		_, kind := headerLines(m.View().Content)
+		if kind != "component" {
+			t.Fatalf("restored type line %q, want component", kind)
+		}
+		if !hasChrome(m.View().Content) {
+			t.Fatal("the footer must come back")
+		}
+		rows := viewRows(m)
+		if strings.Contains(rows[0], "XXXX") {
+			t.Fatal("restored chrome must put the title back on top")
+		}
+	})
+	t.Run("happy: cycling a component then a scene while fullscreen keeps the chrome off", func(t *testing.T) {
+		m := sized(New(findItem(t, KindComponent, "flag")), 80, 24)
+		m = key(m, 'f')
+		if !m.Fullscreen() {
+			t.Fatal("F on the flag must enter fullscreen")
+		}
+		if hasChrome(m.View().Content) {
+			t.Fatal("the flag fullscreen must drop the chrome")
+		}
+		m = key(m, 'n')
+		if !m.Fullscreen() {
+			t.Fatal("n must not drop fullscreen")
+		}
+		if m.Current().ID == "flag" {
+			t.Fatal("n must still cycle while fullscreen")
+		}
+		if hasChrome(m.View().Content) {
+			t.Fatal("a cycled item must stay chrome-free")
+		}
+		m = sized(New(findItem(t, KindScene, "landing")), 80, 24)
+		m = key(m, 'f')
+		if !m.Fullscreen() || hasChrome(m.View().Content) {
+			t.Fatal("a scene must go fullscreen the same way — just the stage")
+		}
+		if m.View().Content == "" {
+			t.Fatal("the landing scene must still paint when fullscreen")
+		}
+	})
+	t.Run("happy: the chrome footer names f as fullscreen", func(t *testing.T) {
+		m := boot()
+		v := stripAnsi(m.View().Content)
+		if !strings.Contains(v, "f full") && !strings.Contains(v, "f fullscreen") {
+			t.Fatalf("the footer must name the fullscreen key, got last line %q", lastLine(v))
+		}
+		m = key(m, 'f')
+		if strings.Contains(stripAnsi(m.View().Content), "f full") {
+			t.Fatal("fullscreen itself must not keep the help footer")
+		}
+	})
+	t.Run("unhappy: F does not fire, edit, quit or cycle", func(t *testing.T) {
+		idx := findItem(t, KindComponent, "coresets")
+		m := sized(New(idx), 80, 24)
+		mm, cmd := m.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+		m = mm.(Model)
+		if cmd != nil {
+			if _, isQuit := cmd().(tea.QuitMsg); isQuit {
+				t.Fatal("F must not quit the viewer")
+			}
+		}
+		if _, ok := m.ChosenEdit(); ok {
+			t.Fatal("F must not choose an edit")
+		}
+		if m.Index() != idx {
+			t.Fatalf("F moved the catalog to %d, want %d", m.Index(), idx)
+		}
+		d, ok := m.preview.(*poolDemo)
+		if !ok {
+			t.Fatalf("coresets must stage the pool demo, got %T", m.preview)
+		}
+		if d.view.Busy() != 0 || d.playing {
+			t.Fatalf("F must not pull the trigger, busy %d playing %v", d.view.Busy(), d.playing)
+		}
+		if !m.Fullscreen() {
+			t.Fatal("F on a fireable item must still go fullscreen")
+		}
+	})
+	t.Run("unhappy: an empty catalog and a tiny terminal never panic, and unknown keys never enter", func(t *testing.T) {
+		empty := sized(NewWith(nil, 0), 80, 24)
+		empty = key(empty, 'f')
+		if !empty.Fullscreen() {
+			t.Fatal("F on an empty catalog must still toggle — there is just nothing on stage")
+		}
+		if empty.View().Content == "" {
+			t.Fatal("an empty fullscreen must still render a frame")
+		}
+		if _, ok := empty.ChosenEdit(); ok {
+			t.Fatal("F on an empty catalog must not invent an edit")
+		}
+
+		tiny := sized(New(0), 12, 5)
+		tiny = key(tiny, 'f')
+		if !tiny.Fullscreen() {
+			t.Fatal("a tiny terminal must still accept F")
+		}
+		if tiny.View().Content == "" {
+			t.Fatal("tiny fullscreen must still render")
+		}
+		if hasChrome(tiny.View().Content) {
+			t.Fatal("tiny fullscreen must drop the chrome too")
+		}
+
+		m := boot()
+		for _, r := range []rune{'z', 'x', '1'} {
+			m = key(m, r)
+			if m.Fullscreen() {
+				t.Fatalf("%q entered fullscreen — only F does that", r)
+			}
+		}
+	})
+}
+
+func firstRow(rows []string) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	return rows[0]
+}
+
+func lastLine(v string) string {
+	rows := strings.Split(v, "\n")
+	if len(rows) == 0 {
+		return ""
+	}
+	return rows[len(rows)-1]
 }

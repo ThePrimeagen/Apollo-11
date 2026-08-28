@@ -6,6 +6,7 @@
 //	n / j / right   next
 //	p / k / left    previous
 //	e               edit
+//	f               fullscreen — just the item, no chrome
 //	q               quit
 //
 //	go run ./cmd/viewer
