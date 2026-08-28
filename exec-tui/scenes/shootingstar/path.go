@@ -83,6 +83,18 @@ func RandomCrossing(seed int64, w, h float64) Crossing {
 	return Crossing{Start: start, Ctrl: ctrl, End: end}
 }
 
+// DiagonalCrossing is one meteor from high on the left to low on the
+// right — the landing's shooting star. A collapsed box parks.
+func DiagonalCrossing(w, h float64) Crossing {
+	if w <= 0 || h <= 0 {
+		return Crossing{}
+	}
+	start := particle.Vec2{X: 0.04 * w, Y: 0.08 * h}
+	end := particle.Vec2{X: 0.96 * w, Y: 0.88 * h}
+	ctrl := particle.Vec2{X: (start.X + end.X) / 2, Y: (start.Y + end.Y) / 2}
+	return Crossing{Start: start, Ctrl: ctrl, End: end}
+}
+
 // At samples the bezier at t in [0,1] and the heading along it.
 func (c Crossing) At(t float64) (pos, heading particle.Vec2) {
 	if t < 0 {

@@ -30,12 +30,15 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/climb"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset2"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/fall"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/interpreter"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/prog"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
@@ -111,6 +114,9 @@ func Catalog() []Item {
 		{ID: "explorer", Title: "BIG E", Kind: KindScene, Path: explorer.DefaultConfigPath, Program: "./cmd/explorer", spawn: func() screenplay.Component { return wrapScene(explorer.New(nil)) }},
 		{ID: "interpreter", Title: "INTERPRETER", Kind: KindScene, Path: interpreter.DefaultConfigPath, Program: "./cmd/interpreter", spawn: func() screenplay.Component { return wrapScene(interpreter.New()) }},
 		{ID: "shootingstar", Title: "SHOOTING STAR", Kind: KindScene, Path: shootingstar.DefaultConfigPath, Program: "./cmd/shootingstar", spawn: func() screenplay.Component { return wrapScene(shootingstar.New(nil)) }},
+		{ID: "fall", Title: "SPACELANDER FALL", Kind: KindScene, Path: fall.DefaultConfigPath, Program: "./cmd/fall", spawn: func() screenplay.Component { return wrapScene(fall.New(nil)) }},
+		{ID: "climb", Title: "SPACELANDER CLIMB", Kind: KindScene, Path: climb.DefaultConfigPath, Program: "./cmd/climb", spawn: func() screenplay.Component { return wrapScene(climb.New(nil)) }},
+		{ID: "prog", Title: "PROGRAM ALARMS", Kind: KindScene, Path: prog.DefaultConfigPath, Program: "./cmd/prog", spawn: func() screenplay.Component { return wrapScene(prog.New(nil)) }},
 	}
 }
 

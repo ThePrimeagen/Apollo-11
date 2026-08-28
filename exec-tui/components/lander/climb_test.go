@@ -85,13 +85,17 @@ func TestClimbPath(t *testing.T) {
 		}
 	})
 	t.Run("unhappy: ClimbPath is not DropPath and not the eased pad liftoff", func(t *testing.T) {
-		drop, _ := DropPath(screenW, screenH, DropSeconds/2, DropSeconds)
-		climb, _ := ClimbPath(screenW, screenH, DropSeconds/2, DropSeconds)
+		// Linear inverses meet at the halfway mark; a quarter later
+		// the climber is above the dropper, and neither is the pad
+		// liftoff's ease.
+		tLate := DropSeconds * 3 / 4
+		drop, _ := DropPath(screenW, screenH, tLate, DropSeconds)
+		climb, _ := ClimbPath(screenW, screenH, tLate, DropSeconds)
 		if drop == climb {
-			t.Fatalf("mid-climb row %d matches mid-drop — the two paths must run opposite ways", climb)
+			t.Fatalf("late-climb row %d matches the drop — the two paths must run opposite ways", climb)
 		}
 		if climb >= drop {
-			t.Fatalf("mid-climb row %d is not above mid-drop %d", climb, drop)
+			t.Fatalf("late-climb row %d is not above the drop %d", climb, drop)
 		}
 		lift, _ := LiftPath(screenW, screenH, DropSeconds/2, 0, DropSeconds)
 		if climb == lift {

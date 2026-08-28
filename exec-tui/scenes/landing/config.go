@@ -17,27 +17,40 @@ import (
 // scene from whatever they hold. s writes this JSON next to the
 // scene. 02. Walkthrough plays the same Active config.
 type Config struct {
-	LandSeconds float64 `json:"landSeconds"`
-	DustStart   float64 `json:"dustStart"`
-	DustRun     float64 `json:"dustRun"`
-	Fire75      float64 `json:"fire75"`
-	Fire50      float64 `json:"fire50"`
-	Fire25      float64 `json:"fire25"`
-	FireOff     float64 `json:"fireOff"`
-	DustLoss    float64 `json:"dustLoss"`
+	LandSeconds     float64 `json:"landSeconds"`
+	DustStart       float64 `json:"dustStart"`
+	DustRun         float64 `json:"dustRun"`
+	Fire75          float64 `json:"fire75"`
+	Fire50          float64 `json:"fire50"`
+	Fire25          float64 `json:"fire25"`
+	FireOff         float64 `json:"fireOff"`
+	DustLoss        float64 `json:"dustLoss"`
+	Code1At         float64 `json:"code1At"`
+	Code1Hold       float64 `json:"code1Hold"`
+	Code2At         float64 `json:"code2At"`
+	Code2Hold       float64 `json:"code2Hold"`
+	LandCaptionAt   float64 `json:"landCaptionAt"`
+	LandCaptionHold float64 `json:"landCaptionHold"`
 }
 
-// fileJSON is the on-disk shape. Fire offsets are pointers so an
-// older file that only had land/dust keeps the stock fire times.
+// fileJSON is the on-disk shape. Fire offsets and caption times are
+// pointers so an older file that only had land/dust keeps the stock
+// fire and 1202 / 1202 / LAND times.
 type fileJSON struct {
-	LandSeconds float64  `json:"landSeconds"`
-	DustStart   float64  `json:"dustStart"`
-	DustRun     float64  `json:"dustRun"`
-	Fire75      *float64 `json:"fire75"`
-	Fire50      *float64 `json:"fire50"`
-	Fire25      *float64 `json:"fire25"`
-	FireOff     *float64 `json:"fireOff"`
-	DustLoss    *float64 `json:"dustLoss"`
+	LandSeconds     float64  `json:"landSeconds"`
+	DustStart       float64  `json:"dustStart"`
+	DustRun         float64  `json:"dustRun"`
+	Fire75          *float64 `json:"fire75"`
+	Fire50          *float64 `json:"fire50"`
+	Fire25          *float64 `json:"fire25"`
+	FireOff         *float64 `json:"fireOff"`
+	DustLoss        *float64 `json:"dustLoss"`
+	Code1At         *float64 `json:"code1At"`
+	Code1Hold       *float64 `json:"code1Hold"`
+	Code2At         *float64 `json:"code2At"`
+	Code2Hold       *float64 `json:"code2Hold"`
+	LandCaptionAt   *float64 `json:"landCaptionAt"`
+	LandCaptionHold *float64 `json:"landCaptionHold"`
 }
 
 // Knob is which timing the cursor is on.
@@ -52,6 +65,12 @@ const (
 	KnobFire50
 	KnobFire25
 	KnobFireOff
+	KnobCode1At
+	KnobCode1Hold
+	KnobCode2At
+	KnobCode2Hold
+	KnobLandCaptionAt
+	KnobLandCaptionHold
 	KnobCount
 )
 
@@ -74,6 +93,18 @@ func KnobLabel(k Knob) string {
 		return "fire 1/4"
 	case KnobFireOff:
 		return "fire off"
+	case KnobCode1At:
+		return "1202 a"
+	case KnobCode1Hold:
+		return "hold a"
+	case KnobCode2At:
+		return "1202 b"
+	case KnobCode2Hold:
+		return "hold b"
+	case KnobLandCaptionAt:
+		return "LAND at"
+	case KnobLandCaptionHold:
+		return "LAND hold"
 	default:
 		return ""
 	}
@@ -98,6 +129,18 @@ func (c Config) Value(k Knob) float64 {
 		return c.Fire25
 	case KnobFireOff:
 		return c.FireOff
+	case KnobCode1At:
+		return c.Code1At
+	case KnobCode1Hold:
+		return c.Code1Hold
+	case KnobCode2At:
+		return c.Code2At
+	case KnobCode2Hold:
+		return c.Code2Hold
+	case KnobLandCaptionAt:
+		return c.LandCaptionAt
+	case KnobLandCaptionHold:
+		return c.LandCaptionHold
 	default:
 		return 0
 	}
@@ -122,6 +165,7 @@ var (
 	errDustRun   = errors.New("landing: dust run must not be negative")
 	errFire      = errors.New("landing: fire stage offsets must not be negative")
 	errDustLoss  = errors.New("landing: particle loss must not be negative")
+	errCaption   = errors.New("landing: caption offsets and holds must not be negative")
 
 	activeMu sync.Mutex
 	active   = DefaultConfig()
@@ -130,14 +174,20 @@ var (
 // DefaultConfig is the portable landing's stock timing.
 func DefaultConfig() Config {
 	return Config{
-		LandSeconds: LandSeconds,
-		DustStart:   DustStart,
-		DustRun:     DustRun,
-		Fire75:      Fire75,
-		Fire50:      Fire50,
-		Fire25:      Fire25,
-		FireOff:     FireOff,
-		DustLoss:    DustLoss,
+		LandSeconds:     LandSeconds,
+		DustStart:       DustStart,
+		DustRun:         DustRun,
+		Fire75:          Fire75,
+		Fire50:          Fire50,
+		Fire25:          Fire25,
+		FireOff:         FireOff,
+		DustLoss:        DustLoss,
+		Code1At:         Code1At,
+		Code1Hold:       Code1Hold,
+		Code2At:         Code2At,
+		Code2Hold:       Code2Hold,
+		LandCaptionAt:   LandCaptionAt,
+		LandCaptionHold: LandCaptionHold,
 	}
 }
 
@@ -187,6 +237,11 @@ func (c Config) Validate() error {
 	if c.DustLoss < 0 || math.IsNaN(c.DustLoss) || math.IsInf(c.DustLoss, 0) {
 		return errDustLoss
 	}
+	for _, v := range []float64{c.Code1At, c.Code1Hold, c.Code2At, c.Code2Hold, c.LandCaptionAt, c.LandCaptionHold} {
+		if v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+			return errCaption
+		}
+	}
 	return nil
 }
 
@@ -201,14 +256,20 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("landing: %s: %w", path, err)
 	}
 	c := Config{
-		LandSeconds: f.LandSeconds,
-		DustStart:   f.DustStart,
-		DustRun:     f.DustRun,
-		Fire75:      Fire75,
-		Fire50:      Fire50,
-		Fire25:      Fire25,
-		FireOff:     FireOff,
-		DustLoss:    DustLoss,
+		LandSeconds:     f.LandSeconds,
+		DustStart:       f.DustStart,
+		DustRun:         f.DustRun,
+		Fire75:          Fire75,
+		Fire50:          Fire50,
+		Fire25:          Fire25,
+		FireOff:         FireOff,
+		DustLoss:        DustLoss,
+		Code1At:         Code1At,
+		Code1Hold:       Code1Hold,
+		Code2At:         Code2At,
+		Code2Hold:       Code2Hold,
+		LandCaptionAt:   LandCaptionAt,
+		LandCaptionHold: LandCaptionHold,
 	}
 	if f.Fire75 != nil {
 		c.Fire75 = *f.Fire75
@@ -224,6 +285,24 @@ func Load(path string) (Config, error) {
 	}
 	if f.DustLoss != nil {
 		c.DustLoss = *f.DustLoss
+	}
+	if f.Code1At != nil {
+		c.Code1At = *f.Code1At
+	}
+	if f.Code1Hold != nil {
+		c.Code1Hold = *f.Code1Hold
+	}
+	if f.Code2At != nil {
+		c.Code2At = *f.Code2At
+	}
+	if f.Code2Hold != nil {
+		c.Code2Hold = *f.Code2Hold
+	}
+	if f.LandCaptionAt != nil {
+		c.LandCaptionAt = *f.LandCaptionAt
+	}
+	if f.LandCaptionHold != nil {
+		c.LandCaptionHold = *f.LandCaptionHold
 	}
 	if err := c.Validate(); err != nil {
 		return Config{}, err
@@ -259,10 +338,18 @@ func (c Config) Save(path string) error {
 		"  \"fire50\": %.3f,\n"+
 		"  \"fire25\": %.3f,\n"+
 		"  \"fireOff\": %.3f,\n"+
-		"  \"dustLoss\": %.3f\n"+
+		"  \"dustLoss\": %.3f,\n"+
+		"  \"code1At\": %.3f,\n"+
+		"  \"code1Hold\": %.3f,\n"+
+		"  \"code2At\": %.3f,\n"+
+		"  \"code2Hold\": %.3f,\n"+
+		"  \"landCaptionAt\": %.3f,\n"+
+		"  \"landCaptionHold\": %.3f\n"+
 		"}\n",
 		c.LandSeconds, c.DustStart, c.DustRun,
-		c.Fire75, c.Fire50, c.Fire25, c.FireOff, c.DustLoss))
+		c.Fire75, c.Fire50, c.Fire25, c.FireOff, c.DustLoss,
+		c.Code1At, c.Code1Hold, c.Code2At, c.Code2Hold,
+		c.LandCaptionAt, c.LandCaptionHold))
 	return os.WriteFile(path, raw, 0o644)
 }
 
@@ -285,6 +372,12 @@ func (c Config) snapped() Config {
 	c.Fire25 = snap(c.Fire25)
 	c.FireOff = snap(c.FireOff)
 	c.DustLoss = snapLoss(c.DustLoss)
+	c.Code1At = snap(c.Code1At)
+	c.Code1Hold = snap(c.Code1Hold)
+	c.Code2At = snap(c.Code2At)
+	c.Code2Hold = snap(c.Code2Hold)
+	c.LandCaptionAt = snap(c.LandCaptionAt)
+	c.LandCaptionHold = snap(c.LandCaptionHold)
 	if c.LandSeconds < StepSeconds {
 		c.LandSeconds = StepSeconds
 	}
@@ -309,6 +402,24 @@ func (c Config) snapped() Config {
 	if c.DustLoss < 0 {
 		c.DustLoss = 0
 	}
+	if c.Code1At < 0 {
+		c.Code1At = 0
+	}
+	if c.Code1Hold < 0 {
+		c.Code1Hold = 0
+	}
+	if c.Code2At < 0 {
+		c.Code2At = 0
+	}
+	if c.Code2Hold < 0 {
+		c.Code2Hold = 0
+	}
+	if c.LandCaptionAt < 0 {
+		c.LandCaptionAt = 0
+	}
+	if c.LandCaptionHold < 0 {
+		c.LandCaptionHold = 0
+	}
 	return c
 }
 
@@ -330,6 +441,18 @@ func (c *Config) set(k Knob, v float64) {
 		c.Fire25 = v
 	case KnobFireOff:
 		c.FireOff = v
+	case KnobCode1At:
+		c.Code1At = v
+	case KnobCode1Hold:
+		c.Code1Hold = v
+	case KnobCode2At:
+		c.Code2At = v
+	case KnobCode2Hold:
+		c.Code2Hold = v
+	case KnobLandCaptionAt:
+		c.LandCaptionAt = v
+	case KnobLandCaptionHold:
+		c.LandCaptionHold = v
 	}
 }
 

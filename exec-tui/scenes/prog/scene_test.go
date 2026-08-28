@@ -175,7 +175,7 @@ func TestProgScene(t *testing.T) {
 		if hasBanner(paint(sc), "1202") {
 			t.Fatal("a zero first hold must skip the first 1202")
 		}
-		tick(sc, 0.2)
+		tick(sc, 0.3)
 		if !hasBanner(paint(sc), "1202") {
 			t.Fatal("the second hold is still a 1202")
 		}

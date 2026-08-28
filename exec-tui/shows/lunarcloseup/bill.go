@@ -21,8 +21,8 @@
 //
 // One stars.Continuity seeds every scene's sky, so a cut never jumps
 // or skips a single star: each new starfield opens on the exact frame
-// the last one left on screen, and the landing's still sky freezes
-// right there.
+// the last one left on screen, and the landing's twinkling sky keeps
+// breathing from there.
 //
 // The bill is the composable unit: append it to other shows' bills
 // and hand the lot to screenplay.Compose for the one big screenplay.
@@ -31,6 +31,7 @@ package lunarcloseup
 import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/fall"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
@@ -64,14 +65,7 @@ func Bill() screenplay.Bill {
 				}
 			},
 		}},
-		screenplay.Entry{Name: "fall", Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Component {
-				return []screenplay.Component{
-					stars.NewTunedStarfield().Seed(sky),
-					lander.NewShip(11).North().Drop(lander.DropSeconds),
-				}
-			},
-		}},
+		screenplay.Entry{Name: "fall", Scene: fall.New(sky)},
 		screenplay.Entry{Name: "landing", Scene: landing.New(sky)},
 	}
 }

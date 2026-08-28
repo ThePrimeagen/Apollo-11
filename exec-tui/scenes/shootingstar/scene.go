@@ -77,6 +77,8 @@ type Flyer struct {
 	uw    float64
 	uh    float64
 	w, h  int
+	once  bool
+	done  bool
 }
 
 func newFlyer(s *Show) *Flyer {
@@ -104,27 +106,41 @@ func (f *Flyer) Start(w, h int) {
 	f.star = bigstar.New(seed)
 	f.star.Size = size
 	f.star.RandomSize = f.show.Cfg.RandomSize
-	f.trail = startrail.New(seed)
+	if !f.once {
+		f.trail = startrail.New(seed)
+	}
 	if !f.show.closedLoop() {
-		f.show.cross = RandomCrossing(seed, f.uw, f.uh)
+		if f.once {
+			f.show.cross = DiagonalCrossing(f.uw, f.uh)
+		} else {
+			f.show.cross = RandomCrossing(seed, f.uw, f.uh)
+		}
 		f.lap = f.show.cross.length()
 		if f.lap < 1 {
 			f.lap = 1
 		}
 	}
 	f.clock = 0
+	f.done = false
 	pos, head := f.at(0)
-	f.star.Heading = head
+	if !f.once {
+		f.star.Heading = head
+	}
 	f.star.Place(cellOf(pos))
-	f.trail.Follow(pos, head)
 	f.star.Start(w, h)
-	f.trail.Start(w, h)
+	if f.trail != nil {
+		f.trail.Follow(pos, head)
+		f.trail.Start(w, h)
+	}
 	// Place again after Start so a parked default center cannot win
 	f.star.Place(cellOf(pos))
 }
 
 func (f *Flyer) Update(dt float64) {
 	if f == nil || dt <= 0 || f.show == nil {
+		return
+	}
+	if f.done {
 		return
 	}
 	_ = startrail.Use(f.show.Cfg.Trail())
@@ -135,6 +151,10 @@ func (f *Flyer) Update(dt float64) {
 			speed = 1
 		}
 		if f.clock*speed >= f.lap {
+			if f.once {
+				f.done = true
+				return
+			}
 			f.clock = 0
 			f.show.Seed++
 			f.show.cross = RandomCrossing(f.show.Seed, f.uw, f.uh)
@@ -155,7 +175,9 @@ func (f *Flyer) Update(dt float64) {
 			f.star.Size = f.show.Cfg.Size
 			f.star.RandomSize = false
 		}
-		f.star.Heading = head
+		if !f.once {
+			f.star.Heading = head
+		}
 		f.star.Place(cellOf(pos))
 		f.star.Update(dt)
 	}
@@ -215,8 +237,19 @@ func (f *Flyer) previewAt(clock float64) (pos, heading particle.Vec2) {
 	}
 }
 
+// NewMeteor is one shooting star from the top left to the bottom
+// right, once: it does not loop, and after it leaves the stage it
+// stays gone. Bare flyer — no sky — so a landing can paint it
+// behind the moon and under the lander.
+func NewMeteor() *Flyer {
+	cfg := DefaultConfig()
+	cfg.Size = 1
+	s := &Show{Cfg: cfg, Seed: 11}
+	return &Flyer{show: s, once: true}
+}
+
 func (f *Flyer) Render() sprite.Sprite {
-	if f == nil || f.w < 1 || f.h < 1 {
+	if f == nil || f.w < 1 || f.h < 1 || f.done {
 		return sprite.Sprite{}
 	}
 	stage := sprite.New(f.w, f.h)
