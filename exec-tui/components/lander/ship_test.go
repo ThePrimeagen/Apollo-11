@@ -1283,74 +1283,99 @@ func TestLiftIgnite(t *testing.T) {
 	})
 }
 
-// tailFire counts plume glyphs right of a parked west hull.
-func tailFire(s *Ship) int {
-	stage := s.Render()
-	_, col := FlightPath(screenW, screenH, s.Clock())
-	n := 0
+// hullTopRow is the first stage row holding an opaque cell, or -1 on
+// an empty stage.
+func hullTopRow(stage sprite.Sprite) int {
 	for r := 0; r < stage.Height; r++ {
-		for c := col + BodyCols; c < stage.Width; c++ {
-			if flameGlyph(stage.At(r, c).Ch) {
-				n++
+		for c := 0; c < stage.Width; c++ {
+			if !stage.At(r, c).Transparent() {
+				return r
 			}
 		}
 	}
-	return n
+	return -1
 }
 
-func TestFireFor(t *testing.T) {
-	t.Run("happy: the parked tail fire burns for the given seconds, then cuts to nothing", func(t *testing.T) {
-		s := NewShip(60).Parked().FireFor(2.0)
-		s.Start(screenW, screenH)
-		if s.Flame == nil {
-			t.Fatal("a FireFor ship must open lit")
+func TestParkBob(t *testing.T) {
+	t.Run("happy: the bobble is a sine of the asked period and amplitude", func(t *testing.T) {
+		if got := ParkBob(0, 8, 3); got != 0 {
+			t.Fatalf("at the park the bobble is %d, want level", got)
 		}
-		warmShip(s, 1.5)
-		if s.Flame == nil {
-			t.Fatal("mid-burn the fire must still be armed")
+		if got := ParkBob(2, 8, 3); got != 3 {
+			t.Fatalf("a quarter period in the bobble rides %d, want the +3 crest", got)
 		}
-		if tailFire(s) == 0 {
-			t.Fatal("mid-burn the plume must trail the tail")
+		if got := ParkBob(4, 8, 3); got != 0 {
+			t.Fatalf("half a period in the bobble is %d, want level", got)
 		}
-		warmShip(s, 0.6)
-		if s.Flame != nil {
-			t.Fatal("past the deadline the fire must be dropped for the collector")
+		if got := ParkBob(6, 8, 3); got != -3 {
+			t.Fatalf("three quarters in the bobble dips %d, want the -3 trough", got)
 		}
-		if tailFire(s) != 0 {
-			t.Fatal("past the deadline no plume may paint")
+		if got := ParkBob(2.5, BobPeriodSeconds, BobAmplitudeCells); got != 1 {
+			t.Fatal("the stock knobs must still ride the stock one-cell crest")
 		}
 	})
-	t.Run("happy: a restart past the deadline opens dark — no one-frame flash", func(t *testing.T) {
-		s := NewShip(61).Parked().FireFor(1.0)
-		s.Start(screenW, screenH)
-		warmShip(s, 1.5)
-		s.Stop()
-		s.Start(screenW, screenH)
-		if s.Flame != nil {
-			t.Fatal("a restage after the deadline must respect the cut")
-		}
-		if tailFire(s) != 0 {
-			t.Fatal("a restage after the deadline must render no fire")
+	t.Run("happy: FlightPath still speaks the stock bobble", func(t *testing.T) {
+		row, _ := FlightPath(screenW, screenH, FlyInSeconds+2.5)
+		if row != centerRow-1 {
+			t.Fatalf("the stock crest sits at %d, want %d", row, centerRow-1)
 		}
 	})
-	t.Run("unhappy: FireFor on nil stays nil, a zero burn never lights, and a dark ship stays dark", func(t *testing.T) {
+	t.Run("unhappy: no period or no amplitude holds level, and time before the park holds level", func(t *testing.T) {
+		if got := ParkBob(3, 0, 2); got != 0 {
+			t.Fatalf("period 0 must hold level, got %d", got)
+		}
+		if got := ParkBob(3, -1, 2); got != 0 {
+			t.Fatalf("a negative period must hold level, got %d", got)
+		}
+		if got := ParkBob(3, 8, 0); got != 0 {
+			t.Fatalf("amplitude 0 must hold level, got %d", got)
+		}
+		if got := ParkBob(-2, 8, 3); got != 0 {
+			t.Fatalf("time before the park must hold level, got %d", got)
+		}
+	})
+}
+
+func TestBobShip(t *testing.T) {
+	t.Run("happy: Bob retunes the parked ride — period and amplitude both obeyed", func(t *testing.T) {
+		s := NewShip(60).Dark().Parked().Bob(4, 3)
+		s.Start(screenW, screenH)
+		base := hullTopRow(s.Render())
+		if base < 0 {
+			t.Fatal("a parked ship must open on stage")
+		}
+		warmShip(s, 1.0)
+		crest := hullTopRow(s.Render())
+		if crest != base-3 {
+			t.Fatalf("a quarter of a 4s period in, the hull rides at %d, want three cells up at %d", crest, base-3)
+		}
+		warmShip(s, 2.0)
+		trough := hullTopRow(s.Render())
+		if trough != base+3 {
+			t.Fatalf("three quarters in, the hull dips to %d, want three cells down at %d", trough, base+3)
+		}
+		warmShip(s, 1.0)
+		if got := hullTopRow(s.Render()); got != base {
+			t.Fatalf("a full period brings the hull home to %d, got %d", base, got)
+		}
+	})
+	t.Run("unhappy: Bob on nil stays nil, zero amplitude holds the park, and the stock ride is untouched", func(t *testing.T) {
 		var ghost *Ship
-		if ghost.FireFor(2.0) != nil {
-			t.Fatal("FireFor must return the nil receiver")
+		if ghost.Bob(4, 3) != nil {
+			t.Fatal("Bob must return the nil receiver")
 		}
-		z := NewShip(62).Parked().FireFor(0)
-		z.Start(screenW, screenH)
-		if z.Flame != nil {
-			t.Fatal("a zero burn must never light")
+		still := NewShip(61).Dark().Parked().Bob(4, 0)
+		still.Start(screenW, screenH)
+		base := hullTopRow(still.Render())
+		warmShip(still, 1.0)
+		if got := hullTopRow(still.Render()); got != base {
+			t.Fatalf("amplitude 0 must hold the park, row %d -> %d", base, got)
 		}
-		d := NewShip(63).Dark().Parked().FireFor(5)
-		d.Start(screenW, screenH)
-		if d.Flame != nil {
-			t.Fatal("Dark wins: FireFor must not arm a cold ship")
-		}
-		warmShip(d, 1.0)
-		if d.Flame != nil {
-			t.Fatal("a dark ship stays dark through the burn window")
+		stock := NewShip(62).Dark().Parked()
+		stock.Start(screenW, screenH)
+		warmShip(stock, 2.5)
+		if got := hullTopRow(stock.Render()); got != centerRow-1 {
+			t.Fatalf("an untuned park must keep the stock one-cell crest, row %d want %d", got, centerRow-1)
 		}
 	})
 }

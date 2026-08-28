@@ -407,8 +407,8 @@ func TestCatalog(t *testing.T) {
 	t.Run("happy: the catalog runs screenplays, scenes, config, particles, legacy", func(t *testing.T) {
 		c := Catalog()
 		want := []string{
-			"screenplay", "moon", "closeup",
-			"viewer", "landing", "america", "moonwalk", "skies", "liftoff",
+			"screenplay", "moon", "closeup", "inverse",
+			"viewer", "landing", "america", "moonwalk", "skies", "liftoff", "bobble",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config",
 			"legacy", "timeline",
@@ -428,12 +428,14 @@ func TestCatalog(t *testing.T) {
 			"screenplay":     "Screenplays",
 			"moon":           "Screenplays",
 			"closeup":        "Screenplays",
+			"inverse":        "Screenplays",
 			"viewer":         "Scenes",
 			"landing":        "Scenes",
 			"america":        "Scenes",
 			"moonwalk":       "Scenes",
 			"skies":          "Scenes",
 			"liftoff":        "Scenes",
+			"bobble":         "Scenes",
 			"flame":          "CONFIG",
 			"stars-config":   "CONFIG",
 			"sky-config":     "CONFIG",

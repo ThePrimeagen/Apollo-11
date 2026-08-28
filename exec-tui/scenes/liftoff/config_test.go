@@ -1,13 +1,12 @@
 package liftoff
 
-// Tests written FIRST: Config is the ten live knobs of the inverse
-// walkthrough — how long the climb takes (rise), when the craft leaves
-// the pad (lift at), the four ignition offsets from t=0 (¼, ½, ¾,
-// full), how long the tail fire holds after the sideways reveal before
-// cutting (fire off), and the pad dust window (start, run, loss). Time
-// knobs walk 50ms at a time, dust loss 0.005/ms. Save/Load round-trip
-// the JSON next to the scene; Use is what New plays on the first
-// curtain; a file missing keys keeps the stock values for them.
+// Tests written FIRST: Config is the nine live knobs of the liftoff
+// scene — how long the climb takes (rise), when the craft leaves the
+// pad (lift at), the four ignition offsets from t=0 (¼, ½, ¾, full),
+// and the pad dust window (start, run, loss). Time knobs walk 50ms at
+// a time, dust loss 0.005/ms. Save/Load round-trip the JSON next to
+// the scene; Use is what New plays on the first curtain; a file
+// missing keys keeps the stock values for them.
 
 import (
 	"math"
@@ -28,9 +27,6 @@ func TestConfig(t *testing.T) {
 		if c.Fire25 != Fire25 || c.Fire50 != Fire50 || c.Fire75 != Fire75 || c.FireFull != FireFull {
 			t.Fatalf("ignition offsets %+v, want ¼=%v ½=%v ¾=%v full=%v", c, Fire25, Fire50, Fire75, FireFull)
 		}
-		if c.FireOff != FireOff {
-			t.Fatalf("fire off %v, want %v", c.FireOff, FireOff)
-		}
 		if c.DustStart != DustStart || c.DustRun != DustRun || c.DustLoss != DustLoss {
 			t.Fatalf("dust %+v, want start=%v run=%v loss=%v", c, DustStart, DustRun, DustLoss)
 		}
@@ -40,11 +36,8 @@ func TestConfig(t *testing.T) {
 		if StepLoss != 0.005 {
 			t.Fatalf("loss step %v, want 0.005/ms", StepLoss)
 		}
-		if KnobCount != 10 {
-			t.Fatalf("KnobCount %d, want 10 (rise, lift at, four ignition stages, fire off, three dust knobs)", KnobCount)
-		}
-		if got := c.CutSeconds(); math.Abs(got-(c.LiftAt+c.RiseSeconds)) > 1e-9 {
-			t.Fatalf("the cut lands at %v, want lift-at + rise = %v", got, c.LiftAt+c.RiseSeconds)
+		if KnobCount != 9 {
+			t.Fatalf("KnobCount %d, want 9 (rise, lift at, four ignition stages, three dust knobs)", KnobCount)
 		}
 	})
 	t.Run("happy: the stock ignition is an ordered ramp that ends at liftoff", func(t *testing.T) {
@@ -54,9 +47,6 @@ func TestConfig(t *testing.T) {
 		}
 		if c.FireFull > c.LiftAt {
 			t.Fatalf("stock full power at %v must not come after liftoff at %v", c.FireFull, c.LiftAt)
-		}
-		if c.CutSeconds() <= c.LiftAt {
-			t.Fatal("the cut must come after liftoff — the climb needs its seconds")
 		}
 	})
 	t.Run("happy: every knob has its own label", func(t *testing.T) {
@@ -92,10 +82,6 @@ func TestConfig(t *testing.T) {
 		c.Nudge(KnobFireFull, -1)
 		if got := c.FireFull; math.Abs(got-(FireFull-StepSeconds)) > 1e-9 {
 			t.Fatalf("fire full after -50ms is %v, want %v", got, FireFull-StepSeconds)
-		}
-		c.Nudge(KnobFireOff, 1)
-		if got := c.FireOff; math.Abs(got-(FireOff+StepSeconds)) > 1e-9 {
-			t.Fatalf("fire off after +50ms is %v, want %v", got, FireOff+StepSeconds)
 		}
 		c.Nudge(KnobDustStart, -1)
 		if got := c.DustStart; math.Abs(got-(DustStart-StepSeconds)) > 1e-9 {
@@ -134,11 +120,6 @@ func TestConfig(t *testing.T) {
 		if c.Fire25 != 0 {
 			t.Fatalf("fire ¼ %v, want 0 — ignition may kick at t=0", c.Fire25)
 		}
-		c.FireOff = 0
-		c.Nudge(KnobFireOff, -1)
-		if c.FireOff != 0 {
-			t.Fatalf("fire off %v, want 0 — the reveal may open already dark", c.FireOff)
-		}
 		c.DustStart = 0
 		c.Nudge(KnobDustStart, -1)
 		if c.DustStart != 0 {
@@ -161,7 +142,7 @@ func TestConfig(t *testing.T) {
 			t.Fatalf("a bad cursor must not change the knobs, got %+v", c)
 		}
 	})
-	t.Run("happy: Save then Load round-trips the ten knobs", func(t *testing.T) {
+	t.Run("happy: Save then Load round-trips the nine knobs", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "liftoff.json")
 		c := DefaultConfig()
 		c.RiseSeconds = 4.25
@@ -170,7 +151,6 @@ func TestConfig(t *testing.T) {
 		c.Fire50 = 0.45
 		c.Fire75 = 0.7
 		c.FireFull = 0.95
-		c.FireOff = 2.5
 		c.DustStart = 0.5
 		c.DustRun = 1.5
 		c.DustLoss = 0.075
@@ -199,7 +179,7 @@ func TestConfig(t *testing.T) {
 		if got.RiseSeconds != 4.0 || got.LiftAt != 2.0 {
 			t.Fatalf("present keys must load, got %+v", got)
 		}
-		if got.Fire25 != Fire25 || got.FireFull != FireFull || got.FireOff != FireOff {
+		if got.Fire25 != Fire25 || got.FireFull != FireFull {
 			t.Fatalf("missing fire keys loaded %+v, want the stock ignition", got)
 		}
 		if got.DustStart != DustStart || got.DustRun != DustRun || got.DustLoss != DustLoss {
@@ -252,11 +232,6 @@ func TestConfig(t *testing.T) {
 		negFire.Fire50 = -0.1
 		if err := negFire.Save(filepath.Join(t.TempDir(), "x.json")); err == nil {
 			t.Fatal("Save must refuse a negative ignition offset")
-		}
-		negOff := DefaultConfig()
-		negOff.FireOff = -0.1
-		if err := negOff.Save(filepath.Join(t.TempDir(), "y.json")); err == nil {
-			t.Fatal("Save must refuse a negative fire-off hold")
 		}
 		negLoss := DefaultConfig()
 		negLoss.DustLoss = -0.1

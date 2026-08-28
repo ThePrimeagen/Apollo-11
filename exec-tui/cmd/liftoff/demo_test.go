@@ -1,12 +1,11 @@
 package main
 
-// Demo harness tests, written first: cmd/liftoff runs 03. Inverse
-// Walkthrough from scenes/liftoff — the walkthrough played backwards.
+// Demo harness tests, written first: cmd/liftoff runs the portable
+// liftoff scene from scenes/liftoff — the landing played backwards.
 // The house opens on the landing's final frame: the north lander
-// parked on the moon floor, engine cold. The booster ignites, the
-// craft climbs off the top, the scene cuts to the tilted-sideways
-// west craft with its tail fire on, the fire cuts, and the craft
-// bobbles for the rest of the scene. p / enter / space replay from
+// parked on the moon floor, engine cold. The booster ignites (¼, ½,
+// ¾, full), pad dust blows both ways, the craft climbs off the top,
+// and the scene holds the empty moon. p / enter / space replay from
 // the top with the current knobs. j/k select a knob, h/l walk it
 // 50ms (dust loss 0.005/ms). s saves. q and ctrl+c quit. The view is
 // the rendered screen plus the knob panel, always exactly
@@ -47,8 +46,9 @@ func hasFire(v string) bool {
 	return strings.ContainsAny(v, "⠁⠒⠶")
 }
 
-func cutFrames() int {
-	return int(liftoff.DefaultConfig().CutSeconds()*30) + 3
+func goneFrames() int {
+	c := liftoff.DefaultConfig()
+	return int((c.LiftAt+c.RiseSeconds)*30) + 3
 }
 
 func TestLiftoffSceneRunner(t *testing.T) {
@@ -56,7 +56,7 @@ func TestLiftoffSceneRunner(t *testing.T) {
 	t.Run("happy: the house opens on the pad — moon floor, north hull parked, engine cold", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
-		for _, want := range []string{"inverse walkthrough", "play", "50ms", "save", "quit", "rise", "lift at", "fire full", "fire off", "dust start", "dust loss"} {
+		for _, want := range []string{"liftoff", "play", "50ms", "save", "quit", "rise", "lift at", "fire full", "dust start", "dust loss"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
@@ -66,9 +66,6 @@ func TestLiftoffSceneRunner(t *testing.T) {
 		}
 		if !strings.ContainsRune(v, '▟') {
 			t.Fatal("at t=0 the north hull must already sit on the pad")
-		}
-		if strings.ContainsRune(v, '▌') {
-			t.Fatal("at t=0 the tilted-sideways hull is still a scene away")
 		}
 		if hasFire(v) {
 			t.Fatal("at t=0 the booster must be cold")
@@ -89,11 +86,11 @@ func TestLiftoffSceneRunner(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, 10)
-		if !strings.ContainsRune(m.View().Content, '▌') {
-			t.Fatal("the opening play must already use the saved knobs — a 0.2s climb has cut by now")
+		if strings.ContainsRune(m.View().Content, '▟') {
+			t.Fatal("the opening play must already use the saved knobs — a 0.2s climb is long gone")
 		}
 	})
-	t.Run("happy: ignition burns on the pad, the cut reveals the sideways craft, then the fire goes out", func(t *testing.T) {
+	t.Run("happy: ignition burns on the pad, the craft climbs off the top, and the moon holds", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, int(1.9*30))
@@ -104,29 +101,25 @@ func TestLiftoffSceneRunner(t *testing.T) {
 		if !hasFire(burning) {
 			t.Fatal("past full power the booster must be lit")
 		}
-		if strings.ContainsRune(burning, '▌') {
-			t.Fatal("the cut must not play before the climb is over")
+		m = frames(m, goneFrames()-int(1.9*30))
+		held := m.View().Content
+		if strings.ContainsRune(held, '▟') {
+			t.Fatal("past lift-at plus rise the hull must have cleared the top")
 		}
-		m = frames(m, cutFrames()-int(1.9*30))
-		revealed := m.View().Content
-		if !strings.ContainsRune(revealed, '▌') {
-			t.Fatal("past the cut the tilted-sideways hull must be parked on stage")
+		if !strings.Contains(held, "48;5;") {
+			t.Fatal("the empty moon must hold after the craft is gone")
 		}
-		m = frames(m, int((liftoff.FireOff+0.4)*30))
-		doused := m.View().Content
-		if hasFire(doused) {
-			t.Fatal("FireOff seconds after the reveal the tail fire must be out")
-		}
-		if !strings.ContainsRune(doused, '▌') {
-			t.Fatal("the doused craft holds the park for the rest of the scene")
+		m = frames(m, 60)
+		if strings.ContainsRune(m.View().Content, '▌') {
+			t.Fatal("the sideways craft never plays the liftoff scene")
 		}
 	})
 	t.Run("happy: p, enter, and space replay from the pad and do not quit", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
-		m = frames(m, cutFrames())
-		if !strings.ContainsRune(m.View().Content, '▌') {
-			t.Fatal("test premise: the cut must have played")
+		m = frames(m, goneFrames())
+		if strings.ContainsRune(m.View().Content, '▟') {
+			t.Fatal("test premise: the craft must be gone")
 		}
 		for _, msg := range []tea.Msg{runeKey('p'), enter(), space()} {
 			mm, cmd := m.Update(msg)
@@ -134,15 +127,11 @@ func TestLiftoffSceneRunner(t *testing.T) {
 				t.Fatalf("%v must replay, not quit", msg)
 			}
 			m = mm.(model)
-			v := m.View().Content
-			if strings.ContainsRune(v, '▌') {
-				t.Fatalf("%v must rewind the cut away", msg)
-			}
-			if !strings.ContainsRune(v, '▟') {
+			if !strings.ContainsRune(m.View().Content, '▟') {
 				t.Fatalf("%v must rewind the craft onto the pad", msg)
 			}
-			m = frames(m, cutFrames())
-			if !strings.ContainsRune(m.View().Content, '▌') {
+			m = frames(m, goneFrames())
+			if strings.ContainsRune(m.View().Content, '▟') {
 				t.Fatalf("after %v the next play must still lift off", msg)
 			}
 		}
@@ -186,10 +175,8 @@ func TestLiftoffSceneRunner(t *testing.T) {
 		m.show.Cfg.RiseSeconds = liftoff.StepSeconds
 		m.show.Cfg.LiftAt = 0
 		m.show.Cfg.DustStart = 0
-		m.show.Cfg.DustRun = 0
 		m.show.Cfg.DustLoss = 0
 		m.show.Cfg.Fire25 = 0
-		m.show.Cfg.FireOff = 0
 		m.cursor = liftoff.KnobRise
 		m = press(m, runeKey('h'))
 		if m.show.Cfg.RiseSeconds != liftoff.StepSeconds {
@@ -214,11 +201,6 @@ func TestLiftoffSceneRunner(t *testing.T) {
 		m = press(m, runeKey('h'))
 		if m.show.Cfg.Fire25 != 0 {
 			t.Fatalf("fire ¼ %v, want 0", m.show.Cfg.Fire25)
-		}
-		m.cursor = liftoff.KnobFireOff
-		m = press(m, runeKey('h'))
-		if m.show.Cfg.FireOff != 0 {
-			t.Fatalf("fire off %v, want 0", m.show.Cfg.FireOff)
 		}
 		_, cmd := m.Update(space())
 		if cmd != nil {
@@ -272,7 +254,6 @@ func TestLiftoffSceneRunner(t *testing.T) {
 		m.show.Cfg.Fire50 = 0.45
 		m.show.Cfg.Fire75 = 0.7
 		m.show.Cfg.FireFull = 0.95
-		m.show.Cfg.FireOff = 2.5
 		m.show.Cfg.DustStart = 0.5
 		m.show.Cfg.DustRun = 1.5
 		m.show.Cfg.DustLoss = 0.075
@@ -331,17 +312,17 @@ func TestLiftoffSceneRunner(t *testing.T) {
 			}
 		}
 	})
-	t.Run("unhappy: the inverse walkthrough is not the landing runner", func(t *testing.T) {
+	t.Run("unhappy: the liftoff runner is not the landing and holds no fire-off knob", func(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
 		if strings.Contains(v, "landing") {
-			t.Fatal("the runner must announce the inverse walkthrough, not the landing")
+			t.Fatal("the runner must announce the liftoff, not the landing")
 		}
-		if strings.Contains(v, "land ") {
-			t.Fatal("the knob panel flies a liftoff — there is no land knob")
+		if strings.Contains(v, "fire off") {
+			t.Fatal("the tail fire's cut belongs to the bobble scene — the liftoff has no fire-off knob")
 		}
 		if strings.Contains(v, "VERB") {
-			t.Fatal("the DSKY does not appear in the inverse walkthrough")
+			t.Fatal("the DSKY does not appear in the liftoff scene")
 		}
 		_ = press(m, space())
 	})
