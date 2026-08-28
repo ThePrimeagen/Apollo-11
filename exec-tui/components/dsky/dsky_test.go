@@ -61,7 +61,7 @@ func TestPanelSprite(t *testing.T) {
 			t.Fatalf("panel sprite %dx%d, want %dx%d", sp.Width, sp.Height, lab.Width, lab.Height)
 		}
 		text := stageText(sp)
-		for _, want := range []string{"VERB", "NOUN", "PROG", "COMP"} {
+		for _, want := range []string{"VERB", "NOUN", "PROG", "COMP", "ENTR", "CLR"} {
 			if !strings.Contains(text, want) {
 				t.Fatalf("panel sprite is missing %q", want)
 			}

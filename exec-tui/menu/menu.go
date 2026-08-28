@@ -63,6 +63,7 @@ func Catalog() []Entry {
 		{ID: "dust-config", Section: "Particles", Title: "DUSTOFF CONFIG", Desc: "tune the landing kick-up (count, loop side, gray ladder)", Pkg: "./cmd/adjustdust/main"},
 		{ID: "gunfire-config", Section: "Particles", Title: "GUNFIRE CONFIG", Desc: "tune the Doom muzzle flame — all eight headings play at once, like flame", Pkg: "./cmd/adjustgunfire/main"},
 		{ID: "cloud-config", Section: "Particles", Title: "CLOUD CONFIG", Desc: "tune the cloud generator — pool puffs, radius, white/gray ladder", Pkg: "./cmd/adjustcloud/main"},
+		{ID: "dsky", Section: "Labs", Title: "DSKY", Desc: "the styled DSKY — gray bezel, keypad, orange typed digits; d replays the descent, 0-9/V/N/E type on the pad", Module: "dsky-lab", Pkg: "."},
 		{ID: "legacy", Section: "LEGACY TUIS", Title: "LEGACY EXEC", Desc: "the AGC Executive sim during the powered descent (in-process)"},
 		{ID: "timeline", Section: "LEGACY TUIS", Title: "TIMELINE", Desc: "one 2-second Executive cycle, step by step", Module: "timeline-tui", Pkg: "."},
 		{ID: "agctop", Section: "EXECUTIVE", Title: "COMMAND SCREEN", Desc: "live msim processes — VAC jobs, coreset jobs, no-priority ops; d/1/r switches", Pkg: "./cmd/agctop"},
