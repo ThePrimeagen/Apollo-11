@@ -24,6 +24,8 @@ components/   everything a scene puts together
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component
     descent/  the legacy descent-view renderer (used by the sim UI)
   moon/       Moon (the reusable pixelated disc) + Orbit (the craft circling it)
+  ie/         the old Internet Explorer logo: the blue e and its golden swoosh,
+              a fixed 14×7 card in half-cell pixels (EXPLORER in the viewer)
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)
