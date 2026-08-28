@@ -1,11 +1,11 @@
 // moon: the moon screenplay — the composable two-scene bill from
 // shows/moonshow. The house opens on "the moon": the bare pixelated
 // disc alone under a perfectly still tuned sky. Space cuts to
-// "orbit": the lander is already on the ring and circles the moon
-// indefinitely — no line drawn, the craft alone traces the path.
-// Space on the last scene ends the show — nothing left. The premiere
-// plays its own moon card; this is the standalone screenplay, handy
-// for tapes.
+// "orbit": the lander streaks in off the left wing, brakes onto the
+// ring, and circles the moon indefinitely — no line drawn, the craft
+// alone traces the path. Space on the last scene ends the show —
+// nothing left. The premiere plays its own moon card; this is the
+// standalone screenplay, handy for tapes.
 //
 //	space     next scene (past the last one, the show ends)
 //	q         quit
