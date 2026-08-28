@@ -179,9 +179,12 @@ func TestExplorerRunner(t *testing.T) {
 		if got := m.show.Cfg.Star.Speed; math.Abs(got-2) > 1e-9 {
 			t.Fatalf("test premise: thirteen h presses walk the stock speed to 2, got %v", got)
 		}
-		m = frames(m, 90)
+		// One second in, a star slowed to speed 2 has barely left the
+		// top-right corner — still clear of the logo. A flyer stuck on
+		// the stock speed would already be hiding behind the Big E.
+		m = frames(m, 30)
 		if !strings.Contains(m.View().Content, "★") {
-			t.Fatal("slowed to speed 2 the meteor must still be crossing three seconds in — the nudge must reach the flying star")
+			t.Fatal("slowed to speed 2 the meteor must still be near its entrance one second in — the nudge must reach the flying star")
 		}
 	})
 	t.Run("unhappy: k off the top wraps onto the last star knob", func(t *testing.T) {

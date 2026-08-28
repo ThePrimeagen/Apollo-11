@@ -2,12 +2,14 @@
 // horizon as a colored floor and the north-facing lander coming down
 // onto it — booster full, then ¾, ½, ¼, then off, each at its own
 // t=0 offset. Pad dust starts at DustStart and blows for DustRun.
+// One shooting star crosses behind the moon; the scene's own star
+// knobs tune it apart from every other scene the star appears in.
 // Play rebuilds from the current knobs; j/k select a knob, h/l walk
-// it 50ms. q quits.
+// it (time knobs 50ms, star knobs their own steps). q quits.
 //
 //	p / enter / space   play from the top
 //	j / k               select knob
-//	h / l               −50ms / +50ms
+//	h / l               tune it down / up
 //	s                   save knobs to scenes/landing/config.json
 //	q                   quit
 //
@@ -36,7 +38,7 @@ import (
 
 const (
 	defaultW   = 72
-	defaultH   = 32
+	defaultH   = 42
 	minW       = 10
 	minH       = 4
 	frameMs    = 1000.0 / 30
@@ -211,6 +213,40 @@ func (m model) View() tea.View {
 	return v
 }
 
+// knobValue paints one knob's reading: seconds for the time knobs,
+// specks per millisecond for dust loss, and the shooting-star tuner's
+// own units for the star knobs.
+func (m model) knobValue(i landing.Knob) string {
+	c := m.show.Cfg
+	switch i {
+	case landing.KnobDustLoss:
+		return fmt.Sprintf("%6.3f/ms", c.Value(i))
+	case landing.KnobStarSize:
+		return fmt.Sprintf("%6d", c.Star.Size)
+	case landing.KnobStarRandomSize:
+		if c.Star.RandomSize {
+			return "    on"
+		}
+		return "   off"
+	case landing.KnobStarSpeed:
+		return fmt.Sprintf("%6.1f", c.Star.Speed)
+	case landing.KnobStarCount:
+		return fmt.Sprintf("%6d", c.Star.Count)
+	case landing.KnobStarPeriod:
+		return fmt.Sprintf("%5.3fs", c.Star.Period)
+	case landing.KnobStarMinLife, landing.KnobStarMaxLife:
+		return fmt.Sprintf("%5.2fs", c.Value(i))
+	case landing.KnobStarNozzle:
+		return fmt.Sprintf("%6.1f", c.Star.Nozzle)
+	case landing.KnobStarPeak:
+		return fmt.Sprintf("%6.1f", c.Star.Peak)
+	case landing.KnobStarTaper:
+		return fmt.Sprintf("%6.2f", c.Star.Taper)
+	default:
+		return fmt.Sprintf("%6.3fs", c.Value(i))
+	}
+}
+
 func (m model) status(w int) []string {
 	dim := "\x1b[38;5;240m"
 	hot := "\x1b[38;5;214m"
@@ -225,11 +261,7 @@ func (m model) status(w int) []string {
 		if i == m.cursor {
 			marker, color = "> ", hot
 		}
-		unit := "s"
-		if i == landing.KnobDustLoss {
-			unit = "/ms"
-		}
-		rows = append(rows, color+pad(fmt.Sprintf("%s%-11s %6.3f%s", marker, landing.KnobLabel(i), m.show.Cfg.Value(i), unit), w)+reset)
+		rows = append(rows, color+pad(fmt.Sprintf("%s%-16s %s", marker, landing.KnobLabel(i), m.knobValue(i)), w)+reset)
 	}
 	return rows
 }
