@@ -27,6 +27,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustparticle"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/ie"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
@@ -96,6 +97,7 @@ func TestCatalog(t *testing.T) {
 			"eagle":      KindComponent,
 			"armed":      KindComponent,
 			"moon":       KindComponent,
+			"ie":         KindComponent,
 			"dsky":       KindComponent,
 			"coreset":    KindComponent,
 			"coresets":   KindComponent,
@@ -471,6 +473,67 @@ func TestEdit(t *testing.T) {
 		}
 		if m.Index() != 0 {
 			t.Fatalf("empty catalog cursor moved to %d", m.Index())
+		}
+	})
+}
+
+// Tests written FIRST: the EXPLORER item is the ie component — the
+// old Internet Explorer logo, the fixed 14×7 card of the bold blue e
+// wearing its golden swoosh — listed as a component, staged centered,
+// and edited like any other code-drawn card: e opens the assets
+// editor, never a tuner.
+
+func TestExplorerItem(t *testing.T) {
+	t.Run("happy: the catalog lists EXPLORER and stages the blue e under the golden swoosh", func(t *testing.T) {
+		idx := findItem(t, KindComponent, "ie")
+		it := Catalog()[idx]
+		if it.Title != "EXPLORER" {
+			t.Fatalf("the item's banner is %q, want EXPLORER", it.Title)
+		}
+		comp := it.spawn()
+		if _, ok := comp.(*ie.Logo); !ok {
+			t.Fatalf("the ie item must stage the logo component, got %T", comp)
+		}
+		comp.Start(80, 19)
+		sp := comp.Render()
+		if sp.Width != 80 || sp.Height != 19 {
+			t.Fatalf("the preview rendered %dx%d, want the 80x19 stage", sp.Width, sp.Height)
+		}
+		blue, gold := false, false
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				cell := sp.At(r, c)
+				if cell.FG == ie.BlueInk || cell.BG == ie.BlueInk {
+					blue = true
+				}
+				if cell.FG == ie.GoldInk || cell.BG == ie.GoldInk {
+					gold = true
+				}
+			}
+		}
+		if !blue || !gold {
+			t.Fatalf("the preview must wear the blue e and the golden swoosh, blue %v gold %v", blue, gold)
+		}
+	})
+	t.Run("unhappy: e on the logo opens the assets editor, never a tuner", func(t *testing.T) {
+		m := sized(New(findItem(t, KindComponent, "ie")), 80, 24)
+		mm, cmd := m.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
+		m = mm.(Model)
+		ed, ok := m.ChosenEdit()
+		if !ok {
+			t.Fatal("e must choose an edit")
+		}
+		if ed.Kind != KindComponent {
+			t.Fatalf("edit kind %s, want component", ed.Kind)
+		}
+		if ed.Path != editor.DefaultAssetsDir {
+			t.Fatalf("edit path %q, want the assets folder %q", ed.Path, editor.DefaultAssetsDir)
+		}
+		if ed.Program != "" {
+			t.Fatalf("a code-drawn card must not launch a tuner, got %q", ed.Program)
+		}
+		if cmd == nil {
+			t.Fatal("e must quit so the editor can take the terminal")
 		}
 	})
 }
