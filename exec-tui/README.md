@@ -21,6 +21,9 @@ components/   everything a scene puts together
   sky/        the moveable blue gradient — owns its config.json
   cloud/      the pool-particle cloud generator — owns its config.json
   stars/      the four-layer starfield — owns its config.json
+  bigstar/    the larger multi-cell star (size 1..5)
+  startrail/  persist-particle comet wake — owns its config.json
+              (peak spawn, life taper)
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component
     descent/  the legacy descent-view renderer (used by the sim UI)
   moon/       Moon (the reusable pixelated disc) + Orbit (the craft circling it)
@@ -52,6 +55,11 @@ cmd/          every runnable: editors, demos, tuners
               dust, the climb off the top (scenes/liftoff, nine live knobs)
   bobble/     the west-facing lander parked and bobbling, engine on or off
               (scenes/bobble, three live knobs)
+  shootingstar/ a larger star with a persist-particle comet trail; the
+              tuner walks a circle or square so the tail is readable,
+              the scene falls right-to-left, high right to low left
+              (scenes/shootingstar, eleven live knobs: peak piles spawn
+              on the spine, taper cuts fringe life)
   explorer/   the big IE logo under the twinkling sky (scenes/explorer,
               four live knobs: min/max twinkle cycle and min/max fade)
   lander/     the continuous-descent demo

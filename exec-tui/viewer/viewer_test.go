@@ -31,6 +31,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/startrail"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
@@ -39,6 +40,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
@@ -91,40 +93,43 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("first item must be the SHOTGUN component, got %+v", c[0])
 		}
 		want := map[string]Kind{
-			"shotgun":     KindComponent,
-			"stars":       KindComponent,
-			"sky":         KindComponent,
-			"cloud":       KindComponent,
-			"lander":      KindComponent,
-			"flag":        KindComponent,
-			"transition":  KindComponent,
-			"eagle":       KindComponent,
-			"armed":       KindComponent,
-			"moon":        KindComponent,
-			"ie":          KindComponent,
-			"dsky":        KindComponent,
-			"coreset":     KindComponent,
-			"coresets":    KindComponent,
-			"vac":         KindComponent,
-			"vacs":        KindComponent,
-			"cpugraph":    KindComponent,
-			"breakdown":   KindScene,
-			"scan":        KindScene,
-			"title":       KindComponent,
-			"astronaut":   KindComponent,
-			"rocket":      KindComponent,
-			"gunfire":     KindParticle,
-			"flame":       KindParticle,
-			"dust":        KindParticle,
-			"nyan":        KindParticle,
-			"landing":     KindScene,
-			"america":     KindScene,
-			"moonwalk":    KindScene,
-			"skies":       KindScene,
-			"liftoff":     KindScene,
-			"bobble":      KindScene,
-			"explorer":    KindScene,
-			"interpreter": KindScene,
+			"shotgun":      KindComponent,
+			"stars":        KindComponent,
+			"sky":          KindComponent,
+			"cloud":        KindComponent,
+			"lander":       KindComponent,
+			"flag":         KindComponent,
+			"transition":   KindComponent,
+			"eagle":        KindComponent,
+			"armed":        KindComponent,
+			"moon":         KindComponent,
+			"ie":           KindComponent,
+			"dsky":         KindComponent,
+			"coreset":      KindComponent,
+			"coresets":     KindComponent,
+			"vac":          KindComponent,
+			"vacs":         KindComponent,
+			"cpugraph":     KindComponent,
+			"breakdown":    KindScene,
+			"scan":         KindScene,
+			"title":        KindComponent,
+			"astronaut":    KindComponent,
+			"rocket":       KindComponent,
+			"gunfire":      KindParticle,
+			"flame":        KindParticle,
+			"dust":         KindParticle,
+			"nyan":         KindParticle,
+			"startrail":    KindParticle,
+			"landing":      KindScene,
+			"america":      KindScene,
+			"moonwalk":     KindScene,
+			"skies":        KindScene,
+			"liftoff":      KindScene,
+			"bobble":       KindScene,
+			"explorer":     KindScene,
+			"interpreter":  KindScene,
+			"shootingstar": KindScene,
+			"bigstar":      KindComponent,
 		}
 		seen := map[string]bool{}
 		for _, it := range c {
@@ -309,6 +314,7 @@ func TestEdit(t *testing.T) {
 			{"flame", adjustflame.DefaultConfigPath, "./cmd/adjustflame/main"},
 			{"dust", adjustdust.DefaultConfigPath, "./cmd/adjustdust/main"},
 			{"nyan", adjustparticle.DefaultConfigPath, "./cmd/adjustparticle/main"},
+			{"startrail", startrail.DefaultConfigPath, "./cmd/shootingstar"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindParticle, tc.id)), 80, 24)
@@ -346,6 +352,7 @@ func TestEdit(t *testing.T) {
 			{"bobble", bobble.DefaultConfigPath, "./cmd/bobble"},
 			{"explorer", explorer.DefaultConfigPath, "./cmd/explorer"},
 			{"interpreter", interpreter.DefaultConfigPath, "./cmd/interpreter"},
+			{"shootingstar", shootingstar.DefaultConfigPath, "./cmd/shootingstar"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)
@@ -376,6 +383,7 @@ func TestEdit(t *testing.T) {
 			{"sky", adjustsky.DefaultConfigPath, "./cmd/adjustsky/main"},
 			{"cloud", adjustcloud.DefaultConfigPath, "./cmd/adjustcloud/main"},
 			{"armed", adjustarmed.DefaultConfigPath, "./cmd/adjustarmed/main"},
+			{"bigstar", shootingstar.DefaultConfigPath, "./cmd/shootingstar"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindComponent, tc.id)), 80, 24)

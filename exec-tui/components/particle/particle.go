@@ -7,13 +7,19 @@
 // Occupancy counts how many live particles sit in each terminal cell so a
 // caller can color by density. The package does not draw.
 //
-// The engine flies under one of three modes, carried on the Config. The
+// The engine flies under one of four modes, carried on the Config. The
 // default, ModeStraight, keeps every particle on its velocity. ModeSwirl —
 // switched on with Config.SideSwirl — is the cartoon wind: every particle
 // curves toward the loop side as it flies, and every second one sweeps one
 // full loop before flying on. ModePool — switched on with Config.Pooled —
 // parks a scatter of specks around the origin inside PoolRadius and
 // leaves them there: the unique, stationary puff a cloud is made of.
+// ModePersist — switched on with Config.Persist — parks each speck
+// exactly where it was born. Peak steepens the nozzle slit onto the
+// origin (Peak<=1 is uniform); Taper cuts max life by |offset| so the
+// fringe dies first. Move the origin and the old specks keep their
+// cells: a comet trail. MaxDistance does not apply; trail length is
+// life.
 package particle
 
 import (
@@ -45,6 +51,8 @@ var (
 	ErrLift       = errors.New("particle: lift must be non-negative")
 	ErrDrag       = errors.New("particle: drag must be non-negative")
 	ErrPoolRadius = errors.New("particle: pool radius must be non-negative")
+	ErrPeak       = errors.New("particle: peak must not be negative")
+	ErrTaper      = errors.New("particle: taper must be between 0 and 1")
 	ErrNil        = errors.New("particle: nil engine")
 )
 
@@ -60,6 +68,12 @@ const (
 	// ModePool is the stationary puff: particles scatter around Origin
 	// inside PoolRadius and stay put.
 	ModePool
+	// ModePersist is the comet trail: particles spawn at Origin. Peak
+	// piles them on the spine (Peak<=1 is the old uniform slit); Taper
+	// shortens max life by how far they sit from it. A moving origin
+	// leaves a fading wake; MaxDistance is ignored so the trail is
+	// not clipped around the new nozzle.
+	ModePersist
 )
 
 // Vec2 is a point or a direction in unit space.
@@ -99,6 +113,8 @@ type Config struct {
 	MinSpeed, MaxSpeed float64 // units/sec along the jittered heading
 	Spread             float64 // stddev of a normal, in radians, around Direction
 	Nozzle             float64 // spawn thickness in units, perpendicular to Direction
+	Peak               float64 // persist only: slit power. <=1 is uniform; higher piles onto the origin
+	Taper              float64 // persist only: 0..1, how hard max life falls off with |offset|
 	MaxDistance        float64 // 0 means unlimited; else die when farther from Origin
 	Lift               float64 // upward acceleration in units/s²; hot gas rises
 	Drag               float64 // per-second exponential speed decay; the burst dies down
@@ -122,6 +138,14 @@ func (c Config) SideSwirl(up bool) Config {
 // building block of a cloud.
 func (c Config) Pooled() Config {
 	c.Mode = ModePool
+	return c
+}
+
+// Persist is the trail switch: the same world, but particles park
+// where they spawn. Move Origin between emits and the wake stays
+// behind — the building block of a shooting star.
+func (c Config) Persist() Config {
+	c.Mode = ModePersist
 	return c
 }
 
@@ -169,7 +193,13 @@ func (c Config) Validate() error {
 	if c.PoolRadius < 0 {
 		return ErrPoolRadius
 	}
-	if c.Mode != ModeStraight && c.Mode != ModeSwirl && c.Mode != ModePool {
+	if c.Peak < 0 {
+		return ErrPeak
+	}
+	if c.Taper < 0 || c.Taper > 1 {
+		return ErrTaper
+	}
+	if c.Mode != ModeStraight && c.Mode != ModeSwirl && c.Mode != ModePool && c.Mode != ModePersist {
 		return ErrMode
 	}
 	return nil
@@ -266,7 +296,7 @@ func (e *Engine) advance(dt float64) {
 	switch e.Cfg.Mode {
 	case ModeSwirl:
 		e.advanceSwirl(dt)
-	case ModePool:
+	case ModePool, ModePersist:
 		e.advancePool(dt)
 	default:
 		e.advanceStraight(dt)
@@ -380,16 +410,27 @@ func (e *Engine) emit() {
 		angle := e.rng.NormFloat64() * e.Cfg.Spread
 		heading := dir.Rotate(angle)
 		speed := e.between(e.Cfg.MinSpeed, e.Cfg.MaxSpeed)
-		life := e.between(e.Cfg.MinLife, e.Cfg.MaxLife)
 		pos := e.Cfg.Origin
 		vel := heading.Scale(speed)
+		off := 0.0
 		if e.Cfg.Mode == ModePool {
 			pos = e.scatter(e.Cfg.Origin, e.Cfg.PoolRadius)
 			vel = Vec2{}
+		} else if e.Cfg.Mode == ModePersist {
+			vel = Vec2{}
+			off = e.slitOffset()
+			if off != 0 {
+				perp := Vec2{X: -dir.Y, Y: dir.X}
+				pos = Vec2{X: pos.X + perp.X*off, Y: pos.Y + perp.Y*off}
+			}
 		} else if e.Cfg.Nozzle > 0 {
 			perp := Vec2{X: -dir.Y, Y: dir.X}
-			off := (e.rng.Float64() - 0.5) * e.Cfg.Nozzle
+			off = (e.rng.Float64() - 0.5) * e.Cfg.Nozzle
 			pos = Vec2{X: pos.X + perp.X*off, Y: pos.Y + perp.Y*off}
+		}
+		life := e.between(e.Cfg.MinLife, e.Cfg.MaxLife)
+		if e.Cfg.Mode == ModePersist {
+			life = e.taperedLife(math.Abs(off))
 		}
 		p := Particle{
 			Pos:  pos,
@@ -458,6 +499,46 @@ func (e *Engine) between(min, max float64) float64 {
 	return min + e.rng.Float64()*(max-min)
 }
 
+// slitOffset is persist-mode thickness: a signed offset along the
+// perpendicular, inside ±Nozzle/2. Peak<=1 is uniform (the old slit).
+// Peak>1 raises |u| to that power so the mass piles on the origin —
+// steeper than a normal, with a thin fringe still allowed at the edge.
+func (e *Engine) slitOffset() float64 {
+	if e.Cfg.Nozzle <= 0 {
+		return 0
+	}
+	half := e.Cfg.Nozzle / 2
+	u := e.rng.Float64()*2 - 1
+	if e.Cfg.Peak <= 1 {
+		return u * half
+	}
+	return math.Copysign(math.Pow(math.Abs(u), e.Cfg.Peak)*half, u)
+}
+
+// taperedLife rolls a persist speck's life. Taper=0 is the old
+// [MinLife, MaxLife] regardless of offset. Taper=1 pinches max life
+// down to MinLife at the nozzle edge, so the fringe dies first and
+// the spine keeps the long wake — the triangle.
+func (e *Engine) taperedLife(absOff float64) float64 {
+	min, max := e.Cfg.MinLife, e.Cfg.MaxLife
+	if e.Cfg.Taper <= 0 || e.Cfg.Nozzle <= 0 || max <= min {
+		return e.between(min, max)
+	}
+	taper := e.Cfg.Taper
+	if taper > 1 {
+		taper = 1
+	}
+	t := absOff / (e.Cfg.Nozzle / 2)
+	if t > 1 {
+		t = 1
+	}
+	maxHere := max - t*taper*(max-min)
+	if maxHere < min {
+		maxHere = min
+	}
+	return e.between(min, maxHere)
+}
+
 // scatter is a pool spawn: a uniform disk around origin of the given
 // radius, or the origin itself when the pool has no spread. A disk
 // keeps every speck inside PoolRadius so a cloud's shape is the
@@ -480,7 +561,7 @@ func (e *Engine) inRange(p Vec2) bool {
 	if !e.inside(p) {
 		return false
 	}
-	if e.Cfg.MaxDistance <= 0 {
+	if e.Cfg.Mode == ModePersist || e.Cfg.MaxDistance <= 0 {
 		return true
 	}
 	d := math.Hypot(p.X-e.Cfg.Origin.X, p.Y-e.Cfg.Origin.Y)
