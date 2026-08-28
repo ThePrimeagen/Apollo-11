@@ -322,24 +322,28 @@ func TestLunarCloseUpBill(t *testing.T) {
 			t.Fatal("two seconds in the booster must be lit")
 		}
 	})
-	t.Run("happy: the fire→fall cut keeps every visible star", func(t *testing.T) {
+	t.Run("happy: the fire→fall cut parks the sky — the drop twinkles instead of crawling", func(t *testing.T) {
 		p, scr := openShow()
 		defer p.Stop()
 		cut(p, scr)
 		run(p, lander.FlyInSeconds)
 		cut(p, scr) // fire
 		run(p, 1.5)
-		p.Render(scr)
-		before := starCells(scr)
-		if len(before) == 0 {
-			t.Fatal("test premise: the fire scene must show stars")
-		}
 		cut(p, scr) // fall
-		after := starCells(scr)
-		for pos, ch := range before {
-			if after[pos] != ch {
-				t.Fatalf("star at (%d,%d) jumped on the fall cut: %q -> %q", pos[0], pos[1], ch, after[pos])
+		opening := starCells(scr)
+		if len(opening) == 0 {
+			t.Fatal("test premise: the fall must show stars")
+		}
+		run(p, 0.2)
+		p.Render(scr)
+		held := 0
+		for pos, ch := range starCells(scr) {
+			if opening[pos] == ch {
+				held++
 			}
+		}
+		if held == 0 {
+			t.Fatal("the fall sky must hold its scatter — twinkle, not another drift")
 		}
 	})
 	t.Run("happy: the fall→landing cut keeps every star the horizon leaves visible", func(t *testing.T) {
@@ -367,7 +371,8 @@ func TestLunarCloseUpBill(t *testing.T) {
 			}
 		}
 	})
-	t.Run("unhappy: the landing sky is frozen on the cut frame, not rewound home", func(t *testing.T) {
+	t.Run("happy: the landing sky twinkles on the pad — scatter holds, breathers fade", func(t *testing.T) {
+		t.Cleanup(stars.ResetTwinkle)
 		p, scr := openShow()
 		defer p.Stop()
 		cut(p, scr)
@@ -378,13 +383,40 @@ func TestLunarCloseUpBill(t *testing.T) {
 		run(p, lander.DropSeconds+0.5)
 		cut(p, scr) // landing
 		opening := starCells(scr)
-		run(p, 3.0)
-		p.Render(scr)
-		later := starCells(scr)
-		for pos, ch := range later {
-			if opening[pos] != ch {
-				t.Fatalf("the still landing sky crawled: star at (%d,%d) %q -> %q", pos[0], pos[1], opening[pos], ch)
+		if len(opening) == 0 {
+			t.Fatal("test premise: the landing sky must show stars")
+		}
+		sky := map[[2]int]string{}
+		for pos, ch := range opening {
+			if pos[1] < stageH/2 {
+				sky[pos] = ch
 			}
+		}
+		if len(sky) == 0 {
+			t.Fatal("test premise: stars sit above the horizon")
+		}
+		var faded bool
+		for i := 0; i < 8; i++ {
+			run(p, 0.5)
+			p.Render(scr)
+			now := starCells(scr)
+			held := 0
+			for pos, ch := range now {
+				if sky[pos] == ch {
+					held++
+				}
+			}
+			if held == 0 {
+				t.Fatal("the pad sky must hold its scatter while it twinkles")
+			}
+			for pos := range sky {
+				if _, ok := now[pos]; !ok {
+					faded = true
+				}
+			}
+		}
+		if !faded {
+			t.Fatal("the landing sky must twinkle — some star fades on the pad")
 		}
 	})
 	t.Run("happy: scene three parks the west craft with the booster lit", func(t *testing.T) {

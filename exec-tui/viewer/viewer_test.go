@@ -34,12 +34,15 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/startrail"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/climb"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/fall"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/interpreter"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/prog"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
@@ -129,6 +132,9 @@ func TestCatalog(t *testing.T) {
 			"explorer":     KindScene,
 			"interpreter":  KindScene,
 			"shootingstar": KindScene,
+			"fall":         KindScene,
+			"climb":        KindScene,
+			"prog":         KindScene,
 			"bigstar":      KindComponent,
 		}
 		seen := map[string]bool{}
@@ -353,6 +359,9 @@ func TestEdit(t *testing.T) {
 			{"explorer", explorer.DefaultConfigPath, "./cmd/explorer"},
 			{"interpreter", interpreter.DefaultConfigPath, "./cmd/interpreter"},
 			{"shootingstar", shootingstar.DefaultConfigPath, "./cmd/shootingstar"},
+			{"fall", fall.DefaultConfigPath, "./cmd/fall"},
+			{"climb", climb.DefaultConfigPath, "./cmd/climb"},
+			{"prog", prog.DefaultConfigPath, "./cmd/prog"},
 		}
 		for _, tc := range cases {
 			m := sized(New(findItem(t, KindScene, tc.id)), 80, 24)

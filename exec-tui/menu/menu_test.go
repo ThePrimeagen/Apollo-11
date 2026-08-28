@@ -414,7 +414,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup", "inverse",
-			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "shootingstar",
+			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "shootingstar", "fall", "climb", "prog",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config", "startrail-config",
 			"dsky",
@@ -447,6 +447,9 @@ func TestCatalog(t *testing.T) {
 			"bobble":           "Scenes",
 			"interpreter":      "Scenes",
 			"shootingstar":     "Scenes",
+			"fall":             "Scenes",
+			"climb":            "Scenes",
+			"prog":             "Scenes",
 			"flame":            "CONFIG",
 			"stars-config":     "CONFIG",
 			"sky-config":       "CONFIG",

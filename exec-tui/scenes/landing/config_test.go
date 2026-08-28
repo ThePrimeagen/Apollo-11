@@ -38,8 +38,11 @@ func TestConfig(t *testing.T) {
 		if StepLoss != 0.005 {
 			t.Fatalf("loss step %v, want 0.005/ms", StepLoss)
 		}
-		if KnobCount != 8 {
-			t.Fatalf("KnobCount %d, want 8 (land, dust, loss, four fire stages)", KnobCount)
+		if KnobCount != 14 {
+			t.Fatalf("KnobCount %d, want 14 (land, dust, loss, four fire stages, two 1202s, LAND)", KnobCount)
+		}
+		if Code1At < 0 || Code2At <= Code1At || LandCaptionAt < Code2At {
+			t.Fatalf("stock captions must run 1202, 1202, LAND — at %v then %v then %v", Code1At, Code2At, LandCaptionAt)
 		}
 	})
 	t.Run("happy: Nudge walks the selected knob by 50ms and stays on the grid", func(t *testing.T) {
@@ -215,6 +218,60 @@ func TestConfig(t *testing.T) {
 		}
 		if Active() != before {
 			t.Fatalf("Active after a rejected Use is %+v, want %+v", Active(), before)
+		}
+	})
+	t.Run("happy: the caption knobs walk 50ms and round-trip", func(t *testing.T) {
+		c := DefaultConfig()
+		c.Nudge(KnobCode1At, 1)
+		if math.Abs(c.Code1At-(Code1At+StepSeconds)) > 1e-9 {
+			t.Fatalf("1202 a after +50ms is %v, want %v", c.Code1At, Code1At+StepSeconds)
+		}
+		c.Nudge(KnobLandCaptionAt, -1)
+		if math.Abs(c.LandCaptionAt-(LandCaptionAt-StepSeconds)) > 1e-9 {
+			t.Fatalf("LAND at after -50ms is %v, want %v", c.LandCaptionAt, LandCaptionAt-StepSeconds)
+		}
+		path := filepath.Join(t.TempDir(), "codes.json")
+		c.Code1At, c.Code1Hold = 1.0, 0.5
+		c.Code2At, c.Code2Hold = 2.0, 0.5
+		c.LandCaptionAt, c.LandCaptionHold = 3.0, 1.0
+		if err := c.Save(path); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if math.Abs(got.Code1At-1.0) > 1e-9 || math.Abs(got.Code2At-2.0) > 1e-9 || math.Abs(got.LandCaptionAt-3.0) > 1e-9 {
+			t.Fatalf("caption round-trip %+v", got)
+		}
+	})
+	t.Run("happy: a file without caption keys keeps the stock 1202 / 1202 / LAND times", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "oldcaps.json")
+		if err := os.WriteFile(path, []byte(`{"landSeconds":4.25,"dustStart":2.0,"dustRun":1.5}`+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Code1At != Code1At || got.Code2At != Code2At || got.LandCaptionAt != LandCaptionAt {
+			t.Fatalf("missing caption keys loaded %+v, want stock 1202/1202/LAND times", got)
+		}
+	})
+	t.Run("unhappy: a negative caption offset is refused, and Nudge will not walk a hold below zero", func(t *testing.T) {
+		neg := DefaultConfig()
+		neg.Code1At = -0.1
+		if err := neg.Save(filepath.Join(t.TempDir(), "n.json")); err == nil {
+			t.Fatal("Save must refuse a negative caption offset")
+		}
+		c := DefaultConfig()
+		c.Code1Hold = 0
+		c.Nudge(KnobCode1Hold, -1)
+		if c.Code1Hold != 0 {
+			t.Fatalf("hold a %v, want 0", c.Code1Hold)
+		}
+		if KnobLabel(KnobCode1At) != "1202 a" || KnobLabel(KnobCode2At) != "1202 b" || KnobLabel(KnobLandCaptionAt) != "LAND at" {
+			t.Fatalf("caption labels %q %q %q", KnobLabel(KnobCode1At), KnobLabel(KnobCode2At), KnobLabel(KnobLandCaptionAt))
 		}
 	})
 }
