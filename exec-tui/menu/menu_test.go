@@ -494,6 +494,32 @@ func TestCatalog(t *testing.T) {
 			t.Fatalf("third entry must be 02. Walkthrough (closeup → ./cmd/lunarcloseup) under Screenplays, got %+v", c[2])
 		}
 	})
+	t.Run("happy: 01. Moon Orbit names the fly-in, then the looping orbit", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.ID != "moon" {
+				continue
+			}
+			for _, want := range []string{"fly", "orbit"} {
+				if !strings.Contains(strings.ToLower(e.Desc), want) {
+					t.Fatalf("moon desc must name the %s, got %q", want, e.Desc)
+				}
+			}
+			return
+		}
+		t.Fatal("catalog must hold 01. Moon Orbit")
+	})
+	t.Run("unhappy: 01. Moon Orbit no longer claims the lander is already in orbit", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.ID != "moon" {
+				continue
+			}
+			if strings.Contains(strings.ToLower(e.Desc), "already") {
+				t.Fatalf("moon desc still parks the lander on the ring at the cut, got %q", e.Desc)
+			}
+			return
+		}
+		t.Fatal("catalog must hold 01. Moon Orbit")
+	})
 	t.Run("happy: Scenes opens on the component viewer as a single item", func(t *testing.T) {
 		c := Catalog()
 		if len(c) < 5 {

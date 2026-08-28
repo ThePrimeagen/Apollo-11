@@ -1,9 +1,10 @@
 // Package moonshow is the moon screenplay, a composable two-scene
 // bill. Scene one, "the moon": the bare pixelated disc alone under a
 // parked sky — nothing on stage moves. The cut, not a clock, brings
-// scene two. Scene two, "orbit": the lander is already on the ring
-// and circles the moon clockwise, lap after lap, until the next cut
-// — no line drawn around the moon, the craft alone traces the path.
+// scene two. Scene two, "orbit": the lander streaks in fast off the
+// left wing at orbit height, brakes onto the top of the ring, and
+// circles the moon clockwise, lap after lap, until the next cut —
+// no line drawn around the moon, the craft alone traces the path.
 // After that there is nothing left — the runner ends the show.
 //
 // The bill is the composable unit: append it to other shows' bills
@@ -33,7 +34,7 @@ func Bill() screenplay.Bill {
 				return []screenplay.Component{
 					stars.NewTunedStarfield().Still(),
 					moon.New(),
-					moon.NewOrbit(),
+					moon.NewOrbit().Arrive(),
 				}
 			},
 		}},

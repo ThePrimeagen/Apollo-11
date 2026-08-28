@@ -43,7 +43,7 @@ type Entry struct {
 func Catalog() []Entry {
 	return []Entry{
 		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
-		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
+		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then a fly-in into orbit", Pkg: "./cmd/moon"},
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
 		{ID: "inverse", Section: "Screenplays", Title: "03. Inverse Walkthrough", Desc: "the walkthrough backwards, three scenes: liftoff off the pad, engines on parked sideways, then engines off — bobbling forever", Pkg: "./cmd/inverse"},
 		{ID: "viewer", Section: "Scenes", Title: "Component Viewer", Desc: "cycle every component, particle and scene — e edits, closing resumes", Pkg: "./cmd/viewer"},
