@@ -14,12 +14,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/bigstar"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/caption"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
-	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
 const (
@@ -556,19 +556,5 @@ func findGlyph(scr *screenplay.Screen, g rune) (x, y int, ok bool) {
 }
 
 func hasBanner(scr *screenplay.Screen, text string) bool {
-	lines, err := termfont.Lines(3, text)
-	if err != nil {
-		return false
-	}
-	body := scr.Render()
-	for _, line := range lines {
-		trim := strings.TrimSpace(line)
-		if trim == "" {
-			continue
-		}
-		if !strings.Contains(body, trim) {
-			return false
-		}
-	}
-	return true
+	return caption.Painted(scr, text)
 }

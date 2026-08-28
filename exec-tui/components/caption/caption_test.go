@@ -145,6 +145,25 @@ func TestBoardCues(t *testing.T) {
 			t.Fatalf("LAND starts at col %d, want the right half", col)
 		}
 	})
+	t.Run("unhappy: font gaps stay transparent so the sky shows through", func(t *testing.T) {
+		b := New(Cue{Text: "1202", At: 0, Hold: 1})
+		b.Start(stageW, stageH)
+		sp := b.Render()
+		if !hasCard(sp, "1202") {
+			t.Fatal("the card must still paint its glyphs")
+		}
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				cell := sp.At(r, c)
+				if cell.Ch != 0 && cell.Ch != ' ' {
+					continue
+				}
+				if cell.BG >= 0 {
+					t.Fatalf("gap at (%d,%d) painted BG %d — stars must show through", r, c, cell.BG)
+				}
+			}
+		}
+	})
 	t.Run("unhappy: a cue with no hold never paints, a bad rune is refused, and a nil board skips every cue", func(t *testing.T) {
 		b := New(Cue{Text: "1202", At: 0, Hold: 0})
 		b.Start(stageW, stageH)

@@ -7,12 +7,11 @@ package prog
 // the craft off the bottom. Play rebuilds from the current knobs.
 
 import (
-	"strings"
 	"testing"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/caption"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
-	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
 const (
@@ -34,21 +33,7 @@ func tick(sc screenplay.Scene, seconds float64) {
 }
 
 func hasBanner(scr *screenplay.Screen, text string) bool {
-	lines, err := termfont.Lines(3, text)
-	if err != nil {
-		return false
-	}
-	body := scr.Render()
-	for _, line := range lines {
-		trim := strings.TrimSpace(line)
-		if trim == "" {
-			continue
-		}
-		if !strings.Contains(body, trim) {
-			return false
-		}
-	}
-	return true
+	return caption.Painted(scr, text)
 }
 
 func TestProgBill(t *testing.T) {

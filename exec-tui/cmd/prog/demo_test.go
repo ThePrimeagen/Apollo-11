@@ -14,8 +14,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/caption"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/prog"
-	"github.com/theprimeagen/apollo-11/terminal-fonts/termfont"
 )
 
 func frames(m model, n int) model {
@@ -35,21 +35,9 @@ func space() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeySpace, Text: 
 
 func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
 
-func hasBanner(v, text string) bool {
-	lines, err := termfont.Lines(3, text)
-	if err != nil {
-		return false
-	}
-	for _, line := range lines {
-		trim := strings.TrimSpace(line)
-		if trim == "" {
-			continue
-		}
-		if !strings.Contains(v, trim) {
-			return false
-		}
-	}
-	return true
+func hasBanner(m model, text string) bool {
+	_ = m.View()
+	return caption.Painted(m.screen, text)
 }
 
 func TestProgRunner(t *testing.T) {
@@ -75,7 +63,7 @@ func TestProgRunner(t *testing.T) {
 		m.show.Cfg.Drop4 = 0.2
 		m = press(m, runeKey('p'))
 		m = frames(m, 12)
-		if !hasBanner(m.View().Content, "1202") {
+		if !hasBanner(m, "1202") {
 			t.Fatal("the runner must show 1202 on the first hold")
 		}
 		m = press(m, runeKey('j'))
