@@ -2,13 +2,16 @@ package main
 
 // Demo harness tests, written first: cmd/explorer runs the explorer
 // scene from scenes/explorer — the big IE logo parked at center stage
-// under the twinkling sky — and is the editable screen for its four
-// knobs: min/max cycle (250ms steps) and min/max fade (50ms steps).
-// h/l retune the breathing LIVE — the sky reads the knobs on the next
-// frame, no replay needed — while p / enter / space replay from the
-// top, s saves to scenes/explorer/config.json, q and ctrl+c quit. The
-// view is the rendered stage plus the knob panel, always exactly
-// window-height lines.
+// under the twinkling sky, plus the scene's own shooting star — and
+// is the editable screen for its knobs: min/max cycle (250ms steps),
+// min/max fade (50ms steps), and the ten star knobs the shooting-star
+// tuner walks (size, random size, speed, count, period, min/max life,
+// nozzle, peak, taper). h/l retune LIVE — the sky and the flying
+// meteor read the knobs on the next frame, no replay needed — while
+// p / enter / space replay from the top, s saves to
+// scenes/explorer/config.json, q and ctrl+c quit. The view is the
+// rendered stage plus the knob panel, always exactly window-height
+// lines.
 
 import (
 	"math"
@@ -56,7 +59,10 @@ func TestExplorerRunner(t *testing.T) {
 		m := newModel(0)
 		v := m.View().Content
 		for _, want := range []string{"big e", "play", "tune", "save", "quit",
-			"min cycle", "max cycle", "min fade", "max fade"} {
+			"min cycle", "max cycle", "min fade", "max fade",
+			"star size", "star random size", "star speed", "star count",
+			"star period", "star min life", "star max life", "star nozzle",
+			"star peak", "star taper"} {
 			if !strings.Contains(strings.ToLower(v), want) {
 				t.Fatalf("opening view is missing %q", want)
 			}
@@ -135,6 +141,63 @@ func TestExplorerRunner(t *testing.T) {
 			t.Fatalf("after the nudge the sky breathes %+v, want the live knobs %+v", got, m.show.Cfg.Twinkle())
 		}
 	})
+	t.Run("happy: j/k reach the star knobs and h/l walk them by the shooting-star steps", func(t *testing.T) {
+		cleanup()
+		m := newModel(0)
+		_ = m.View()
+		for i := 0; i < int(explorer.KnobStarSpeed); i++ {
+			m = press(m, runeKey('j'))
+		}
+		m = press(m, runeKey('l'))
+		want := explorer.DefaultConfig().Star.Speed + shootingstar.StepSpeed
+		if got := m.show.Cfg.Star.Speed; math.Abs(got-want) > 1e-9 {
+			t.Fatalf("star speed after +1 is %v, want %v", got, want)
+		}
+		m = press(m, runeKey('k'))
+		m = press(m, runeKey('k'))
+		m = press(m, runeKey('l'))
+		if got, want := m.show.Cfg.Star.Size, explorer.DefaultConfig().Star.Size+1; got != want {
+			t.Fatalf("star size after +1 is %v, want %v", got, want)
+		}
+		if !strings.Contains(strings.ToLower(m.View().Content), "star size") {
+			t.Fatal("the panel must show the selected star knob")
+		}
+	})
+	t.Run("happy: a star nudge retunes the flying meteor live — no replay needed", func(t *testing.T) {
+		cleanup()
+		m := newModel(0)
+		_ = m.View()
+		if !strings.Contains(m.View().Content, "★") {
+			t.Fatal("test premise: the meteor opens on stage")
+		}
+		for i := 0; i < int(explorer.KnobStarSpeed); i++ {
+			m = press(m, runeKey('j'))
+		}
+		for i := 0; i < 13; i++ {
+			m = press(m, runeKey('h'))
+		}
+		if got := m.show.Cfg.Star.Speed; math.Abs(got-2) > 1e-9 {
+			t.Fatalf("test premise: thirteen h presses walk the stock speed to 2, got %v", got)
+		}
+		m = frames(m, 90)
+		if !strings.Contains(m.View().Content, "★") {
+			t.Fatal("slowed to speed 2 the meteor must still be crossing three seconds in — the nudge must reach the flying star")
+		}
+	})
+	t.Run("unhappy: k off the top wraps onto the last star knob", func(t *testing.T) {
+		cleanup()
+		m := newModel(0)
+		_ = m.View()
+		m = press(m, runeKey('k'))
+		m = press(m, runeKey('l'))
+		want := explorer.DefaultConfig().Star.Taper + shootingstar.StepTaper
+		if got := m.show.Cfg.Star.Taper; math.Abs(got-want) > 1e-9 {
+			t.Fatalf("star taper after wrap and +1 is %v, want %v", got, want)
+		}
+		if got := m.show.Cfg.Twinkle(); got != explorer.DefaultConfig().Twinkle() {
+			t.Fatalf("the wrap must not touch the twinkle, got %+v", got)
+		}
+	})
 	t.Run("happy: p, enter and space replay and do not quit", func(t *testing.T) {
 		cleanup()
 		m := newModel(0)
@@ -159,6 +222,9 @@ func TestExplorerRunner(t *testing.T) {
 		m.show.Cfg.MaxCycleSeconds = 9.25
 		m.show.Cfg.MinFadeSeconds = 0.25
 		m.show.Cfg.MaxFadeSeconds = 2.5
+		m.show.Cfg.Star.Size = 3
+		m.show.Cfg.Star.Speed = 44
+		m.show.Cfg.Star.Taper = 0.5
 		mm, cmd := m.Update(runeKey('s'))
 		if cmd != nil {
 			t.Fatal("s must save, not quit")

@@ -148,3 +148,70 @@ func TestNewMeteor(t *testing.T) {
 		ghost.Stop()
 	})
 }
+
+func TestNewMeteorWith(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Cleanup(startrail.Reset)
+	t.Run("happy: MeteorConfig is the stock small star and NewMeteor flies it", func(t *testing.T) {
+		want := DefaultConfig()
+		want.Size = 1
+		if MeteorConfig() != want {
+			t.Fatalf("MeteorConfig is %+v, want the stock knobs one cell small %+v", MeteorConfig(), want)
+		}
+		m := NewMeteor()
+		if m.show == nil || m.show.Cfg != MeteorConfig() {
+			t.Fatalf("NewMeteor carries %+v, want MeteorConfig %+v", m.show.Cfg, MeteorConfig())
+		}
+	})
+	t.Run("happy: NewMeteorWith flies the given knobs — a scene tunes its own meteor", func(t *testing.T) {
+		fast := MeteorConfig()
+		fast.Speed = 400
+		fast.Size = 3
+		m := NewMeteorWith(fast)
+		if m == nil {
+			t.Fatal("NewMeteorWith must hand back a flyer")
+		}
+		m.Start(stageW, stageH)
+		defer m.Stop()
+		if m.show == nil || m.show.Cfg != fast {
+			t.Fatalf("the meteor carries %+v, want the given knobs %+v", m.show.Cfg, fast)
+		}
+		if m.star == nil || m.star.Size != 3 {
+			t.Fatal("the given size must reach the star")
+		}
+		const dt = 1.0 / 30
+		for i := 0; i < 30; i++ {
+			m.Update(dt)
+		}
+		if _, _, ok := coreOn(m.Render()); ok {
+			t.Fatal("at speed 400 the one crossing must already be over")
+		}
+		slow := MeteorConfig()
+		slow.Speed = 4
+		s := NewMeteorWith(slow)
+		s.Start(stageW, stageH)
+		defer s.Stop()
+		for i := 0; i < 60; i++ {
+			s.Update(dt)
+		}
+		if _, _, ok := coreOn(s.Render()); !ok {
+			t.Fatal("at speed 4 the meteor must still be crossing")
+		}
+	})
+	t.Run("unhappy: a zero-value config parks the meteor without a panic, and a tuned active never leaks into NewMeteor", func(t *testing.T) {
+		z := NewMeteorWith(Config{})
+		z.Start(stageW, stageH)
+		z.Update(0.5)
+		_ = z.Render()
+		z.Stop()
+		tuned := DefaultConfig()
+		tuned.Size = 3
+		if err := Use(tuned); err != nil {
+			t.Fatal(err)
+		}
+		m := NewMeteor()
+		if m.show.Cfg != MeteorConfig() {
+			t.Fatalf("NewMeteor flies %+v, want the stock small meteor no matter what the tuner holds", m.show.Cfg)
+		}
+	})
+}

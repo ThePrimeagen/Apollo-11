@@ -19,6 +19,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/shootingstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
@@ -446,6 +447,38 @@ func TestLandingScene(t *testing.T) {
 				t.Fatal("the meteor must sit behind the lander, not on top of the hull")
 			}
 		}
+	})
+	t.Run("happy: the scene's own star knobs fly the meteor", func(t *testing.T) {
+		slow := New(nil)
+		slow.Cfg.Star.Speed = 2
+		slow.Start()
+		defer slow.Stop()
+		_ = paint(slow)
+		tick(slow, 2)
+		if _, _, ok := findGlyph(paint(slow), bigstar.CoreGlyph); !ok {
+			t.Fatal("at star speed 2 the meteor must still be crossing two beats in")
+		}
+		fast := New(nil)
+		fast.Cfg.Star.Speed = 400
+		fast.Start()
+		defer fast.Stop()
+		_ = paint(fast)
+		tick(fast, 1)
+		if _, _, ok := findGlyph(paint(fast), bigstar.CoreGlyph); ok {
+			t.Fatal("at star speed 400 the one crossing must already be over")
+		}
+	})
+	t.Run("unhappy: a zero-value star still stages the landing", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.Star = shootingstar.Config{}
+		sc.Start()
+		defer sc.Stop()
+		scr := paint(sc)
+		if moonBGRows(scr, stageW/2) == 0 {
+			t.Fatal("a zero-value star must not black out the moon floor")
+		}
+		tick(sc, 1)
+		_ = paint(sc)
 	})
 	t.Run("happy: right before touchdown the side says 1202, 1202, then LAND", func(t *testing.T) {
 		sc := New(nil)
