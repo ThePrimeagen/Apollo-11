@@ -8,6 +8,7 @@
   "flag_seconds": 3,
   "pole_rows": 21,
   "exit_speed": 18,
+  "lm_gap": 16,
   "pan_cols": 30,
   "pan_seconds": 1.4
 }

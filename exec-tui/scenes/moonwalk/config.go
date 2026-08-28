@@ -28,6 +28,10 @@ const (
 	MaxBoxStart = 90
 )
 
+// MinLMGap keeps the module clear of the flagpole; there is no
+// ceiling — park it as far out as you like.
+const MinLMGap = 2
+
 // Config is every knob the scene exposes.
 type Config struct {
 	StrideFPS    float64 `json:"stride_fps"`
@@ -39,6 +43,7 @@ type Config struct {
 	FlagSeconds  float64 `json:"flag_seconds"`
 	PoleRows     int     `json:"pole_rows"`
 	ExitSpeed    float64 `json:"exit_speed"`
+	LMGap        int     `json:"lm_gap"`
 	PanCols      int     `json:"pan_cols"`
 	PanSeconds   float64 `json:"pan_seconds"`
 }
@@ -58,6 +63,7 @@ func DefaultConfig() Config {
 		FlagSeconds:  3.0,
 		PoleRows:     21,
 		ExitSpeed:    18,
+		LMGap:        16,
 		PanCols:      30,
 		PanSeconds:   1.4,
 	}
@@ -76,6 +82,7 @@ const (
 	KnobFlagSeconds
 	KnobPoleRows
 	KnobExitSpeed
+	KnobLMGap
 	KnobPanCols
 	KnobPanSeconds
 	KnobCount
@@ -101,6 +108,8 @@ func (k Knob) String() string {
 		return "pole rows"
 	case KnobExitSpeed:
 		return "exit speed"
+	case KnobLMGap:
+		return "lm gap"
 	case KnobPanCols:
 		return "pan cols"
 	case KnobPanSeconds:
@@ -131,6 +140,8 @@ func (c Config) Value(k Knob) float64 {
 		return float64(c.PoleRows)
 	case KnobExitSpeed:
 		return c.ExitSpeed
+	case KnobLMGap:
+		return float64(c.LMGap)
 	case KnobPanCols:
 		return float64(c.PanCols)
 	case KnobPanSeconds:
@@ -188,6 +199,9 @@ func (c *Config) Nudge(k Knob, dir int) {
 		c.PoleRows = nudgeInt(c.PoleRows, dir, MinPoleRows, MaxPoleRows)
 	case KnobExitSpeed:
 		c.ExitSpeed = nudgeFloat(c.ExitSpeed, 1, dir, 4, 60)
+	case KnobLMGap:
+		// Floor keeps the module off the flagpole; no ceiling.
+		c.LMGap = nudgeInt(c.LMGap, dir, MinLMGap, math.MaxInt)
 	case KnobPanCols:
 		// No ceiling — pan as far as you like; the floor just keeps
 		// the camera from walking backwards.

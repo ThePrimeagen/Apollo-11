@@ -334,6 +334,54 @@ func TestKnobsShapeTheScene(t *testing.T) {
 			t.Fatal("more pole rows must raise the tip")
 		}
 	})
+	t.Run("happy: the lm gap knob parks the module nearer or farther from the flag", func(t *testing.T) {
+		near := DefaultConfig()
+		near.LMGap = MinLMGap
+		far := DefaultConfig()
+		far.LMGap = 60
+		if got, want := landerX(near, tw), poleCol(tw)+MinLMGap; got != want {
+			t.Fatalf("a near module parks at %d, want pole+%d = %d", got, MinLMGap, want)
+		}
+		if landerX(far, tw) <= landerX(near, tw) {
+			t.Fatal("a bigger gap must push the module farther from the flag")
+		}
+		if got, want := landerX(DefaultConfig(), tw), tw+2; got != want {
+			t.Fatalf("the default staging must keep the module just past the viewport: %d, want %d", got, want)
+		}
+	})
+	t.Run("happy: a near module is on stage before any pan, and he still boards it dead center", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.LMGap = 4
+		a := mustSceneAtlas(t)
+		early := Frame(cfg, a, tw, th, 0.2)
+		ink := 0
+		lx := landerX(cfg, tw)
+		for r := 0; r < early.Height; r++ {
+			for c := lx; c < lx+lander.BodyCols && c < early.Width; c++ {
+				if !early.At(r, c).Transparent() {
+					ink++
+				}
+			}
+		}
+		if ink < 40 {
+			t.Fatalf("a close module must be visible before the pan, found %d painted cells", ink)
+		}
+		r := routeFor(cfg, tw, th)
+		wantCenter := lx + lander.BodyCols/2
+		if got := r.boardX + astro.Cols/2; got < wantCenter-1 || got > wantCenter+1 {
+			t.Fatalf("the boarding jump must follow the module: center %d, want %d", got, wantCenter)
+		}
+	})
+	t.Run("happy: a far module still fits the world buffer", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.LMGap = cfg.PanCols + 40
+		a := mustSceneAtlas(t)
+		cyc := CycleSeconds(cfg, tw, th)
+		end := Frame(cfg, a, tw, th, cyc-0.01)
+		if end.Width != tw || end.Height != th {
+			t.Fatalf("frame is %dx%d, want %dx%d", end.Width, end.Height, tw, th)
+		}
+	})
 	t.Run("unhappy: time before the curtain clamps to the opening run", func(t *testing.T) {
 		pose, _, y := timelineAt(DefaultConfig(), tw, th, -3)
 		if !isRun(pose) || y != groundedY(th) {

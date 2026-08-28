@@ -59,9 +59,10 @@ func stackX(cfg Config, stageW, i int) int {
 	return poleCol(stageW) - cfg.BoxStart + i*(blockCols+stackGap)
 }
 
-// landerX is the lunar module's left world column — just beyond the
-// viewport until the pan finds it.
-func landerX(cfg Config, stageW int) int { return stageW + 2 }
+// landerX is the lunar module's left world column: LMGap columns past
+// the flagpole — beside the flag or far out in the dark, the
+// operator's call.
+func landerX(cfg Config, stageW int) int { return poleCol(stageW) + cfg.LMGap }
 
 // route is one loop of choreography, precomputed for a stage and a
 // config: where every leg starts and lands, and when.
@@ -252,7 +253,12 @@ func Frame(cfg Config, atlas *sprite.Atlas, stageW, stageH int, t float64) sprit
 	if stageH < 1 {
 		stageH = 1
 	}
+	// The world holds the pan's reach and, when the operator parks the
+	// module past it, the module too — never clipped out of existence.
 	worldW := stageW + cfg.PanCols
+	if far := landerX(cfg, stageW) + lander.BodyCols + 2; far > worldW {
+		worldW = far
+	}
 	world := sprite.New(worldW, stageH)
 	paintSet(cfg, world, stageW)
 	gr := groundRow(stageH)
