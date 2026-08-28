@@ -53,10 +53,10 @@ func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: str
 func toSeconds(s float64) int { return int(s*30) + 3 }
 
 func TestInterpreterDemoOpens(t *testing.T) {
-	t.Run("happy: the house opens on the spotlit VXV with the marquee and the knob rows", func(t *testing.T) {
+	t.Run("happy: the house opens on the spotlit ΔV load with the marquee and the knob rows", func(t *testing.T) {
 		m := newModel(0)
 		v := plain(m)
-		for _, want := range []string{"VXV", "INTPRET", "DOT", "Interpreter", "replay", "quit", "save"} {
+		for _, want := range []string{"MUNRVG", "VLOAD", "KPIP2", "INTPRET", "Interpreter", "replay", "quit", "save"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the opening view is missing %q", want)
 			}
@@ -67,11 +67,11 @@ func TestInterpreterDemoOpens(t *testing.T) {
 			}
 		}
 	})
-	t.Run("unhappy: the far blocks are past the vignette at the curtain", func(t *testing.T) {
+	t.Run("unhappy: the far chunks are past the vignette at the curtain", func(t *testing.T) {
 		m := newModel(0)
 		v := plain(m)
-		if strings.Contains(v, "VXSC") || strings.Contains(v, "carry on") {
-			t.Fatal("VXSC and the stamp must wait behind the vignette")
+		if strings.Contains(v, "VXV") || strings.Contains(v, "CARRY ON") {
+			t.Fatal("the cross product and the stamp must wait behind the vignette")
 		}
 	})
 }
@@ -79,19 +79,24 @@ func TestInterpreterDemoOpens(t *testing.T) {
 func TestInterpreterDemoPlays(t *testing.T) {
 	t.Run("happy: the spotlight advances on its own clock", func(t *testing.T) {
 		m := newModel(0)
+		mm, _ := m.Update(tea.WindowSizeMsg{Width: 110, Height: 45})
+		m = mm.(model)
 		_ = m.View()
+		if strings.Contains(plain(m), "MUNGRAV") {
+			t.Fatal("test premise: the gravity call waits past the opening vignette")
+		}
 		m = frames(m, toSeconds(stock.StopStart(1)+0.2))
 		v := plain(m)
-		if !strings.Contains(v, "VXSC") {
-			t.Fatal("by the second stop VXSC must surface at the vignette's edge")
+		if !strings.Contains(v, "MUNGRAV") {
+			t.Fatal("by the second stop the gravity call must surface at the vignette's edge")
 		}
 		m = frames(m, toSeconds(stock.StopStart(4)-stock.StopStart(1)-0.2+0.5))
 		v = plain(m)
-		if !strings.Contains(v, "carry on") || !strings.Contains(v, "EXIT") {
-			t.Fatal("the last stop must show DAD's stamp with EXIT below")
+		if !strings.Contains(v, "CARRY ON") || !strings.Contains(v, "HCALC") || !strings.Contains(v, "RVQ") {
+			t.Fatal("the last stop must show the stamp over the fading tail")
 		}
 		if strings.Contains(v, "INTPRET") {
-			t.Fatal("INTPRET must be long gone by the last stop")
+			t.Fatal("the prologue must be long gone by the last stop")
 		}
 	})
 	t.Run("happy: space, p and enter replay from the top", func(t *testing.T) {
@@ -173,10 +178,10 @@ func TestInterpreterKnobPanel(t *testing.T) {
 		}
 		m = press(m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		_ = m.View() // the real loop renders every frame — restage the fresh cast
-		m = frames(m, toSeconds(m.show.Cfg.StopStart(2)+0.2))
+		m = frames(m, toSeconds(m.show.Cfg.StopStart(4)+0.3))
 		v := plain(m)
-		if !strings.Contains(v, "DAD") {
-			t.Fatal("with a zero hold the replay must already be deep in the walkthrough")
+		if !strings.Contains(v, "CARRY ON") {
+			t.Fatal("with a zero hold the replay must already be on the stamp")
 		}
 	})
 	t.Run("unhappy: the floors hold on the panel too", func(t *testing.T) {
@@ -243,7 +248,7 @@ func TestInterpreterSave(t *testing.T) {
 		if cmd == nil {
 			t.Fatal("the show must keep playing after a failed save")
 		}
-		if !strings.Contains(plain(m), "VXV") {
+		if !strings.Contains(plain(m), "VLOAD") {
 			t.Fatal("the stage must survive a failed save")
 		}
 	})
