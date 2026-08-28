@@ -3,27 +3,27 @@
 // cell of the stage walking its own ramp from black to the finished
 // red, white and blue — and once the fade lands, the very large bald
 // eagle enters off the right wing and crosses the whole stage
-// leftward, the flag still flying beneath it, a shotgun component
-// painted onto each talon firing the gunfire particle blast on its
-// own schedule. After the flyover the flag flies alone, and the scene
-// holds there until the cut. The stock show is quick — the whole beat
-// lands inside six seconds — and the knobs stay live for anyone who
-// wants it slower or louder.
+// leftward, the flag still flying beneath it, the armed composite
+// carrying this scene's own talon shotguns. After the flyover the
+// flag flies alone, and the scene holds there until the cut. The
+// stock show is quick — the whole beat lands inside six seconds —
+// and the knobs stay live for anyone who wants it slower or louder.
 //
-// Nine live knobs retune it, the same way the landing scene tunes:
+// Eleven live knobs retune it, the same way the landing scene tunes:
 // FadeSeconds (the flag's fade-in), EagleDelay (when the eagle
 // enters, measured from t=0), CrossSeconds (how long the crossing
 // takes — the eagle's speed), EagleStart / EagleEnd (where the flight
 // begins and ends, as fractions of the full off-right-to-off-left
-// span), LeftShots / RightShots (how many shells each talon's gun
-// fires across one crossing), and LeftAim / RightAim (which of the
-// eight compass points each barrel faces). The runner nudges the time
-// knobs 50ms, the path knobs 0.05 of the span, the shots one shell,
-// the aims one compass point at a time, and s saves them to
+// span), LeftOn / RightOn (whether each talon carries a gun),
+// LeftShots / RightShots (how many shells that gun fires across one
+// crossing), and LeftAim / RightAim (which of the eight compass
+// points the barrel faces). The runner nudges the time knobs 50ms,
+// the path knobs 0.05 of the span, the on knobs flip, the shots one
+// shell, the aims one compass point at a time, and s saves them to
 // scenes/america/config.json. Every performer is a reusable component
-// on its own: components/flag and components/armed (eagle + shotgun
-// + gunfire as one performer) carry all of this as plain constructor
-// knobs.
+// on its own: components/flag, components/eagle, and components/armed
+// (the shotgun composite) carry all of this as plain constructor
+// knobs. America's file is this scene's settings, not Skies'.
 package america
 
 import (
@@ -49,7 +49,7 @@ const (
 	StartPoint = 0.0
 	EndPoint   = 1.0
 
-	// StockShots is how many shells each talon's shotgun fires
+	// StockShots is how many shells a mounted talon shotgun fires
 	// across one crossing.
 	StockShots = 3
 
@@ -58,9 +58,14 @@ const (
 	// ahead of the flight, the trailing one covers the rear.
 	StockLeftAim  = sprite.W
 	StockRightAim = sprite.E
+
+	// StockLeftOn and StockRightOn are the stock mounts: one
+	// shotgun on the leading talon, the trailing talon empty.
+	StockLeftOn  = true
+	StockRightOn = false
 )
 
-// Show is the America scene as a live scene: Cfg is the nine knobs
+// Show is the America scene as a live scene: Cfg is the eleven knobs
 // Assemble reads on each Start, so Play (Stop then Start) rebuilds
 // the fade, the flyover and the guns from whatever they hold now.
 type Show struct {
@@ -77,12 +82,21 @@ func New() *Show {
 }
 
 func (s *Show) assemble() []screenplay.Component {
+	bird := armed.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
+		Path(s.Cfg.EagleStart, s.Cfg.EagleEnd)
+	if s.Cfg.LeftOn {
+		bird.LeftEven(s.Cfg.LeftAim, s.Cfg.LeftShots)
+	} else {
+		bird.UnmountLeft()
+	}
+	if s.Cfg.RightOn {
+		bird.RightEven(s.Cfg.RightAim, s.Cfg.RightShots)
+	} else {
+		bird.UnmountRight()
+	}
 	return []screenplay.Component{
 		flag.New(s.Cfg.FadeSeconds),
-		armed.New().Delay(s.Cfg.EagleDelay).Cross(s.Cfg.CrossSeconds).
-			Path(s.Cfg.EagleStart, s.Cfg.EagleEnd).
-			LeftEven(s.Cfg.LeftAim, s.Cfg.LeftShots).
-			RightEven(s.Cfg.RightAim, s.Cfg.RightShots),
+		bird,
 	}
 }
 
