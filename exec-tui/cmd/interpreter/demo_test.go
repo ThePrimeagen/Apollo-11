@@ -172,6 +172,7 @@ func TestInterpreterKnobPanel(t *testing.T) {
 			t.Fatalf("test premise: a hundred h presses floor the hold, got %v", got)
 		}
 		m = press(m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+		_ = m.View() // the real loop renders every frame — restage the fresh cast
 		m = frames(m, toSeconds(m.show.Cfg.StopStart(2)+0.2))
 		v := plain(m)
 		if !strings.Contains(v, "DAD") {
