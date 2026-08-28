@@ -53,7 +53,7 @@ func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
 		m := sized(New(Catalog(), ""), 100, 48)
 		v := stripAnsi(m.View().Content)
-		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "America", "Skies", "FLAME", "STARS", "LEGACY"} {
+		for _, want := range []string{"01. Moon Orbit", "02. Walkthrough", "03. Mario", "04. Inverse Walkthrough", "Landing", "America", "Skies", "FLAME", "STARS", "LEGACY"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("menu missing %q:\n%s", want, v)
 			}
@@ -113,7 +113,7 @@ func TestMenuSections(t *testing.T) {
 		// tall enough that the whole grown catalog fits on one screen
 		v := stripAnsi(sized(New(Catalog(), ""), 100, 48).View().Content)
 		order := []struct{ header, first string }{
-			{"Screenplays", "MAIN"},
+			{"Screenplays", "01. Moon Orbit"},
 			{"Scenes", "Component Viewer"},
 			{"CONFIG", "FLAME CONFIG"},
 			{"Particles", "PARTICLE CONFIG"},
@@ -144,41 +144,45 @@ func TestMenuSections(t *testing.T) {
 			prev = hi
 		}
 	})
-	t.Run("happy: MAIN then 01. Moon Orbit then 02. Walkthrough sit directly under Screenplays", func(t *testing.T) {
+	t.Run("happy: 01. Moon Orbit then 02. Walkthrough then 03. Mario then 04. Inverse sit under Screenplays", func(t *testing.T) {
 		v := stripAnsi(sized(New(Catalog(), ""), 100, 48).View().Content)
 		hi := headerLine(v, "Screenplays")
-		main := entryLine(v, "MAIN")
 		orbit := entryLine(v, "01. Moon Orbit")
 		walk := entryLine(v, "02. Walkthrough")
-		if hi < 0 || main < 0 || orbit < 0 || walk < 0 {
-			t.Fatalf("menu missing Screenplays / MAIN / 01. Moon Orbit / 02. Walkthrough:\n%s", v)
+		mario := entryLine(v, "03. Mario")
+		inv := entryLine(v, "04. Inverse Walkthrough")
+		if hi < 0 || orbit < 0 || walk < 0 || mario < 0 || inv < 0 {
+			t.Fatalf("menu missing Screenplays / 01. Moon Orbit / 02. Walkthrough / 03. Mario / 04. Inverse Walkthrough:\n%s", v)
 		}
-		if main <= hi {
-			t.Fatalf("MAIN must sit under Screenplays, header=%d entry=%d:\n%s", hi, main, v)
-		}
-		if orbit != main+1 {
-			t.Fatalf("01. Moon Orbit must sit directly below MAIN, MAIN=%d orbit=%d:\n%s", main, orbit, v)
+		if orbit <= hi {
+			t.Fatalf("01. Moon Orbit must sit under Screenplays, header=%d entry=%d:\n%s", hi, orbit, v)
 		}
 		if walk != orbit+1 {
 			t.Fatalf("02. Walkthrough must sit directly below 01. Moon Orbit, orbit=%d walk=%d:\n%s", orbit, walk, v)
 		}
-		if scenes := headerLine(v, "Scenes"); scenes >= 0 && walk > scenes {
-			t.Fatalf("02. Walkthrough rendered under Scenes, not Screenplays:\n%s", v)
+		if mario != walk+1 {
+			t.Fatalf("03. Mario must sit directly below 02. Walkthrough, walk=%d mario=%d:\n%s", walk, mario, v)
+		}
+		if inv != mario+1 {
+			t.Fatalf("04. Inverse Walkthrough must sit directly below 03. Mario, mario=%d inverse=%d:\n%s", mario, inv, v)
+		}
+		if scenes := headerLine(v, "Scenes"); scenes >= 0 && inv > scenes {
+			t.Fatalf("04. Inverse Walkthrough rendered under Scenes, not Screenplays:\n%s", v)
 		}
 	})
 	t.Run("happy: headers are never selectable — j walks entry to entry", func(t *testing.T) {
 		m := sized(New(Catalog(), ""), 100, 48)
 		m = key(m, 'j')
-		if got := Catalog()[m.sel].ID; got != "moon" {
-			t.Fatalf("j from MAIN must land on moon, got %q", got)
-		}
-		m = key(m, 'j')
 		if got := Catalog()[m.sel].ID; got != "closeup" {
 			t.Fatalf("j from moon must land on closeup, got %q", got)
 		}
 		m = key(m, 'j')
+		if got := Catalog()[m.sel].ID; got != "mario" {
+			t.Fatalf("j from closeup must land on mario, got %q", got)
+		}
+		m = key(m, 'j')
 		if got := Catalog()[m.sel].ID; got != "inverse" {
-			t.Fatalf("j from closeup must land on the inverse walkthrough, got %q", got)
+			t.Fatalf("j from mario must land on the inverse walkthrough, got %q", got)
 		}
 		m = key(m, 'j')
 		if got := Catalog()[m.sel].ID; got != "viewer" {
@@ -413,7 +417,7 @@ func TestCatalog(t *testing.T) {
 	t.Run("happy: the catalog runs screenplays, scenes, config, particles, legacy", func(t *testing.T) {
 		c := Catalog()
 		want := []string{
-			"screenplay", "moon", "closeup", "inverse",
+			"moon", "closeup", "mario", "inverse",
 			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "shootingstar",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config", "startrail-config",
@@ -432,9 +436,9 @@ func TestCatalog(t *testing.T) {
 	})
 	t.Run("happy: entries group under their category headers in order", func(t *testing.T) {
 		wantSections := map[string]string{
-			"screenplay":       "Screenplays",
 			"moon":             "Screenplays",
 			"closeup":          "Screenplays",
+			"mario":            "Screenplays",
 			"inverse":          "Screenplays",
 			"viewer":           "Scenes",
 			"landing":          "Scenes",
@@ -476,19 +480,22 @@ func TestCatalog(t *testing.T) {
 			last = e.Section
 		}
 	})
-	t.Run("happy: screenplays are named MAIN then 01. Moon Orbit then 02. Walkthrough", func(t *testing.T) {
+	t.Run("happy: screenplays are named 01. Moon Orbit then 02. Walkthrough then 03. Mario then 04. Inverse", func(t *testing.T) {
 		c := Catalog()
-		if len(c) < 3 {
-			t.Fatal("catalog must hold MAIN, 01. Moon Orbit, and 02. Walkthrough")
+		if len(c) < 4 {
+			t.Fatal("catalog must hold 01. Moon Orbit, 02. Walkthrough, 03. Mario, and 04. Inverse Walkthrough")
 		}
-		if c[0].ID != "screenplay" || c[0].Title != "MAIN" || c[0].Section != "Screenplays" {
-			t.Fatalf("first entry must be MAIN under Screenplays, got %+v", c[0])
+		if c[0].ID != "moon" || c[0].Title != "01. Moon Orbit" || c[0].Section != "Screenplays" {
+			t.Fatalf("first entry must be 01. Moon Orbit under Screenplays, got %+v", c[0])
 		}
-		if c[1].ID != "moon" || c[1].Title != "01. Moon Orbit" || c[1].Section != "Screenplays" {
-			t.Fatalf("second entry must be 01. Moon Orbit under Screenplays, got %+v", c[1])
+		if c[1].ID != "closeup" || c[1].Title != "02. Walkthrough" || c[1].Section != "Screenplays" || c[1].Pkg != "./cmd/lunarcloseup" {
+			t.Fatalf("second entry must be 02. Walkthrough (closeup → ./cmd/lunarcloseup) under Screenplays, got %+v", c[1])
 		}
-		if c[2].ID != "closeup" || c[2].Title != "02. Walkthrough" || c[2].Section != "Screenplays" || c[2].Pkg != "./cmd/lunarcloseup" {
-			t.Fatalf("third entry must be 02. Walkthrough (closeup → ./cmd/lunarcloseup) under Screenplays, got %+v", c[2])
+		if c[2].ID != "mario" || c[2].Title != "03. Mario" || c[2].Section != "Screenplays" || c[2].Pkg != "./cmd/mario" {
+			t.Fatalf("third entry must be 03. Mario (mario → ./cmd/mario) under Screenplays, got %+v", c[2])
+		}
+		if c[3].ID != "inverse" || c[3].Title != "04. Inverse Walkthrough" || c[3].Section != "Screenplays" || c[3].Pkg != "./cmd/inverse" {
+			t.Fatalf("fourth entry must be 04. Inverse Walkthrough under Screenplays, got %+v", c[3])
 		}
 	})
 	t.Run("happy: Scenes opens on the component viewer as a single item", func(t *testing.T) {
@@ -692,8 +699,14 @@ func TestCatalog(t *testing.T) {
 			if e.Section == "MAIN PROGRAM" {
 				t.Fatalf("section MAIN PROGRAM must be Screenplays, found %+v", e)
 			}
+			if e.Title == "MAIN" || e.ID == "screenplay" {
+				t.Fatalf("MAIN is gone — the premiere is no longer a screenplay, found %+v", e)
+			}
 			if e.Title == "SCREENPLAY" {
-				t.Fatalf("premiere title must be MAIN, found %+v", e)
+				t.Fatalf("the premiere title is gone, found %+v", e)
+			}
+			if e.Title == "03. Inverse Walkthrough" {
+				t.Fatalf("inverse must be 04. Inverse Walkthrough now that Mario is 03, found %+v", e)
 			}
 			if e.Title == "MOON SCREENPLAY" {
 				t.Fatalf("moon title must be 01. Moon Orbit, found %+v", e)

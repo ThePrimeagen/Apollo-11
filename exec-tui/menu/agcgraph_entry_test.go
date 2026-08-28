@@ -26,7 +26,7 @@ func TestGraphsScreenKeepsExecutiveContiguous(t *testing.T) {
 	// unhappy: the EXECUTIVE section must stay contiguous (agctop then
 	// agcgraph at the catalog tail) and the head order untouched
 	c := Catalog()
-	if c[0].ID != "screenplay" {
+	if c[0].ID != "moon" {
 		t.Fatalf("catalog head disturbed: %s", c[0].ID)
 	}
 	if c[len(c)-2].ID != "agctop" || c[len(c)-1].ID != "agcgraph" {
