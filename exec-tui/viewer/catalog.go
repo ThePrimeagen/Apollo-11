@@ -25,6 +25,7 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/title"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/skies"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
@@ -74,8 +75,10 @@ func Catalog() []Item {
 		{ID: "armed", Title: "ARMED EAGLE", Kind: KindComponent, Path: adjustarmed.DefaultConfigPath, Program: "./cmd/adjustarmed/main", spawn: func() screenplay.Component { return armed.New() }},
 		{ID: "moon", Title: "MOON", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return moon.New() }},
 		{ID: "dsky", Title: "DSKY", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return dsky.NewPanel(dsky.MonitorState()) }},
-		{ID: "coresets", Title: "CORE SETS", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewCoreSets()) }},
-		{ID: "vacs", Title: "VAC AREAS", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewVACs()) }},
+		{ID: "coreset", Title: "CORE SET", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newBoxDemo(pools.NewCoreSet()) }},
+		{ID: "coresets", Title: "CORE SET PANEL", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewCoreSetPanel()) }},
+		{ID: "vac", Title: "VAC", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newBoxDemo(pools.NewVAC()) }},
+		{ID: "vacs", Title: "VAC PANEL", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewVACPanel()) }},
 		{ID: "title", Title: "TITLE", Kind: KindComponent, Path: assets, spawn: mustTitle},
 		{ID: "astronaut", Title: "ASTRONAUT", Kind: KindComponent, Path: astro.FindAtlas(), spawn: func() screenplay.Component { return newAstroRun() }},
 		{ID: "rocket", Title: "ROCKET", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newRocketPreview() }},
@@ -87,6 +90,7 @@ func Catalog() []Item {
 		{ID: "america", Title: "AMERICA", Kind: KindScene, Path: america.DefaultConfigPath, Program: "./cmd/america", spawn: func() screenplay.Component { return wrapScene(america.New()) }},
 		{ID: "moonwalk", Title: "MOONWALK", Kind: KindScene, Path: "scenes/moonwalk/config.json", Program: "./cmd/astronaut", spawn: func() screenplay.Component { return newMoonwalkPreview() }},
 		{ID: "skies", Title: "SKIES", Kind: KindScene, Path: skies.DefaultConfigPath, Program: "./cmd/skies", spawn: func() screenplay.Component { return wrapScene(skies.New()) }},
+		{ID: "breakdown", Title: "BREAKDOWN", Kind: KindScene, Path: "scenes/coreset", Program: "./cmd/coreset", spawn: func() screenplay.Component { return wrapScene(coreset.New()) }},
 	}
 }
 

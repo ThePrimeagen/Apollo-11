@@ -145,12 +145,12 @@ func poolScript(capacity int) []poolStep {
 	return script
 }
 
-// poolDemo wraps a pool view for the viewer: space (the viewer's
+// poolDemo wraps a pool panel for the viewer: space (the viewer's
 // trigger key) plays the scripted lifecycle one step per
 // poolStepSeconds, and the bottom row hints the button while idle and
 // the current action while playing. Firing mid-walk is refused.
 type poolDemo struct {
-	view    *pools.View
+	view    *pools.Panel
 	script  []poolStep
 	playing bool
 	step    int
@@ -159,8 +159,60 @@ type poolDemo struct {
 	lastInk int
 }
 
-func newPoolDemo(v *pools.View) *poolDemo {
+func newPoolDemo(v *pools.Panel) *poolDemo {
 	return &poolDemo{view: v, script: poolScript(v.Cap())}
+}
+
+// boxHint names the single-slot demo's button.
+const boxHint = "space toggles the slot — four job inks, then off"
+
+// boxJobs is the toggle palette: one press per ink, then off.
+var boxJobs = []pools.Job{
+	{Name: "SERVICER", Prio: 20, Ink: 83},
+	{Name: "CHARIN", Prio: 30, Ink: 213},
+	{Name: "MONITOR", Prio: 26, Ink: 220},
+	{Name: "RR READ", Prio: 32, Ink: 87},
+}
+
+// boxDemo wraps a single Box for the viewer: space walks the slot
+// through the four palette jobs — a different ink each press — and
+// then off again. The bottom row hints the button.
+type boxDemo struct {
+	view *pools.Box
+	step int
+}
+
+func newBoxDemo(b *pools.Box) *boxDemo { return &boxDemo{view: b} }
+
+func (d *boxDemo) Start(w, h int)    { d.view.Start(w, h) }
+func (d *boxDemo) Stop()             { d.view.Stop() }
+func (d *boxDemo) Update(dt float64) { d.view.Update(dt) }
+
+// Fire is the toggle: the next palette ink, or off past the last.
+func (d *boxDemo) Fire() bool {
+	d.step = (d.step + 1) % (len(boxJobs) + 1)
+	if d.step == 0 {
+		d.view.Clear()
+		return true
+	}
+	d.view.Set(boxJobs[d.step-1])
+	return true
+}
+
+func (d *boxDemo) Render() sprite.Sprite {
+	stage := d.view.Render()
+	if stage.Width < 1 || stage.Height < 1 {
+		return stage
+	}
+	col := 1
+	for _, ch := range boxHint {
+		if col >= stage.Width {
+			break
+		}
+		stage.Set(stage.Height-1, col, sprite.Cell{Ch: ch, FG: pools.DimInk, BG: -1})
+		col++
+	}
+	return stage
 }
 
 func (d *poolDemo) Start(w, h int) { d.view.Start(w, h) }

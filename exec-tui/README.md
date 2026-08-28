@@ -27,8 +27,9 @@ components/   everything a scene puts together
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)
-  pools/      the Executive's job memory: the core set view (8, alarm 1202) and
-              the VAC view (5, alarm 1201) — add/remove jobs, each wearing its ink
+  pools/      the Executive's job memory, two layers: Box is one slot (the pill
+              that turns on/off in a job's ink) and Panel composes them — the
+              core set panel (8, alarm 1202) and the VAC panel (5, alarm 1201)
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + Compose
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
@@ -37,6 +38,8 @@ cmd/          every runnable: editors, demos, tuners
   premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
+  coreset/    the Core Set scene: the memory unit drains to one core set, its
+              twelve words, then the priority bits — 6 of PRIO over 9 of VAC address
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser

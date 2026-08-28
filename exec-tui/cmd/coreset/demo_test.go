@@ -9,6 +9,7 @@ package main
 // anywhere, and the view is always exactly window-height lines.
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -16,6 +17,12 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 )
+
+var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// plain is the view with the color codes stripped, so spaced phrases
+// read as they do on the terminal.
+func plain(m model) string { return ansiPat.ReplaceAllString(m.View().Content, "") }
 
 func frames(m model, n int) model {
 	for i := 0; i < n; i++ {
@@ -37,7 +44,7 @@ func toSeconds(s float64) int { return int(s*30) + 3 }
 func TestCoresetDemoOpens(t *testing.T) {
 	t.Run("happy: the house opens on the memory unit with the marquee", func(t *testing.T) {
 		m := newModel(0)
-		v := m.View().Content
+		v := plain(m)
 		for _, want := range []string{"CORE SETS", "VAC AREAS", "Core Set", "replay", "quit"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the opening view is missing %q", want)
@@ -46,7 +53,7 @@ func TestCoresetDemoOpens(t *testing.T) {
 	})
 	t.Run("unhappy: the anatomy is nowhere before its act", func(t *testing.T) {
 		m := newModel(0)
-		if strings.Contains(m.View().Content, "MPAC") {
+		if strings.Contains(plain(m), "MPAC") {
 			t.Fatal("the twelve words must wait for the anatomy act")
 		}
 	})
@@ -57,7 +64,7 @@ func TestCoresetDemoPlays(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
 		m = frames(m, toSeconds(coreset.WordsStart+12*coreset.WordBeat+0.3))
-		v := m.View().Content
+		v := plain(m)
 		if !strings.Contains(v, "MPAC") || !strings.Contains(v, "PRIO") {
 			t.Fatal("past the reveal the twelve-word bar must be on stage")
 		}
@@ -65,7 +72,7 @@ func TestCoresetDemoPlays(t *testing.T) {
 			t.Fatal("the memory unit must be long gone by the anatomy act")
 		}
 		m = frames(m, toSeconds(coreset.BitsStart-coreset.WordsStart-12*coreset.WordBeat-0.3+1))
-		v = m.View().Content
+		v = plain(m)
 		if !strings.Contains(v, "VAC ADDRESS") || !strings.Contains(v, "OCT 20") {
 			t.Fatal("the bits act must break the priority word open")
 		}
@@ -79,11 +86,11 @@ func TestCoresetDemoPlays(t *testing.T) {
 			m := newModel(0)
 			_ = m.View()
 			m = frames(m, toSeconds(coreset.MoveStart+0.5))
-			if strings.Contains(m.View().Content, "VAC AREAS") {
+			if strings.Contains(plain(m), "VAC AREAS") {
 				t.Fatal("test premise: the unit act must be over before the replay")
 			}
 			m = press(m, msg)
-			if !strings.Contains(m.View().Content, "VAC AREAS") {
+			if !strings.Contains(plain(m), "VAC AREAS") {
 				t.Fatalf("%v must rewind to the memory unit", msg)
 			}
 		}
@@ -97,7 +104,7 @@ func TestCoresetDemoPlays(t *testing.T) {
 			t.Fatal("an unknown key must do nothing")
 		}
 		m = mm.(model)
-		if strings.Contains(m.View().Content, "VAC AREAS") {
+		if strings.Contains(plain(m), "VAC AREAS") {
 			t.Fatal("an unknown key must not rewind the show")
 		}
 	})
