@@ -110,7 +110,8 @@ func entryLine(v, title string) int {
 
 func TestMenuSections(t *testing.T) {
 	t.Run("happy: each category header renders once, above its entries", func(t *testing.T) {
-		v := stripAnsi(sized(New(Catalog(), ""), 100, 40).View().Content)
+		// tall enough that the whole grown catalog fits on one screen
+		v := stripAnsi(sized(New(Catalog(), ""), 100, 48).View().Content)
 		order := []struct{ header, first string }{
 			{"Screenplays", "MAIN"},
 			{"Scenes", "Component Viewer"},
@@ -413,7 +414,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup", "inverse",
-			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "liftoff", "bobble", "interpreter",
+			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config",
 			"dsky",
@@ -441,6 +442,7 @@ func TestCatalog(t *testing.T) {
 			"moonwalk":       "Scenes",
 			"skies":          "Scenes",
 			"coreset":        "Scenes",
+			"coreset2":       "Scenes",
 			"liftoff":        "Scenes",
 			"bobble":         "Scenes",
 			"interpreter":    "Scenes",
@@ -656,6 +658,30 @@ func TestCatalog(t *testing.T) {
 		}
 		if seen != 1 {
 			t.Fatalf("Core Set must be listed exactly once, saw %d", seen)
+		}
+	})
+	t.Run("happy: Scenes lists Core Sets Two right after Core Set", func(t *testing.T) {
+		c := Catalog()
+		if len(c) < 11 {
+			t.Fatal("catalog must hold the Core Sets Two scene after Core Set")
+		}
+		if c[10].ID != "coreset2" || c[10].Title != "Core Sets Two" || c[10].Section != "Scenes" || c[10].Pkg != "./cmd/coreset2" {
+			t.Fatalf("eleventh entry must be Core Sets Two under Scenes → ./cmd/coreset2, got %+v", c[10])
+		}
+	})
+	t.Run("unhappy: Core Sets Two is a scene, not a config, and never doubles up", func(t *testing.T) {
+		seen := 0
+		for _, e := range Catalog() {
+			if e.ID != "coreset2" {
+				continue
+			}
+			seen++
+			if e.Section != "Scenes" {
+				t.Fatalf("Core Sets Two must sit under Scenes, found %+v", e)
+			}
+		}
+		if seen != 1 {
+			t.Fatalf("Core Sets Two must be listed exactly once, saw %d", seen)
 		}
 	})
 	t.Run("unhappy: old MAIN PROGRAM / SCREENPLAY / MOON SCREENPLAY / LUNAR LANDER CLOSE-UP labels are gone", func(t *testing.T) {

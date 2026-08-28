@@ -13,10 +13,12 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/armed"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/astro"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/cpugraph"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/eagle"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/flag"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/ie"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/moon"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/nyan"
@@ -27,6 +29,8 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset2"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/interpreter"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
@@ -77,11 +81,13 @@ func Catalog() []Item {
 		{ID: "eagle", Title: "EAGLE", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return eagle.New() }},
 		{ID: "armed", Title: "ARMED EAGLE", Kind: KindComponent, Path: adjustarmed.DefaultConfigPath, Program: "./cmd/adjustarmed/main", spawn: func() screenplay.Component { return armed.New() }},
 		{ID: "moon", Title: "MOON", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return moon.New() }},
+		{ID: "ie", Title: "EXPLORER", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return ie.New() }},
 		{ID: "dsky", Title: "DSKY", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return dsky.NewPanel(dsky.MonitorState()) }},
 		{ID: "coreset", Title: "CORE SET", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newBoxDemo(pools.NewCoreSet()) }},
 		{ID: "coresets", Title: "CORE SET PANEL", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewCoreSetPanel()) }},
 		{ID: "vac", Title: "VAC", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newBoxDemo(pools.NewVAC()) }},
 		{ID: "vacs", Title: "VAC PANEL", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newPoolDemo(pools.NewVACPanel()) }},
+		{ID: "cpugraph", Title: "CPU GRAPH", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newCPUGraphDemo(cpugraph.New()) }},
 		{ID: "title", Title: "TITLE", Kind: KindComponent, Path: assets, spawn: mustTitle},
 		{ID: "astronaut", Title: "ASTRONAUT", Kind: KindComponent, Path: astro.FindAtlas(), spawn: func() screenplay.Component { return newAstroRun() }},
 		{ID: "rocket", Title: "ROCKET", Kind: KindComponent, Path: assets, spawn: func() screenplay.Component { return newRocketPreview() }},
@@ -94,8 +100,10 @@ func Catalog() []Item {
 		{ID: "moonwalk", Title: "MOONWALK", Kind: KindScene, Path: "scenes/moonwalk/config.json", Program: "./cmd/astronaut", spawn: func() screenplay.Component { return newMoonwalkPreview() }},
 		{ID: "skies", Title: "SKIES", Kind: KindScene, Path: skies.DefaultConfigPath, Program: "./cmd/skies", spawn: func() screenplay.Component { return wrapScene(skies.New()) }},
 		{ID: "breakdown", Title: "BREAKDOWN", Kind: KindScene, Path: coreset.DefaultConfigPath, Program: "./cmd/coreset", spawn: func() screenplay.Component { return wrapScene(coreset.New()) }},
+		{ID: "scan", Title: "SCAN", Kind: KindScene, Path: "scenes/coreset2", Program: "./cmd/coreset2", spawn: func() screenplay.Component { return wrapScene(coreset2.New()) }},
 		{ID: "liftoff", Title: "LIFTOFF", Kind: KindScene, Path: liftoff.DefaultConfigPath, Program: "./cmd/liftoff", spawn: func() screenplay.Component { return wrapScene(liftoff.New(nil)) }},
 		{ID: "bobble", Title: "BOBBLE", Kind: KindScene, Path: bobble.DefaultConfigPath, Program: "./cmd/bobble", spawn: func() screenplay.Component { return wrapScene(bobble.New(nil)) }},
+		{ID: "explorer", Title: "BIG E", Kind: KindScene, Path: explorer.DefaultConfigPath, Program: "./cmd/explorer", spawn: func() screenplay.Component { return wrapScene(explorer.New(nil)) }},
 		{ID: "interpreter", Title: "INTERPRETER", Kind: KindScene, Path: interpreter.DefaultConfigPath, Program: "./cmd/interpreter", spawn: func() screenplay.Component { return wrapScene(interpreter.New()) }},
 	}
 }

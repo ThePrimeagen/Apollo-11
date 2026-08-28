@@ -27,11 +27,14 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustparticle"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/adjustsky"
 	"github.com/theprimeagen/apollo-11/exec-tui/cmd/editor"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/ie"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
+	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/america"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/explorer"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/interpreter"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
@@ -97,12 +100,15 @@ func TestCatalog(t *testing.T) {
 			"eagle":       KindComponent,
 			"armed":       KindComponent,
 			"moon":        KindComponent,
+			"ie":          KindComponent,
 			"dsky":        KindComponent,
 			"coreset":     KindComponent,
 			"coresets":    KindComponent,
 			"vac":         KindComponent,
 			"vacs":        KindComponent,
+			"cpugraph":    KindComponent,
 			"breakdown":   KindScene,
+			"scan":        KindScene,
 			"title":       KindComponent,
 			"astronaut":   KindComponent,
 			"rocket":      KindComponent,
@@ -116,6 +122,7 @@ func TestCatalog(t *testing.T) {
 			"skies":       KindScene,
 			"liftoff":     KindScene,
 			"bobble":      KindScene,
+			"explorer":    KindScene,
 			"interpreter": KindScene,
 		}
 		seen := map[string]bool{}
@@ -333,8 +340,10 @@ func TestEdit(t *testing.T) {
 			{"moonwalk", moonwalk.DefaultConfigPath, "./cmd/astronaut"},
 			{"skies", skies.DefaultConfigPath, "./cmd/skies"},
 			{"breakdown", coreset.DefaultConfigPath, "./cmd/coreset"},
+			{"scan", "scenes/coreset2", "./cmd/coreset2"},
 			{"liftoff", liftoff.DefaultConfigPath, "./cmd/liftoff"},
 			{"bobble", bobble.DefaultConfigPath, "./cmd/bobble"},
+			{"explorer", explorer.DefaultConfigPath, "./cmd/explorer"},
 			{"interpreter", interpreter.DefaultConfigPath, "./cmd/interpreter"},
 		}
 		for _, tc := range cases {
@@ -471,6 +480,122 @@ func TestEdit(t *testing.T) {
 		}
 		if m.Index() != 0 {
 			t.Fatalf("empty catalog cursor moved to %d", m.Index())
+		}
+	})
+}
+
+// Tests written FIRST: the EXPLORER item is the ie component — the
+// old Internet Explorer logo, the fixed 14×7 card of the bold blue e
+// wearing its golden swoosh — listed as a component, staged centered,
+// and edited like any other code-drawn card: e opens the assets
+// editor, never a tuner.
+
+func TestExplorerItem(t *testing.T) {
+	t.Run("happy: the catalog lists EXPLORER and stages the blue e under the golden swoosh", func(t *testing.T) {
+		idx := findItem(t, KindComponent, "ie")
+		it := Catalog()[idx]
+		if it.Title != "EXPLORER" {
+			t.Fatalf("the item's banner is %q, want EXPLORER", it.Title)
+		}
+		comp := it.spawn()
+		if _, ok := comp.(*ie.Logo); !ok {
+			t.Fatalf("the ie item must stage the logo component, got %T", comp)
+		}
+		comp.Start(80, 19)
+		sp := comp.Render()
+		if sp.Width != 80 || sp.Height != 19 {
+			t.Fatalf("the preview rendered %dx%d, want the 80x19 stage", sp.Width, sp.Height)
+		}
+		blue, gold := false, false
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				cell := sp.At(r, c)
+				if cell.FG == ie.BlueInk || cell.BG == ie.BlueInk {
+					blue = true
+				}
+				if cell.FG == ie.GoldInk || cell.BG == ie.GoldInk {
+					gold = true
+				}
+			}
+		}
+		if !blue || !gold {
+			t.Fatalf("the preview must wear the blue e and the golden swoosh, blue %v gold %v", blue, gold)
+		}
+	})
+	t.Run("unhappy: e on the logo opens the assets editor, never a tuner", func(t *testing.T) {
+		m := sized(New(findItem(t, KindComponent, "ie")), 80, 24)
+		mm, cmd := m.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
+		m = mm.(Model)
+		ed, ok := m.ChosenEdit()
+		if !ok {
+			t.Fatal("e must choose an edit")
+		}
+		if ed.Kind != KindComponent {
+			t.Fatalf("edit kind %s, want component", ed.Kind)
+		}
+		if ed.Path != editor.DefaultAssetsDir {
+			t.Fatalf("edit path %q, want the assets folder %q", ed.Path, editor.DefaultAssetsDir)
+		}
+		if ed.Program != "" {
+			t.Fatalf("a code-drawn card must not launch a tuner, got %q", ed.Program)
+		}
+		if cmd == nil {
+			t.Fatal("e must quit so the editor can take the terminal")
+		}
+	})
+}
+
+// Tests written FIRST: the BIG E item is the explorer scene — the
+// moon-sized Internet Explorer logo parked under the twinkling sky —
+// listed as a scene whose e opens the scene's own tuner on its
+// config, the editable screen for the four twinkle knobs.
+
+func TestBigEItem(t *testing.T) {
+	t.Run("happy: the catalog lists BIG E and stages the logo under the twinkling stars", func(t *testing.T) {
+		idx := findItem(t, KindScene, "explorer")
+		it := Catalog()[idx]
+		if it.Title != "BIG E" {
+			t.Fatalf("the item's banner is %q, want BIG E", it.Title)
+		}
+		comp := it.spawn()
+		comp.Start(80, 19)
+		comp.Update(0.1)
+		sp := comp.Render()
+		if sp.Width != 80 || sp.Height != 19 {
+			t.Fatalf("the preview rendered %dx%d, want the 80x19 stage", sp.Width, sp.Height)
+		}
+		blue, gold, star := false, false, false
+		glyphs := map[rune]bool{}
+		for _, g := range stars.Glyphs {
+			glyphs[g] = true
+		}
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				cell := sp.At(r, c)
+				if cell.FG == ie.BlueInk || cell.BG == ie.BlueInk {
+					blue = true
+				}
+				if cell.FG == ie.GoldInk || cell.BG == ie.GoldInk {
+					gold = true
+				}
+				if glyphs[cell.Ch] {
+					star = true
+				}
+			}
+		}
+		if !blue || !gold || !star {
+			t.Fatalf("the preview must wear the blue e, the golden swoosh and the stars: blue %v gold %v star %v", blue, gold, star)
+		}
+	})
+	t.Run("unhappy: BIG E is a scene, not the fixed card — the two explorers stay distinct", func(t *testing.T) {
+		card := Catalog()[findItem(t, KindComponent, "ie")]
+		scene := Catalog()[findItem(t, KindScene, "explorer")]
+		if card.ID == scene.ID || card.Title == scene.Title {
+			t.Fatalf("the card (%q %q) and the scene (%q %q) must not collide",
+				card.ID, card.Title, scene.ID, scene.Title)
+		}
+		if scene.Program != "./cmd/explorer" {
+			t.Fatalf("e on the scene launches %q, want its own tuner ./cmd/explorer", scene.Program)
 		}
 	})
 }
@@ -792,6 +917,114 @@ func TestBoxDemo(t *testing.T) {
 		d.Update(1)
 		if !d.Fire() {
 			t.Fatal("the toggle works even before the curtain — state is identity, the stage is not")
+		}
+	})
+}
+
+// Tests written FIRST: the CPU GRAPH item is the standalone cpugraph
+// component — the portrait extracted from the graphs screen, shown by
+// itself with no legend and no switch row — wrapped in a switch-walk
+// demo. Space (the viewer's trigger key) steps the component's own
+// switch API through the story one state per press: the healthy
+// portrait (descent alone), the radar-steal knife edge, the 1668
+// monitor crossing the line, P64 crossing it harder, everything off,
+// and around again. The bottom row hints the button and names the
+// state now on stage.
+
+func spawnCPUGraph(t *testing.T) *cpuDemo {
+	t.Helper()
+	it := Catalog()[findItem(t, KindComponent, "cpugraph")]
+	comp := it.spawn()
+	d, ok := comp.(*cpuDemo)
+	if !ok {
+		t.Fatalf("cpugraph must spawn the switch-walk demo, got %T", comp)
+	}
+	d.Start(80, 19)
+	return d
+}
+
+func TestCPUGraphDemo(t *testing.T) {
+	t.Run("happy: space walks the switch story — healthy, knife edge, 1668, P64, idle, around", func(t *testing.T) {
+		d := spawnCPUGraph(t)
+		g := d.view
+		if !g.Descent() || g.Monitor() || g.Radar() || g.Approach() {
+			t.Fatalf("the demo opens on the healthy portrait: descent %v, monitor %v, radar %v, approach %v",
+				g.Descent(), g.Monitor(), g.Radar(), g.Approach())
+		}
+		if !d.Fire() {
+			t.Fatal("the trigger must always take")
+		}
+		if !g.Descent() || !g.Radar() || g.Monitor() || g.Approach() {
+			t.Fatalf("press 1 is the knife edge — descent + radar, got monitor %v radar %v approach %v",
+				g.Monitor(), g.Radar(), g.Approach())
+		}
+		d.Fire()
+		if !g.Monitor() || !g.Radar() || g.Approach() {
+			t.Fatalf("press 2 keys the 1668 monitor over the steal, got monitor %v radar %v approach %v",
+				g.Monitor(), g.Radar(), g.Approach())
+		}
+		d.Fire()
+		if !g.Approach() || g.Monitor() || !g.Radar() {
+			t.Fatalf("press 3 swaps 1668 for P64, got monitor %v radar %v approach %v",
+				g.Monitor(), g.Radar(), g.Approach())
+		}
+		d.Fire()
+		if g.Descent() || g.Monitor() || g.Radar() || g.Approach() {
+			t.Fatalf("press 4 switches everything off, got descent %v monitor %v radar %v approach %v",
+				g.Descent(), g.Monitor(), g.Radar(), g.Approach())
+		}
+		d.Fire()
+		if !g.Descent() || g.Monitor() || g.Radar() || g.Approach() {
+			t.Fatalf("press 5 wraps back to the healthy portrait")
+		}
+	})
+	t.Run("happy: the viewer's space key pulls the trigger", func(t *testing.T) {
+		m := sized(New(findItem(t, KindComponent, "cpugraph")), 80, 24)
+		m = key(m, ' ')
+		d, ok := m.preview.(*cpuDemo)
+		if !ok {
+			t.Fatalf("the cpugraph item must stage the switch-walk demo, got %T", m.preview)
+		}
+		if !d.view.Radar() || d.view.Monitor() {
+			t.Fatalf("space must step to the knife edge, got radar %v monitor %v", d.view.Radar(), d.view.Monitor())
+		}
+	})
+	t.Run("happy: the graph stands alone and the bottom row names the state", func(t *testing.T) {
+		d := spawnCPUGraph(t)
+		sp := d.Render()
+		if !demoText(sp, "VAC JOBS") || !demoText(sp, "SERVICER") {
+			t.Fatalf("the demo must show the portrait's lanes")
+		}
+		for _, banned := range []string{"total ::", "DESCENT", "q quit"} {
+			if demoText(sp, banned) {
+				t.Fatalf("the standalone graph must carry no surrounding information, found %q", banned)
+			}
+		}
+		bottom := demoRow(sp, sp.Height-1)
+		if !strings.Contains(bottom, "space") || !strings.Contains(bottom, "healthy") {
+			t.Fatalf("the idle hint must name the button and the healthy state, got %q", bottom)
+		}
+		d.Fire()
+		bottom = demoRow(d.Render(), d.Render().Height-1)
+		if !strings.Contains(bottom, "knife edge") {
+			t.Fatalf("after one press the hint must name the knife edge, got %q", bottom)
+		}
+	})
+	t.Run("unhappy: before Start the demo renders nothing and the switches still take", func(t *testing.T) {
+		it := Catalog()[findItem(t, KindComponent, "cpugraph")]
+		d, ok := it.spawn().(*cpuDemo)
+		if !ok {
+			t.Fatalf("cpugraph must spawn the switch-walk demo, got %T", it.spawn())
+		}
+		if sp := d.Render(); sp.Width != 0 || sp.Height != 0 {
+			t.Fatalf("before Start the demo renders %dx%d, want nothing", sp.Width, sp.Height)
+		}
+		d.Update(1)
+		if !d.Fire() {
+			t.Fatal("the trigger works before the curtain — state is identity, the stage is not")
+		}
+		if !d.view.Radar() {
+			t.Fatal("the unstaged press must still land on the switch API")
 		}
 	})
 }
