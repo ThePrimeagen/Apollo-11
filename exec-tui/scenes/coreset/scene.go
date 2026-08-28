@@ -4,28 +4,39 @@
 // the boxes — SERVICER holding a core set AND a VAC area, CHARIN a
 // core set alone. Act two drains the pools: every box dissolves away
 // one FadeBeat at a time, VACs first, until only CS1 stands. Act
-// three relabels the survivor plain CORE SET — no number — and glides
-// it to the top center. Act four builds the twelve-word bar under it,
-// one word per WordBeat: MPAC through MPAC+6, MODE, LOC, BANKSET,
-// PUSHLOC, PRIORITY — the exact ERASABLE_ASSIGNMENTS page-99 layout —
-// each group in its own ink with its own sourced caption. Act five
-// fades the rest, glides PRIORITY to center stage, and breaks the
-// 15-bit word open: the top six bits are the job's priority, the low
-// nine its VAC area address (EXECUTIVE.agc, VACFOUND: "STORE THE
-// ADDRESS OF THE FIRST WORD OF IT IN THE LOW NINE BITS OF THE
-// PRIORITY WORD"). The worked example is the real one: SERVICER at
-// PRIO 20 working VAC1 at 400 — OCT 20400 in one word. The scene
-// holds there until the cut.
+// three relabels the survivor plain CORE SET — no number — glides it
+// to the top center, lands it exactly on its parking spot, and rests
+// it there for the settle: first the transition, then the layout.
+// Act four builds the twelve-word bar under it, one word per
+// WordBeat: MPAC through MPAC+6, MODE, LOC, BANKSET, PUSHLOC,
+// PRIORITY — the exact ERASABLE_ASSIGNMENTS page-99 layout — each
+// group in its own ink with its own sourced caption. Act five fades
+// the rest, glides PRIORITY to center stage — parked on its seat
+// before the bits arrive — and breaks the 15-bit word open: the top
+// six bits are the job's priority, the low nine its VAC area address
+// (EXECUTIVE.agc, VACFOUND: "STORE THE ADDRESS OF THE FIRST WORD OF
+// IT IN THE LOW NINE BITS OF THE PRIORITY WORD"). The worked example
+// is the real one: SERVICER at PRIO 20 working VAC1 at 400 — OCT
+// 20400 in one word. The scene holds there until the cut.
+//
+// Every timing is a live knob on a Config — unit hold, fade beat,
+// dissolve, move, settle, word beat, word hold, zoom fade, zoom
+// glide — nudged 50ms at a time by the standalone runner and saved
+// to scenes/coreset/config.json. New plays the Active knobs; a
+// replay (Stop then Start) rebuilds the show from whatever the
+// knobs hold now, and a mid-play nudge never retimes a running show.
 package coreset
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
 
+// The stock knobs — DefaultConfig is these nine timings.
 const (
 	// UnitSeconds holds act one: the full memory unit.
 	UnitSeconds = 4.0
@@ -35,30 +46,23 @@ const (
 	DissolveSeconds = 0.4
 	// MoveSeconds is the survivor's glide to the top center.
 	MoveSeconds = 1.5
+	// SettleSeconds is the rest after the landing, before the first
+	// word — the beat that keeps the box's final movement out of the
+	// layout reveal.
+	SettleSeconds = 0.6
 	// WordBeat reveals one word of the twelve-word bar.
 	WordBeat = 0.35
 	// WordHold keeps the finished anatomy on stage before the zoom.
 	WordHold = 3.0
-	// ZoomSeconds covers the whole priority zoom: first FadeOutSeconds
-	// of everything else burning away while PRIORITY holds its slot,
-	// then the glide to center stage.
-	ZoomSeconds = 1.4
-	// FadeOutSeconds is the quarter second the rest gets to leave
-	// before PRIORITY moves.
-	FadeOutSeconds = 0.25
+	// ZoomFadeSeconds is the quarter second everything but PRIORITY
+	// gets to burn away before the word moves.
+	ZoomFadeSeconds = 0.25
+	// ZoomGlideSeconds carries PRIORITY from its bar slot to center
+	// stage once the fade is done.
+	ZoomGlideSeconds = 1.15
+)
 
-	// FadeSeconds covers the whole drain: fourteen dissolves — five
-	// VAC boxes, the VAC title, seven core sets, the core title.
-	FadeSeconds = 14*FadeBeat + DissolveSeconds
-
-	// The act boundaries, cumulative.
-	FadeStart    = UnitSeconds
-	MoveStart    = FadeStart + FadeSeconds
-	WordsStart   = MoveStart + MoveSeconds
-	WordsSeconds = 12*WordBeat + WordHold
-	ZoomStart    = WordsStart + WordsSeconds
-	BitsStart    = ZoomStart + ZoomSeconds
-
+const (
 	// The worked example, straight from the sources: SERVICER is
 	// scheduled CA PRIO20 / TC FINDVAC, and VACFOUND packs VAC1's
 	// address 400 into the low nine bits — OCT 20400 in one word.
@@ -80,10 +84,9 @@ const (
 	CaptionZoom  = "eleven words of workspace — one word runs the show"
 	CaptionBits  = "one 15-bit word — OCT 20400: SERVICER at PRIO 20, working VAC1 at 400"
 
-	dimInk        = 240
-	panelGap      = 6
-	shadeStep     = DissolveSeconds / 5
-	zoomShadeStep = FadeOutSeconds / 5
+	dimInk     = 240
+	panelGap   = 6
+	shadeRungs = 5
 
 	// The bit row's geometry: every bit bitPitch columns from its
 	// neighbor and a fieldGapW gutter between the six priority bits
@@ -158,16 +161,19 @@ func wordGroup(i int) Group {
 var groupFirstWord = []int{0, 7, 8, 9, 10, 11}
 
 // Show is the Core Set scene: one director component running the five
-// acts on its own clock.
+// acts on its own clock. Cfg is the nine knobs Assemble reads on each
+// Start, so a replay (Stop then Start) rebuilds the lesson from
+// whatever they hold now.
 type Show struct {
+	Cfg Config
 	screenplay.Ensemble
 }
 
-// New is the scene, ready for its curtain.
+// New is the scene, playing the Active knobs, ready for its curtain.
 func New() *Show {
-	s := &Show{}
+	s := &Show{Cfg: Active()}
 	s.Assemble = func() []screenplay.Component {
-		return []screenplay.Component{newDirector()}
+		return []screenplay.Component{newDirector(s.Cfg)}
 	}
 	return s
 }
@@ -203,10 +209,12 @@ func fadeOrder() []fadeRect {
 	return out
 }
 
-// director owns the whole lesson: the two panels, the lone box, and
-// the clock. The clock is its identity — a resize (Stop then Start)
-// keeps it — while a fresh scene Start assembles a fresh director.
+// director owns the whole lesson: the two panels, the lone box, the
+// knobs it was cast with, and the clock. The clock is its identity —
+// a resize (Stop then Start) keeps it — while a fresh scene Start
+// assembles a fresh director from the Show's current knobs.
 type director struct {
+	cfg       Config
 	core, vac *pools.Panel
 	lone      *pools.Box
 	clock     float64
@@ -214,8 +222,9 @@ type director struct {
 	staged    bool
 }
 
-func newDirector() *director {
+func newDirector(cfg Config) *director {
 	d := &director{
+		cfg:  cfg,
 		core: pools.NewCoreSetPanel(),
 		vac:  pools.NewVACPanel(),
 		lone: pools.NewCoreSet(),
@@ -260,20 +269,20 @@ func (d *director) Render() sprite.Sprite {
 	stage := sprite.New(d.w, d.h)
 	t := d.clock
 	switch {
-	case t < MoveStart:
+	case t < d.cfg.MoveStart():
 		d.paintPanels(stage, t)
-		if t < FadeStart {
+		if t < d.cfg.FadeStart() {
 			d.caption(stage, CaptionUnit)
 		} else {
 			d.caption(stage, CaptionFade)
 		}
-	case t < WordsStart:
+	case t < d.cfg.WordsStart():
 		d.paintMove(stage, t)
 		d.caption(stage, CaptionMove)
-	case t < ZoomStart:
+	case t < d.cfg.ZoomStart():
 		d.paintAnatomy(stage, t)
 		d.caption(stage, CaptionWords)
-	case t < BitsStart:
+	case t < d.cfg.BitsStart():
 		d.paintZoom(stage, t)
 		d.caption(stage, CaptionZoom)
 	default:
@@ -318,9 +327,9 @@ func (d *director) cs1Home() (x, y int) {
 func (d *director) paintPanels(stage sprite.Sprite, t float64) {
 	coreArt := d.core.Art()
 	vacArt := d.vac.Art()
-	if t >= FadeStart {
+	if t >= d.cfg.FadeStart() {
 		for i, fr := range fadeOrder() {
-			steps := stepsFor(t-FadeStart-float64(i)*FadeBeat, shadeStep)
+			steps := stepsFor(t-d.cfg.FadeStart()-float64(i)*d.cfg.FadeBeat, d.cfg.DissolveSeconds/shadeRungs)
 			if steps == 0 {
 				continue
 			}
@@ -341,14 +350,14 @@ func (d *director) paintPanels(stage sprite.Sprite, t float64) {
 	sprite.Blit(stage, vacX, topY, vacArt)
 }
 
-// paintMove glides the unnumbered survivor to the top center.
+// paintMove glides the unnumbered survivor to the top center, lands
+// it exactly on its spot, and holds it parked through the settle —
+// the transition finishes before the layout begins.
 func (d *director) paintMove(stage sprite.Sprite, t float64) {
-	p := ease((t - MoveStart) / MoveSeconds)
+	p := ease((t - d.cfg.MoveStart()) / d.cfg.MoveSeconds)
 	fromX, fromY := d.cs1Home()
 	toX, toY := d.loneHome()
-	x := fromX + int(p*float64(toX-fromX))
-	y := fromY + int(p*float64(toY-fromY))
-	sprite.Blit(stage, x, y, d.lone.Render())
+	sprite.Blit(stage, glide(fromX, toX, p), glide(fromY, toY, p), d.lone.Render())
 }
 
 // loneHome is the parked box's top-center spot.
@@ -398,7 +407,7 @@ func (d *director) paintAnatomy(stage sprite.Sprite, t float64) {
 	wordW, barX, barY := d.barGeometry()
 	shown := 0
 	for i := 0; i < 12; i++ {
-		if t < WordsStart+float64(i)*WordBeat {
+		if t < d.cfg.WordsStart()+float64(i)*d.cfg.WordBeat {
 			break
 		}
 		paintWord(stage, i, barX+i*wordW, barY, wordW)
@@ -415,12 +424,13 @@ func (d *director) paintAnatomy(stage sprite.Sprite, t float64) {
 	}
 }
 
-// paintZoom burns everything but PRIORITY away over FadeOutSeconds —
+// paintZoom burns everything but PRIORITY away over the zoom fade —
 // the word holding its bar slot the whole while — and only then
-// glides it to center stage.
+// glides it to center stage, landing it exactly on its seat before
+// the bits act takes over.
 func (d *director) paintZoom(stage sprite.Sprite, t float64) {
-	e := t - ZoomStart
-	steps := stepsFor(e, zoomShadeStep)
+	e := t - d.cfg.ZoomStart()
+	steps := stepsFor(e, d.cfg.ZoomFadeSeconds/shadeRungs)
 	wordW, barX, barY := d.barGeometry()
 
 	fading := sprite.New(d.w, d.h)
@@ -438,12 +448,10 @@ func (d *director) paintZoom(stage sprite.Sprite, t float64) {
 	dissolve(fading, 0, 0, d.w, d.h, steps)
 	sprite.Blit(stage, 0, 0, fading)
 
-	p := ease((e - FadeOutSeconds) / (ZoomSeconds - FadeOutSeconds))
+	p := ease((e - d.cfg.ZoomFadeSeconds) / d.cfg.ZoomGlideSeconds)
 	fromX, fromY := barX+11*wordW, barY
 	toX, toY := d.prioHome(wordW)
-	x := fromX + int(p*float64(toX-fromX))
-	y := fromY + int(p*float64(toY-fromY))
-	paintWord(stage, 11, x, y, wordW)
+	paintWord(stage, 11, glide(fromX, toX, p), glide(fromY, toY, p), wordW)
 }
 
 // prioHome is where the PRIORITY word parks for the bit breakdown.
@@ -504,6 +512,14 @@ func (d *director) caption(stage sprite.Sprite, text string) {
 	putText(stage, d.h-1, 2, text, dimInk)
 }
 
+// glide is from carried p of the way to to, on the nearest whole
+// cell. Rounding — not truncation — is what lands the traveler
+// exactly on its destination while its own act still runs, so the
+// next act never moves it one more cell when its content arrives.
+func glide(from, to int, p float64) int {
+	return from + int(math.Round(p*float64(to-from)))
+}
+
 // dissolve walks every painted cell of the rect steps rungs down the
 // shade ramp; four rungs is gone.
 func dissolve(sp sprite.Sprite, x, y, w, h, steps int) {
@@ -531,10 +547,14 @@ func dissolve(sp sprite.Sprite, x, y, w, h, steps int) {
 }
 
 // stepsFor is how many ramp rungs a dissolve that started e seconds
-// ago has burned, at one rung per step seconds. Before its beat, none.
+// ago has burned, at one rung per step seconds. Before its beat,
+// none; a zero-length dissolve is burned whole the moment it begins.
 func stepsFor(e, step float64) int {
 	if e <= 0 {
 		return 0
+	}
+	if step <= 0 {
+		return 6
 	}
 	s := int(e/step) + 1
 	if s > 6 {
