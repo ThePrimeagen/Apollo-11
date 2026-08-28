@@ -1,0 +1,11 @@
+{
+  "unitSeconds": 4,
+  "fadeBeat": 0.22,
+  "dissolveSeconds": 0.4,
+  "moveSeconds": 1.5,
+  "settleSeconds": 0.6,
+  "wordBeat": 0.35,
+  "wordHold": 3,
+  "zoomFadeSeconds": 0.25,
+  "zoomGlideSeconds": 1.15
+}
