@@ -1,10 +1,10 @@
 // Package explorer is the Big E scene: the moon-sized Internet
 // Explorer logo as its own component, the blinky-star background as
 // its own component, and one shooting star that falls once from top
-// mid-right to bottom mid-left. The stars fly the twinkle mode — the
-// sky holds where it scattered and some stars fade in and out on the
-// four knobs the scene's config carries: the cycle range and the fade
-// range, each a min and a max in seconds.
+// mid-right to bottom mid-left, behind the logo. The stars fly the
+// twinkle mode — the sky holds where it scattered and some stars fade
+// in and out on the four knobs the scene's config carries: the cycle
+// range and the fade range, each a min and a max in seconds.
 //
 // Four live knobs retune the scene: min/max cycle (±250ms) and
 // min/max fade (±50ms). The standalone runner walks them live —
@@ -50,8 +50,8 @@ func (s *Show) assemble() []screenplay.Component {
 	s.meteor = shootingstar.NewOnce()
 	return []screenplay.Component{
 		field,
-		ie.NewBig(),
 		s.meteor,
+		ie.NewBig(),
 	}
 }
 
