@@ -51,6 +51,7 @@ func keyCode(m Model, code rune) Model {
 
 func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
+		// tall enough that the whole grown catalog fits on one screen
 		m := sized(New(Catalog(), ""), 100, 48)
 		v := stripAnsi(m.View().Content)
 		for _, want := range []string{"01. Moon Orbit", "02. Walkthrough", "03. Mario", "04. Inverse Walkthrough", "Landing", "America", "Skies", "FLAME", "STARS", "LEGACY"} {
@@ -418,7 +419,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"moon", "closeup", "mario", "inverse",
-			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "shootingstar",
+			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "checkprio", "alarms", "shootingstar", "explorer",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config", "startrail-config",
 			"dsky",
@@ -450,7 +451,10 @@ func TestCatalog(t *testing.T) {
 			"liftoff":          "Scenes",
 			"bobble":           "Scenes",
 			"interpreter":      "Scenes",
+			"checkprio":        "Scenes",
+			"alarms":           "Scenes",
 			"shootingstar":     "Scenes",
+			"explorer":         "Scenes",
 			"flame":            "CONFIG",
 			"stars-config":     "CONFIG",
 			"sky-config":       "CONFIG",
@@ -497,6 +501,32 @@ func TestCatalog(t *testing.T) {
 		if c[3].ID != "inverse" || c[3].Title != "04. Inverse Walkthrough" || c[3].Section != "Screenplays" || c[3].Pkg != "./cmd/inverse" {
 			t.Fatalf("fourth entry must be 04. Inverse Walkthrough under Screenplays, got %+v", c[3])
 		}
+	})
+	t.Run("happy: 01. Moon Orbit names the fly-in, then the looping orbit", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.ID != "moon" {
+				continue
+			}
+			for _, want := range []string{"fly", "orbit"} {
+				if !strings.Contains(strings.ToLower(e.Desc), want) {
+					t.Fatalf("moon desc must name the %s, got %q", want, e.Desc)
+				}
+			}
+			return
+		}
+		t.Fatal("catalog must hold 01. Moon Orbit")
+	})
+	t.Run("unhappy: 01. Moon Orbit no longer claims the lander is already in orbit", func(t *testing.T) {
+		for _, e := range Catalog() {
+			if e.ID != "moon" {
+				continue
+			}
+			if strings.Contains(strings.ToLower(e.Desc), "already") {
+				t.Fatalf("moon desc still parks the lander on the ring at the cut, got %q", e.Desc)
+			}
+			return
+		}
+		t.Fatal("catalog must hold 01. Moon Orbit")
 	})
 	t.Run("happy: Scenes opens on the component viewer as a single item", func(t *testing.T) {
 		c := Catalog()

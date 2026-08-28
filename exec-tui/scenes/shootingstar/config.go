@@ -8,7 +8,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/components/bigstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/startrail"
 )
 
@@ -62,30 +61,13 @@ const (
 	StepNozzle = 0.2
 	StepPeak   = 1.0
 	StepTaper  = 0.05
-	minSpeed   = 4.0
-	maxSpeed   = 80.0
-	minPeriod  = 0.001
-	maxPeriod  = 0.100
-	minLife    = StepLife
-	maxLife    = 4.0
-	minNozzle  = 0.0
-	maxNozzle  = 12.0
-	minPeak    = 1.0
-	maxPeak    = 16.0
-	minTaper   = 0.0
-	maxTaper   = 1.0
-	minCount   = 1
-	maxCount   = 40
 
 	DefaultConfigPath = "scenes/shootingstar/config.json"
 )
 
 var (
 	errPath  = errors.New("shootingstar: path must be fall, circle, or square")
-	errSpeed = errors.New("shootingstar: speed must be positive")
-	errCount = errors.New("shootingstar: count must be at least 1")
-	errLife  = errors.New("shootingstar: min life is greater than max life")
-	errNeg   = errors.New("shootingstar: period, life, nozzle, and peak must not be negative")
+	errSpeed = errors.New("shootingstar: speed must be a finite number")
 
 	activeMu sync.Mutex
 	active   = DefaultConfig()
@@ -217,22 +199,10 @@ func (c Config) Validate() error {
 	if c.Path != PathFall && c.Path != PathCircle && c.Path != PathSquare {
 		return errPath
 	}
-	if err := bigstar.ValidateSize(c.Size); err != nil {
-		return err
-	}
-	if c.Speed <= 0 || math.IsNaN(c.Speed) || math.IsInf(c.Speed, 0) {
+	if math.IsNaN(c.Speed) || math.IsInf(c.Speed, 0) {
 		return errSpeed
 	}
-	if c.Count < minCount {
-		return errCount
-	}
-	if c.Period < 0 || c.MinLife < 0 || c.MaxLife < 0 || c.Nozzle < 0 || c.Peak < 0 {
-		return errNeg
-	}
-	if c.MinLife > c.MaxLife {
-		return errLife
-	}
-	return c.Trail().Validate()
+	return nil
 }
 
 func Load(path string) (Config, error) {
@@ -282,16 +252,6 @@ func (c Config) Save(path string) error {
 	return os.WriteFile(path, raw, 0o644)
 }
 
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
 func clamp(v, lo, hi float64) float64 {
 	if v < lo {
 		return lo
@@ -307,6 +267,8 @@ func snap(v, step float64) float64 {
 }
 
 func (c *Config) Nudge(k Knob, dir int) {
+	// Never clamp. Size, speed, and every other numeric knob keep
+	// whatever the step lands on, including negatives.
 	if c == nil || dir == 0 || k < 0 || k >= KnobCount {
 		return
 	}
@@ -333,26 +295,24 @@ func (c *Config) Nudge(k Knob, dir int) {
 			}
 		}
 	case KnobSize:
-		c.Size = clampInt(c.Size+dir, bigstar.MinSize, bigstar.MaxSize)
+		c.Size += dir
 	case KnobRandomSize:
 		c.RandomSize = dir > 0
 	case KnobSpeed:
-		c.Speed = clamp(snap(c.Speed+StepSpeed*float64(dir), StepSpeed), minSpeed, maxSpeed)
+		c.Speed = snap(c.Speed+StepSpeed*float64(dir), StepSpeed)
 	case KnobSpawn:
-		c.Count = clampInt(c.Count+dir, minCount, maxCount)
+		c.Count += dir
 	case KnobPeriod:
-		c.Period = clamp(snap(c.Period+StepPeriod*float64(dir), StepPeriod), minPeriod, maxPeriod)
+		c.Period = snap(c.Period+StepPeriod*float64(dir), StepPeriod)
 	case KnobMinLife:
-		v := snap(c.MinLife+StepLife*float64(dir), StepLife)
-		c.MinLife = clamp(v, minLife, math.Min(maxLife, c.MaxLife))
+		c.MinLife = snap(c.MinLife+StepLife*float64(dir), StepLife)
 	case KnobMaxLife:
-		v := snap(c.MaxLife+StepLife*float64(dir), StepLife)
-		c.MaxLife = clamp(v, math.Max(minLife, c.MinLife), maxLife)
+		c.MaxLife = snap(c.MaxLife+StepLife*float64(dir), StepLife)
 	case KnobNozzle:
-		c.Nozzle = clamp(snap(c.Nozzle+StepNozzle*float64(dir), StepNozzle), minNozzle, maxNozzle)
+		c.Nozzle = snap(c.Nozzle+StepNozzle*float64(dir), StepNozzle)
 	case KnobPeak:
-		c.Peak = clamp(snap(c.Peak+StepPeak*float64(dir), StepPeak), minPeak, maxPeak)
+		c.Peak = snap(c.Peak+StepPeak*float64(dir), StepPeak)
 	case KnobTaper:
-		c.Taper = clamp(snap(c.Taper+StepTaper*float64(dir), StepTaper), minTaper, maxTaper)
+		c.Taper = snap(c.Taper+StepTaper*float64(dir), StepTaper)
 	}
 }

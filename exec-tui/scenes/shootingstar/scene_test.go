@@ -269,6 +269,65 @@ func TestShootingStarScene(t *testing.T) {
 			t.Fatalf("the scene must still fall: %+v → %+v", sc.cross.Start, sc.cross.End)
 		}
 	})
+	t.Run("happy: a size past 5 still paints, and the stored size is not rewritten", func(t *testing.T) {
+		sc := NewPreview(nil)
+		sc.Cfg.Size = 6
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		if sc.flyer == nil || sc.flyer.star == nil {
+			t.Fatal("play must build the star")
+		}
+		if sc.flyer.star.Size != 6 {
+			t.Fatalf("size 6 was rewritten to %d", sc.flyer.star.Size)
+		}
+		if _, _, ok := coreCell(paint(sc)); !ok {
+			t.Fatal("a size-6 star must still paint its core")
+		}
+	})
+	t.Run("unhappy: speed is used as given — below 1 is not rewritten to 1, and a negative speed is kept", func(t *testing.T) {
+		slow := New(nil)
+		slow.Seed = 11
+		slow.Cfg.Speed = 0.5
+		slow.Start()
+		defer slow.Stop()
+		fast := New(nil)
+		fast.Seed = 11
+		fast.Cfg.Speed = 4
+		fast.Start()
+		defer fast.Stop()
+		_ = paint(slow)
+		_ = paint(fast)
+		tick(slow, 0.4)
+		tick(fast, 0.4)
+		if slow.Cfg.Speed != 0.5 {
+			t.Fatalf("slow speed was rewritten to %v", slow.Cfg.Speed)
+		}
+		sx, _, sok := coreCell(paint(slow))
+		fx, _, fok := coreCell(paint(fast))
+		if !sok || !fok {
+			t.Fatal("both flights must still paint the star")
+		}
+		if fx >= sx {
+			t.Fatalf("speed 4 must travel farther left than 0.5, cols %d vs %d — a floor of 1 would make them match", fx, sx)
+		}
+		rev := NewPreview(nil)
+		rev.Cfg.Path = PathCircle
+		rev.Cfg.Speed = -20
+		rev.Start()
+		defer rev.Stop()
+		_ = paint(rev)
+		if rev.Cfg.Speed != -20 {
+			t.Fatalf("negative speed was rewritten to %v", rev.Cfg.Speed)
+		}
+		tick(rev, 0.3)
+		if rev.Cfg.Speed != -20 {
+			t.Fatalf("the circle must keep speed -20, got %v", rev.Cfg.Speed)
+		}
+		if _, _, ok := coreCell(paint(rev)); !ok {
+			t.Fatal("a negative-speed circle must still paint the star")
+		}
+	})
 	t.Run("unhappy: a scene stopped before its first render never panics, and dt<=0 holds", func(t *testing.T) {
 		sc := New(nil)
 		sc.Start()

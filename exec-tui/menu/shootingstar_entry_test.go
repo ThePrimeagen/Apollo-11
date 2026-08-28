@@ -7,16 +7,17 @@ import (
 
 func TestCatalogCarriesTheShootingStarSceneAndTrail(t *testing.T) {
 	// happy: Shooting Star is a portable scene on the Scenes shelf,
-	// right after Interpreter, and STAR TRAIL CONFIG is the persist-trail
-	// tuner on the Particles shelf
-	shoot, interp, trail := -1, -1, -1
+	// right after the Interpreter's code-scene trio (it closes on
+	// Alarms), and STAR TRAIL CONFIG is the persist-trail tuner on
+	// the Particles shelf
+	shoot, alarms, trail := -1, -1, -1
 	c := Catalog()
 	for i := range c {
 		switch c[i].ID {
 		case "shootingstar":
 			shoot = i
-		case "interpreter":
-			interp = i
+		case "alarms":
+			alarms = i
 		case "startrail-config":
 			trail = i
 		}
@@ -31,8 +32,8 @@ func TestCatalogCarriesTheShootingStarSceneAndTrail(t *testing.T) {
 	if !strings.Contains(e.Desc, "knobs") {
 		t.Fatalf("shootingstar desc %q must sell its live knobs", e.Desc)
 	}
-	if interp < 0 || shoot != interp+1 {
-		t.Fatalf("shootingstar sits at %d, want right after interpreter at %d", shoot, interp)
+	if alarms < 0 || shoot != alarms+1 {
+		t.Fatalf("shootingstar sits at %d, want right after the code scenes' alarms at %d", shoot, alarms)
 	}
 	if trail < 0 {
 		t.Fatal("catalog missing the star trail tuner")

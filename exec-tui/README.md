@@ -21,7 +21,7 @@ components/   everything a scene puts together
   sky/        the moveable blue gradient — owns its config.json
   cloud/      the pool-particle cloud generator — owns its config.json
   stars/      the four-layer starfield — owns its config.json
-  bigstar/    the larger multi-cell star (size 1..5)
+  bigstar/    the larger multi-cell star (any size >= 1; no ceiling)
   startrail/  persist-particle comet wake — owns its config.json
               (peak spawn, life taper)
   lander/     the Apollo LM: baked atlas art, the assets/ loader, the Ship component
@@ -29,7 +29,8 @@ components/   everything a scene puts together
   moon/       Moon (the reusable pixelated disc) + Orbit (the craft circling it)
   ie/         the old Internet Explorer logo: the blue e and its golden swoosh,
               a fixed 14×7 card in half-cell pixels (EXPLORER in the viewer)
-              plus Big, the moon-sized geometry-drawn sibling that fills a stage
+              plus Big, the moon-sized geometry-drawn sibling (BIG E in the
+              viewer) that fills a stage
   rocket/     the size-4 rocket over a down-firing booster
   title/      banner cards set in terminal-fonts
   dsky/       the DSKY panel as a scene component (right-edge dock wipe)
@@ -61,8 +62,10 @@ cmd/          every runnable: editors, demos, tuners
               the scene falls right-to-left, high right to low left
               (scenes/shootingstar, eleven live knobs: peak piles spawn
               on the spine, taper cuts fringe life)
-  explorer/   the big IE logo under the twinkling sky (scenes/explorer,
-              four live knobs: min/max twinkle cycle and min/max fade)
+  explorer/   the Big E scene: moon-sized IE logo under blinking stars,
+              plus one shooting star (top mid-right to bottom mid-left)
+              (scenes/explorer, four live knobs: min/max twinkle cycle
+              and min/max fade)
   lander/     the continuous-descent demo
   moon/       runs the moon screenplay (space cuts; past the last scene it ends)
   stars/      the starfield strategy browser

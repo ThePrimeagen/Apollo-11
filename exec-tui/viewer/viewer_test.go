@@ -104,6 +104,7 @@ func TestCatalog(t *testing.T) {
 			"armed":        KindComponent,
 			"moon":         KindComponent,
 			"ie":           KindComponent,
+			"bige":         KindComponent,
 			"dsky":         KindComponent,
 			"coreset":      KindComponent,
 			"coresets":     KindComponent,
@@ -128,6 +129,8 @@ func TestCatalog(t *testing.T) {
 			"bobble":       KindScene,
 			"explorer":     KindScene,
 			"interpreter":  KindScene,
+			"checkprio":    KindScene,
+			"alarms":       KindScene,
 			"shootingstar": KindScene,
 			"bigstar":      KindComponent,
 		}
@@ -352,6 +355,8 @@ func TestEdit(t *testing.T) {
 			{"bobble", bobble.DefaultConfigPath, "./cmd/bobble"},
 			{"explorer", explorer.DefaultConfigPath, "./cmd/explorer"},
 			{"interpreter", interpreter.DefaultConfigPath, "./cmd/interpreter"},
+			{"checkprio", "scenes/checkprio", "./cmd/checkprio"},
+			{"alarms", "scenes/alarms", "./cmd/alarms"},
 			{"shootingstar", shootingstar.DefaultConfigPath, "./cmd/shootingstar"},
 		}
 		for _, tc := range cases {
@@ -592,19 +597,111 @@ func TestBigEItem(t *testing.T) {
 				}
 			}
 		}
+		meteor := false
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				if sp.At(r, c).Ch == '★' {
+					meteor = true
+				}
+			}
+		}
 		if !blue || !gold || !star {
 			t.Fatalf("the preview must wear the blue e, the golden swoosh and the stars: blue %v gold %v star %v", blue, gold, star)
 		}
+		if !meteor {
+			t.Fatal("the Big E scene must carry one shooting star")
+		}
 	})
-	t.Run("unhappy: BIG E is a scene, not the fixed card — the two explorers stay distinct", func(t *testing.T) {
+	t.Run("unhappy: BIG E is a scene, not the fixed card — the three explorers stay distinct", func(t *testing.T) {
 		card := Catalog()[findItem(t, KindComponent, "ie")]
+		logo := Catalog()[findItem(t, KindComponent, "bige")]
 		scene := Catalog()[findItem(t, KindScene, "explorer")]
-		if card.ID == scene.ID || card.Title == scene.Title {
-			t.Fatalf("the card (%q %q) and the scene (%q %q) must not collide",
-				card.ID, card.Title, scene.ID, scene.Title)
+		if card.ID == scene.ID || card.ID == logo.ID || logo.ID == scene.ID {
+			t.Fatalf("the card (%q), the logo (%q) and the scene (%q) must not share an id",
+				card.ID, logo.ID, scene.ID)
+		}
+		if card.Title == scene.Title || card.Title == logo.Title {
+			t.Fatalf("the small card (%q) must not steal the Big E name from the logo (%q) or the scene (%q)",
+				card.Title, logo.Title, scene.Title)
+		}
+		if logo.Kind != KindComponent || scene.Kind != KindScene {
+			t.Fatalf("the moon-sized logo is a component, the show is a scene — got %s and %s", logo.Kind, scene.Kind)
 		}
 		if scene.Program != "./cmd/explorer" {
 			t.Fatalf("e on the scene launches %q, want its own tuner ./cmd/explorer", scene.Program)
+		}
+		if logo.Program != "" {
+			t.Fatalf("the Big E component is a code-drawn still, not a tuner, got %q", logo.Program)
+		}
+	})
+}
+
+// Tests written FIRST: the BIG E component is the moon-sized Internet
+// Explorer logo alone — no sky, no meteor — listed as a component so
+// the scene can compose it with the blinky stars instead of baking
+// them into one performer.
+
+func TestBigEComponent(t *testing.T) {
+	t.Run("happy: the catalog lists the moon-sized logo as a BIG E component", func(t *testing.T) {
+		idx := findItem(t, KindComponent, "bige")
+		it := Catalog()[idx]
+		if it.Title != "BIG E" {
+			t.Fatalf("the item's banner is %q, want BIG E", it.Title)
+		}
+		comp := it.spawn()
+		if _, ok := comp.(*ie.Big); !ok {
+			t.Fatalf("the BIG E item must stage the moon-sized logo, got %T", comp)
+		}
+		comp.Start(80, 19)
+		sp := comp.Render()
+		if sp.Width != 80 || sp.Height != 19 {
+			t.Fatalf("the preview rendered %dx%d, want the 80x19 stage", sp.Width, sp.Height)
+		}
+		blue, gold, sky := false, false, false
+		glyphs := map[rune]bool{}
+		for _, g := range stars.Glyphs {
+			glyphs[g] = true
+		}
+		for r := 0; r < sp.Height; r++ {
+			for c := 0; c < sp.Width; c++ {
+				cell := sp.At(r, c)
+				if cell.FG == ie.BlueInk || cell.BG == ie.BlueInk {
+					blue = true
+				}
+				if cell.FG == ie.GoldInk || cell.BG == ie.GoldInk {
+					gold = true
+				}
+				if glyphs[cell.Ch] || cell.Ch == '★' {
+					sky = true
+				}
+			}
+		}
+		if !blue || !gold {
+			t.Fatalf("the preview must wear the blue e and the golden swoosh, blue %v gold %v", blue, gold)
+		}
+		if sky {
+			t.Fatal("the Big E component is the logo alone — stars and the meteor belong to the scene")
+		}
+	})
+	t.Run("unhappy: e on the moon-sized logo opens the assets editor, never a tuner", func(t *testing.T) {
+		m := sized(New(findItem(t, KindComponent, "bige")), 80, 24)
+		mm, cmd := m.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
+		m = mm.(Model)
+		ed, ok := m.ChosenEdit()
+		if !ok {
+			t.Fatal("e must choose an edit")
+		}
+		if ed.Kind != KindComponent {
+			t.Fatalf("edit kind %s, want component", ed.Kind)
+		}
+		if ed.Path != editor.DefaultAssetsDir {
+			t.Fatalf("edit path %q, want the assets folder %q", ed.Path, editor.DefaultAssetsDir)
+		}
+		if ed.Program != "" {
+			t.Fatalf("a code-drawn still must not launch a tuner, got %q", ed.Program)
+		}
+		if cmd == nil {
+			t.Fatal("e must quit so the editor can take the terminal")
 		}
 	})
 }

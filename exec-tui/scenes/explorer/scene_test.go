@@ -1,19 +1,21 @@
 package explorer
 
-// Tests written FIRST: the explorer scene is the big Internet
-// Explorer logo — the blue e under its golden swoosh, moon-sized —
-// parked at center stage under a twinkling sky. The stars fly the new
-// twinkle mode: the sky holds where it scattered and some stars fade
-// in and out on the knobs the scene's config carries. Assemble pushes
-// the scene's knobs onto the stars package, so Play (Stop then Start)
-// rebuilds the breathing from whatever the knobs hold now, and a
-// tuner can retune it live between plays.
+// Tests written FIRST: the explorer scene is the Big E — the moon-sized
+// Internet Explorer logo as its own component, under the blinky-star
+// background as its own component, plus one shooting star that falls
+// once from top mid-right to bottom mid-left and does not come back.
+// The stars fly the twinkle mode: the sky holds where it scattered
+// and some stars fade in and out on the knobs the scene's config
+// carries. Assemble pushes the scene's knobs onto the stars package,
+// so Play (Stop then Start) rebuilds the breathing from whatever the
+// knobs hold now, and a tuner can retune it live between plays.
 
 import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/bigstar"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/ie"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
@@ -60,6 +62,63 @@ func inkCells(scr *screenplay.Screen, ink int) int {
 		}
 	}
 	return n
+}
+
+func meteorCell(scr *screenplay.Screen) (x, y int, ok bool) {
+	for y = 0; y < stageH; y++ {
+		for x = 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c != nil && c.Content == string(bigstar.CoreGlyph) {
+				return x, y, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+func flyerCore(sc *Show) (x, y int, ok bool) {
+	if sc == nil || sc.meteor == nil {
+		return 0, 0, false
+	}
+	sp := sc.meteor.Render()
+	for y = 0; y < sp.Height; y++ {
+		for x = 0; x < sp.Width; x++ {
+			if sp.At(y, x).Ch == bigstar.CoreGlyph {
+				return x, y, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+func logoOwns(x, y int) bool {
+	cell := ie.BigArt(stageW, stageH).At(y, x)
+	return cell.FG == ie.BlueInk || cell.BG == ie.BlueInk ||
+		cell.FG == ie.GoldInk || cell.BG == ie.GoldInk ||
+		cell.FG == ie.GoldFade || cell.BG == ie.GoldFade
+}
+
+// skyCells is the twinkling field with the shooting star's own cells
+// masked out — the trail reuses the sky glyphs, so a composite would
+// look like stars shapeshifting as the meteor passes.
+func skyCells(sc *Show, scr *screenplay.Screen) map[[2]int]string {
+	mask := map[[2]int]bool{}
+	if sc != nil && sc.meteor != nil {
+		sp := sc.meteor.Render()
+		for y := 0; y < sp.Height; y++ {
+			for x := 0; x < sp.Width; x++ {
+				cell := sp.At(y, x)
+				if cell.Ch != 0 && cell.Ch != ' ' {
+					mask[[2]int{x, y}] = true
+				}
+			}
+		}
+	}
+	out := starCells(scr)
+	for pos := range mask {
+		delete(out, pos)
+	}
+	return out
 }
 
 func starCells(scr *screenplay.Screen) map[[2]int]string {
@@ -122,6 +181,74 @@ func TestExplorerScene(t *testing.T) {
 		if len(starCells(opening)) == 0 {
 			t.Fatal("the logo plays under the stars")
 		}
+		x, y, ok := flyerCore(sc)
+		if !ok {
+			t.Fatal("one shooting star must already be on stage")
+		}
+		if x < stageW/2 {
+			t.Fatalf("the shooting star must enter from the right, col %d", x)
+		}
+		if y > stageH/2 {
+			t.Fatalf("the shooting star must enter from the top, row %d", y)
+		}
+	})
+	t.Run("happy: one shooting star falls top mid-right to bottom mid-left, then is gone", func(t *testing.T) {
+		reset()
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		x0, y0, ok := flyerCore(sc)
+		if !ok {
+			t.Fatal("need the shooting star on stage to watch it fly")
+		}
+		tick(sc, 0.4)
+		_ = paint(sc)
+		x1, y1, ok := flyerCore(sc)
+		if !ok {
+			t.Fatal("the shooting star must still be on stage a beat later")
+		}
+		if x1 >= x0 {
+			t.Fatalf("the shooting star must travel right-to-left, col %d → %d", x0, x1)
+		}
+		if y1 < y0 {
+			t.Fatalf("the shooting star must fall, row %d → %d", y0, y1)
+		}
+		tick(sc, 6)
+		_ = paint(sc)
+		if _, _, ok := flyerCore(sc); ok {
+			t.Fatal("after the crossing the shooting star must leave the stage")
+		}
+		tick(sc, 3)
+		_ = paint(sc)
+		if _, _, ok := flyerCore(sc); ok {
+			t.Fatal("a second shooting star must not appear — the Big E fires once")
+		}
+	})
+	t.Run("happy: the shooting star flies behind the logo", func(t *testing.T) {
+		reset()
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		var crossed bool
+		for i := 0; i < 90; i++ {
+			tick(sc, 1.0/30)
+			_ = paint(sc)
+			x, y, ok := flyerCore(sc)
+			if !ok || !logoOwns(x, y) {
+				continue
+			}
+			crossed = true
+			c := paint(sc).Cell(x, y)
+			if c != nil && c.Content == string(bigstar.CoreGlyph) {
+				t.Fatalf("the shooting star is on top of the logo at (%d,%d)", x, y)
+			}
+			break
+		}
+		if !crossed {
+			t.Fatal("test premise: the meteor must cross the logo")
+		}
 	})
 	t.Run("happy: the sky twinkles — stars fade while the sky holds its scatter", func(t *testing.T) {
 		reset()
@@ -130,14 +257,14 @@ func TestExplorerScene(t *testing.T) {
 		sc.Cfg.MinFadeSeconds, sc.Cfg.MaxFadeSeconds = 1, 1
 		sc.Start()
 		defer sc.Stop()
-		before := starCells(paint(sc))
+		before := skyCells(sc, paint(sc))
 		if len(before) == 0 {
 			t.Fatal("test premise: the opening sky holds stars")
 		}
 		var faded bool
 		for i := 0; i < 8; i++ {
 			tick(sc, 0.5)
-			now := starCells(paint(sc))
+			now := skyCells(sc, paint(sc))
 			held := 0
 			for pos, ch := range now {
 				was, ok := before[pos]
@@ -198,6 +325,27 @@ func TestExplorerScene(t *testing.T) {
 		want := sc.Cfg.Twinkle()
 		if got := stars.ActiveTwinkle(); got != want {
 			t.Fatalf("the replay must rebuild from the current knobs, sky %+v want %+v", got, want)
+		}
+	})
+	t.Run("unhappy: the meteor never paints over the logo — the e keeps every cell it owns", func(t *testing.T) {
+		reset()
+		sc := New(nil)
+		sc.Start()
+		defer sc.Stop()
+		for i := 0; i < 90; i++ {
+			tick(sc, 1.0/30)
+			scr := paint(sc)
+			for y := 0; y < stageH; y++ {
+				for x := 0; x < stageW; x++ {
+					if !logoOwns(x, y) {
+						continue
+					}
+					c := scr.Cell(x, y)
+					if c != nil && c.Content == string(bigstar.CoreGlyph) {
+						t.Fatalf("logo cell (%d,%d) is wearing the meteor — the star is on top", x, y)
+					}
+				}
+			}
 		}
 	})
 	t.Run("unhappy: broken knobs still stage a show — the sky keeps its last good breath", func(t *testing.T) {

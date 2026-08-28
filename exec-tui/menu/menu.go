@@ -42,7 +42,7 @@ type Entry struct {
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
 	return []Entry{
-		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then the lander already in orbit", Pkg: "./cmd/moon"},
+		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then a fly-in into orbit", Pkg: "./cmd/moon"},
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
 		{ID: "mario", Section: "Screenplays", Title: "03. Mario", Desc: "three scenes: he runs the crates, rides the flagpole as the flag goes up, then boards the LM", Pkg: "./cmd/mario"},
 		{ID: "inverse", Section: "Screenplays", Title: "04. Inverse Walkthrough", Desc: "the walkthrough backwards, three scenes: liftoff off the pad, engines on parked sideways, then engines off — bobbling forever", Pkg: "./cmd/inverse"},
@@ -55,8 +55,11 @@ func Catalog() []Entry {
 		{ID: "coreset2", Section: "Scenes", Title: "Core Sets Two", Desc: "the scan, picked up from the priority word — the job roster, the EJSCAN loop as code, and the full-word compares where the newest SERVICER copy always wins", Pkg: "./cmd/coreset2"},
 		{ID: "liftoff", Section: "Scenes", Title: "Liftoff", Desc: "the landing backwards: ignition on the pad, mirrored dust, then the climb off the top — nine live knobs", Pkg: "./cmd/liftoff"},
 		{ID: "bobble", Section: "Scenes", Title: "Bobble", Desc: "the west-facing lander parked at center, bobbling on a sine, with or without its engine — three live knobs", Pkg: "./cmd/bobble"},
-		{ID: "interpreter", Section: "Scenes", Title: "Interpreter", Desc: "the real MUNRVG scrolls by behind a Rose Pine vignette — five spotlit chunks of SERVICER, each ending in its own look for the DANZIG check — two live knobs", Pkg: "./cmd/interpreter"},
+		{ID: "interpreter", Section: "Scenes", Title: "Interpreter", Desc: "the real MUNRVG slimmed to five plain blocks — one comment on top, bare ops, and the DANZIG check as one pseudo call — two live knobs", Pkg: "./cmd/interpreter"},
+		{ID: "checkprio", Section: "Scenes", Title: "Check Priority", Desc: "the DANZIG check as one C-style function — every core set's data[11] read, new against old, the highest priority wins the cpu", Pkg: "./cmd/checkprio"},
+		{ID: "alarms", Section: "Scenes", Title: "Alarms", Desc: "find_free_core_set or throw 1202, find_free_vac_area or throw 1201 — the allocation code walked to both alarms", Pkg: "./cmd/alarms"},
 		{ID: "shootingstar", Section: "Scenes", Title: "Shooting Star", Desc: "a larger star with a persist-particle comet trail, right to left (high right to low left) — eleven live knobs (fall / circle / square; peak + taper)", Pkg: "./cmd/shootingstar"},
+		{ID: "explorer", Section: "Scenes", Title: "Big E", Desc: "the moon-sized IE logo under blinking stars, plus one shooting star from top mid-right to bottom mid-left — four live knobs", Pkg: "./cmd/explorer"},
 		{ID: "flame", Section: "CONFIG", Title: "FLAME CONFIG", Desc: "tune the booster heat rungs (in-process)"},
 		{ID: "stars-config", Section: "CONFIG", Title: "STARS CONFIG", Desc: "tune sky density and fly delays per star layer", Pkg: "./cmd/adjuststars/main"},
 		{ID: "sky-config", Section: "CONFIG", Title: "SKY CONFIG", Desc: "tune the blue sky gradient — angle, light ink, dark ink", Pkg: "./cmd/adjustsky/main"},

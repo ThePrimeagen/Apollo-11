@@ -1,16 +1,14 @@
 package main
 
-// Demo harness tests, written first: cmd/coreset2 runs the Core Sets
-// Two scene standalone. The house opens on the pickup — scene one's
-// held bits frame, the PRIORITY word over its fifteen bits — under a
-// one-line marquee, and the scene plays itself: the six-job roster,
-// the sweep, the check_for_higher_priority_jobs() function revealing
-// on the right half, the five-set scan with the word math and the
-// arrow while a cursor walks the code, then the redo with the
-// duplicated SERVICER and the newest copy selected. space (or p, or
-// enter) replays from the top, -seconds brings the curtain down on
-// time, q and ctrl+c quit anywhere, and the view is always exactly
-// window-height lines.
+// Demo harness tests, written first: cmd/alarms runs the Alarms
+// scene standalone. The house opens on find_free_core_set()'s first
+// line under a one-line marquee, and the scene plays itself: the
+// core-set allocation revealed and walked to a free set, then to the
+// 1202 throw under its PROG ALARM chip; the vac-area allocation
+// walked the same way to 1201; the final hold naming both codes.
+// space (or p, or enter) replays from the top, -seconds brings the
+// curtain down on time, q and ctrl+c quit anywhere, and the view is
+// always exactly window-height lines.
 
 import (
 	"regexp"
@@ -19,7 +17,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset2"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/alarms"
 )
 
 var ansiPat = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -45,47 +43,44 @@ func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: str
 
 func toSeconds(s float64) int { return int(s*30) + 3 }
 
-func TestCoreset2DemoOpens(t *testing.T) {
-	t.Run("happy: the house opens on the pickup with the marquee", func(t *testing.T) {
+func TestAlarmsDemoOpens(t *testing.T) {
+	t.Run("happy: the house opens on the core-set function with the marquee", func(t *testing.T) {
 		m := newModel(0)
 		v := plain(m)
-		for _, want := range []string{"PRIORITY — OCT 20", "VAC ADDRESS — OCT 400", "Core Sets Two", "replay", "quit"} {
+		for _, want := range []string{"find_free_core_set()", "Alarms", "replay", "quit"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the opening view is missing %q", want)
 			}
 		}
 	})
-	t.Run("unhappy: the code and the scan are nowhere before their acts", func(t *testing.T) {
+	t.Run("unhappy: the vac act and the alarm chips are nowhere at the curtain", func(t *testing.T) {
 		m := newModel(0)
 		v := plain(m)
-		if strings.Contains(v, "EJSCAN") || strings.Contains(v, "check_for_higher_priority_jobs") {
-			t.Fatal("the code must wait for its act")
+		if strings.Contains(v, "find_free_vac_area()") {
+			t.Fatal("the vac act must wait its turn")
 		}
-		if strings.Contains(v, "SELECTED") || strings.Contains(v, "◀") {
-			t.Fatal("the scan must wait for its act")
+		if strings.Contains(v, "PROG ALARM") {
+			t.Fatal("no alarm before the loop falls off its end")
 		}
 	})
 }
 
-func TestCoreset2DemoPlays(t *testing.T) {
-	t.Run("happy: the acts advance on their own clock", func(t *testing.T) {
+func TestAlarmsDemoPlays(t *testing.T) {
+	t.Run("happy: the acts advance on their own clock — 1202, then the vac act, then 1201", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
-		m = frames(m, toSeconds(coreset2.ScanOneStart-0.3))
+		m = frames(m, toSeconds(alarms.CoreAlarmAt()+0.3))
 		v := plain(m)
-		if !strings.Contains(v, "EJSCAN") || !strings.Contains(v, strings.TrimSpace(coreset2.CodeLines()[3])) {
-			t.Fatal("past the reveal the whole scan function must be on stage")
+		if !strings.Contains(v, "PROG ALARM 1202") {
+			t.Fatal("the full core pass must raise the 1202 chip")
 		}
-		if strings.Contains(v, "VAC ADDRESS — OCT 400") {
-			t.Fatal("the pickup must be long gone by the code act")
-		}
-		m = frames(m, toSeconds(coreset2.SelectOneStart-coreset2.ScanOneStart+0.3+0.5))
+		m = frames(m, toSeconds(alarms.VACAlarmAt()-alarms.CoreAlarmAt()-0.3+0.3))
 		v = plain(m)
-		if !strings.Contains(v, "SELECTED") || !strings.Contains(v, "RR READ·32") {
-			t.Fatal("scan one must end with the third box down selected")
+		if !strings.Contains(v, "PROG ALARM 1201") || !strings.Contains(v, "find_free_vac_area()") {
+			t.Fatal("the full vac pass must raise the 1201 chip")
 		}
-		if !strings.Contains(v, strings.TrimSpace(coreset2.CodeLines()[0])) {
-			t.Fatal("the code must still stand beside the finished scan")
+		if strings.Contains(v, "find_free_core_set()") {
+			t.Fatal("the core card must be long gone by the vac alarm")
 		}
 	})
 	t.Run("happy: space, p and enter replay from the top", func(t *testing.T) {
@@ -96,32 +91,32 @@ func TestCoreset2DemoPlays(t *testing.T) {
 		} {
 			m := newModel(0)
 			_ = m.View()
-			m = frames(m, toSeconds(coreset2.ScanOneStart+1))
-			if strings.Contains(plain(m), "VAC ADDRESS — OCT 400") {
-				t.Fatal("test premise: the pickup act must be over before the replay")
+			m = frames(m, toSeconds(alarms.VACStart()+1))
+			if strings.Contains(plain(m), "find_free_core_set()") {
+				t.Fatal("test premise: the core act must be over before the replay")
 			}
 			m = press(m, msg)
-			if !strings.Contains(plain(m), "VAC ADDRESS — OCT 400") {
-				t.Fatalf("%v must rewind to the pickup", msg)
+			if !strings.Contains(plain(m), "find_free_core_set()") {
+				t.Fatalf("%v must rewind to the core act", msg)
 			}
 		}
 	})
 	t.Run("unhappy: unknown keys neither replay nor quit", func(t *testing.T) {
 		m := newModel(0)
 		_ = m.View()
-		m = frames(m, toSeconds(coreset2.ScanOneStart+1))
+		m = frames(m, toSeconds(alarms.VACStart()+1))
 		mm, cmd := m.Update(runeKey('z'))
 		if cmd != nil {
 			t.Fatal("an unknown key must do nothing")
 		}
 		m = mm.(model)
-		if strings.Contains(plain(m), "VAC ADDRESS — OCT 400") {
+		if strings.Contains(plain(m), "find_free_core_set()") {
 			t.Fatal("an unknown key must not rewind the show")
 		}
 	})
 }
 
-func TestCoreset2DemoHouseRules(t *testing.T) {
+func TestAlarmsDemoHouseRules(t *testing.T) {
 	t.Run("happy: Init schedules the first frame and each frame the next", func(t *testing.T) {
 		m := newModel(0)
 		if m.Init() == nil {

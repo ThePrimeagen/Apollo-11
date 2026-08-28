@@ -2,17 +2,19 @@ package main
 
 // Demo harness tests, written first: cmd/interpreter runs the
 // Interpreter scene standalone, and it is the scene's tuner too. The
-// house opens with VXV under the spotlight — INTPRET dim above, DOT
-// and MXV fading below, VXSC past seeing — over a marquee and the two
-// knob rows, and the scene plays itself: the camera glides stop to
-// stop through the five fake instructions, each ending in its own
-// look for the DANZIG check, and holds on DAD's stamp. j/k walk the
-// knob cursor with wrap, h/l nudge the selected knob one 50ms step
-// and the panel shows the new reading, s saves the knobs to the
-// config path (and installs them as the Active timing), space (or p,
-// or enter) replays from the top with whatever the knobs hold,
-// -seconds brings the curtain down on time, q and ctrl+c quit
-// anywhere, and the view is always exactly window-height lines.
+// house opens on the slimmed-down walkthrough — the ΔV load under
+// the spotlight: one plain comment on top that just says what the
+// block does, the bare MUNRVG ops under it, and the whole DANZIG
+// construction as the one pseudo call
+// check_for_higher_priority_jobs() — over a marquee and the two
+// knob rows. The scene plays itself: the camera glides
+// stop to stop through the five blocks and holds on the V cross V.
+// j/k walk the knob cursor with wrap, h/l nudge the selected knob
+// one 50ms step and the panel shows the new reading, s saves the
+// knobs to the config path (and installs them as the Active timing),
+// space (or p, or enter) replays from the top with whatever the
+// knobs hold, -seconds brings the curtain down on time, q and ctrl+c
+// quit anywhere, and the view is always exactly window-height lines.
 
 import (
 	"path/filepath"
@@ -53,13 +55,16 @@ func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: str
 func toSeconds(s float64) int { return int(s*30) + 3 }
 
 func TestInterpreterDemoOpens(t *testing.T) {
-	t.Run("happy: the house opens on the spotlit ΔV load with the marquee and the knob rows", func(t *testing.T) {
+	t.Run("happy: the house opens on the spotlit ΔV load — its comment, its ops, its call, the knob rows", func(t *testing.T) {
 		m := newModel(0)
 		v := plain(m)
-		for _, want := range []string{"MUNRVG", "VLOAD", "KPIP2", "INTPRET", "Interpreter", "replay", "quit", "save"} {
+		for _, want := range []string{"MUNRVG", "VLOAD", "KPIP2", "INTPRET", interpreter.Chunks()[0].Comment, "check_for_higher_priority_jobs()", "# DANZIG", "Interpreter", "replay", "quit", "save"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("the opening view is missing %q", want)
 			}
+		}
+		if strings.Contains(v, "THIS BLOCK") {
+			t.Fatal("the comments must say what the block does — no narration")
 		}
 		for k := interpreter.Knob(0); k < interpreter.KnobCount; k++ {
 			if !strings.Contains(v, interpreter.KnobLabel(k)) {
@@ -67,11 +72,16 @@ func TestInterpreterDemoOpens(t *testing.T) {
 			}
 		}
 	})
-	t.Run("unhappy: the far chunks are past the vignette at the curtain", func(t *testing.T) {
+	t.Run("unhappy: the far blocks are past the vignette at the curtain, and no dress survives", func(t *testing.T) {
 		m := newModel(0)
 		v := plain(m)
-		if strings.Contains(v, "VXV") || strings.Contains(v, "CARRY ON") {
-			t.Fatal("the cross product and the stamp must wait behind the vignette")
+		if strings.Contains(v, "VXV") || strings.Contains(v, "DELVS") {
+			t.Fatal("the cross product must wait behind the vignette")
+		}
+		for _, gone := range []string{"CARRY ON", "NEWJOB", "CHANG2"} {
+			if strings.Contains(v, gone) {
+				t.Fatalf("the old dressed-up check (%q) must be gone from the show", gone)
+			}
 		}
 	})
 }
@@ -83,17 +93,17 @@ func TestInterpreterDemoPlays(t *testing.T) {
 		m = mm.(model)
 		_ = m.View()
 		if strings.Contains(plain(m), "ABVEL") {
-			t.Fatal("test premise: the velocity chunk waits past the opening vignette")
+			t.Fatal("test premise: the velocity block waits past the opening vignette")
 		}
 		m = frames(m, toSeconds(stock.StopStart(1)+0.2))
 		v := plain(m)
 		if !strings.Contains(v, "ABVEL") {
-			t.Fatal("by the second stop the velocity chunk must surface at the vignette's edge")
+			t.Fatal("by the second stop the velocity block must surface at the vignette's edge")
 		}
 		m = frames(m, toSeconds(stock.StopStart(4)-stock.StopStart(1)-0.2+0.5))
 		v = plain(m)
-		if !strings.Contains(v, "CARRY ON") || !strings.Contains(v, "HCALC") || !strings.Contains(v, "RVQ") {
-			t.Fatal("the last stop must show the stamp over the fading tail")
+		if !strings.Contains(v, "DELVS") || !strings.Contains(v, "HCALC") || !strings.Contains(v, "RVQ") {
+			t.Fatal("the last stop must show the V cross V block over the fading tail")
 		}
 		if strings.Contains(v, "INTPRET") {
 			t.Fatal("the prologue must be long gone by the last stop")
@@ -180,8 +190,8 @@ func TestInterpreterKnobPanel(t *testing.T) {
 		_ = m.View() // the real loop renders every frame — restage the fresh cast
 		m = frames(m, toSeconds(m.show.Cfg.StopStart(4)+0.3))
 		v := plain(m)
-		if !strings.Contains(v, "CARRY ON") {
-			t.Fatal("with a zero hold the replay must already be on the stamp")
+		if !strings.Contains(v, "DELVS") {
+			t.Fatal("with a zero hold the replay must already be on the V cross V")
 		}
 	})
 	t.Run("unhappy: the floors hold on the panel too", func(t *testing.T) {

@@ -2,10 +2,11 @@ package bigstar
 
 // Tests written FIRST: Star is the larger star component — a sparkle
 // that occupies one cell at size 1 and grows into a multi-cell burst
-// (span 2*size-1) at sizes 2..5. Size and heading can be set, or
-// rolled random at Start. Place pins the center; a parked star (no
-// Place) sits at stage center. Render returns a stage-sized sprite.
-// The package does not move: motion is the shooting-star scene's.
+// (span 2*size-1) at any size >= 1. There is no size ceiling. Size
+// and heading can be set, or rolled random at Start. Place pins the
+// center; a parked star (no Place) sits at stage center. Render
+// returns a stage-sized sprite. The package does not move: motion is
+// the shooting-star scene's.
 
 import (
 	"math"
@@ -82,19 +83,38 @@ func TestArt(t *testing.T) {
 			t.Fatal("a rightward star must paint a wake on the left of the core")
 		}
 	})
-	t.Run("unhappy: size 0 and size 6 are refused, and Art hands back an empty sprite", func(t *testing.T) {
-		if err := ValidateSize(0); err == nil {
-			t.Fatal("size 0 must be rejected")
+	t.Run("happy: size 6 paints an 11x11 burst — there is no size ceiling", func(t *testing.T) {
+		a := Art(6, particle.Vec2{})
+		if a.Width != 11 || a.Height != 11 {
+			t.Fatalf("size-6 art is %dx%d, want 11x11 (span 2*size-1)", a.Width, a.Height)
 		}
-		if err := ValidateSize(6); err == nil {
-			t.Fatal("size 6 is past MaxSize 5")
+		if a.At(5, 5).Ch != CoreGlyph {
+			t.Fatal("the core must sit at the center of a size-6 burst")
+		}
+		if glyphCount(a) < 9 {
+			t.Fatalf("a size-6 star must paint a larger burst, got %d cells", glyphCount(a))
+		}
+		if err := ValidateSize(6); err != nil {
+			t.Fatalf("size 6 must pass: %v", err)
+		}
+	})
+	t.Run("unhappy: size 0 and size -1 paint nothing, and the stored size is not rewritten", func(t *testing.T) {
+		if err := ValidateSize(0); err == nil {
+			t.Fatal("size 0 cannot paint")
+		}
+		if err := ValidateSize(-1); err == nil {
+			t.Fatal("size -1 cannot paint")
 		}
 		if err := ValidateSize(1); err != nil {
 			t.Fatalf("size 1 must pass: %v", err)
 		}
 		a := Art(0, particle.Vec2{})
 		if a.Width != 0 || glyphCount(a) != 0 {
-			t.Fatal("Art of a rejected size must be empty")
+			t.Fatal("Art of a non-positive size must be empty")
+		}
+		a = Art(-3, particle.Vec2{})
+		if a.Width != 0 || glyphCount(a) != 0 {
+			t.Fatal("Art of a negative size must be empty, not clamped")
 		}
 	})
 }
@@ -202,15 +222,34 @@ func TestStarComponent(t *testing.T) {
 			t.Fatal("dt<=0 must hold the place")
 		}
 	})
-	t.Run("unhappy: NewSized of a rejected size falls back to MinSize and does not panic", func(t *testing.T) {
+	t.Run("unhappy: NewSized of a non-positive size keeps that size and does not panic", func(t *testing.T) {
 		s := NewSized(0)
 		if s == nil {
 			t.Fatal("NewSized must still return a star")
 		}
-		if s.Size != MinSize {
-			t.Fatalf("rejected size parked at %d, want MinSize %d", s.Size, MinSize)
+		if s.Size != 0 {
+			t.Fatalf("size 0 was rewritten to %d — never clamp the value", s.Size)
+		}
+		neg := NewSized(-2)
+		if neg.Size != -2 {
+			t.Fatalf("size -2 was rewritten to %d — never clamp the value", neg.Size)
 		}
 		s.Start(stageW, stageH)
+		if s.Size != 0 {
+			t.Fatalf("Start rewrote size 0 to %d", s.Size)
+		}
 		s.Stop()
+		big := NewSized(9)
+		if big.Size != 9 {
+			t.Fatalf("size 9 was rewritten to %d", big.Size)
+		}
+		big.Start(stageW, stageH)
+		defer big.Stop()
+		if big.Size != 9 {
+			t.Fatalf("Start rewrote size 9 to %d", big.Size)
+		}
+		if big.Span() != 17 {
+			t.Fatalf("size 9 span %d, want 17", big.Span())
+		}
 	})
 }
