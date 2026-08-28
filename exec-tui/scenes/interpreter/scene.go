@@ -1,23 +1,24 @@
 // Package interpreter walks the REAL interpreter code the way DANZIG
-// sees it. The scroll is MUNRVG — the average-G integration SERVICER
-// ran every two seconds of the powered descent — verbatim and
-// consecutive from Luminary099/SERVICER.agc, TC INTPRET through RVQ.
-// The code component displays the cards, the scrollcode component
-// moves them; the scene only chooses what to show: a prologue (the
-// routine's own header comments and the TC INTPRET hand-off), five
-// spotlit chunks — the ΔV load, the guidance push, the position out,
-// the velocity out, and the VXV cross product the scene is named
-// for — the DOT altitude-rate block scrolling past between the last
-// two stops, and three trailing chunks (through MUNGRAV to RVQ) so
-// the fade below the last stop still has code to sink through.
+// sees it — slimmed down so it reads at a glance. The scroll is
+// MUNRVG, the average-G integration SERVICER ran every two seconds
+// of the powered descent: the real opcodes and operands from
+// Luminary099/SERVICER.agc, consecutive from TC INTPRET through RVQ,
+// with the listing's dense inline comments stripped away. Every
+// spotlit block reads the same simple way: ONE plain-English comment
+// on top ("# THIS BLOCK ..."), the bare instructions, and the whole
+// DANZIG construction as one pseudo call —
 //
-// Each spotlit chunk ends in an annotated check to DANZIG — the
-// question the interpreter asks between op pairs: is a job of higher
-// priority waiting? — in its own dress: the real assembly (verbatim
-// INTERPRETER.agc), pseudocode, a fork, a weighing, a stamp. Every
-// NEWJOB in the checks wears a love mark and the VXV op itself wears
-// gold. Two live knobs (hold, glide) retune the walkthrough and save
-// to scenes/interpreter/config.json.
+//	check_for_higher_priority_jobs()    # DANZIG
+//
+// — the same line in every block, wearing the love mark. The
+// function itself is the Check Priority scene's whole show; here it
+// is just the question the interpreter asks between op pairs. The
+// DOT altitude-rate block scrolls past between the last two stops
+// and three stripped chunks (through MUNGRAV to RVQ) trail below the
+// last stop so the fade still has code to sink through. The code
+// component displays the cards, the scrollcode component moves them.
+// Two live knobs (hold, glide) retune the walkthrough and save to
+// scenes/interpreter/config.json.
 package interpreter
 
 import (
@@ -31,7 +32,7 @@ import (
 
 // The stock knobs — DefaultConfig is these two timings.
 const (
-	// HoldSeconds rests the spotlight on each chunk.
+	// HoldSeconds rests the spotlight on each block.
 	HoldSeconds = 4.0
 	// GlideSeconds carries the camera from one stop to the next.
 	GlideSeconds = 0.9
@@ -41,55 +42,54 @@ const (
 // non-empty line, counted from here.
 const addrBase = 0o4000
 
-// Chunk is one spotlit stretch of the real listing: the verbatim
-// SERVICER source, then the annotated check to DANZIG in this
-// chunk's own dress.
+// CheckLine is the whole DANZIG construction, reduced to one pseudo
+// call — the same line closing every block.
+const CheckLine = "\t\tcheck_for_higher_priority_jobs()\t# DANZIG"
+
+// Chunk is one spotlit block: one plain comment on top, the bare
+// verbatim ops, and (assembled onto the card) the one-line check.
 type Chunk struct {
 	Name    string
+	Comment string
 	Source  []string
-	Intro   string
-	Check   []string
-	Style   string
 	Caption string
 }
 
-// PrologueLines is the routine's own header and the TC INTPRET
-// hand-off — verbatim SERVICER.agc, never spotlit, riding dark above
-// the first chunk.
+// PrologueLines is the hand-off: one plain comment over the real
+// TC INTPRET, riding dark above the first block.
 func PrologueLines() []string {
 	return []string{
-		"# MUNRVG IS A SPECIAL AVERAGE G INTEGRATION ROUTINE USED BY THRUSTING",
-		"# PROGRAMS WHICH FUNCTION IN THE VICINITY OF AN ASSUMED SPHERICAL MOON.",
+		"# SERVICER HANDS THE DESCENT MATH TO THE INTERPRETER",
 		"\t\tTC\tINTPRET",
 	}
 }
 
-// MidLines is the DOT altitude-rate block — the real code between
-// the velocity chunk and the VXV chunk. The camera scrolls through
-// it without stopping, so the run stays consecutive.
+// MidLines is the DOT altitude-rate block — the real ops between the
+// velocity block and the VXV block, comments stripped. The camera
+// scrolls through it without stopping, so the run stays consecutive.
 func MidLines() []string {
 	return []string{
 		"\t\t\tUNIT/R/",
 		"\t\tDOT\tSL1",
 		"\t\t\tV1S",
-		"\t\tSTOVL\tHDOTDISP\t# HDOT = V. UNIT(R)*2(7) M/CS.",
+		"\t\tSTOVL\tHDOTDISP",
 		"\t\t\tR1S",
 	}
 }
 
-// EpilogueBlocks is the rest of the routine, verbatim and in order —
-// the lunar-landing display terms, MUNGRAV, and the RVQ return — so
-// the vignette below the last stop has real code to fade through.
+// EpilogueBlocks is the rest of the routine, verbatim ops in order —
+// the display terms, MUNGRAV, and the RVQ return — so the vignette
+// below the last stop has real code to fade through.
 func EpilogueBlocks() [][]string {
 	return [][]string{
 		{
 			"\t\tDSU",
 			"\t\t\t/LAND/",
-			"\t\tSTCALL\tHCALC\t\t# FOR NOW, DISPLAY WHETHER POS OR NEG",
+			"\t\tSTCALL\tHCALC",
 			"\t\t\tMUNRETRN",
 		},
 		{
-			"MUNGRAV\t\tUNIT\t\t\t# AT 36D HAVE ABVAL(R), AT 34D R.R",
+			"MUNGRAV\t\tUNIT",
 			"\t\tSTODL\tUNIT/R/",
 			"\t\t\t34D",
 			"\t\tSL\tBDDV",
@@ -100,101 +100,75 @@ func EpilogueBlocks() [][]string {
 			"\t\tDMP\tVXSC",
 			"\t\t\tSHIFT11",
 			"\t\t\tUNIT/R/",
-			"\t\tSTORE\tGDT1/2\t\t# 1/2GDT SCALED AT 2(7) M/CS.",
+			"\t\tSTORE\tGDT1/2",
 			"\t\tRVQ",
 		},
 	}
 }
 
-// Chunks is the walkthrough: five consecutive stretches of MUNRVG,
-// each ending in the same check to DANZIG in a different dress.
+// Chunks is the walkthrough: five consecutive blocks of MUNRVG, each
+// one comment, its bare ops, and the same one-line check.
 func Chunks() []Chunk {
-	stampTop := "\t\t╭─ DANZIG " + strings.Repeat("─", 15) + "╮"
-	stampBody := "\t\t│ NEWJOB = 0 ✓ CARRY ON  │"
-	stampBot := "\t\t╰" + strings.Repeat("─", 24) + "╯"
 	return []Chunk{
 		{
-			Name: "VLOAD VXSC",
+			Name:    "VLOAD VXSC",
+			Comment: "# THIS BLOCK LOADS THE VELOCITY CHANGE MEASURED THIS CYCLE",
 			Source: []string{
 				"MUNRVG\t\tVLOAD\tVXSC",
 				"\t\t\tDELV",
 				"\t\t\tKPIP2",
-				"\t\tPUSH\tVAD\t\t# 1ST PUSH:  DELV IN UNITS OF 2(8) M/CS",
+				"\t\tPUSH\tVAD",
 				"\t\t\tGDT/2",
 			},
-			Intro: "# ...THEN THE DISPATCH — THE CHECK, AS THE REAL ASSEMBLY (INTERPRETER.AGC):",
-			Check: []string{
-				"\t\tCCS\tNEWJOB\t\t\t# SEE IF A JOB OF HIGHER PRIORITY IS",
-				"\t\tTCF\tCHANG2\t\t\t# PRESENT, AND IF SO, CHANGE JOBS.",
-			},
-			Style:   "assembly",
-			Caption: "1/5 VLOAD VXSC — the ΔV load — the check as the real assembly: CCS NEWJOB / TCF CHANG2",
+			Caption: "1/5 VLOAD VXSC — the ΔV load",
 		},
 		{
-			Name: "PDDL DDV",
+			Name:    "PDDL DDV",
+			Comment: "# THIS BLOCK AVERAGES IT AND DIVIDES BY THE GUIDANCE PERIOD",
 			Source: []string{
-				"\t\tPUSH\tVAD\t\t# 2ND PUSH:  (DELV + GDT)/2, UNITS OF 2(7)",
-				"\t\t\tV\t\t#\t\t\t\t(12)",
+				"\t\tPUSH\tVAD",
+				"\t\t\tV",
 				"\t\tPDDL\tDDV",
 				"\t\t\tPGUIDE",
 				"\t\t\tSHIFT11",
 			},
-			Intro: "# ...THEN THE SAME CHECK, SPELLED OUT AS PSEUDOCODE:",
-			Check: []string{
-				"\t\tIF\tNEWJOB != 0:\t\t# DANZIG, SPELLED OUT",
-				"\t\tSWAP\tCORES[0], CORES[NEWJOB]",
-			},
-			Style:   "pseudocode",
-			Caption: "2/5 PDDL DDV — the guidance push — the check as pseudocode: a non-zero NEWJOB swaps cores",
+			Caption: "2/5 PDDL DDV — the guidance push",
 		},
 		{
-			Name: "STCALL R1S",
+			Name:    "STCALL R1S",
+			Comment: "# THIS BLOCK MOVES THE POSITION FORWARD AND CALLS GRAVITY",
 			Source: []string{
 				"\t\tVXSC",
 				"\t\tVAD",
 				"\t\t\tR",
-				"\t\tSTCALL\tR1S\t\t# STORE R SCALED AT 2(+24) M",
+				"\t\tSTCALL\tR1S",
 				"\t\t\tMUNGRAV",
 			},
-			Intro: "# ...THEN THE SAME CHECK, AS A FORK:",
-			Check: []string{
-				"\t\tDANZIG ─┬─ NEWJOB = 0 ──▶ NEXT OP",
-				"\t\t        ╰─ NEWJOB > 0 ──▶ CHANG2",
-			},
-			Style:   "fork",
-			Caption: "3/5 STCALL R1S — position out, call gravity — the check as a fork: zero rides on",
+			Caption: "3/5 STCALL R1S — position out",
 		},
 		{
-			Name: "STORE V1S",
+			Name:    "STORE V1S",
+			Comment: "# THIS BLOCK MOVES THE VELOCITY FORWARD AND SAVES THE SPEED",
 			Source: []string{
-				"# Page 883",
 				"\t\tVAD\tVAD",
 				"\t\tVAD",
 				"\t\t\tV",
-				"\t\tSTORE\tV1S\t\t# STORE V SCALED AT 2(+7) M/CS.",
+				"\t\tSTORE\tV1S",
 				"\t\tABVAL",
-				"\t\tSTOVL\tABVEL\t\t# STORE SPEED FOR LR AND DISPLAYS.",
+				"\t\tSTOVL\tABVEL",
 			},
-			Intro: "# ...THEN THE SAME CHECK, AS A WEIGHING OF PRIORITY WORDS:",
-			Check: []string{
-				"\t\tTHIS JOB  ▓▓▓▓▓░░░░░ 20\t\t# DANZIG WEIGHS THE WORDS",
-				"\t\tNEWJOB    ▓▓▓▓▓▓▓░░░ 26 ──▶ CHANG2",
-			},
-			Style:   "weighing",
-			Caption: "4/5 STORE V1S — velocity out, speed for the LR — the check as a weighing of PRIORITY words",
+			Caption: "4/5 STORE V1S — velocity out",
 		},
 		{
-			Name: "VXV VSL2",
+			Name:    "VXV VSL2",
+			Comment: "# THIS BLOCK CORRECTS FOR THE MOON TURNING BENEATH THE LANDER",
 			Source: []string{
 				"\t\tVXV\tVSL2",
 				"\t\t\tWM",
-				"\t\tSTODL\tDELVS\t\t# LUNAR ROTATION CORRECTION TERM*2(5) M/CS.",
+				"\t\tSTODL\tDELVS",
 				"\t\t\t36D",
 			},
-			Intro:   "# ...THEN THE SAME CHECK, AS A STAMP:",
-			Check:   []string{stampTop, stampBody, stampBot},
-			Style:   "stamp",
-			Caption: "5/5 VXV VSL2 — the V cross V itself — the check as a stamp: carry on",
+			Caption: "5/5 VXV VSL2 — the lunar rotation correction",
 		},
 	}
 }
@@ -242,9 +216,10 @@ func newDirector(cfg Config) *director {
 	}
 }
 
-// assemble builds the roster: the prologue, the five spotlit chunks
-// with the DOT block scrolling past before the last one, and the
-// three-chunk tail — every card on one continuous octal gutter.
+// assemble builds the roster: the prologue, the five spotlit blocks
+// — comment, ops, blank, the love-marked check — with the DOT block
+// scrolling past before the last one, and the three-chunk tail;
+// every card on one continuous octal gutter.
 func assemble() *scrollcode.Scroll {
 	var blocks []scrollcode.Block
 	addr := addrBase
@@ -259,28 +234,16 @@ func assemble() *scrollcode.Scroll {
 		if i == len(chunks)-1 {
 			add(code.New(code.LangAGC, MidLines()), MidLines(), false)
 		}
-		lines := append([]string{}, ch.Source...)
-		lines = append(lines, "", ch.Intro)
-		lines = append(lines, ch.Check...)
+		lines := append([]string{ch.Comment}, ch.Source...)
+		lines = append(lines, "", CheckLine)
 		c := code.New(code.LangAGC, lines)
-		markChecks(c, len(ch.Source))
-		if ch.Style == "stamp" {
-			markSpans(c, 0, "VXV", code.Gold)
-		}
+		markSpans(c, len(lines)-1, "check_for_higher_priority_jobs", code.Love)
 		add(c, lines, true)
 	}
 	for _, ep := range EpilogueBlocks() {
 		add(code.New(code.LangAGC, ep), ep, false)
 	}
 	return scrollcode.New(blocks...)
-}
-
-// markChecks highlights every NEWJOB of the annotation lines in love
-// ink — the word the whole check turns on.
-func markChecks(c *code.Code, srcLen int) {
-	for li := srcLen; li < len(c.Lines()); li++ {
-		markSpans(c, li, "NEWJOB", code.Love)
-	}
 }
 
 // markSpans marks every occurrence of needle on one expanded line.

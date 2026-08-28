@@ -51,7 +51,8 @@ func keyCode(m Model, code rune) Model {
 
 func TestMenuBoot(t *testing.T) {
 	t.Run("happy: lists the programs with the first one selected", func(t *testing.T) {
-		m := sized(New(Catalog(), ""), 100, 40)
+		// tall enough that the whole grown catalog fits on one screen
+		m := sized(New(Catalog(), ""), 100, 48)
 		v := stripAnsi(m.View().Content)
 		for _, want := range []string{"MAIN", "01. Moon Orbit", "02. Walkthrough", "Landing", "America", "Skies", "FLAME", "STARS", "LEGACY"} {
 			if !strings.Contains(v, want) {
@@ -414,7 +415,7 @@ func TestCatalog(t *testing.T) {
 		c := Catalog()
 		want := []string{
 			"screenplay", "moon", "closeup", "inverse",
-			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter",
+			"viewer", "landing", "america", "moonwalk", "skies", "coreset", "coreset2", "liftoff", "bobble", "interpreter", "checkprio", "alarms",
 			"flame", "stars-config", "sky-config", "armed-config", "editor",
 			"particle", "dust-config", "gunfire-config", "cloud-config",
 			"dsky",
@@ -446,6 +447,8 @@ func TestCatalog(t *testing.T) {
 			"liftoff":        "Scenes",
 			"bobble":         "Scenes",
 			"interpreter":    "Scenes",
+			"checkprio":      "Scenes",
+			"alarms":         "Scenes",
 			"flame":          "CONFIG",
 			"stars-config":   "CONFIG",
 			"sky-config":     "CONFIG",

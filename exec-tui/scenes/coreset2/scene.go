@@ -5,28 +5,34 @@
 // while the roster lands: six real Executive jobs, one per JobBeat,
 // each wearing its own ink and its own priority — six different
 // claims on the CPU. Act three sweeps the stage clean. Act four
-// creates the pseudocode by showing it: the EJSCAN loop reveals one
-// line per CodeBeat — walk every core set, read the PRIORITY word,
-// keep the highest — sourced from EXECUTIVE.agc (EJSCAN L437+, EJ1
-// L492-L499, CHANJOB L251+). Act five redraws five core sets with the
-// full word math beside each box — the priority plus the VAC address,
-// 000 for the NOVAC jobs whose low nine bits stay empty — and walks
-// the scan one comparison per CompareBeat, the cursor on the examined
-// set, the arrow on the leader, until the third box down (RR READ at
+// brings in the code — the very function the Check Priority scene
+// walks, check_for_higher_priority_jobs(), the C-style scan of every
+// core set's data[11] (EXECUTIVE.agc's EJSCAN in one card) — one
+// line per CodeBeat on the right half of the stage, and it STAYS
+// there. Act five redraws five core sets on the left with the full
+// word math beside each box — the priority plus the VAC address, 000
+// for the NOVAC jobs whose low nine bits stay empty — and walks the
+// scan one comparison per CompareBeat: the box cursor on the
+// examined set, the arrow on the leader, and a second cursor walking
+// the code itself — the winner line when a set takes the lead, the
+// if line when the compare says no, the read line when a free set
+// turns up -0, the run line once the third box down (RR READ at
 // 32000) is SELECTED. Act six is the redo with a duplicated job:
 // three SERVICER copies at the same PRIO 20 climbing the real VAC
-// addresses 400, 454, 530 — every equal-priority compare falls to the
-// VAC address, the newest copy is always selected, and the passed-over
-// copies are tagged as the stubs they become (the engine of the 1202
-// leak). The scene holds there until the cut.
+// addresses 400, 454, 530 — every equal-priority compare falls to
+// the VAC address, the newest copy is always selected, the
+// passed-over copies are tagged as the stubs they become (the engine
+// of the 1202 leak) — the same code walking beside it, so you watch
+// it select the latest one. The scene holds there until the cut.
 package coreset2
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/theprimeagen/apollo-11/exec-tui/components/code"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/pools"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/sprite"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/checkprio"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/coreset"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
 )
@@ -43,19 +49,21 @@ const (
 	PickupFadeSeconds = 0.5
 	// ClearSeconds dissolves the roster to an empty stage.
 	ClearSeconds = 1.0
-	// CodeBeat reveals one line of the scan loop.
+	// CodeBeat reveals one line of the scan function.
 	CodeBeat = 0.5
-	// CodeHold keeps the finished loop on stage before the scan.
+	// CodeLineCount is checkprio's function spelled as a constant, so
+	// the act boundaries stay compile-time. A test pins them equal.
+	CodeLineCount = 14
+	// CodeHold keeps the finished function on stage before the scan.
 	CodeHold = 2.5
-	// CodeFadeSeconds burns the code away as scan one opens.
-	CodeFadeSeconds = 0.4
 	// SlotBeat redraws one core set of a scan pass.
 	SlotBeat = 0.5
 	// CompareBeat speaks one step of the scan.
 	CompareBeat = 1.4
 	// WinnerHold keeps pass one's SELECTED arrow parked before the redo.
 	WinnerHold = 3.5
-	// SwapSeconds dissolves pass one's boxes ahead of the redo.
+	// SwapSeconds dissolves pass one's boxes ahead of the redo — the
+	// code card stays put through it.
 	SwapSeconds = 1.0
 
 	// The act boundaries, cumulative.
@@ -63,7 +71,7 @@ const (
 	JobsSeconds    = 6*JobBeat + JobsHold
 	ClearStart     = JobsStart + JobsSeconds
 	CodeStart      = ClearStart + ClearSeconds
-	CodeSeconds    = 6*CodeBeat + CodeHold
+	CodeSeconds    = CodeLineCount*CodeBeat + CodeHold
 	ScanOneStart   = CodeStart + CodeSeconds
 	BuildSeconds   = 5 * SlotBeat
 	StepsSeconds   = 5 * CompareBeat
@@ -96,14 +104,15 @@ const (
 
 	pickupShadeStep = PickupFadeSeconds / 5
 	clearShadeStep  = ClearSeconds / 5
-	codeShadeStep   = CodeFadeSeconds / 5
 	swapShadeStep   = SwapSeconds / 5
 
 	// The scan column's geometry: the word math sits mathGap right of
-	// a box, the lead marker markGap right of the math.
+	// a box, the lead marker markGap right of the math, and the code
+	// card codeGap right of the marker column.
 	mathGap = 2
 	markGap = 2
 	mathW   = 16 // "20 + 400 = 20400"
+	codeGap = 4
 )
 
 // Slot is one core set of a scan pass: the box label, the job holding
@@ -181,26 +190,23 @@ func ScanTwo() []Slot {
 	}
 }
 
-// CodeLines is the scan written as the code the audience watches run:
-// loop over the core sets, read each PRIORITY word, keep the highest
-// (EXECUTIVE.agc — EJSCAN L437+, EJ1 L492-L499, CHANJOB L251+).
+// CodeLines is the scan as the code the audience watches run: the
+// very function the Check Priority scene walks — one function, two
+// scenes (EXECUTIVE.agc — EJSCAN L437+, EJ1 L492-L499, CHANJOB
+// L251+ in one C-style card).
 func CodeLines() []string {
-	return []string{
-		"best ← -0                     # BUF+1: nothing found yet",
-		"for each of the 8 core sets:  # EJSCAN",
-		"  word ← PRIORITY             # priority bits + VAC address bits",
-		"  if word > best:             # EJ1 — the FULL word decides",
-		"    best ← word               # the new high priority",
-		"run the job holding best      # CHANJOB",
-	}
+	return checkprio.Lines()
 }
 
 // Step is one beat of the scan: the slot examined, where the lead
-// sits after it, and the line the stage speaks.
+// sits after it, the line the stage speaks, and the code line the
+// walk rests on — the winner line on a take, the if line on a no,
+// the read line on a free set's -0.
 type Step struct {
 	Slot int
 	Best int
 	Text string
+	Line int
 }
 
 // Steps replays EJSCAN over the slots: the first busy set seeds the
@@ -216,26 +222,33 @@ func Steps(slots []Slot) []Step {
 		switch {
 		case sl.Free:
 			st.Text = fmt.Sprintf("%s — PRIORITY -0 · free · skipped", sl.Label)
+			st.Line = checkprio.LineRead
 		case best < 0:
 			st.Text = fmt.Sprintf("%s — word %05o · the first busy set leads", sl.Label, sl.Word())
+			st.Line = checkprio.LineWinner
 			best = i
 		default:
 			bs := slots[best]
 			switch {
 			case sl.Word() == bs.Word():
 				st.Text = fmt.Sprintf("%s — %05o = %05o · tie — the earlier find keeps it", sl.Label, sl.Word(), bs.Word())
+				st.Line = checkprio.LineIf
 			case octOf(sl.Job.Prio) == octOf(bs.Job.Prio) && sl.Word() > bs.Word():
 				st.Text = fmt.Sprintf("%s — PRIO %d = %d · VAC %03o > %03o · the newer copy leads",
 					sl.Label, sl.Job.Prio, bs.Job.Prio, sl.VACAddr, bs.VACAddr)
+				st.Line = checkprio.LineWinner
 				best = i
 			case octOf(sl.Job.Prio) == octOf(bs.Job.Prio):
 				st.Text = fmt.Sprintf("%s — PRIO %d = %d · VAC %03o < %03o · %s keeps the lead",
 					sl.Label, sl.Job.Prio, bs.Job.Prio, sl.VACAddr, bs.VACAddr, bs.Label)
+				st.Line = checkprio.LineIf
 			case sl.Word() > bs.Word():
 				st.Text = fmt.Sprintf("%s — %05o > %05o · takes the lead", sl.Label, sl.Word(), bs.Word())
+				st.Line = checkprio.LineWinner
 				best = i
 			default:
 				st.Text = fmt.Sprintf("%s — %05o < %05o · %s keeps the lead", sl.Label, sl.Word(), bs.Word(), bs.Label)
+				st.Line = checkprio.LineIf
 			}
 		}
 		st.Best = best
@@ -278,14 +291,18 @@ func Bill() screenplay.Bill {
 
 // director owns the whole lesson and the clock. The clock is its
 // identity — a resize (Stop then Start) keeps it — while a fresh
-// scene Start assembles a fresh director.
+// scene Start assembles a fresh director. The card is the scan
+// function painted once — checkprio's own lines.
 type director struct {
 	clock  float64
+	card   sprite.Sprite
 	w, h   int
 	staged bool
 }
 
-func newDirector() *director { return &director{} }
+func newDirector() *director {
+	return &director{card: code.New(code.LangPseudo, CodeLines()).Art()}
+}
 
 func (d *director) Start(w, h int) {
 	d.w, d.h = w, h
@@ -319,16 +336,31 @@ func (d *director) Render() sprite.Sprite {
 		d.paintJobs(stage, t, stepsFor(t-ClearStart, clearShadeStep))
 		d.caption(stage, CaptionClear)
 	case t < ScanOneStart:
-		d.paintCode(stage, t, 0)
+		d.paintCode(stage, int((t-CodeStart)/CodeBeat)+1, -1)
 		d.caption(stage, CaptionCode)
 	case t < ScanTwoStart:
-		d.paintCode(stage, t, stepsFor(t-ScanOneStart, codeShadeStep))
 		burn := stepsFor(t-(SelectOneStart+WinnerHold), swapShadeStep)
 		d.paintScan(stage, t, ScanOne(), ScanOneStart, CaptionScanOne, CaptionWinnerOne, false, burn)
+		d.paintCode(stage, d.card.Height, codeCursor(t-ScanOneStart, ScanOne()))
 	default:
 		d.paintScan(stage, t, ScanTwo(), ScanTwoStart, CaptionScanTwo, CaptionWinnerTwo, true, 0)
+		d.paintCode(stage, d.card.Height, codeCursor(t-ScanTwoStart, ScanTwo()))
 	}
 	return stage
+}
+
+// codeCursor is the function line the walk rests on at act time e:
+// none while the boxes build, the speaking step's own line while the
+// walk runs, the run line once the winner is SELECTED.
+func codeCursor(e float64, slots []Slot) int {
+	switch {
+	case e < BuildSeconds:
+		return -1
+	case e >= BuildSeconds+StepsSeconds:
+		return checkprio.LineRun
+	default:
+		return Steps(slots)[int((e-BuildSeconds)/CompareBeat)].Line
+	}
 }
 
 // paintPickup is scene one's held bits frame, burned down the shade
@@ -376,75 +408,40 @@ func (d *director) paintJobs(stage sprite.Sprite, t float64, steps int) {
 	sprite.Blit(stage, 0, 0, art)
 }
 
-// paintCode reveals the scan loop one line per CodeBeat, centered and
-// double-spaced, the code bright over dim sourced comments — the two
-// bit fields tinted in their scene-one inks. steps > 0 burns it away
-// as scan one opens.
-func (d *director) paintCode(stage sprite.Sprite, t float64, steps int) {
-	art := sprite.New(d.w, d.h)
-	lines := CodeLines()
-	widest := 0
-	for _, l := range lines {
-		if n := runeLen(l); n > widest {
-			widest = n
+// paintCode seats the function card on the right half — where it
+// stays from its reveal through both scans — the first revealed rows
+// painted, the walk's gold cursor beside its line when one is up.
+func (d *director) paintCode(stage sprite.Sprite, revealed, cursor int) {
+	_, _, codeX, codeY := d.scanLayout()
+	if revealed > d.card.Height {
+		revealed = d.card.Height
+	}
+	for r := 0; r < revealed; r++ {
+		for c := 0; c < d.card.Width; c++ {
+			stage.Set(codeY+r, codeX+c, d.card.At(r, c))
 		}
 	}
-	x := (d.w - widest) / 2
-	if x < 0 {
-		x = 0
-	}
-	top := (d.h - (2*len(lines) - 1)) / 2
-	if top < 1 {
-		top = 1
-	}
-	for i, line := range lines {
-		if t < CodeStart+float64(i)*CodeBeat {
-			break
-		}
-		paintCodeLine(art, top+2*i, x, line)
-	}
-	dissolve(art, 0, 0, d.w, d.h, steps)
-	sprite.Blit(stage, 0, 0, art)
-}
-
-// paintCodeLine writes one loop line: code bright, the # comment dim,
-// and the priority/VAC field names tinted in their inks.
-func paintCodeLine(sp sprite.Sprite, y, x int, line string) {
-	hash := strings.Index(line, "#")
-	for i, ch := range []rune(line) {
-		ink := codeInk
-		if hash >= 0 && i >= hash {
-			ink = dimInk
-		}
-		sp.Set(y, x+i, sprite.Cell{Ch: ch, FG: ink, BG: -1})
-	}
-	tint(sp, y, x, line, "priority bits", coreset.PrioInk)
-	tint(sp, y, x, line, "VAC address bits", coreset.VACAddrInk)
-}
-
-// tint recolors one substring of an already-painted line.
-func tint(sp sprite.Sprite, y, x int, line, sub string, ink int) {
-	idx := strings.Index(line, sub)
-	if idx < 0 {
-		return
-	}
-	start := runeLen(line[:idx])
-	for i, ch := range []rune(sub) {
-		sp.Set(y, x+start+i, sprite.Cell{Ch: ch, FG: ink, BG: -1})
+	if cursor >= 0 {
+		stage.Set(codeY+cursor, codeX-2, sprite.Cell{Ch: '▸', FG: code.Gold, BG: -1})
 	}
 }
 
-// scanLayout is the scan column's frame: the box column's left edge
-// and its top row.
-func (d *director) scanLayout() (boxX, top int) {
-	total := pools.BoxW + mathGap + mathW + markGap + runeLen(StubTag)
-	boxX = (d.w - total) / 2
+// scanLayout is the stage's frame: the box column's left edge and
+// top row on the left, the code card's corner on the right.
+func (d *director) scanLayout() (boxX, top, codeX, codeY int) {
+	scanW := pools.BoxW + mathGap + mathW + markGap + runeLen(StubTag)
+	boxX = (d.w - (scanW + codeGap + d.card.Width)) / 2
 	if boxX < 2 {
 		boxX = 2
 	}
 	top = (d.h-5*pools.BoxH)/2 - 1
 	if top < 3 {
 		top = 3
+	}
+	codeX = boxX + scanW + codeGap
+	codeY = (d.h - 1 - d.card.Height) / 2
+	if codeY < 1 {
+		codeY = 1
 	}
 	return
 }
@@ -461,7 +458,7 @@ func (d *director) paintScan(stage sprite.Sprite, t float64, slots []Slot, start
 		return
 	}
 	art := sprite.New(d.w, d.h)
-	boxX, top := d.scanLayout()
+	boxX, top, _, _ := d.scanLayout()
 	mathX := boxX + pools.BoxW + mathGap
 	markX := mathX + mathW + markGap
 	putText(art, top-2, boxX, "CORE SETS", titleInk)
