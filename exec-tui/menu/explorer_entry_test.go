@@ -58,7 +58,7 @@ func TestBigEShelving(t *testing.T) {
 	if seen != 1 {
 		t.Fatalf("the catalog holds %d explorer entries, want exactly 1", seen)
 	}
-	if c[0].ID != "screenplay" {
+	if c[0].ID != "moon" {
 		t.Fatalf("catalog head disturbed: %s", c[0].ID)
 	}
 	if c[len(c)-2].ID != "agctop" || c[len(c)-1].ID != "agcgraph" {

@@ -6,7 +6,7 @@
 // the pad blows its mirrored dust cloud, and at LiftAt the craft
 // climbs on the landing's mirrored ease: a slow, heavy crawl off the
 // pad that rockets off the top. Then the scene simply holds the empty
-// moon until the screenplay cuts away — on 03. Inverse Walkthrough's
+// moon until the screenplay cuts away — on 04. Inverse Walkthrough's
 // bill the next entry is the bobble scene, engines on.
 //
 // Nine live knobs retune the scene: rise, lift at, the four ignition

@@ -5,9 +5,11 @@ package moonwalk
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
+	"sync"
 )
 
 // DefaultConfigPath is where the tuner saves the knobs, relative to
@@ -204,6 +206,67 @@ func (c Config) Save(path string) error {
 		return err
 	}
 	return os.WriteFile(path, append(raw, '\n'), 0o644)
+}
+
+var (
+	errTiming = errors.New("moonwalk: timings must be positive")
+	errHold   = errors.New("moonwalk: the top hold cannot be negative")
+	errPole   = errors.New("moonwalk: pole rows out of range")
+	errBox    = errors.New("moonwalk: box start out of range")
+	errPan    = errors.New("moonwalk: pan cols cannot be negative")
+
+	activeMu sync.Mutex
+	active   = DefaultConfig()
+)
+
+// Active is the knobs New copies onto a moonwalk beat: the last
+// successful Use, or stock after Reset.
+func Active() Config {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	return active
+}
+
+// Use makes cfg the knobs New and 03. Mario play. A bad cfg is
+// rejected and Active is unchanged.
+func Use(cfg Config) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	activeMu.Lock()
+	active = cfg
+	activeMu.Unlock()
+	return nil
+}
+
+// Reset restores stock knobs. Tests call this so a Use cannot leak.
+func Reset() {
+	activeMu.Lock()
+	active = DefaultConfig()
+	activeMu.Unlock()
+}
+
+// Validate reports whether the knobs are playable.
+func (c Config) Validate() error {
+	if c.StrideFPS <= 0 || c.RunSpeed <= 0 || c.JumpSeconds <= 0 ||
+		c.SlideSeconds <= 0 || c.FlagSeconds <= 0 || c.PanSeconds <= 0 ||
+		c.ExitSpeed <= 0 || math.IsNaN(c.StrideFPS) || math.IsNaN(c.RunSpeed) ||
+		math.IsInf(c.RunSpeed, 0) {
+		return errTiming
+	}
+	if c.TopSeconds < 0 || math.IsNaN(c.TopSeconds) || math.IsInf(c.TopSeconds, 0) {
+		return errHold
+	}
+	if c.PoleRows < MinPoleRows || c.PoleRows > MaxPoleRows {
+		return errPole
+	}
+	if c.BoxStart < MinBoxStart || c.BoxStart > MaxBoxStart {
+		return errBox
+	}
+	if c.PanCols < 0 {
+		return errPan
+	}
+	return nil
 }
 
 // LoadOrDefault reads knobs from path; a missing file is the default

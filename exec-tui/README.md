@@ -41,11 +41,12 @@ screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + C
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
   lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing on a huge moon horizon
-  inverse/    03. Inverse Walkthrough: liftoff, engines on, engines off — the walkthrough backwards
+  mario/      03. Mario: the astronaut runs the crates, rides the flagpole, boards the LM
+  inverse/    04. Inverse Walkthrough: liftoff, engines on, engines off — the walkthrough backwards
 cmd/          every runnable: editors, demos, tuners
-  premiere/   the four-scene screenplay (arrival, DSKY dock, descent orbit, THE END)
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
-  inverse/    runs 03. Inverse Walkthrough (space past the last scene ends it)
+  mario/      runs 03. Mario (space past the last scene ends it)
+  inverse/    runs 04. Inverse Walkthrough (space past the last scene ends it)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   coreset/    the Core Set scene: the memory unit drains to one core set, its
               twelve words, then the priority bits — 6 of PRIO over 9 of VAC address
@@ -84,7 +85,7 @@ Components live one lifecycle (see `screenplay/README.md`): `Start(w, h)`
 allocates for the stage, `Update(dt)` runs the clock, `Render()` returns a
 stage-sized `sprite.Sprite`, `Stop()` frees — and `Start` may come again.
 Each component's tuning file sits beside its code, so the tuners and the
-premiere read the same home. The lunar atlases are the one exception:
+screenplays read the same home. The lunar atlases are the one exception:
 they all live in `assets/`, the folder the editor opens by default.
 
 ## The legacy Executive sim

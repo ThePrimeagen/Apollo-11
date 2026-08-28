@@ -6,16 +6,16 @@ import (
 )
 
 func TestCatalogCarriesTheInverseWalkthroughScreenplay(t *testing.T) {
-	// happy: 03. Inverse Walkthrough is a screenplay — it launches
-	// from the Screenplays shelf, right after 02. Walkthrough
-	inverse, closeup := -1, -1
+	// happy: 04. Inverse Walkthrough is a screenplay — it launches
+	// from the Screenplays shelf, right after 03. Mario
+	inverse, mario := -1, -1
 	c := Catalog()
 	for i := range c {
 		switch c[i].ID {
 		case "inverse":
 			inverse = i
-		case "closeup":
-			closeup = i
+		case "mario":
+			mario = i
 		}
 	}
 	if inverse < 0 {
@@ -25,14 +25,14 @@ func TestCatalogCarriesTheInverseWalkthroughScreenplay(t *testing.T) {
 	if e.Section != "Screenplays" {
 		t.Fatalf("inverse section = %q, want Screenplays", e.Section)
 	}
-	if e.Title != "03. Inverse Walkthrough" {
-		t.Fatalf("inverse title = %q, want 03. Inverse Walkthrough", e.Title)
+	if e.Title != "04. Inverse Walkthrough" {
+		t.Fatalf("inverse title = %q, want 04. Inverse Walkthrough", e.Title)
 	}
 	if e.Pkg != "./cmd/inverse" {
 		t.Fatalf("inverse pkg = %q, want ./cmd/inverse", e.Pkg)
 	}
-	if closeup < 0 || inverse != closeup+1 {
-		t.Fatalf("inverse sits at %d, want right after 02. Walkthrough at %d", inverse, closeup)
+	if mario < 0 || inverse != mario+1 {
+		t.Fatalf("inverse sits at %d, want right after 03. Mario at %d", inverse, mario)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestInverseWalkthroughShelving(t *testing.T) {
 			t.Fatalf("the catalog holds %d %s entries, want exactly 1", seen[id], id)
 		}
 	}
-	if c[0].ID != "screenplay" {
+	if c[0].ID != "moon" {
 		t.Fatalf("catalog head disturbed: %s", c[0].ID)
 	}
 	if c[len(c)-2].ID != "agctop" || c[len(c)-1].ID != "agcgraph" {

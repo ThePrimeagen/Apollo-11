@@ -1,4 +1,4 @@
-// Package inverse is 03. Inverse Walkthrough, a composable
+// Package inverse is 04. Inverse Walkthrough, a composable
 // three-scene bill: the walkthrough played backwards. Scene one,
 // "liftoff": the lander parked on the huge moon horizon ignites (¼,
 // ½, ¾, full — the landing throttle run backwards), the pad blows its

@@ -35,17 +35,17 @@ type Entry struct {
 }
 
 // Catalog lists every runnable program by category: the screenplays
-// (MAIN, 01. Moon Orbit, 02. Walkthrough, then 03. Inverse
+// (01. Moon Orbit, 02. Walkthrough, 03. Mario, then 04. Inverse
 // Walkthrough), then the portable scenes, then the config editors,
 // then the particle tuners, then the legacy TUIs.
 // Everything this module owns launches out of its own cmd/ folder;
 // only the truly separate labs still run as sibling modules.
 func Catalog() []Entry {
 	return []Entry{
-		{ID: "screenplay", Section: "Screenplays", Title: "MAIN", Desc: "the four-scene premiere: arrival, DSKY dock, descent orbit, then THE END", Pkg: "./cmd/premiere"},
 		{ID: "moon", Section: "Screenplays", Title: "01. Moon Orbit", Desc: "two scenes: the bare moon, then a fly-in into orbit", Pkg: "./cmd/moon"},
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
-		{ID: "inverse", Section: "Screenplays", Title: "03. Inverse Walkthrough", Desc: "the walkthrough backwards, three scenes: liftoff off the pad, engines on parked sideways, then engines off — bobbling forever", Pkg: "./cmd/inverse"},
+		{ID: "mario", Section: "Screenplays", Title: "03. Mario", Desc: "three scenes: he runs the crates, rides the flagpole as the flag goes up, then boards the LM", Pkg: "./cmd/mario"},
+		{ID: "inverse", Section: "Screenplays", Title: "04. Inverse Walkthrough", Desc: "the walkthrough backwards, three scenes: liftoff off the pad, engines on parked sideways, then engines off — bobbling forever", Pkg: "./cmd/inverse"},
 		{ID: "viewer", Section: "Scenes", Title: "Component Viewer", Desc: "cycle every component, particle and scene — e edits, closing resumes", Pkg: "./cmd/viewer"},
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the flag fades in from black, then the giant eagle crosses, a shotgun blasting in each talon — nine live knobs", Pkg: "./cmd/america"},

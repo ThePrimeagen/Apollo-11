@@ -1,6 +1,6 @@
 package inverse
 
-// Tests written FIRST: 03. Inverse Walkthrough is a composable
+// Tests written FIRST: 04. Inverse Walkthrough is a composable
 // three-scene bill — the walkthrough played backwards. Scene one,
 // "liftoff": the lander parked on the moon horizon ignites (¼, ½, ¾,
 // full), kicks the mirrored pad dust, climbs off the top on the

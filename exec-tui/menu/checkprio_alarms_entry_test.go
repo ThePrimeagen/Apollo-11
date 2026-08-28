@@ -67,7 +67,7 @@ func TestCodeScenesShelving(t *testing.T) {
 			t.Fatalf("the catalog holds %d %s entries, want exactly 1", seen[id], id)
 		}
 	}
-	if c[0].ID != "screenplay" {
+	if c[0].ID != "moon" {
 		t.Fatalf("catalog head disturbed: %s", c[0].ID)
 	}
 	if c[len(c)-2].ID != "agctop" || c[len(c)-1].ID != "agcgraph" {

@@ -1,6 +1,6 @@
 // exec-tui: the front door to every Apollo-11 lab. Running it opens a
 // scrollable launcher menu (j/k move, enter runs, q quits) listing the
-// screenplay premiere, the flame and stars configurators, the legacy
+// numbered screenplays, the flame and stars configurators, the legacy
 // Executive sim, and the rest of the labs. The sim itself lives behind
 // the LEGACY EXEC TUI entry. See ROADMAP.md.
 package main
