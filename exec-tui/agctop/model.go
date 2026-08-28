@@ -216,9 +216,9 @@ func (m Model) View() tea.View {
 
 	// --- the switches
 	b.WriteString(" " +
-		sSwitch.Render("[d] DESCENT ")+onOff(m.live.DescentOn())+"    "+
-		sSwitch.Render("[1] 1668 ")+onOff(m.live.MonitorOn())+"    "+
-		sSwitch.Render("[r] RADAR STEAL ")+onOff(m.live.RadarOn())+"      "+
+		sSwitch.Render("[d] DESCENT ") + onOff(m.live.DescentOn()) + "    " +
+		sSwitch.Render("[1] 1668 ") + onOff(m.live.MonitorOn()) + "    " +
+		sSwitch.Render("[r] RADAR STEAL ") + onOff(m.live.RadarOn()) + "      " +
 		sDim.Render("q quit"))
 
 	v := tea.NewView(clamp(b.String(), m.w, m.h))
