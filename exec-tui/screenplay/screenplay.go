@@ -109,6 +109,41 @@ func (p *Screenplay) Next() bool {
 	return true
 }
 
+// Prev is the cut played backwards — the scene now playing stops, the
+// one before it starts — and reports whether it moved. On the first
+// scene, before Start, or on an empty bill it holds and reports false.
+func (p *Screenplay) Prev() bool {
+	if p == nil || !p.running || p.idx == 0 {
+		return false
+	}
+	if sc := p.current(); sc != nil {
+		sc.Stop()
+	}
+	p.idx--
+	if sc := p.current(); sc != nil {
+		sc.Start()
+	}
+	return true
+}
+
+// Rewind cuts to the top of the bill: the scene now playing stops and
+// the first scene starts again — even when the first scene is the one
+// on stage, so a premiere always opens fresh. Before Start or on an
+// empty bill it holds and reports false.
+func (p *Screenplay) Rewind() bool {
+	if p == nil || !p.running || len(p.bill) == 0 {
+		return false
+	}
+	if sc := p.current(); sc != nil {
+		sc.Stop()
+	}
+	p.idx = 0
+	if sc := p.current(); sc != nil {
+		sc.Start()
+	}
+	return true
+}
+
 // Stop stops the scene now playing and ends the run. Further calls are
 // no-ops.
 func (p *Screenplay) Stop() {
