@@ -1,0 +1,17 @@
+{
+  "holds": [
+    { "scene": "the moon", "seconds": 4.000 },
+    { "scene": "orbit", "seconds": 8.000 },
+    { "scene": "pause", "seconds": 3.000 },
+    { "scene": "Lunar Lander Close-Up", "seconds": 6.000 },
+    { "scene": "fire", "seconds": 7.000 },
+    { "scene": "fall", "seconds": 7.500 },
+    { "scene": "landing", "seconds": 9.000 },
+    { "scene": "run", "seconds": 6.500 },
+    { "scene": "flagpole", "seconds": 5.500 },
+    { "scene": "board", "seconds": 6.500 },
+    { "scene": "liftoff", "seconds": 6.000 },
+    { "scene": "engines on", "seconds": 6.000 },
+    { "scene": "engines off", "seconds": 5.000 }
+  ]
+}
