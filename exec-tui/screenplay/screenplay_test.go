@@ -232,3 +232,162 @@ func TestScreenplayLifecycle(t *testing.T) {
 		}
 	})
 }
+
+// Tests written FIRST: Prev is the cut played backwards — the scene
+// now playing stops, the one before it starts — so an editor can walk
+// the bill both ways. Rewind is the premiere cut: whatever is playing
+// stops and the first scene starts again, even when the first scene
+// is the one on stage, so a show always opens fresh from the top.
+// Both hold (and report false) before Start, after Stop, on an empty
+// bill, and on a nil screenplay; Prev also holds on the first scene.
+
+func TestScreenplayPrev(t *testing.T) {
+	t.Run("happy: Prev cuts back — the current stops, the earlier one starts", func(t *testing.T) {
+		p, a, b, journal := twoSceneBill()
+		p.Start()
+		p.Next()
+		if !p.Prev() {
+			t.Fatal("Prev off scene two must report a cut")
+		}
+		if !equalLog(*journal, "start:a", "stop:a", "start:b", "stop:b", "start:a") {
+			t.Fatalf("journal %v, want stop:b before the second start:a", *journal)
+		}
+		if p.SceneIndex() != 0 || p.CurrentName() != "arrival" {
+			t.Fatalf("after the cut back: %d %q", p.SceneIndex(), p.CurrentName())
+		}
+		p.Update(0.2)
+		if len(a.updated) != 1 || len(b.updated) != 0 {
+			t.Fatalf("time went to the wrong scene: a=%v b=%v", a.updated, b.updated)
+		}
+	})
+	t.Run("unhappy: the first scene holds — no cut, no lifecycle calls", func(t *testing.T) {
+		p, _, _, journal := twoSceneBill()
+		p.Start()
+		before := len(*journal)
+		if p.Prev() {
+			t.Fatal("Prev on the first scene must report no cut")
+		}
+		if len(*journal) != before {
+			t.Fatalf("a held cut must not stop or start anything: %v", *journal)
+		}
+		if p.SceneIndex() != 0 || p.CurrentName() != "arrival" {
+			t.Fatal("the first scene drifted")
+		}
+	})
+	t.Run("unhappy: before Start and after Stop Prev is inert", func(t *testing.T) {
+		p, _, _, journal := twoSceneBill()
+		if p.Prev() {
+			t.Fatal("Prev before Start must not cut")
+		}
+		p.Start()
+		p.Next()
+		p.Stop()
+		before := len(*journal)
+		if p.Prev() {
+			t.Fatal("a stopped play must not cut back")
+		}
+		if len(*journal) != before {
+			t.Fatalf("a stopped play still moved: %v", *journal)
+		}
+	})
+	t.Run("unhappy: empty and nil screenplays hold", func(t *testing.T) {
+		p := New()
+		p.Start()
+		if p.Prev() {
+			t.Fatal("an empty bill must not cut back")
+		}
+		var nilPlay *Screenplay
+		if nilPlay.Prev() {
+			t.Fatal("a nil screenplay must not cut back")
+		}
+	})
+	t.Run("unhappy: a ghost scene on the way back stays silent", func(t *testing.T) {
+		journal := &[]string{}
+		a := &door{name: "a", journal: journal}
+		b := &door{name: "b", journal: journal}
+		p := New(
+			Entry{Name: "a", Scene: a},
+			Entry{Name: "ghost", Scene: nil},
+			Entry{Name: "b", Scene: b},
+		)
+		p.Start()
+		p.Next()
+		p.Next()
+		if !p.Prev() {
+			t.Fatal("cutting back onto a ghost scene still moves the cursor")
+		}
+		if !p.Prev() {
+			t.Fatal("cutting back off a ghost scene still moves the cursor")
+		}
+		if !equalLog(*journal, "start:a", "stop:a", "start:b", "stop:b", "start:a") {
+			t.Fatalf("journal %v — the ghost must be silent, the rest intact", *journal)
+		}
+		if p.SceneIndex() != 0 {
+			t.Fatalf("two cuts back must land on the first scene, got %d", p.SceneIndex())
+		}
+	})
+}
+
+func TestScreenplayRewind(t *testing.T) {
+	threeSceneBill := func() (*Screenplay, *[]string) {
+		journal := &[]string{}
+		p := New(
+			Entry{Name: "one", Scene: &door{name: "a", journal: journal}},
+			Entry{Name: "two", Scene: &door{name: "b", journal: journal}},
+			Entry{Name: "three", Scene: &door{name: "c", journal: journal}},
+		)
+		return p, journal
+	}
+	t.Run("happy: Rewind cuts from anywhere to the top of the bill", func(t *testing.T) {
+		p, journal := threeSceneBill()
+		p.Start()
+		p.Next()
+		p.Next()
+		if !p.Rewind() {
+			t.Fatal("Rewind off scene three must report a cut")
+		}
+		if !equalLog(*journal, "start:a", "stop:a", "start:b", "stop:b", "start:c", "stop:c", "start:a") {
+			t.Fatalf("journal %v, want stop:c then a fresh start:a", *journal)
+		}
+		if p.SceneIndex() != 0 || p.CurrentName() != "one" {
+			t.Fatalf("after the rewind: %d %q", p.SceneIndex(), p.CurrentName())
+		}
+	})
+	t.Run("happy: Rewind on the first scene restarts it from the top", func(t *testing.T) {
+		p, journal := threeSceneBill()
+		p.Start()
+		if !p.Rewind() {
+			t.Fatal("Rewind on the first scene must restart it")
+		}
+		if !equalLog(*journal, "start:a", "stop:a", "start:a") {
+			t.Fatalf("journal %v, want the first scene stopped and started again", *journal)
+		}
+		if p.SceneIndex() != 0 {
+			t.Fatal("the rewound show must sit on the first scene")
+		}
+	})
+	t.Run("unhappy: before Start, after Stop, empty, and nil hold", func(t *testing.T) {
+		p, journal := threeSceneBill()
+		if p.Rewind() {
+			t.Fatal("Rewind before Start must not cut")
+		}
+		p.Start()
+		p.Stop()
+		before := len(*journal)
+		if p.Rewind() {
+			t.Fatal("a stopped play must not rewind")
+		}
+		if len(*journal) != before {
+			t.Fatalf("a stopped play still moved: %v", *journal)
+		}
+		empty := New()
+		empty.Start()
+		if empty.Rewind() {
+			t.Fatal("an empty bill must not rewind")
+		}
+		var nilPlay *Screenplay
+		if nilPlay.Rewind() {
+			t.Fatal("a nil screenplay must not rewind")
+		}
+	})
+}
