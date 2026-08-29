@@ -29,14 +29,6 @@ func Bill() screenplay.Bill {
 				}
 			},
 		}},
-		screenplay.Entry{Name: "orbit", Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Component {
-				return []screenplay.Component{
-					stars.NewTunedStarfield().Still(),
-					moon.New(),
-					moon.NewOrbit().Arrive(),
-				}
-			},
-		}},
+		screenplay.Entry{Name: "orbit", Scene: NewOrbitShow()},
 	}
 }
