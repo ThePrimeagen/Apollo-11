@@ -39,15 +39,23 @@ components/   everything a scene puts together
               that turns on/off in a job's ink) and Panel composes them — the
               core set panel (8, alarm 1202) and the VAC panel (5, alarm 1201)
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + Compose
+director/     the screenplay editor: n/p walk the cuts both ways, a knob panel
+              (the per-scene hold, then the scene's own knobs — never clamped),
+              space plays the bill through on the holds, f premieres fullscreen
+              from the top, s saves every config to its own home
 shows/        composable bills, one package per show
   moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
   lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing on a huge moon horizon
   mario/      03. Mario: the astronaut runs the crates, rides the flagpole, boards the LM
   inverse/    04. Inverse Walkthrough: liftoff, engines on, engines off — the walkthrough backwards
+  mainshow/   05. Main: every numbered show's bill added together — thirteen
+              scenes — plus the editor's hold file (config.json)
 cmd/          every runnable: editors, demos, tuners
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
   mario/      runs 03. Mario (space past the last scene ends it)
   inverse/    runs 04. Inverse Walkthrough (space past the last scene ends it)
+  mainshow/   runs 05. Main inside the screenplay editor (n/p walk, space plays,
+              f premieres fullscreen, s saves)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   coreset/    the Core Set scene: the memory unit drains to one core set, its
               twelve words, then the priority bits — 6 of PRIO over 9 of VAC address

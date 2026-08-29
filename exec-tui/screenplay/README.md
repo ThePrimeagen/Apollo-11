@@ -10,9 +10,27 @@ go run ./cmd/moon                    # 01. Moon Orbit
 go run ./cmd/lunarcloseup            # 02. Walkthrough
 go run ./cmd/mario                   # 03. Mario
 go run ./cmd/inverse                 # 04. Inverse Walkthrough
+go run ./cmd/mainshow                # 05. Main — everything, in the editor
 ```
 
 `space` cuts to the next scene (past the last one, the show ends). `q` / `ctrl+c` quit.
+
+**05. Main** is the one that puts everything together: its bill is the
+other four bills added together — thirteen scenes — and it runs inside
+`director`, the screenplay editor. `n`/`p` walk the cuts both ways (the
+screenplay's `Next` has a `Prev` mirror, and `Rewind` cuts to the top).
+A knob panel rides over the scene now playing: the editor's own
+**hold** first — how many seconds the scene plays in play mode before
+the cut, saved to `shows/mainshow/config.json` — then the scene's own
+live knobs. `j`/`k` pick a row, `h`/`l` turn it, and nothing is ever
+clamped: a zero or negative hold cuts at once. `space` plays the show
+through on those holds; `f` drops the chrome and premieres the whole
+show fullscreen from the top (`f`/`esc` returns, and the end of the
+show returns on its own); `r` replays the scene; `s` saves the holds
+and the current scene's knobs to their own config files — saving a
+moonwalk beat syncs its sibling beats, since the three are one
+performance, while the two bobble entries keep the bill's word on the
+engine.
 
 ## The shape
 
