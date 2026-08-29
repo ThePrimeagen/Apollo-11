@@ -659,3 +659,162 @@ func TestLunarCloseUpBill(t *testing.T) {
 		}
 	})
 }
+
+// hullLeftCol is the leftmost column carrying the west hull's '▌'
+// glyph in a rendered frame, ANSI stripped — parked, that column
+// never moves, so it tells a settled craft from a sliding one.
+func hullLeftCol(t *testing.T, v string) int {
+	t.Helper()
+	best := -1
+	for _, line := range strings.Split(ansi.Strip(v), "\n") {
+		for c, ch := range []rune(line) {
+			if ch == '▌' && (best < 0 || c < best) {
+				best = c
+			}
+		}
+	}
+	if best < 0 {
+		t.Fatal("no hull on stage")
+	}
+	return best
+}
+
+// Tests written FIRST: the close-up entry grows its editable face — a
+// tunable show whose one knob, the fly-in, paces both the sliding sky
+// and the hull's westbound glide. The fire entry grows two: how far
+// the stars brake and how long the brake takes. Stock knobs fly the
+// stock show; the numbers are the operator's, verbatim — a nudge
+// below zero stands — and no two bills share knobs.
+func TestCloseupShow(t *testing.T) {
+	t.Run("happy: the close-up entry is the tunable show at the stock fly-in", func(t *testing.T) {
+		sc, ok := Bill()[1].Scene.(*CloseupShow)
+		if !ok {
+			t.Fatalf("the close-up entry is %T, want the close-up show", Bill()[1].Scene)
+		}
+		if sc.Cfg != DefaultCloseupConfig() {
+			t.Fatalf("a fresh show carries %+v, want stock", sc.Cfg)
+		}
+		if DefaultCloseupConfig().FlyInSeconds != lander.FlyInSeconds {
+			t.Fatalf("stock fly-in is %v, want the lander const %v", DefaultCloseupConfig().FlyInSeconds, lander.FlyInSeconds)
+		}
+	})
+	t.Run("happy: the knob face is the fly-in alone", func(t *testing.T) {
+		c := DefaultCloseupConfig()
+		if c.KnobCount() != 1 || c.KnobLabel(0) != "fly-in" {
+			t.Fatalf("the close-up carries %d knobs labeled %q, want one fly-in", c.KnobCount(), c.KnobLabel(0))
+		}
+		if c.Value(0) != c.FlyInSeconds {
+			t.Fatalf("the knob reads %v, want the config", c.Value(0))
+		}
+		c.Nudge(0, -2)
+		if want := lander.FlyInSeconds - 0.5; c.FlyInSeconds != want {
+			t.Fatalf("two steps down read %v, want %v", c.FlyInSeconds, want)
+		}
+	})
+	t.Run("happy: the knob reaches the stage — a one-second fly-in parks in one second", func(t *testing.T) {
+		sc := Bill()[1].Scene.(*CloseupShow)
+		sc.Cfg.FlyInSeconds = 1
+		sc.Start()
+		defer sc.Stop()
+		_ = render(sc) // stage the cast
+		tick(sc, 1.3)
+		a := hullLeftCol(t, render(sc))
+		tick(sc, 0.4)
+		if b := hullLeftCol(t, render(sc)); a != b {
+			t.Fatalf("1.3s into a 1s fly-in the hull must be parked, col read %d then %d", a, b)
+		}
+		stock := Bill()[1].Scene.(*CloseupShow)
+		stock.Start()
+		defer stock.Stop()
+		_ = render(stock)
+		tick(stock, 1.3)
+		c := hullLeftCol(t, render(stock))
+		tick(stock, 0.4)
+		if d := hullLeftCol(t, render(stock)); c == d {
+			t.Fatal("test premise: the stock four-second slide must still be moving at 1.3s")
+		}
+	})
+	t.Run("unhappy: a nudge below zero stands and a bad cursor is a no-op", func(t *testing.T) {
+		c := DefaultCloseupConfig()
+		c.Nudge(0, -100)
+		if want := lander.FlyInSeconds - 25.0; c.FlyInSeconds != want {
+			t.Fatalf("a hundred steps down reads %v, want %v — never clamped", c.FlyInSeconds, want)
+		}
+		before := c
+		c.Nudge(5, 1)
+		if c != before {
+			t.Fatal("a bad cursor must not move any knob")
+		}
+	})
+}
+
+func TestFireShow(t *testing.T) {
+	t.Run("happy: the fire entry is the tunable show at the stock brake", func(t *testing.T) {
+		sc, ok := Bill()[2].Scene.(*FireShow)
+		if !ok {
+			t.Fatalf("the fire entry is %T, want the fire show", Bill()[2].Scene)
+		}
+		if sc.Cfg != DefaultFireConfig() {
+			t.Fatalf("a fresh show carries %+v, want stock", sc.Cfg)
+		}
+		want := FireConfig{SlowBy: 0.6, SlowOverSeconds: 5}
+		if DefaultFireConfig() != want {
+			t.Fatalf("stock brake is %+v, want %+v", DefaultFireConfig(), want)
+		}
+	})
+	t.Run("happy: the knob face reads slow by then slow over", func(t *testing.T) {
+		c := DefaultFireConfig()
+		if c.KnobCount() != 2 {
+			t.Fatalf("the fire show carries %d knobs, want 2", c.KnobCount())
+		}
+		if c.KnobLabel(0) != "slow by" || c.KnobLabel(1) != "slow over" {
+			t.Fatalf("labels %q/%q, want slow by/slow over", c.KnobLabel(0), c.KnobLabel(1))
+		}
+		c.Nudge(0, 1)
+		if want := 0.6 + 0.05; c.SlowBy != want {
+			t.Fatalf("one brake step reads %v, want %v", c.SlowBy, want)
+		}
+		c.Nudge(1, -4)
+		if want := 5 - 1.0; c.SlowOverSeconds != want {
+			t.Fatalf("four window steps down read %v, want %v", c.SlowOverSeconds, want)
+		}
+	})
+	t.Run("happy: the fire show still parks the lit craft", func(t *testing.T) {
+		sc := Bill()[2].Scene.(*FireShow)
+		sc.Start()
+		defer sc.Stop()
+		_ = render(sc)
+		tick(sc, 0.5)
+		v := render(sc)
+		if !strings.ContainsRune(v, '▌') {
+			t.Fatal("the fire scene opens on the parked hull")
+		}
+		if !hasFire(v) {
+			t.Fatal("the fire scene burns the booster")
+		}
+	})
+	t.Run("unhappy: nudges are verbatim — past zero and past one they stand", func(t *testing.T) {
+		c := DefaultFireConfig()
+		c.Nudge(0, 20)
+		if want := 0.6 + 1.0; c.SlowBy != want {
+			t.Fatalf("twenty brake steps read %v, want %v — never clamped", c.SlowBy, want)
+		}
+		c.Nudge(1, -100)
+		if want := 5 - 25.0; c.SlowOverSeconds != want {
+			t.Fatalf("a hundred window steps read %v, want %v — never clamped", c.SlowOverSeconds, want)
+		}
+		before := c
+		c.Nudge(7, -1)
+		if c != before {
+			t.Fatal("a bad cursor must not move any knob")
+		}
+	})
+	t.Run("unhappy: no two bills share knobs", func(t *testing.T) {
+		one := Bill()[2].Scene.(*FireShow)
+		two := Bill()[2].Scene.(*FireShow)
+		one.Cfg.Nudge(0, 3)
+		if two.Cfg != DefaultFireConfig() {
+			t.Fatal("nudging one bill's fire must not touch another's")
+		}
+	})
+}

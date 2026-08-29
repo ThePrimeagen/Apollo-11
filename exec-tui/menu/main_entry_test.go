@@ -35,6 +35,9 @@ func TestCatalogCarriesTheMainScreenplay(t *testing.T) {
 	if !strings.Contains(strings.ToLower(e.Desc), "editor") {
 		t.Fatalf("main desc %q must sell the screenplay editor", e.Desc)
 	}
+	if !strings.Contains(strings.ToLower(e.Desc), "e edit") {
+		t.Fatalf("main desc %q must sell e editing each scene into MAIN's own config", e.Desc)
+	}
 	if inverse < 0 || main != inverse+1 {
 		t.Fatalf("main sits at %d, want right after 04. Inverse Walkthrough at %d", main, inverse)
 	}

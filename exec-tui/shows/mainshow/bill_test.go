@@ -20,6 +20,8 @@ import (
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/liftoff"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
+	"github.com/theprimeagen/apollo-11/exec-tui/shows/lunarcloseup"
+	"github.com/theprimeagen/apollo-11/exec-tui/shows/moonshow"
 )
 
 var mainNames = []string{
@@ -44,19 +46,28 @@ func TestMainBill(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: the show is called MAIN and its holds live beside the bill", func(t *testing.T) {
+	t.Run("happy: the show is called MAIN and its config lives beside the bill", func(t *testing.T) {
 		if Title != "MAIN" {
 			t.Fatalf("the show is called %q, want MAIN", Title)
 		}
-		if HoldsPath != "shows/mainshow/config.json" {
-			t.Fatalf("the holds live at %q, want shows/mainshow/config.json", HoldsPath)
+		if ConfigPath != "shows/mainshow/config.json" {
+			t.Fatalf("MAIN's config lives at %q, want shows/mainshow/config.json", ConfigPath)
 		}
 	})
-	t.Run("happy: the knobbed scenes keep their own types for the editor", func(t *testing.T) {
+	t.Run("happy: every knobbed scene keeps its own type for the editor", func(t *testing.T) {
 		b := Bill()
 		byName := map[string]screenplay.Scene{}
 		for _, e := range b {
 			byName[e.Name] = e.Scene
+		}
+		if _, ok := byName["orbit"].(*moonshow.OrbitShow); !ok {
+			t.Fatalf("orbit is %T, want the tunable orbit show", byName["orbit"])
+		}
+		if _, ok := byName["Lunar Lander Close-Up"].(*lunarcloseup.CloseupShow); !ok {
+			t.Fatalf("the close-up is %T, want the tunable close-up show", byName["Lunar Lander Close-Up"])
+		}
+		if _, ok := byName["fire"].(*lunarcloseup.FireShow); !ok {
+			t.Fatalf("fire is %T, want the tunable fire show", byName["fire"])
 		}
 		if _, ok := byName["fall"].(*fall.Show); !ok {
 			t.Fatalf("fall is %T, want the fall show", byName["fall"])

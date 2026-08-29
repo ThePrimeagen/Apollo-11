@@ -1482,3 +1482,83 @@ func TestLiftDust(t *testing.T) {
 		}
 	})
 }
+
+// Tests written FIRST: FlyIn retunes one ship's westbound slide — how
+// many seconds the wing-to-park glide takes — without touching the
+// FlyInSeconds const the stock paths fly. The number is the
+// operator's, verbatim: zero parks the craft instantly, and an unset
+// fly-in is the stock four seconds. Parked() opens at whatever park
+// the instance flies.
+func TestShipFlyIn(t *testing.T) {
+	hullLeft := func(t *testing.T, s *Ship) int {
+		t.Helper()
+		sp := s.Render()
+		for c := 0; c < sp.Width; c++ {
+			for r := 0; r < sp.Height; r++ {
+				if !sp.At(r, c).Transparent() {
+					return c
+				}
+			}
+		}
+		t.Fatal("no hull on stage")
+		return -1
+	}
+	t.Run("happy: a two-second fly-in parks in two seconds", func(t *testing.T) {
+		s := NewShip(3).Dark().FlyIn(2)
+		s.Start(screenW, screenH)
+		s.Update(2.1)
+		if got := hullLeft(t, s); got != centerCol {
+			t.Fatalf("2.1s into a 2s fly-in the hull sits at col %d, want parked at %d", got, centerCol)
+		}
+		stock := NewShip(3).Dark()
+		stock.Start(screenW, screenH)
+		stock.Update(2.1)
+		if got := hullLeft(t, stock); got == centerCol {
+			t.Fatal("test premise: the stock four-second slide must still be flying at 2.1s")
+		}
+	})
+	t.Run("happy: the paced park holds its column through the bobble", func(t *testing.T) {
+		s := NewShip(3).Dark().FlyIn(2)
+		s.Start(screenW, screenH)
+		s.Update(2.5)
+		a := hullLeft(t, s)
+		s.Update(1.7)
+		if b := hullLeft(t, s); a != b || a != centerCol {
+			t.Fatalf("the parked craft must ride col %d, read %d then %d", centerCol, a, b)
+		}
+	})
+	t.Run("happy: Parked on a custom fly-in opens center stage", func(t *testing.T) {
+		s := NewShip(3).Dark().FlyIn(2).Parked()
+		s.Start(screenW, screenH)
+		if got := hullLeft(t, s); got != centerCol {
+			t.Fatalf("a parked craft opens at col %d, want %d", got, centerCol)
+		}
+	})
+	t.Run("happy: a zero fly-in is instant — the operator's number", func(t *testing.T) {
+		s := NewShip(3).Dark().FlyIn(0)
+		s.Start(screenW, screenH)
+		if got := hullLeft(t, s); got != centerCol {
+			t.Fatalf("a zero fly-in opens parked at col %d, want %d", got, centerCol)
+		}
+	})
+	t.Run("unhappy: an unset fly-in keeps the stock four seconds", func(t *testing.T) {
+		s := NewShip(3).Dark()
+		s.Start(screenW, screenH)
+		s.Update(FlyInSeconds - 0.5)
+		if got := hullLeft(t, s); got == centerCol {
+			t.Fatal("half a second before the stock park the hull must still be sliding")
+		}
+		s.Update(1.0)
+		if got := hullLeft(t, s); got != centerCol {
+			t.Fatalf("past FlyInSeconds the hull sits at col %d, want parked at %d", got, centerCol)
+		}
+	})
+	t.Run("unhappy: fly-in on a nil ship skips the cue", func(t *testing.T) {
+		var ghost *Ship
+		if ghost.FlyIn(2) != nil {
+			t.Fatal("a nil ship must stay nil")
+		}
+		ghost.FlyIn(2).Start(4, 2)
+		ghost.Render()
+	})
+}
