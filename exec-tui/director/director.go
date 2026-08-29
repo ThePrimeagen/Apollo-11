@@ -246,6 +246,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tick()
 	case tea.KeyPressMsg:
+		m.note = ""
 		switch strings.ToLower(msg.String()) {
 		case "ctrl+c", "q":
 			m.play.Stop()
