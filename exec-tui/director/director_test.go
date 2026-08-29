@@ -642,6 +642,23 @@ func TestDirectorSave(t *testing.T) {
 			t.Fatal("a knobless scene must not write any scene config")
 		}
 	})
+	t.Run("happy: the note is transient — the next key hands the help line back", func(t *testing.T) {
+		bill := saveBill()
+		_, resolve := tmpResolve(t)
+		m := New("TEST", bill, Config{}, "holds.json", 0)
+		m.resolve = resolve
+		m = press(m, runeKey('s'))
+		if m.note != "saved" {
+			t.Fatalf("the status must read saved, got %q", m.note)
+		}
+		m = press(m, runeKey('n'))
+		if m.note != "" {
+			t.Fatalf("the next action must clear the note, got %q", m.note)
+		}
+		if !strings.Contains(m.View().Content, "n/p scene") {
+			t.Fatal("the help line must return once the note clears")
+		}
+	})
 	t.Run("unhappy: a failed save lands on the status line and the editor keeps going", func(t *testing.T) {
 		bill := saveBill()
 		root := t.TempDir()
