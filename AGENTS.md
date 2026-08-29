@@ -18,4 +18,3 @@ Every change requires a video attached to it if there's any sort of TUI change.
   validates a truthy or throws. Internal callback plumbing (wiring a
   response back to its request) stays module-private and is not
   tested directly.
-
