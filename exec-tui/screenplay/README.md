@@ -10,9 +10,35 @@ go run ./cmd/moon                    # 01. Moon Orbit
 go run ./cmd/lunarcloseup            # 02. Walkthrough
 go run ./cmd/mario                   # 03. Mario
 go run ./cmd/inverse                 # 04. Inverse Walkthrough
+go run ./cmd/mainshow                # 05. Main — everything, in the editor
 ```
 
 `space` cuts to the next scene (past the last one, the show ends). `q` / `ctrl+c` quit.
+
+**05. Main** is the one that puts everything together: its bill is the
+other four bills added together — thirteen scenes — and it runs inside
+`director`, the screenplay editor, wearing **MAIN's own numbers**.
+`ctrl+n`/`ctrl+p` (or plain `n`/`p`) scroll the scenes both ways (the
+screenplay's `Next` has a `Prev` mirror, and `Rewind` cuts to the top).
+Browsing is the quiet face: one **hold** row — how many seconds the
+scene plays in play mode before the cut — trimmed directly with
+`h`/`l`. `e` opens the **MAIN CONFIG** panel for the scene now
+playing: the hold first, then every one of the scene's own knobs —
+the orbit's arrive and lap, the close-up's fly-in, the fire's brake,
+the fall's drop, the landing's twenty-four, the moonwalk's eleven,
+the liftoff's nine, each bobble's three — `j`/`k` pick a row, `h`/`l`
+turn it, `e`/`esc` hand the quiet face back, and nothing is ever
+clamped: a zero or negative hold cuts at once. The panel wears the
+MAIN CONFIG name because these numbers are the show's copy: `s`
+writes one file, `shows/mainshow/config.json` — every scene in bill
+order with its hold and its knobs — and never touches a scene
+package's config.json or its Active, so tuning MAIN never retunes a
+scene launched by itself. Saving from a moonwalk beat syncs its
+sibling beats, since the three are one performance, while the two
+bobble entries keep the bill's word on the engine. `space` plays the
+show through on the holds; `f` drops the chrome and premieres the
+whole show fullscreen from the top (`f`/`esc` returns, and the end of
+the show returns on its own); `r` replays the scene.
 
 ## The shape
 

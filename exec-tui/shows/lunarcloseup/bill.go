@@ -29,7 +29,6 @@
 package lunarcloseup
 
 import (
-	"github.com/theprimeagen/apollo-11/exec-tui/components/lander"
 	"github.com/theprimeagen/apollo-11/exec-tui/components/stars"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/fall"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
@@ -49,22 +48,8 @@ func Bill() screenplay.Bill {
 				}
 			},
 		}},
-		screenplay.Entry{Name: "Lunar Lander Close-Up", Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Component {
-				return []screenplay.Component{
-					stars.NewTunedStarfield().Seed(sky).SlideIn(lander.FlyInSeconds, lander.BodyCols),
-					lander.NewShip(11).Dark(),
-				}
-			},
-		}},
-		screenplay.Entry{Name: "fire", Scene: &screenplay.Ensemble{
-			Assemble: func() []screenplay.Component {
-				return []screenplay.Component{
-					stars.NewTunedStarfield().Seed(sky).Slow(0.6, 5),
-					lander.NewShip(11).Parked(),
-				}
-			},
-		}},
+		screenplay.Entry{Name: "Lunar Lander Close-Up", Scene: NewCloseupShow(sky)},
+		screenplay.Entry{Name: "fire", Scene: NewFireShow(sky)},
 		screenplay.Entry{Name: "fall", Scene: fall.New(sky)},
 		screenplay.Entry{Name: "landing", Scene: landing.New(sky)},
 	}

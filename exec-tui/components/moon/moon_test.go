@@ -450,6 +450,80 @@ func TestArrivingOrbit(t *testing.T) {
 	})
 }
 
+// Tests written FIRST: Pace retunes one orbit instance — how long the
+// arriving streak takes and how long one lap lasts — without touching
+// the package consts the stock paths fly. The numbers are the
+// operator's, verbatim: zero and negative paces never panic and never
+// get rewritten; they simply fly the math they ask for. An unpaced
+// orbit is the stock orbit, cell for cell.
+func TestOrbitPace(t *testing.T) {
+	geometry := func() (cx, cy, ringR int) {
+		cx, cy, _, ringR = Geometry(stageW, stageH)
+		if ringR < 1 {
+			t.Fatal("test premise: the test stage must carry a ring")
+		}
+		return cx, cy, ringR
+	}
+	t.Run("happy: a paced lap flies the ring on its own clock", func(t *testing.T) {
+		cx, cy, ringR := geometry()
+		o := NewOrbit().Pace(ArriveSeconds, 4)
+		o.Start(stageW, stageH)
+		o.Update(1) // a quarter of a 4s lap
+		r, c := ringCell(cx, cy, ringR, startAngle-math.Pi/2)
+		if r0, c0 := MarkerAt(stageW, stageH, 1); r0 == r && c0 == c {
+			t.Fatal("test premise: the stock lap must sit elsewhere at t=1")
+		}
+		if got := o.Render().At(r, c); got.Ch != MarkerGlyph {
+			t.Fatalf("a quarter lap in, the paced craft must sit at (%d,%d), cell holds %q", r, c, got.Ch)
+		}
+	})
+	t.Run("happy: a paced arrival merges on its own clock and lap", func(t *testing.T) {
+		cx, cy, ringR := geometry()
+		o := NewOrbit().Arrive().Pace(1, 8)
+		o.Start(stageW, stageH)
+		o.Update(3) // merged at 1s, then a quarter of an 8s lap
+		r, c := ringCell(cx, cy, ringR, 0)
+		if r0, c0 := ArrivalAt(stageW, stageH, 3); r0 == r && c0 == c {
+			t.Fatal("test premise: the stock arrival must sit elsewhere at t=3")
+		}
+		if got := o.Render().At(r, c); got.Ch != MarkerGlyph {
+			t.Fatalf("the paced arrival must ride the ring's east point (%d,%d), cell holds %q", r, c, got.Ch)
+		}
+	})
+	t.Run("unhappy: an unpaced orbit keeps the stock pace, cell for cell", func(t *testing.T) {
+		o := NewOrbit()
+		o.Start(stageW, stageH)
+		o.Update(3)
+		r, c := MarkerAt(stageW, stageH, 3)
+		if got := o.Render().At(r, c); got.Ch != MarkerGlyph {
+			t.Fatalf("the stock craft must sit at MarkerAt (%d,%d), cell holds %q", r, c, got.Ch)
+		}
+	})
+	t.Run("unhappy: zero and negative paces are the operator's — no panic, stage intact", func(t *testing.T) {
+		o := NewOrbit().Pace(0, 0)
+		o.Start(stageW, stageH)
+		o.Render()
+		o.Update(0.5)
+		if sp := o.Render(); sp.Width != stageW || sp.Height != stageH {
+			t.Fatalf("a zero pace rendered %dx%d, want the stage", sp.Width, sp.Height)
+		}
+		back := NewOrbit().Arrive().Pace(-1, -4)
+		back.Start(stageW, stageH)
+		back.Update(1)
+		if sp := back.Render(); sp.Width != stageW || sp.Height != stageH {
+			t.Fatalf("a negative pace rendered %dx%d, want the stage", sp.Width, sp.Height)
+		}
+	})
+	t.Run("unhappy: pace on a nil orbit skips the cue", func(t *testing.T) {
+		var ghost *Orbit
+		if ghost.Pace(1, 2) != nil {
+			t.Fatal("a nil orbit must stay nil")
+		}
+		ghost.Pace(1, 2).Start(4, 2)
+		ghost.Render()
+	})
+}
+
 // The compile-time pin: a Horizon plays as a screenplay component.
 var _ screenplay.Component = (*Horizon)(nil)
 

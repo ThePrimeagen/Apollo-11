@@ -207,3 +207,83 @@ func TestMoonShowBill(t *testing.T) {
 		}
 	})
 }
+
+// Tests written FIRST: the orbit entry grows its editable face — a
+// tunable show whose two knobs, the arriving streak and the lap, feed
+// the paced orbit. Stock knobs fly the stock show, cell for cell; the
+// numbers are the operator's, verbatim — a nudge below zero stands.
+// Each Bill() call casts a fresh show, so no two bills share knobs.
+func TestOrbitShow(t *testing.T) {
+	t.Run("happy: the orbit entry is the tunable orbit show at stock pace", func(t *testing.T) {
+		sc, ok := Bill()[1].Scene.(*OrbitShow)
+		if !ok {
+			t.Fatalf("the orbit entry is %T, want the orbit show", Bill()[1].Scene)
+		}
+		if sc.Cfg != DefaultOrbitConfig() {
+			t.Fatalf("a fresh show carries %+v, want stock", sc.Cfg)
+		}
+		want := OrbitConfig{ArriveSeconds: moon.ArriveSeconds, LapSeconds: moon.OrbitSeconds}
+		if DefaultOrbitConfig() != want {
+			t.Fatalf("stock pace is %+v, want the moon consts %+v", DefaultOrbitConfig(), want)
+		}
+	})
+	t.Run("happy: the knob face reads arrive then lap", func(t *testing.T) {
+		c := DefaultOrbitConfig()
+		if c.KnobCount() != 2 {
+			t.Fatalf("the orbit show carries %d knobs, want 2", c.KnobCount())
+		}
+		if c.KnobLabel(0) != "arrive" || c.KnobLabel(1) != "lap" {
+			t.Fatalf("labels %q/%q, want arrive/lap", c.KnobLabel(0), c.KnobLabel(1))
+		}
+		if c.Value(0) != c.ArriveSeconds || c.Value(1) != c.LapSeconds {
+			t.Fatalf("values %v/%v must read the config", c.Value(0), c.Value(1))
+		}
+		c.Nudge(0, 2)
+		if c.ArriveSeconds != moon.ArriveSeconds+0.5 {
+			t.Fatalf("two arrive steps read %v, want %v", c.ArriveSeconds, moon.ArriveSeconds+0.5)
+		}
+		c.Nudge(1, -1)
+		if c.LapSeconds != moon.OrbitSeconds-0.25 {
+			t.Fatalf("one lap step down reads %v, want %v", c.LapSeconds, moon.OrbitSeconds-0.25)
+		}
+	})
+	t.Run("happy: the knobs reach the stage — a paced lap flies its own ring", func(t *testing.T) {
+		sc, ok := Bill()[1].Scene.(*OrbitShow)
+		if !ok {
+			t.Fatal("the orbit entry must be the orbit show")
+		}
+		sc.Cfg = OrbitConfig{ArriveSeconds: 0.5, LapSeconds: 4}
+		sc.Start()
+		defer sc.Stop()
+		_ = render(sc) // stage the cast
+		sc.Update(0.5 + 1)
+		cx, cy, _, ringR := moon.Geometry(stageW, stageH)
+		wantRow, wantCol := cy, cx+ringR // a quarter lap past the top merge
+		r, c, ok := markerCell(render(sc))
+		if !ok {
+			t.Fatal("the paced craft must be on stage")
+		}
+		if r != wantRow || c != wantCol {
+			t.Fatalf("the paced craft sits at (%d,%d), want the ring's east point (%d,%d)", r, c, wantRow, wantCol)
+		}
+	})
+	t.Run("unhappy: a nudge below zero stands — never clamped", func(t *testing.T) {
+		c := DefaultOrbitConfig()
+		c.Nudge(1, -100)
+		if want := moon.OrbitSeconds - 25.0; c.LapSeconds != want {
+			t.Fatalf("a hundred steps down reads %v, want %v — the floor is the operator's", c.LapSeconds, want)
+		}
+		c.Nudge(9, 1) // a bad cursor is a no-op
+		if c.ArriveSeconds != moon.ArriveSeconds {
+			t.Fatal("a bad cursor must not move any knob")
+		}
+	})
+	t.Run("unhappy: no two bills share knobs", func(t *testing.T) {
+		one := Bill()[1].Scene.(*OrbitShow)
+		two := Bill()[1].Scene.(*OrbitShow)
+		one.Cfg.Nudge(1, 4)
+		if two.Cfg.LapSeconds != moon.OrbitSeconds {
+			t.Fatal("nudging one bill's orbit must not touch another's")
+		}
+	})
+}
