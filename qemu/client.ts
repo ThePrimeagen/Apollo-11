@@ -26,13 +26,13 @@ export async function newDisk(
 	path: string,
 	size: string,
 ): Promise<void> {
-	assert(!vm.diskPath, `disk already created: ${vm.diskPath}`);
+	assert(vm.diskPath === undefined, "disk already created");
 	await exec("qemu-img", ["create", "-f", "qcow2", path, size]);
 	vm.diskPath = path;
 }
 
 export async function start(vm: Qemu): Promise<void> {
-	assert(vm.diskPath, "no disk: newDisk comes first");
+	assert(vm.diskPath !== undefined, "no disk");
 	const socketPath = join(dirname(vm.diskPath), "qmp.sock");
 	vm.proc = spawn(
 		"qemu-system-x86_64",
@@ -49,14 +49,14 @@ export async function start(vm: Qemu): Promise<void> {
 }
 
 export async function screendump(vm: Qemu, path: string): Promise<void> {
-	assert(vm.qmp, "not started: start comes first");
+	assert(vm.qmp, "not started");
 	await command(vm.qmp, "screendump", { filename: path });
 }
 
 export async function stop(vm: Qemu): Promise<void> {
-	assert(vm.proc, "not started: nothing to stop");
+	assert(vm.proc, "not started");
 	const proc = vm.proc;
-	const gone = new Promise((resolve) => proc.once("exit", resolve));
+	const gone = new Promise<void>((resolve) => proc.once("exit", () => resolve()));
 	vm.qmp?.destroy();
 	proc.kill();
 	await gone;
@@ -64,48 +64,31 @@ export async function stop(vm: Qemu): Promise<void> {
 	vm.qmp = undefined;
 }
 
-// Everything below is the private plumbing: connecting to the QMP socket
-// qemu opens at boot, and wiring each command to the response that answers
-// it. None of it is part of the client's surface.
-
 type QmpMessage = {
 	return?: unknown;
-	error?: { class: string; desc: string };
+	error?: { desc: string };
 };
 
-// qemu creates the socket file while it boots, so connecting retries
-// until the socket is there to answer.
 function connect(path: string): Promise<Socket> {
-	return new Promise((resolve, reject) => {
-		const attempt = (left: number) => {
+	return new Promise((resolve) => {
+		const attempt = () => {
 			const socket = createConnection(path);
 			socket.once("connect", () => {
 				socket.removeAllListeners("error");
-				// a vm dying on its own must not take the process with it
 				socket.on("error", () => {});
 				resolve(socket);
 			});
-			socket.once("error", (error) => {
-				socket.destroy();
-				if (left === 0) {
-					reject(error);
-				} else {
-					setTimeout(() => attempt(left - 1), 100);
-				}
-			});
+			socket.once("error", () => setTimeout(attempt, 100));
 		};
-		attempt(100);
+		attempt();
 	});
 }
 
-// Sends one command and resolves with the response that answers it.
-// The QMP greeting and async events carry no "return"/"error", so they
-// roll past until the answer lands.
 function command(
 	qmp: Socket,
 	execute: string,
 	args?: Record<string, unknown>,
-): Promise<unknown> {
+): Promise<void> {
 	return new Promise((resolve, reject) => {
 		let buffered = "";
 		const onData = (chunk: Buffer) => {
@@ -119,7 +102,7 @@ function command(
 				const message = JSON.parse(line) as QmpMessage;
 				if ("return" in message) {
 					qmp.off("data", onData);
-					resolve(message.return);
+					resolve();
 					return;
 				}
 				if (message.error) {
