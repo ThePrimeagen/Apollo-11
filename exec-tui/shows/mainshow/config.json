@@ -1,5 +1,5 @@
 {
-  "holds": [
+  "scenes": [
     { "scene": "the moon", "seconds": 4.000 },
     { "scene": "orbit", "seconds": 8.000 },
     { "scene": "pause", "seconds": 3.000 },

@@ -39,23 +39,29 @@ components/   everything a scene puts together
               that turns on/off in a job's ink) and Panel composes them — the
               core set panel (8, alarm 1202) and the VAC panel (5, alarm 1201)
 screenplay/   Screenplay → Scene → Component; the lip gloss Screen; Bill + Compose
-director/     the screenplay editor: n/p walk the cuts both ways, a knob panel
-              (the per-scene hold, then the scene's own knobs — never clamped),
-              space plays the bill through on the holds, f premieres fullscreen
-              from the top, s saves every config to its own home
+director/     the screenplay editor, MAIN's own numbers: ctrl+n/p scroll the
+              scenes, h/l trims each scene's hold, e opens the MAIN CONFIG
+              panel (the hold, then every one of the scene's knobs — never
+              clamped), space plays the bill through on the holds, f premieres
+              fullscreen from the top, s saves the one MAIN config file —
+              never a scene package's config or its Active
 shows/        composable bills, one package per show
-  moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into orbit
-  lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing on a huge moon horizon
+  moonshow/   the moon screenplay: the bare moon, then a ship's fast arrival into
+              orbit — the orbit is a tunable show (arrive + lap knobs)
+  lunarcloseup/  02. Walkthrough: pause, fly-in, fire, north-facing fall, landing
+              on a huge moon horizon — the fly-in (its slide) and the fire (the
+              brake's depth and window) are tunable shows
   mario/      03. Mario: the astronaut runs the crates, rides the flagpole, boards the LM
   inverse/    04. Inverse Walkthrough: liftoff, engines on, engines off — the walkthrough backwards
   mainshow/   05. Main: every numbered show's bill added together — thirteen
-              scenes — plus the editor's hold file (config.json)
+              scenes — plus MAIN's own config (config.json: every scene's hold
+              and knobs)
 cmd/          every runnable: editors, demos, tuners
   lunarcloseup/  runs 02. Walkthrough (space past the last scene ends it)
   mario/      runs 03. Mario (space past the last scene ends it)
   inverse/    runs 04. Inverse Walkthrough (space past the last scene ends it)
-  mainshow/   runs 05. Main inside the screenplay editor (n/p walk, space plays,
-              f premieres fullscreen, s saves)
+  mainshow/   runs 05. Main inside the screenplay editor (ctrl+n/p scroll,
+              h/l holds, e edits, space plays, f premieres, s saves)
   skies/      the blue-sky flyby: gradient, generated clouds, eagle, talon shotguns
   coreset/    the Core Set scene: the memory unit drains to one core set, its
               twelve words, then the priority bits — 6 of PRIO over 9 of VAC address

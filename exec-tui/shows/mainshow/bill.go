@@ -25,10 +25,11 @@ const (
 	// Title is the marquee name of the whole show.
 	Title = "MAIN"
 
-	// HoldsPath is the editor's hold file — how long each scene
-	// plays in play mode before the cut — relative to the module
-	// root, beside this bill.
-	HoldsPath = "shows/mainshow/config.json"
+	// ConfigPath is MAIN's own set of configs — one row per scene
+	// carrying its hold and its knobs, the editor's file alone,
+	// never the scenes' — relative to the module root, beside this
+	// bill.
+	ConfigPath = "shows/mainshow/config.json"
 )
 
 // Bill is MAIN, in playing order: every numbered show's bill, added

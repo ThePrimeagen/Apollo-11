@@ -47,7 +47,7 @@ func Catalog() []Entry {
 		{ID: "closeup", Section: "Screenplays", Title: "02. Walkthrough", Desc: "five scenes: pause, fly-in, booster fire, north-facing fall, then landing on the horizon", Pkg: "./cmd/lunarcloseup"},
 		{ID: "mario", Section: "Screenplays", Title: "03. Mario", Desc: "three scenes: he runs the crates, rides the flagpole as the flag goes up, then boards the LM", Pkg: "./cmd/mario"},
 		{ID: "inverse", Section: "Screenplays", Title: "04. Inverse Walkthrough", Desc: "the walkthrough backwards, three scenes: liftoff off the pad, engines on parked sideways, then engines off — bobbling forever", Pkg: "./cmd/inverse"},
-		{ID: "main", Section: "Screenplays", Title: "05. Main", Desc: "everything together in the screenplay editor: all thirteen scenes — n/p walk, live knobs, space plays on the holds, f premieres fullscreen", Pkg: "./cmd/mainshow"},
+		{ID: "main", Section: "Screenplays", Title: "05. Main", Desc: "everything together in the screenplay editor: ctrl+n/p scroll the thirteen scenes, h/l trims each hold, e edits every knob into MAIN's own config, space plays, f premieres fullscreen", Pkg: "./cmd/mainshow"},
 		{ID: "viewer", Section: "Scenes", Title: "Component Viewer", Desc: "cycle every component, particle and scene — e edits, closing resumes", Pkg: "./cmd/viewer"},
 		{ID: "landing", Section: "Scenes", Title: "Landing", Desc: "north-facing lander onto the moon horizon — play, then nudge land / dust start / dust run 50ms at a time", Pkg: "./cmd/landing"},
 		{ID: "america", Section: "Scenes", Title: "America", Desc: "the flag fades in from black, then the giant eagle crosses, a shotgun blasting in each talon — nine live knobs", Pkg: "./cmd/america"},

@@ -1,21 +1,25 @@
-// mainshow: 05. Main — the whole show inside the screenplay editor.
-// The bill is every numbered show's bill added together (moon orbit,
-// walkthrough, mario, inverse — thirteen scenes) and the director
-// opens on scene one. n and p walk the cuts both ways; j/k pick a
-// knob on the panel — the editor's own hold first, then the scene's
-// live knobs — and h/l turn it, never clamped. Space plays the show
-// through, cutting on each scene's hold; f drops the chrome and
-// premieres the whole thing fullscreen from the top (f or esc comes
-// back); r replays the scene; s saves the holds beside the bill and
-// the scene's knobs to their own config files.
+// mainshow: 05. Main — the whole show inside the screenplay editor,
+// wearing MAIN's own numbers. The bill is every numbered show's bill
+// added together (moon orbit, walkthrough, mario, inverse — thirteen
+// scenes) and the director opens on scene one, browsing: the marquee,
+// one hold row trimmed with h/l, and the help. ctrl+n and ctrl+p (or
+// plain n/p) scroll the scenes; e opens the MAIN CONFIG panel — the
+// hold, then every one of the scene's own knobs, j/k picking and h/l
+// turning, never clamped. Space plays the show through, cutting on
+// each scene's hold; f drops the chrome and premieres the whole thing
+// fullscreen from the top (f or esc comes back); r replays the scene;
+// s saves one file — MAIN's own config beside the bill — and never
+// touches a scene's own config.json.
 //
-//	n / p       next / previous scene
-//	space       play / pause (cuts itself on each scene's hold)
-//	f           fullscreen premiere from the top (f/esc returns)
-//	j/k h/l     pick a knob, turn a knob
-//	r           replay the scene from its top
-//	s           save holds + the scene's knobs
-//	q           quit
+//	ctrl+n / ctrl+p   next / previous scene (n/p work too)
+//	h / l             trim how long this scene lasts in play mode
+//	e                 edit the scene: MAIN CONFIG, every knob (e/esc done)
+//	j/k h/l           pick a knob, turn a knob (editing)
+//	space             play / pause (cuts itself on each scene's hold)
+//	f                 fullscreen premiere from the top (f/esc returns)
+//	r                 replay the scene from its top
+//	s                 save MAIN's config
+//	q                 quit
 //
 //	go run ./cmd/mainshow
 //	go run ./cmd/mainshow -seconds 30
@@ -98,8 +102,8 @@ func main() {
 		"liftoff timing JSON; a missing file keeps the stock knobs")
 	bobPath := flag.String("bobble", bobble.DefaultConfigPath,
 		"bobble ride JSON; a missing file keeps the stock knobs")
-	holdsPath := flag.String("holds", mainshow.HoldsPath,
-		"scene holds JSON (the editor saves it); a missing file plays the stock holds")
+	cfgPath := flag.String("config", mainshow.ConfigPath,
+		"MAIN's own config JSON — every scene's hold and knobs (the editor saves it); a missing file plays the stock show")
 	flag.Parse()
 	if err := applySky(menu.Resolve(*skyPath)); err != nil {
 		fail(err)
@@ -142,11 +146,11 @@ func main() {
 	if err := bobble.Use(bc); err != nil {
 		fail(err)
 	}
-	holds, err := director.LoadOrDefault(menu.Resolve(*holdsPath))
+	cfg, err := director.LoadOrDefault(menu.Resolve(*cfgPath))
 	if err != nil {
 		fail(err)
 	}
-	m := director.New(mainshow.Title, mainshow.Bill(), holds, *holdsPath, *seconds)
+	m := director.New(mainshow.Title, mainshow.Bill(), cfg, *cfgPath, *seconds)
 	var opts []tea.ProgramOption
 	if p, ok := forcedColorProfile(); ok {
 		opts = append(opts, tea.WithColorProfile(p))
