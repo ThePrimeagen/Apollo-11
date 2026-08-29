@@ -118,6 +118,14 @@ func MarkerAt(w, h int, t float64) (row, col int) {
 // the curtain clamps to the start; a stage with no geometry has no
 // arrival: (-1, -1).
 func ArrivalAt(w, h int, t float64) (row, col int) {
+	return arrivalAt(w, h, t, ArriveSeconds, OrbitSeconds)
+}
+
+// arrivalAt is ArrivalAt on any pace: the streak merges at arrive
+// seconds and each lap takes lap seconds. The numbers are the
+// caller's, verbatim — a zero arrive merges at once, and a zero lap
+// flies the craft off any cell a sprite can hold.
+func arrivalAt(w, h int, t, arrive, lap float64) (row, col int) {
 	cx, cy, _, ringR := Geometry(w, h)
 	if ringR < 1 {
 		return -1, -1
@@ -125,8 +133,8 @@ func ArrivalAt(w, h int, t float64) (row, col int) {
 	if t < 0 {
 		t = 0
 	}
-	if t >= ArriveSeconds {
-		theta := math.Pi/2 - 2*math.Pi*(t-ArriveSeconds)/OrbitSeconds
+	if t >= arrive {
+		theta := math.Pi/2 - 2*math.Pi*(t-arrive)/lap
 		return ringCell(cx, cy, ringR, theta)
 	}
 	row, _ = ringCell(cx, cy, ringR, math.Pi/2)
@@ -136,15 +144,15 @@ func ArrivalAt(w, h int, t float64) (row, col int) {
 	// the time remaining, with s'(merge) = the orbital speed.
 	const start = -3.0
 	dist := float64(cx) - start
-	vEnd := float64(ringR) * 2 * math.Pi / OrbitSeconds
-	b := vEnd * ArriveSeconds
+	vEnd := float64(ringR) * 2 * math.Pi / lap
+	b := vEnd * arrive
 	a := dist - b
 	if a < 0 {
 		// A stage too narrow to brake on: glide the whole way in at
 		// one steady pace instead.
 		a, b = 0, dist
 	}
-	u := 1 - t/ArriveSeconds
+	u := 1 - t/arrive
 	s := a*u*u + b*u
 	return row, int(math.Round(float64(cx) - s))
 }
@@ -152,7 +160,12 @@ func ArrivalAt(w, h int, t float64) (row, col int) {
 // angleAt winds the clock backwards through the angles: a clockwise
 // lap on screen.
 func angleAt(t float64) float64 {
-	return startAngle - 2*math.Pi*t/OrbitSeconds
+	return angleAtPace(t, OrbitSeconds)
+}
+
+// angleAtPace is angleAt on any lap length.
+func angleAtPace(t, lap float64) float64 {
+	return startAngle - 2*math.Pi*t/lap
 }
 
 // ringCell is the cell nearest the ring point at theta, with rows
@@ -223,10 +236,13 @@ func (m *Moon) Stop() {
 // The clock carries across restarts, so a resize never rewinds the
 // lap.
 type Orbit struct {
-	clock  float64
-	w, h   int
-	staged bool
-	arrive bool
+	clock     float64
+	w, h      int
+	staged    bool
+	arrive    bool
+	paced     bool
+	arriveSec float64
+	lapSec    float64
 }
 
 // NewOrbit binds nothing yet: the curtain owns the allocation.
@@ -243,6 +259,29 @@ func (o *Orbit) Arrive() *Orbit {
 	}
 	o.arrive = true
 	return o
+}
+
+// Pace retunes this one orbit: the arriving streak takes arrive
+// seconds and every lap takes lap seconds. The numbers are the
+// caller's, verbatim — zero and negative paces fly the math they ask
+// for. Unset, the orbit flies the stock ArriveSeconds and
+// OrbitSeconds. Call before Start. Nil-safe.
+func (o *Orbit) Pace(arrive, lap float64) *Orbit {
+	if o == nil {
+		return nil
+	}
+	o.paced = true
+	o.arriveSec, o.lapSec = arrive, lap
+	return o
+}
+
+// pace is the arrive and lap this orbit flies: its own numbers, or
+// the stock consts when unpaced.
+func (o *Orbit) pace() (arrive, lap float64) {
+	if o.paced {
+		return o.arriveSec, o.lapSec
+	}
+	return ArriveSeconds, OrbitSeconds
 }
 
 // Start pins the stage the craft flies on.
@@ -275,9 +314,10 @@ func (o *Orbit) Render() sprite.Sprite {
 	if ringR < 1 {
 		return stage
 	}
-	row, col := ringCell(cx, cy, ringR, angleAt(o.clock))
+	arrive, lap := o.pace()
+	row, col := ringCell(cx, cy, ringR, angleAtPace(o.clock, lap))
 	if o.arrive {
-		row, col = ArrivalAt(o.w, o.h, o.clock)
+		row, col = arrivalAt(o.w, o.h, o.clock, arrive, lap)
 	}
 	stage.Set(row, col, sprite.Cell{Ch: MarkerGlyph, FG: MarkerInk, BG: -1})
 	return stage

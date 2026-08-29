@@ -112,6 +112,8 @@ type Ship struct {
 	bobSet      bool
 	bobPeriod   float64
 	bobCells    int
+	flySet      bool
+	flySec      float64
 	dustLoss    float64
 	dustLossSet bool
 	flameBase   particle.Config
@@ -620,9 +622,31 @@ func (s *Ship) position() (row, col int) {
 		return ClimbPath(s.w, s.h, t, s.climbSec)
 	}
 	if s.bobSet {
-		return flightPath(s.w, s.h, t, s.bobPeriod, s.bobCells)
+		return flightPathIn(s.w, s.h, t, s.flyInOrDefault(), s.bobPeriod, s.bobCells)
 	}
-	return FlightPath(s.w, s.h, t)
+	return flightPathIn(s.w, s.h, t, s.flyInOrDefault(), BobPeriodSeconds, BobAmplitudeCells)
+}
+
+// FlyIn retunes this one ship's westbound slide: the wing-to-park
+// glide takes seconds. The number is the caller's, verbatim — zero
+// parks the craft instantly. Unset, the slide takes the stock
+// FlyInSeconds. Call before Start (and before Parked). Nil-safe.
+func (s *Ship) FlyIn(seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.flySet = true
+	s.flySec = seconds
+	return s
+}
+
+// flyInOrDefault is the slide this ship flies: its own number, or the
+// stock FlyInSeconds when unset.
+func (s *Ship) flyInOrDefault() float64 {
+	if s.flySet {
+		return s.flySec
+	}
+	return FlyInSeconds
 }
 
 // Parked starts the clock at the fly-in park so the first frame is
@@ -631,7 +655,7 @@ func (s *Ship) Parked() *Ship {
 	if s == nil {
 		return nil
 	}
-	s.clock = s.hold + FlyInSeconds
+	s.clock = s.hold + s.flyInOrDefault()
 	return s
 }
 
@@ -659,18 +683,25 @@ func FlightPath(stageW, stageH int, t float64) (row, col int) {
 // flightPath is FlightPath with the parked ride retuned: the same
 // fly-in, then a ±cells sine with the given period.
 func flightPath(stageW, stageH int, t, period float64, cells int) (row, col int) {
+	return flightPathIn(stageW, stageH, t, FlyInSeconds, period, cells)
+}
+
+// flightPathIn is flightPath on any slide: the wing-to-park glide
+// takes flyIn seconds — the caller's number, verbatim; at zero the
+// craft opens parked.
+func flightPathIn(stageW, stageH int, t, flyIn, period float64, cells int) (row, col int) {
 	if t < 0 {
 		t = 0
 	}
 	row = (stageH - BodyRows) / 2
 	park := (stageW - BodyCols) / 2
-	if t < FlyInSeconds {
+	if t < flyIn {
 		// ease-out cubic: fast off the wing, gentle into the park.
-		p := t / FlyInSeconds
+		p := t / flyIn
 		eased := 1 - math.Pow(1-p, 3)
 		return row, stageW + int(math.Round(eased*float64(park-stageW)))
 	}
-	return row - ParkBob(t-FlyInSeconds, period, cells), park
+	return row - ParkBob(t-flyIn, period, cells), park
 }
 
 // ParkBob is how many cells above center the parked bobble rides at t

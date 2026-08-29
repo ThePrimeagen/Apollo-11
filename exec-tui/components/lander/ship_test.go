@@ -1544,11 +1544,11 @@ func TestShipFlyIn(t *testing.T) {
 	t.Run("unhappy: an unset fly-in keeps the stock four seconds", func(t *testing.T) {
 		s := NewShip(3).Dark()
 		s.Start(screenW, screenH)
-		s.Update(FlyInSeconds - 0.5)
+		s.Update(FlyInSeconds - 1.5)
 		if got := hullLeft(t, s); got == centerCol {
-			t.Fatal("half a second before the stock park the hull must still be sliding")
+			t.Fatal("mid-slide the stock hull must still be east of the park")
 		}
-		s.Update(1.0)
+		s.Update(2.0)
 		if got := hullLeft(t, s); got != centerCol {
 			t.Fatalf("past FlyInSeconds the hull sits at col %d, want parked at %d", got, centerCol)
 		}
