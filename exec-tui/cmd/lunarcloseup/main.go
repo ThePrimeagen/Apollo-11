@@ -1,10 +1,11 @@
 // lunarcloseup: 02. Walkthrough — the composable five-scene bill from
-// shows/lunarcloseup. The house opens on "pause": the drifting sky
+// shows/lunarcloseup. The house opens on "pause": the still sky
 // alone, for as long as the audience likes. Space cuts to "Lunar
 // Lander Close-Up": the zoomed-in Apollo craft slides in from the
-// right at once, hull only, cold engine. Space cuts to "fire": the
-// parked craft lights the booster and the stars slow by 60% over
-// five seconds. Space cuts to "fall": the north-facing lander, fire
+// right at once, hull only, cold engine, the sky surging from rest
+// to a 1.25 peak then settling to cruise. Space cuts to "fire": the
+// parked craft lights the booster, eases downward, and the stars
+// slow by 60% over five seconds. Space cuts to "fall": the north-facing lander, fire
 // down, drops from the top of the stage to the bottom. Space cuts to
 // "landing": a huge moon horizon as a colored floor (five rows high
 // in the middle, one row at the edges) and the lander coming down

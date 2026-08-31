@@ -40,7 +40,7 @@ func TestKnobsFor(t *testing.T) {
 			{moonwalk.New(moonwalk.BeatRun), "moonwalk", int(moonwalk.KnobCount), true},
 			{moonshow.NewOrbitShow(), "orbit", 2, false},
 			{lunarcloseup.NewCloseupShow(nil), "closeup", 2, false},
-			{lunarcloseup.NewFireShow(nil), "fire", 2, false},
+			{lunarcloseup.NewFireShow(nil), "fire", 3, false},
 		}
 		for _, tc := range cases {
 			k := knobsFor(tc.scene)
@@ -121,6 +121,51 @@ func TestKnobsFor(t *testing.T) {
 			t.Fatal("MAIN's knobs are its own — Active must not move")
 		}
 	})
+	t.Run("happy: fire knobs include the fall duration and nudging it changes SinkSeconds", func(t *testing.T) {
+		s := lunarcloseup.NewFireShow(nil)
+		k := knobsFor(s)
+		if k == nil {
+			t.Fatal("the fire must map to an adapter")
+		}
+		idx := fireFallKnob(t, k)
+		if k.value(idx) != s.Cfg.SinkSeconds {
+			t.Fatalf("fall value reads %v, want the show's SinkSeconds %v", k.value(idx), s.Cfg.SinkSeconds)
+		}
+		k.nudge(idx, 2)
+		if want := 0.5; s.Cfg.SinkSeconds != want {
+			t.Fatalf("two fall steps from stock read %v, want %v", s.Cfg.SinkSeconds, want)
+		}
+		if other := lunarcloseup.NewFireShow(nil); other.Cfg.SinkSeconds != 0 {
+			t.Fatal("nudging one fire must not touch another's sink")
+		}
+	})
+	t.Run("unhappy: missing, zero, and negative sink are the operator's — walkthrough stock stays 0", func(t *testing.T) {
+		s := lunarcloseup.NewFireShow(nil)
+		if s.Cfg.SinkSeconds != 0 {
+			t.Fatalf("walkthrough stock sink is %v, want 0", s.Cfg.SinkSeconds)
+		}
+		if err := knobsFor(s).apply(json.RawMessage(`{"slowBy":0.4}`)); err != nil {
+			t.Fatalf("partial apply: %v", err)
+		}
+		if s.Cfg.SinkSeconds != 0 {
+			t.Fatalf("a blob that does not name sinkSeconds must keep stock 0, got %v", s.Cfg.SinkSeconds)
+		}
+		if err := knobsFor(s).apply(json.RawMessage(`{"sinkSeconds":0}`)); err != nil {
+			t.Fatalf("zero apply: %v", err)
+		}
+		if s.Cfg.SinkSeconds != 0 {
+			t.Fatalf("a zero sink is the operator's, got %v", s.Cfg.SinkSeconds)
+		}
+		if err := knobsFor(s).apply(json.RawMessage(`{"sinkSeconds":-3}`)); err != nil {
+			t.Fatalf("negative apply: %v", err)
+		}
+		if s.Cfg.SinkSeconds != -3 {
+			t.Fatalf("a negative sink is the operator's, got %v — never clamped", s.Cfg.SinkSeconds)
+		}
+		s.Start()
+		s.Update(1)
+		s.Stop()
+	})
 	t.Run("unhappy: a mismatched blob is an error and the knobs stand", func(t *testing.T) {
 		s := lunarcloseup.NewFireShow(nil)
 		stock := s.Cfg
@@ -139,4 +184,18 @@ func TestKnobsFor(t *testing.T) {
 			t.Fatalf("a nil scene has no knobs, got %+v", k)
 		}
 	})
+}
+
+// fireFallKnob is the fire adapter's fall/sink duration index — the
+// hull's downward ease, never the hold.
+func fireFallKnob(t *testing.T, k *knobs) int {
+	t.Helper()
+	for i := 0; i < k.count; i++ {
+		switch k.label(i) {
+		case "fall", "sink":
+			return i
+		}
+	}
+	t.Fatal("fire knobs must name the fall duration (fall or sink)")
+	return -1
 }

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/theprimeagen/apollo-11/exec-tui/components/dust"
@@ -420,6 +421,201 @@ func TestLiftoffScene(t *testing.T) {
 		held.Update(-3)
 		if hullRow(paint(held), "▟") < 0 {
 			t.Fatal("dt<=0 must hold the opening frame")
+		}
+	})
+}
+
+func inkFG(c *uv.Cell) int {
+	if c == nil {
+		return -1
+	}
+	ic, ok := c.Style.Fg.(ansi.IndexedColor)
+	if !ok {
+		return -1
+	}
+	return int(ic)
+}
+
+const cabinGlyphs = "▗▀▜▛▖▟█▙░▞▚"
+
+func hullBand() (lo, hi int) {
+	lo = (stageW - lander.BodyCols) / 2
+	return lo, lo + lander.BodyCols
+}
+
+func firstFGRow(scr *screenplay.Screen, fg int) int {
+	lo, hi := hullBand()
+	for y := 0; y < stageH; y++ {
+		for x := lo; x < hi; x++ {
+			c := scr.Cell(x, y)
+			if inkFG(c) != fg {
+				continue
+			}
+			if fg == 252 && !strings.ContainsAny(c.Content, cabinGlyphs) {
+				continue
+			}
+			return y
+		}
+	}
+	return -1
+}
+
+func countFG(scr *screenplay.Screen, fg int) int {
+	n := 0
+	lo, hi := hullBand()
+	for y := 0; y < stageH; y++ {
+		for x := lo; x < hi; x++ {
+			c := scr.Cell(x, y)
+			if inkFG(c) != fg {
+				continue
+			}
+			if fg == 252 && !strings.ContainsAny(c.Content, cabinGlyphs) {
+				continue
+			}
+			n++
+		}
+	}
+	return n
+}
+
+func padSmoke(scr *screenplay.Screen) bool {
+	hullCol := (stageW - lander.BodyCols) / 2
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			if x >= hullCol && x < hullCol+lander.BodyCols {
+				continue
+			}
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			for _, r := range c.Content {
+				if r == '░' || r == '▒' {
+					return true
+				}
+				if r >= '⠀' && r <= '⣿' {
+					ic, ok := c.Style.Fg.(ansi.IndexedColor)
+					if ok && int(ic) >= dust.GrayMin {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func TestWhiteCapLiftoff(t *testing.T) {
+	t.Cleanup(Reset)
+	const (
+		silver = 252
+		gold   = 178
+		engine = 245
+	)
+	t.Run("happy: white-only knobs fly the north cabin up; gold and the engine do not rise with it", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.WhiteOnly = true
+		sc.Cfg.LiftAt = 0.2
+		sc.Cfg.RiseSeconds = 0.8
+		sc.Cfg.DustStart = 0
+		sc.Cfg.DustRun = 0
+		sc.Start()
+		defer sc.Stop()
+		opening := paint(sc)
+		cap := firstFGRow(opening, silver)
+		if cap < 0 {
+			t.Fatal("MAIN-style liftoff must open on the white north cabin")
+		}
+		if n := countFG(opening, gold); n != 0 {
+			t.Fatalf("opening still paints %d gold cells — only the white top should fly", n)
+		}
+		if n := countFG(opening, engine); n != 0 {
+			t.Fatalf("opening still paints %d engine cells — the brown bell must not ride the climb", n)
+		}
+		tick(sc, 0.7)
+		mid := paint(sc)
+		got := firstFGRow(mid, silver)
+		if got < 0 {
+			t.Fatal("mid-climb the white cabin must still be on stage")
+		}
+		if got >= cap {
+			t.Fatalf("mid-climb the white cabin must have risen, row %d was %d", got, cap)
+		}
+		if n := countFG(mid, gold); n != 0 {
+			t.Fatalf("mid-climb gold is on stage (%d) — the descent must not rise with the cap", n)
+		}
+	})
+	t.Run("unhappy: stock liftoff still lifts the full craft; a zero rise and a dustless pad never panic", func(t *testing.T) {
+		stock := New(nil)
+		stock.Cfg.LiftAt = 0.2
+		stock.Cfg.RiseSeconds = 0.8
+		stock.Start()
+		defer stock.Stop()
+		opening := paint(stock)
+		if countFG(opening, gold) == 0 {
+			t.Fatal("stock liftoff must still wear the gold descent — MAIN knobs do not rewrite the default")
+		}
+		if countFG(opening, engine) == 0 {
+			t.Fatal("stock liftoff must still wear the engine bell")
+		}
+		goldOpen := firstFGRow(opening, gold)
+		tick(stock, 0.7)
+		climbing := paint(stock)
+		if got := firstFGRow(climbing, gold); got < 0 || got >= goldOpen {
+			t.Fatalf("stock mid-climb gold row %d, want above the pad %d — the full hull still rises", got, goldOpen)
+		}
+
+		odd := New(nil)
+		odd.Cfg.WhiteOnly = true
+		odd.Cfg.RiseSeconds = 0.05
+		odd.Cfg.LiftAt = 0
+		odd.Cfg.DustStart = 0
+		odd.Cfg.DustRun = 0
+		odd.Start()
+		_ = paint(odd)
+		odd.Update(1)
+		odd.Stop()
+	})
+}
+
+func TestWhiteCapSmoke(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Run("happy: MAIN-style knobs (white-only, dust run 0) paint no pad cloud after ignition", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.WhiteOnly = true
+		sc.Cfg.LiftAt = 0
+		sc.Cfg.RiseSeconds = 1.2
+		sc.Cfg.Fire25 = 0
+		sc.Cfg.Fire50 = 0
+		sc.Cfg.Fire75 = 0
+		sc.Cfg.FireFull = 0
+		sc.Cfg.DustStart = 0
+		sc.Cfg.DustRun = 0
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.4)
+		if padSmoke(paint(sc)) {
+			t.Fatal("MAIN liftoff must stay dustless after ignition — no ░▒ / pad cloud")
+		}
+	})
+	t.Run("unhappy: stock dust knobs still kick the pad cloud", func(t *testing.T) {
+		sc := New(nil)
+		sc.Cfg.LiftAt = 0.6
+		sc.Cfg.RiseSeconds = 0.8
+		sc.Cfg.Fire25 = 0.1
+		sc.Cfg.Fire50 = 0.15
+		sc.Cfg.Fire75 = 0.2
+		sc.Cfg.FireFull = 0.25
+		sc.Cfg.DustStart = 0.2
+		sc.Cfg.DustRun = 0.6
+		sc.Cfg.DustLoss = 0.05
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		tick(sc, 0.45)
+		if !padSmoke(paint(sc)) {
+			t.Fatal("stock liftoff must still blow pad dust when the dust knobs are on")
 		}
 	})
 }

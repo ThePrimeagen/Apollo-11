@@ -29,8 +29,10 @@ import (
 
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/fall"
+	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/moonwalk"
 	"github.com/theprimeagen/apollo-11/exec-tui/screenplay"
+	"github.com/theprimeagen/apollo-11/exec-tui/shows/lunarcloseup"
 )
 
 // probe is a scene that counts its lifecycle, so a test can see cuts.
@@ -168,6 +170,19 @@ func TestDirectorWalk(t *testing.T) {
 			t.Fatalf("ctrl+p must cut back, idx %d", m.play.SceneIndex())
 		}
 	})
+	t.Run("happy: a real C-n / C-p press (Mod+Code, not the string) cuts too", func(t *testing.T) {
+		bill, _ := probeBill()
+		m := New("TEST", bill, Config{}, "main.json", 0)
+		// A pty often reports the letter with ModCtrl and no useful String.
+		m = press(m, tea.KeyPressMsg{Code: 'N', Mod: tea.ModCtrl})
+		if m.play.SceneIndex() != 1 {
+			t.Fatalf("C-n must cut forward from Mod+Code, idx %d", m.play.SceneIndex())
+		}
+		m = press(m, tea.KeyPressMsg{Code: 'P', Mod: tea.ModCtrl})
+		if m.play.SceneIndex() != 0 {
+			t.Fatalf("C-p must cut back from Mod+Code, idx %d", m.play.SceneIndex())
+		}
+	})
 	t.Run("unhappy: the ends hold — p on the first and n on the last never quit", func(t *testing.T) {
 		bill, _ := probeBill()
 		m := New("TEST", bill, Config{}, "main.json", 0)
@@ -303,6 +318,133 @@ func TestDirectorBrowse(t *testing.T) {
 	})
 }
 
+func fireBill() screenplay.Bill {
+	return screenplay.Bill{
+		screenplay.Entry{Name: "fire", Scene: lunarcloseup.NewFireShow(nil)},
+		screenplay.Entry{Name: "blank", Scene: &screenplay.Ensemble{}},
+	}
+}
+
+func TestDirectorFireFall(t *testing.T) {
+	t.Run("happy: the fire quiet face shows hold and the fall duration", func(t *testing.T) {
+		var cfg Config
+		cfg.SetHold("fire", 7)
+		cfg.SetKnobs("fire", json.RawMessage(`{"sinkSeconds":12}`))
+		bill := fireBill()
+		m := New("MAIN", bill, cfg, "main.json", 0)
+		v := m.View().Content
+		if !strings.Contains(v, "hold") || !strings.Contains(v, "7.000") {
+			t.Fatal("hold is how long the scene plays before the cut")
+		}
+		if !strings.Contains(v, "fall") || !strings.Contains(v, "12.000") {
+			t.Fatal("the quiet face must show how long the hull falls — the operator should not hunt behind e")
+		}
+		if strings.Contains(v, "slow by") || strings.Contains(v, "slow over") {
+			t.Fatal("the brake knobs wait behind e — only the fall duration rides the quiet face")
+		}
+		if strings.Contains(v, "MAIN CONFIG") {
+			t.Fatal("the quiet face must not wear the panel")
+		}
+		show := bill[0].Scene.(*lunarcloseup.FireShow)
+		if show.Cfg.SinkSeconds != 12 {
+			t.Fatalf("applied sink is %v, want MAIN's 12", show.Cfg.SinkSeconds)
+		}
+	})
+	t.Run("happy: e lists fall on MAIN CONFIG and nudging it changes SinkSeconds", func(t *testing.T) {
+		bill := fireBill()
+		show := bill[0].Scene.(*lunarcloseup.FireShow)
+		m := New("MAIN", bill, Config{}, "main.json", 0)
+		m = press(m, runeKey('e'))
+		v := m.View().Content
+		if !strings.Contains(v, "MAIN CONFIG") || !strings.Contains(v, "fall") {
+			t.Fatal("MAIN CONFIG for fire must name the fall duration")
+		}
+		if !strings.Contains(v, "hold") {
+			t.Fatal("hold stays its own row — it is the cut, not the fall")
+		}
+		// hold, slow by, slow over, fall
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('j'))
+		m = press(m, runeKey('j'))
+		if m.cursor != 3 {
+			t.Fatalf("three j's must land on fall, cursor %d", m.cursor)
+		}
+		hold := m.cfg.HoldFor("fire")
+		m = press(m, runeKey('l'))
+		if want := 0.25; show.Cfg.SinkSeconds != want {
+			t.Fatalf("l on fall reads SinkSeconds %v, want %v", show.Cfg.SinkSeconds, want)
+		}
+		if got := m.cfg.HoldFor("fire"); got != hold {
+			t.Fatalf("nudging fall must not merge into hold, hold %v want %v", got, hold)
+		}
+	})
+	t.Run("happy: j on the fire quiet face selects fall and h/l turn SinkSeconds", func(t *testing.T) {
+		bill := fireBill()
+		show := bill[0].Scene.(*lunarcloseup.FireShow)
+		m := New("MAIN", bill, Config{}, "main.json", 0)
+		hold := m.cfg.HoldFor("fire")
+		m = press(m, runeKey('j'))
+		if m.cursor != 1 {
+			t.Fatalf("j on fire browse must pick fall, cursor %d", m.cursor)
+		}
+		m = press(m, runeKey('l'))
+		if want := 0.25; show.Cfg.SinkSeconds != want {
+			t.Fatalf("l on quiet-face fall reads %v, want %v", show.Cfg.SinkSeconds, want)
+		}
+		if got := m.cfg.HoldFor("fire"); got != hold {
+			t.Fatalf("quiet-face fall must not move the hold, %v want %v", got, hold)
+		}
+		m = press(m, runeKey('k'))
+		m = press(m, runeKey('l'))
+		if got := m.cfg.HoldFor("fire"); got != hold+HoldStepSeconds {
+			t.Fatalf("k then l must turn the hold again, %v want %v", got, hold+HoldStepSeconds)
+		}
+	})
+	t.Run("unhappy: other scenes' quiet faces stay hold-only — fire does not clutter them", func(t *testing.T) {
+		t.Cleanup(fall.Reset)
+		m := New("TEST", editorBill(), Config{}, "main.json", 0)
+		m = press(m, runeKey('n'))
+		v := m.View().Content
+		if strings.Contains(v, "sink") {
+			t.Fatal("a non-fire quiet face must not wear the fire's fall/sink row")
+		}
+		if strings.Contains(v, "drop") {
+			t.Fatal("the fall scene's own knobs still wait behind e")
+		}
+	})
+	t.Run("unhappy: missing, zero, and negative sink paint as the operator's number — no panic", func(t *testing.T) {
+		var cfg Config
+		cfg.SetHold("fire", 7)
+		cfg.SetKnobs("fire", json.RawMessage(`{"slowBy":0.6}`))
+		bill := fireBill()
+		m := New("MAIN", bill, cfg, "main.json", 0)
+		show := bill[0].Scene.(*lunarcloseup.FireShow)
+		if show.Cfg.SinkSeconds != 0 {
+			t.Fatalf("a blob that omits sinkSeconds must keep stock 0, got %v", show.Cfg.SinkSeconds)
+		}
+		v := m.View().Content
+		if !strings.Contains(v, "fall") || !strings.Contains(v, "0.000") {
+			t.Fatal("a missing sink must still show fall at 0 — walkthrough stock")
+		}
+
+		cfg.SetKnobs("fire", json.RawMessage(`{"sinkSeconds":-3}`))
+		bill = fireBill()
+		m = New("MAIN", bill, cfg, "main.json", 0)
+		show = bill[0].Scene.(*lunarcloseup.FireShow)
+		if show.Cfg.SinkSeconds != -3 {
+			t.Fatalf("negative sink is the operator's, got %v — never clamped", show.Cfg.SinkSeconds)
+		}
+		v = m.View().Content
+		if !strings.Contains(v, "-3.000") {
+			t.Fatal("the quiet face must paint a negative fall verbatim")
+		}
+		m = press(m, runeKey('e'))
+		if !strings.Contains(m.View().Content, "-3.000") {
+			t.Fatal("MAIN CONFIG must paint a negative fall verbatim")
+		}
+	})
+}
+
 func TestDirectorEdit(t *testing.T) {
 	t.Run("happy: e opens the MAIN CONFIG panel — the hold, then every knob", func(t *testing.T) {
 		m := New("TEST", editorBill(), Config{}, "main.json", 0)
@@ -349,8 +491,8 @@ func TestDirectorEdit(t *testing.T) {
 		m = press(m, runeKey('n'))
 		m = press(m, runeKey('e'))
 		m = press(m, runeKey('k'))
-		if m.cursor != 1 {
-			t.Fatalf("k off the top must wrap to the last knob, cursor %d", m.cursor)
+		if last := int(fall.KnobCount); m.cursor != last {
+			t.Fatalf("k off the top must wrap to the last knob, cursor %d want %d", m.cursor, last)
 		}
 		m = press(m, runeKey('j'))
 		if m.cursor != 0 {
@@ -401,6 +543,63 @@ func TestDirectorEdit(t *testing.T) {
 		m = press(m, runeKey('k'))
 		if m.cursor != 0 {
 			t.Fatalf("the blank scene has only the hold, cursor %d", m.cursor)
+		}
+	})
+}
+
+func TestDirectorKnobColumns(t *testing.T) {
+	t.Cleanup(landing.Reset)
+	landingBill := func() screenplay.Bill {
+		return screenplay.Bill{
+			screenplay.Entry{Name: "landing", Scene: landing.New(nil)},
+		}
+	}
+	short := func() Model {
+		m := New("MAIN", landingBill(), Config{}, "main.json", 0)
+		m = press(m, tea.WindowSizeMsg{Width: 90, Height: 12})
+		m = press(m, runeKey('e'))
+		return m
+	}
+	t.Run("happy: knobs that do not fit the height spill into the next column", func(t *testing.T) {
+		m := short()
+		v := m.View().Content
+		for _, want := range []string{"hold", "land", "dust start", "star size", "star taper"} {
+			if !strings.Contains(v, want) {
+				t.Fatalf("short MAIN CONFIG is missing %q — overflow must land in the next column:\n%s", want, v)
+			}
+		}
+	})
+	t.Run("happy: down walks the column then the next; up walks back", func(t *testing.T) {
+		m := short()
+		_, h := m.screen.Size()
+		avail := h - 3
+		if avail < 2 {
+			t.Fatalf("test premise: need a column taller than 1, avail %d", avail)
+		}
+		for i := 0; i < avail; i++ {
+			m = press(m, tea.KeyPressMsg{Code: tea.KeyDown})
+		}
+		if m.cursor != avail {
+			t.Fatalf("down past the first column must land on the next column's top, cursor %d want %d", m.cursor, avail)
+		}
+		m = press(m, tea.KeyPressMsg{Code: tea.KeyUp})
+		if m.cursor != avail-1 {
+			t.Fatalf("up from the second column must return to the first column's bottom, cursor %d want %d", m.cursor, avail-1)
+		}
+	})
+	t.Run("unhappy: a tiny window never drops a column onto the floor, and one column still fits when there is room", func(t *testing.T) {
+		m := New("MAIN", landingBill(), Config{}, "main.json", 0)
+		m = press(m, tea.WindowSizeMsg{Width: 8, Height: 3})
+		m = press(m, runeKey('e'))
+		_ = m.View().Content
+		m = press(m, tea.KeyPressMsg{Code: tea.KeyDown})
+		m = press(m, tea.KeyPressMsg{Code: tea.KeyUp})
+		tall := New("MAIN", landingBill(), Config{}, "main.json", 0)
+		tall = press(tall, tea.WindowSizeMsg{Width: 90, Height: 40})
+		tall = press(tall, runeKey('e'))
+		v := tall.View().Content
+		if !strings.Contains(v, "hold") || !strings.Contains(v, "star taper") {
+			t.Fatal("a tall window must still show every knob in one reading")
 		}
 	})
 }

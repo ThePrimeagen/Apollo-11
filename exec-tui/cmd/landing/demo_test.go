@@ -61,7 +61,7 @@ func TestLandingSceneRunner(t *testing.T) {
 		for _, want := range []string{"landing", "play", "50ms", "save", "quit", "land", "dust", "fire", "loss", "1202", "LAND",
 			"star size", "star random size", "star speed", "star count",
 			"star period", "star min life", "star max life", "star nozzle",
-			"star peak", "star taper"} {
+			"star peak", "star taper", "star delay", "star start y"} {
 			if !strings.Contains(v, want) {
 				t.Fatalf("opening view is missing %q", want)
 			}

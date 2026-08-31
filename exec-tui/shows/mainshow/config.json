@@ -1,16 +1,16 @@
 {
   "scenes": [
-    { "scene": "the moon", "seconds": 4.000 },
-    { "scene": "orbit", "seconds": 8.000, "knobs": {"arriveSeconds":2.5,"lapSeconds":12} },
+    { "scene": "the moon", "seconds": 1.500 },
+    { "scene": "orbit", "seconds": 6.000, "knobs": {"arriveSeconds":2,"lapSeconds":8.25} },
     { "scene": "pause", "seconds": 3.000 },
-    { "scene": "Lunar Lander Close-Up", "seconds": 6.000, "knobs": {"flyInSeconds":4} },
-    { "scene": "fire", "seconds": 7.000, "knobs": {"slowBy":0.6,"slowOverSeconds":5} },
-    { "scene": "fall", "seconds": 7.500, "knobs": {"dropSeconds":6} },
-    { "scene": "landing", "seconds": 9.000, "knobs": {"landSeconds":4.15,"dustStart":1.05,"dustRun":3.65,"fire75":1.2,"fire50":1.65,"fire25":2.3,"fireOff":2.7,"dustLoss":0.3,"code1At":3.2,"code1Hold":0.8,"code2At":4.1,"code2Hold":0.7,"landCaptionAt":5,"landCaptionHold":3,"star":{"path":"fall","size":1,"randomSize":false,"speed":28,"count":3,"period":0.015,"minLife":0.5,"maxLife":0.9,"nozzle":4,"peak":6,"taper":0.85}} },
+    { "scene": "Lunar Lander Close-Up", "seconds": 6.000, "knobs": {"flyInSeconds":4,"rushPeak":1.25} },
+    { "scene": "fire", "seconds": 1.000, "knobs": {"slowBy":0.6,"slowOverSeconds":5,"sinkSeconds":4.25} },
+    { "scene": "fall", "seconds": 6.000, "knobs": {"dropSeconds":2.25,"hold1":0.8,"hold2":0.8,"hold3":0.8} },
+    { "scene": "landing", "seconds": 9.000, "knobs": {"landSeconds":4.15,"dustStart":1.05,"dustRun":3.65,"fire75":1.2,"fire50":1.65,"fire25":2.3,"fireOff":2.7,"dustLoss":0.3,"code1At":3.2,"code1Hold":0,"code2At":4.1,"code2Hold":0,"landCaptionAt":5,"landCaptionHold":0,"star":{"path":"fall","size":1,"randomSize":false,"speed":60,"count":1,"period":0.055,"minLife":0.5,"maxLife":0.9,"nozzle":4,"peak":8,"taper":0.85,"dust":true,"delay":1.5,"startY":0.04}} },
     { "scene": "run", "seconds": 6.500, "knobs": {"stride_fps":7,"run_speed":60,"jump_seconds":0.3,"box_start":51,"top_seconds":0.6,"slide_seconds":1.05,"flag_seconds":1,"pole_rows":27,"exit_speed":18,"pan_cols":100,"pan_seconds":1.4} },
     { "scene": "flagpole", "seconds": 5.500, "knobs": {"stride_fps":7,"run_speed":60,"jump_seconds":0.3,"box_start":51,"top_seconds":0.6,"slide_seconds":1.05,"flag_seconds":1,"pole_rows":27,"exit_speed":18,"pan_cols":100,"pan_seconds":1.4} },
     { "scene": "board", "seconds": 6.500, "knobs": {"stride_fps":7,"run_speed":60,"jump_seconds":0.3,"box_start":51,"top_seconds":0.6,"slide_seconds":1.05,"flag_seconds":1,"pole_rows":27,"exit_speed":18,"pan_cols":100,"pan_seconds":1.4} },
-    { "scene": "liftoff", "seconds": 6.000, "knobs": {"riseSeconds":2.6,"liftAt":0,"fire25":0.2,"fire50":0.55,"fire75":1.2,"fireFull":1.6,"dustStart":0.15,"dustRun":1.6,"dustLoss":0.155} },
+    { "scene": "liftoff", "seconds": 6.000, "knobs": {"riseSeconds":2.6,"liftAt":0,"fire25":0.2,"fire50":0.55,"fire75":1.2,"fireFull":1.6,"dustStart":0,"dustRun":0,"dustLoss":0.155,"whiteOnly":true} },
     { "scene": "engines on", "seconds": 6.000, "knobs": {"engine":true,"periodSeconds":10,"amplitudeCells":1} },
     { "scene": "engines off", "seconds": 5.000, "knobs": {"engine":false,"periodSeconds":10,"amplitudeCells":1} }
   ]

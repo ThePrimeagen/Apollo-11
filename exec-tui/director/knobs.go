@@ -31,6 +31,10 @@ type knobs struct {
 	nudge   func(i, dir int)
 	marshal func() (json.RawMessage, error)
 	apply   func(json.RawMessage) error
+	// front is knob indices that ride the quiet browse face so
+	// the operator can read them without opening e. Empty means
+	// hold alone — every other knob waits behind the panel.
+	front []int
 }
 
 // bind carries any Cfg through its JSON shape: marshal snapshots it,
@@ -141,6 +145,9 @@ func knobsFor(sc screenplay.Scene) *knobs {
 			nudge:   func(i, dir int) { s.Cfg.Nudge(i, dir) },
 			marshal: m,
 			apply:   a,
+			// SinkSeconds — how long the hull falls. Hold is
+			// the cut; they stay two numbers.
+			front: []int{2},
 		}
 	}
 	return nil

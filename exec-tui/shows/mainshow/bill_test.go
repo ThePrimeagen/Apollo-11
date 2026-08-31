@@ -12,8 +12,15 @@ package mainshow
 // instances, and none of the old premiere's scenes ride along.
 
 import (
+	"bytes"
+	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/theprimeagen/apollo-11/exec-tui/components/caption"
+	"github.com/theprimeagen/apollo-11/exec-tui/director"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/bobble"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/fall"
 	"github.com/theprimeagen/apollo-11/exec-tui/scenes/landing"
@@ -149,4 +156,388 @@ func TestMainBill(t *testing.T) {
 			e.Scene.Stop()
 		}
 	})
+}
+
+func TestMainFireSink(t *testing.T) {
+	t.Run("happy: MAIN's fire knobs turn on a sink and the lit hull eases down", func(t *testing.T) {
+		cfg, err := director.Load("config.json")
+		if err != nil {
+			t.Fatalf("MAIN config: %v", err)
+		}
+		raw := cfg.KnobsFor("fire")
+		if !bytes.Contains(raw, []byte(`"sinkSeconds"`)) {
+			t.Fatal("MAIN's fire knobs must name sinkSeconds — that is how MAIN turns the fall on")
+		}
+		var face lunarcloseup.FireConfig
+		if err := json.Unmarshal(raw, &face); err != nil {
+			t.Fatalf("fire knobs: %v", err)
+		}
+		if face.SinkSeconds == 0 {
+			t.Fatal("MAIN's sink must be a non-zero window")
+		}
+
+		sc, ok := Bill()[4].Scene.(*lunarcloseup.FireShow)
+		if !ok {
+			t.Fatalf("MAIN scene 5 is %T, want the fire show", Bill()[4].Scene)
+		}
+		next := sc.Cfg
+		if err := json.Unmarshal(raw, &next); err != nil {
+			t.Fatalf("apply fire knobs: %v", err)
+		}
+		sc.Cfg = next
+		if sc.Cfg.SinkSeconds != face.SinkSeconds {
+			t.Fatalf("applied sink is %v, want MAIN's %v", sc.Cfg.SinkSeconds, face.SinkSeconds)
+		}
+		sc.Start()
+		defer sc.Stop()
+		openScr := screenplay.NewScreen(72, 27)
+		sc.Render(openScr)
+		open := westHullTop(openScr)
+		if open < 0 {
+			t.Fatal("test premise: MAIN fire must open on the west hull")
+		}
+		const dt = 1.0 / 30
+		for tck := 0.0; tck < 7-dt/2; tck += dt {
+			sc.Update(dt)
+		}
+		mid := screenplay.NewScreen(72, 27)
+		sc.Render(mid)
+		got := westHullTop(mid)
+		if got < 0 {
+			t.Fatal("mid-sink the west hull must still be on stage")
+		}
+		if got <= open {
+			t.Fatalf("MAIN fire hull top %d, want below the opening %d (cfg %+v) — the booster is on, the hull must sink", got, open, sc.Cfg)
+		}
+		if !strings.ContainsRune(mid.Render(), '▌') {
+			t.Fatal("the sinking craft must stay west-facing")
+		}
+	})
+	t.Run("unhappy: stock MAIN fire (no saved knobs) stays parked, and a zero or odd sink never panics", func(t *testing.T) {
+		stock, ok := Bill()[4].Scene.(*lunarcloseup.FireShow)
+		if !ok {
+			t.Fatalf("MAIN scene 5 is %T, want the fire show", Bill()[4].Scene)
+		}
+		if stock.Cfg.SinkSeconds != 0 {
+			t.Fatalf("stock fire sink is %v, want 0 — only MAIN's saved knobs turn it on", stock.Cfg.SinkSeconds)
+		}
+		stock.Start()
+		openScr := screenplay.NewScreen(72, 27)
+		stock.Render(openScr)
+		open := westHullTop(openScr)
+		const dt = 1.0 / 30
+		for tck := 0.0; tck < 4-dt/2; tck += dt {
+			stock.Update(dt)
+		}
+		mid := screenplay.NewScreen(72, 27)
+		stock.Render(mid)
+		got := westHullTop(mid)
+		if got < open-1 || got > open+1 {
+			t.Fatalf("stock MAIN fire hull top %d, want the park around %d", got, open)
+		}
+		stock.Stop()
+
+		odd := lunarcloseup.NewFireShow(nil)
+		odd.Cfg.SinkSeconds = -3
+		odd.Start()
+		oddScr := screenplay.NewScreen(72, 27)
+		odd.Render(oddScr)
+		odd.Update(1)
+		odd.Stop()
+
+		gone := lunarcloseup.NewFireShow(nil)
+		gone.Cfg.SinkSeconds = 0
+		gone.Start()
+		gone.Update(1)
+		gone.Stop()
+	})
+}
+
+func westHullTop(scr *screenplay.Screen) int {
+	w, h := scr.Size()
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			c := scr.Cell(x, y)
+			if c != nil && strings.ContainsRune(c.Content, '▌') {
+				return y
+			}
+		}
+	}
+	return -1
+}
+
+func TestMainFallAlarms(t *testing.T) {
+	t.Run("happy: MAIN's fall knobs arm the 1202 / 1202 / 1201 holds", func(t *testing.T) {
+		cfg, err := director.Load("config.json")
+		if err != nil {
+			t.Fatalf("MAIN config: %v", err)
+		}
+		raw := cfg.KnobsFor("fall")
+		if !bytes.Contains(raw, []byte(`"hold1"`)) {
+			t.Fatal("MAIN's fall knobs must name hold1 — that is how MAIN turns the alarms on")
+		}
+		bill := Bill()
+		_ = director.New(Title, bill, cfg, ConfigPath, 0)
+		sc, ok := bill[5].Scene.(*fall.Show)
+		if !ok || bill[5].Name != "fall" {
+			t.Fatalf("scene 6 is %q %T, want fall", bill[5].Name, bill[5].Scene)
+		}
+		if sc.Cfg.Hold1 <= 0 || sc.Cfg.Hold2 <= 0 || sc.Cfg.Hold3 <= 0 {
+			t.Fatalf("MAIN fall holds are %v/%v/%v, want positive so the cards fire",
+				sc.Cfg.Hold1, sc.Cfg.Hold2, sc.Cfg.Hold3)
+		}
+		sc.Start()
+		defer sc.Stop()
+		scr := screenplay.NewScreen(72, 27)
+		sc.Render(scr)
+		const dt = 1.0 / 30
+		var saw1202, saw1201 bool
+		for i := 0; i < 240; i++ {
+			sc.Update(dt)
+			scr.Clear()
+			sc.Render(scr)
+			if caption.Painted(scr, "1202") {
+				saw1202 = true
+			}
+			if caption.Painted(scr, "1201") {
+				saw1201 = true
+			}
+		}
+		if !saw1202 {
+			t.Fatal("MAIN scene 6 must paint 1202 — the first P63 alarm")
+		}
+		if !saw1201 {
+			t.Fatal("MAIN scene 6 must reach 1201 — 1202, 1202, then 1201")
+		}
+	})
+	t.Run("unhappy: stock walkthrough fall stays dark — MAIN does not rewrite the scene", func(t *testing.T) {
+		stock := fall.DefaultConfig()
+		if stock.Hold1 != 0 || stock.Hold2 != 0 || stock.Hold3 != 0 {
+			t.Fatalf("stock fall holds are %v/%v/%v, want zero so walkthrough stays a plain drop",
+				stock.Hold1, stock.Hold2, stock.Hold3)
+		}
+		sc := fall.New(nil)
+		sc.Start()
+		defer sc.Stop()
+		scr := screenplay.NewScreen(72, 27)
+		sc.Render(scr)
+		const dt = 1.0 / 30
+		for i := 0; i < 90; i++ {
+			sc.Update(dt)
+			sc.Render(scr)
+			if caption.Painted(scr, "1202") || caption.Painted(scr, "1201") {
+				t.Fatalf("stock fall must not flash a card at t=%.2f — MAIN only arms its own knobs", float64(i+1)*dt)
+			}
+		}
+	})
+}
+
+func TestMainLandingCaptions(t *testing.T) {
+	t.Run("happy: MAIN's landing knobs keep the 1202s and LAND dark", func(t *testing.T) {
+		cfg, err := director.Load("config.json")
+		if err != nil {
+			t.Fatalf("MAIN config: %v", err)
+		}
+		bill := Bill()
+		_ = director.New(Title, bill, cfg, ConfigPath, 0)
+		sc, ok := bill[6].Scene.(*landing.Show)
+		if !ok || bill[6].Name != "landing" {
+			t.Fatalf("scene 7 is %q %T, want landing", bill[6].Name, bill[6].Scene)
+		}
+		if sc.Cfg.Code1Hold != 0 || sc.Cfg.Code2Hold != 0 || sc.Cfg.LandCaptionHold != 0 {
+			t.Fatalf("MAIN landing holds are 1202a=%v 1202b=%v LAND=%v, want zero so the cards stay dark",
+				sc.Cfg.Code1Hold, sc.Cfg.Code2Hold, sc.Cfg.LandCaptionHold)
+		}
+		if !sc.Cfg.Star.Dust {
+			t.Fatal("MAIN's star knobs must arm the persist trail — that is the dust")
+		}
+		if sc.Cfg.Star.Delay <= 0 {
+			t.Fatal("MAIN's star must wait before it flies")
+		}
+		if sc.Cfg.Star.StartY == 0 || sc.Cfg.Star.StartY >= 0.08 {
+			t.Fatalf("MAIN star startY %v, want a higher top-right start than the stock 0.08 path", sc.Cfg.Star.StartY)
+		}
+		sc.Start()
+		defer sc.Stop()
+		scr := screenplay.NewScreen(72, 27)
+		sc.Render(scr)
+		const dt = 1.0 / 30
+		for i := 0; i < 180; i++ {
+			sc.Update(dt)
+			sc.Render(scr)
+			if caption.Painted(scr, "1202") || caption.Painted(scr, "LAND") {
+				t.Fatalf("MAIN scene 7 must not flash 1202 or LAND at t=%.2f", float64(i+1)*dt)
+			}
+		}
+	})
+	t.Run("unhappy: stock landing still paints the cards — MAIN does not strip the scene", func(t *testing.T) {
+		stock := landing.DefaultConfig()
+		if stock.Code1Hold <= 0 || stock.Code2Hold <= 0 || stock.LandCaptionHold <= 0 {
+			t.Fatalf("stock landing holds are 1202a=%v 1202b=%v LAND=%v, want the walkthrough's cards still timed",
+				stock.Code1Hold, stock.Code2Hold, stock.LandCaptionHold)
+		}
+		sc := landing.New(nil)
+		sc.Cfg.Code1At, sc.Cfg.Code1Hold = 0.1, 0.4
+		sc.Cfg.Code2At, sc.Cfg.Code2Hold = 0.6, 0.4
+		sc.Cfg.LandCaptionAt, sc.Cfg.LandCaptionHold = 1.2, 0.4
+		sc.Start()
+		defer sc.Stop()
+		scr := screenplay.NewScreen(72, 27)
+		sc.Render(scr)
+		const dt = 1.0 / 30
+		for i := 0; i < 10; i++ {
+			sc.Update(dt)
+			sc.Render(scr)
+		}
+		if !caption.Painted(scr, "1202") {
+			t.Fatal("a landing that still holds the cards must paint 1202 — MAIN only zeros its own knobs")
+		}
+	})
+}
+
+func TestMainLiftoff(t *testing.T) {
+	t.Run("happy: MAIN's liftoff knobs fly the white north cabin and keep the pad dustless", func(t *testing.T) {
+		cfg, err := director.Load("config.json")
+		if err != nil {
+			t.Fatalf("MAIN config: %v", err)
+		}
+		raw := cfg.KnobsFor("liftoff")
+		if !bytes.Contains(raw, []byte(`"whiteOnly"`)) {
+			t.Fatal("MAIN's liftoff knobs must name whiteOnly — that is how MAIN flies just the ascent cabin")
+		}
+		bill := Bill()
+		_ = director.New(Title, bill, cfg, ConfigPath, 0)
+		sc, ok := bill[10].Scene.(*liftoff.Show)
+		if !ok || bill[10].Name != "liftoff" {
+			t.Fatalf("scene 11 is %q %T, want liftoff", bill[10].Name, bill[10].Scene)
+		}
+		if !sc.Cfg.WhiteOnly {
+			t.Fatal("MAIN liftoff must arm whiteOnly so only the white top leaves the pad")
+		}
+		if sc.Cfg.DustRun != 0 {
+			t.Fatalf("MAIN dust run is %v, want 0 so the pad stays clear", sc.Cfg.DustRun)
+		}
+		sc.Start()
+		defer sc.Stop()
+		scr := screenplay.NewScreen(72, 27)
+		sc.Render(scr)
+		const (
+			silver = 252
+			gold   = 178
+		)
+		open := firstMainInk(scr, silver)
+		if open < 0 {
+			t.Fatal("MAIN scene 11 must open on the white north cabin")
+		}
+		if n := countMainInk(scr, gold); n != 0 {
+			t.Fatalf("MAIN opening still paints %d gold cells — only the white top should be on stage", n)
+		}
+		const dt = 1.0 / 30
+		for i := 0; i < 66; i++ {
+			sc.Update(dt)
+		}
+		scr.Clear()
+		sc.Render(scr)
+		got := firstMainInk(scr, silver)
+		if got < 0 {
+			t.Fatal("mid-climb the white cabin must still be on stage")
+		}
+		if got >= open {
+			t.Fatalf("MAIN white cabin row %d, want above the opening %d", got, open)
+		}
+		if n := countMainInk(scr, gold); n != 0 {
+			t.Fatalf("mid-climb gold is on stage (%d) — the full hull must not rise", n)
+		}
+		if mainPadSmoke(scr) {
+			t.Fatal("MAIN scene 11 must stay dustless after ignition")
+		}
+	})
+	t.Run("unhappy: stock inverse/standalone liftoff is still the full craft — MAIN does not rewrite the scene", func(t *testing.T) {
+		stock := liftoff.DefaultConfig()
+		if stock.WhiteOnly {
+			t.Fatal("stock WhiteOnly is true — MAIN must not change the scene default")
+		}
+		if stock.DustRun <= 0 {
+			t.Fatalf("stock dust run is %v, want the pad cloud still scheduled", stock.DustRun)
+		}
+		sc := liftoff.New(nil)
+		sc.Start()
+		defer sc.Stop()
+		scr := screenplay.NewScreen(72, 27)
+		sc.Render(scr)
+		if countMainInk(scr, 178) == 0 {
+			t.Fatal("stock liftoff must still wear the gold descent — MAIN only arms its own knobs")
+		}
+	})
+}
+
+const mainCabinGlyphs = "▗▀▜▛▖▟█▙░▞▚"
+
+func firstMainInk(scr *screenplay.Screen, fg int) int {
+	w, h := scr.Size()
+	lo := (w - 26) / 2
+	hi := lo + 26
+	for y := 0; y < h; y++ {
+		for x := lo; x < hi && x < w; x++ {
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			ic, ok := c.Style.Fg.(ansi.IndexedColor)
+			if !ok || int(ic) != fg {
+				continue
+			}
+			if fg == 252 && !strings.ContainsAny(c.Content, mainCabinGlyphs) {
+				continue
+			}
+			return y
+		}
+	}
+	return -1
+}
+
+func countMainInk(scr *screenplay.Screen, fg int) int {
+	n := 0
+	w, h := scr.Size()
+	lo := (w - 26) / 2
+	hi := lo + 26
+	for y := 0; y < h; y++ {
+		for x := lo; x < hi && x < w; x++ {
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			ic, ok := c.Style.Fg.(ansi.IndexedColor)
+			if !ok || int(ic) != fg {
+				continue
+			}
+			if fg == 252 && !strings.ContainsAny(c.Content, mainCabinGlyphs) {
+				continue
+			}
+			n++
+		}
+	}
+	return n
+}
+
+func mainPadSmoke(scr *screenplay.Screen) bool {
+	w, h := scr.Size()
+	hullCol := (w - 26) / 2
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x >= hullCol && x < hullCol+26 {
+				continue
+			}
+			c := scr.Cell(x, y)
+			if c == nil {
+				continue
+			}
+			for _, r := range c.Content {
+				if r == '░' || r == '▒' {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

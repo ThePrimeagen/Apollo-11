@@ -123,18 +123,18 @@ func (f *Flyer) Start(w, h int) {
 	f.star = bigstar.New(seed)
 	f.star.Size = size
 	f.star.RandomSize = f.show.Cfg.RandomSize
-	if !f.once {
+	if !f.once || f.show.Cfg.Dust {
 		f.trail = startrail.New(seed)
 	}
 	f.done = false
 	if !f.show.closedLoop() {
 		switch {
 		case f.once:
-			f.show.cross = DiagonalCrossing(f.uw, f.uh)
+			f.show.cross = DiagonalCrossing(f.uw, f.uh).WithStartY(f.show.Cfg.StartY, f.uh)
 		case f.show.once:
-			f.show.cross = OnceCrossing(f.uw, f.uh)
+			f.show.cross = OnceCrossing(f.uw, f.uh).WithStartY(f.show.Cfg.StartY, f.uh)
 		default:
-			f.show.cross = RandomCrossing(seed, f.uw, f.uh)
+			f.show.cross = RandomCrossing(seed, f.uw, f.uh).WithStartY(f.show.Cfg.StartY, f.uh)
 		}
 		f.lap = f.show.cross.length()
 		if f.lap < 1 {
@@ -168,9 +168,13 @@ func (f *Flyer) Update(dt float64) {
 		return
 	}
 	f.clock += dt
+	if f.waiting() {
+		return
+	}
+	flight := f.flightClock()
 	if !f.show.closedLoop() {
 		speed := f.show.Cfg.Speed
-		if f.clock*speed >= f.lap {
+		if flight*speed >= f.lap {
 			if f.once || f.show.once {
 				f.done = true
 				if f.show.once {
@@ -184,9 +188,12 @@ func (f *Flyer) Update(dt float64) {
 				}
 				return
 			}
-			f.clock = 0
+			f.clock = f.show.Cfg.Delay
+			if f.clock < 0 {
+				f.clock = 0
+			}
 			f.show.Seed++
-			f.show.cross = RandomCrossing(f.show.Seed, f.uw, f.uh)
+			f.show.cross = RandomCrossing(f.show.Seed, f.uw, f.uh).WithStartY(f.show.Cfg.StartY, f.uh)
 			f.lap = f.show.cross.length()
 			if f.lap < 1 {
 				f.lap = 1
@@ -196,9 +203,10 @@ func (f *Flyer) Update(dt float64) {
 				f.star.Seed = f.show.Seed
 				f.star.Start(f.w, f.h)
 			}
+			flight = f.flightClock()
 		}
 	}
-	pos, head := f.at(f.clock)
+	pos, head := f.at(flight)
 	if f.star != nil {
 		if !f.show.Cfg.RandomSize {
 			f.star.Size = f.show.Cfg.Size
@@ -293,18 +301,40 @@ func (f *Flyer) Retune(cfg Config) {
 	f.show.Cfg = cfg
 }
 
+func (f *Flyer) waiting() bool {
+	if f == nil || f.show == nil {
+		return false
+	}
+	d := f.show.Cfg.Delay
+	return d > 0 && f.clock < d
+}
+
+func (f *Flyer) flightClock() float64 {
+	if f == nil || f.show == nil {
+		return 0
+	}
+	d := f.show.Cfg.Delay
+	if d <= 0 {
+		return f.clock
+	}
+	if f.clock < d {
+		return 0
+	}
+	return f.clock - d
+}
+
 func (f *Flyer) Render() sprite.Sprite {
 	if f == nil || f.w < 1 || f.h < 1 {
 		return sprite.Sprite{}
 	}
-	if f.once && f.done {
-		return sprite.Sprite{}
+	if f.waiting() {
+		return sprite.New(f.w, f.h)
 	}
 	stage := sprite.New(f.w, f.h)
 	if f.trail != nil {
 		sprite.Blit(stage, 0, 0, f.trail.Render())
 	}
-	if f.star != nil {
+	if f.star != nil && !(f.once && f.done) {
 		sprite.Blit(stage, 0, 0, f.star.Render())
 	}
 	return stage

@@ -438,6 +438,56 @@ func TestLunarCloseUpBill(t *testing.T) {
 			t.Fatal("the fire scene still plays under the stars")
 		}
 	})
+	t.Run("happy: stock walkthrough fire stays parked — MAIN's knobs turn the sink on", func(t *testing.T) {
+		sc := Bill()[2].Scene
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		open := westHullTop(paint(sc))
+		if open < 0 {
+			t.Fatal("test premise: the fire scene must show the west hull")
+		}
+		tick(sc, 4)
+		mid := paint(sc)
+		got := westHullTop(mid)
+		if got < 0 {
+			t.Fatal("the parked hull must still be on stage")
+		}
+		// The parked bobble rides ±1 cell; a sink would have dropped
+		// several rows by now. Stay inside the park band.
+		if got < open-1 || got > open+1 {
+			t.Fatalf("stock fire hull top %d, want the park around %d — no sink without MAIN's knobs", got, open)
+		}
+		if !hasFire(mid.Render()) {
+			t.Fatal("the parked craft must keep the booster lit")
+		}
+	})
+	t.Run("happy: a fire show wearing a sink knob eases down once the booster is on", func(t *testing.T) {
+		sc := NewFireShow(nil)
+		sc.Cfg.SinkSeconds = 4
+		sc.Start()
+		defer sc.Stop()
+		_ = paint(sc)
+		open := westHullTop(paint(sc))
+		if open < 0 {
+			t.Fatal("test premise: the lit hull must be on stage")
+		}
+		tick(sc, 3)
+		mid := paint(sc)
+		got := westHullTop(mid)
+		if got < 0 {
+			t.Fatal("mid-sink the west hull must still be on stage")
+		}
+		if got <= open {
+			t.Fatalf("mid-sink hull top %d, want below the opening %d", got, open)
+		}
+		if !strings.ContainsRune(mid.Render(), '▌') {
+			t.Fatal("the sinking craft must stay west-facing")
+		}
+		if !hasFire(mid.Render()) {
+			t.Fatal("the sinking craft must keep the booster lit")
+		}
+	})
 	t.Run("happy: scene three's sky slows 60% over five seconds", func(t *testing.T) {
 		if stars.BrakeClock(5, 0.6, 5) != 3.5 {
 			t.Fatalf("the fire scene's brake must cut 60 percent of speed over 5s (fly clock %g, want 3.5)", stars.BrakeClock(5, 0.6, 5))
@@ -665,6 +715,18 @@ func TestLunarCloseUpBill(t *testing.T) {
 // hullLeftCol is the leftmost column carrying the west hull's '▌'
 // glyph in a rendered frame, ANSI stripped — parked, that column
 // never moves, so it tells a settled craft from a sliding one.
+func westHullTop(scr *screenplay.Screen) int {
+	for y := 0; y < stageH; y++ {
+		for x := 0; x < stageW; x++ {
+			c := scr.Cell(x, y)
+			if c != nil && strings.ContainsRune(c.Content, '▌') {
+				return y
+			}
+		}
+	}
+	return -1
+}
+
 func hullLeftCol(t *testing.T, v string) int {
 	t.Helper()
 	best := -1
@@ -775,7 +837,7 @@ func TestCloseupShow(t *testing.T) {
 }
 
 func TestFireShow(t *testing.T) {
-	t.Run("happy: the fire entry is the tunable show at the stock brake", func(t *testing.T) {
+	t.Run("happy: the fire entry is the tunable show at the stock brake, sink off", func(t *testing.T) {
 		sc, ok := Bill()[2].Scene.(*FireShow)
 		if !ok {
 			t.Fatalf("the fire entry is %T, want the fire show", Bill()[2].Scene)
@@ -785,16 +847,16 @@ func TestFireShow(t *testing.T) {
 		}
 		want := FireConfig{SlowBy: 0.6, SlowOverSeconds: 5}
 		if DefaultFireConfig() != want {
-			t.Fatalf("stock brake is %+v, want %+v", DefaultFireConfig(), want)
+			t.Fatalf("stock fire is %+v, want parked %+v — MAIN's knobs turn the sink on", DefaultFireConfig(), want)
 		}
 	})
-	t.Run("happy: the knob face reads slow by then slow over", func(t *testing.T) {
+	t.Run("happy: the knob face reads slow by, slow over, then fall", func(t *testing.T) {
 		c := DefaultFireConfig()
-		if c.KnobCount() != 2 {
-			t.Fatalf("the fire show carries %d knobs, want 2", c.KnobCount())
+		if c.KnobCount() != 3 {
+			t.Fatalf("the fire show carries %d knobs, want 3", c.KnobCount())
 		}
-		if c.KnobLabel(0) != "slow by" || c.KnobLabel(1) != "slow over" {
-			t.Fatalf("labels %q/%q, want slow by/slow over", c.KnobLabel(0), c.KnobLabel(1))
+		if c.KnobLabel(0) != "slow by" || c.KnobLabel(1) != "slow over" || c.KnobLabel(2) != "fall" {
+			t.Fatalf("labels %q/%q/%q, want slow by/slow over/fall", c.KnobLabel(0), c.KnobLabel(1), c.KnobLabel(2))
 		}
 		c.Nudge(0, 1)
 		if want := 0.6 + 0.05; c.SlowBy != want {
@@ -804,8 +866,12 @@ func TestFireShow(t *testing.T) {
 		if want := 5 - 1.0; c.SlowOverSeconds != want {
 			t.Fatalf("four window steps down read %v, want %v", c.SlowOverSeconds, want)
 		}
+		c.Nudge(2, 2)
+		if want := 0.5; c.SinkSeconds != want {
+			t.Fatalf("two sink steps from stock read %v, want %v", c.SinkSeconds, want)
+		}
 	})
-	t.Run("happy: the fire show still parks the lit craft", func(t *testing.T) {
+	t.Run("happy: the stock fire show parks the lit craft and holds the park", func(t *testing.T) {
 		sc := Bill()[2].Scene.(*FireShow)
 		sc.Start()
 		defer sc.Stop()
@@ -818,6 +884,40 @@ func TestFireShow(t *testing.T) {
 		if !hasFire(v) {
 			t.Fatal("the fire scene burns the booster")
 		}
+		open := westHullTop(paint(sc))
+		tick(sc, 4)
+		if got := westHullTop(paint(sc)); got < open-1 || got > open+1 {
+			t.Fatalf("stock fire hull top %d, want the park around %d", got, open)
+		}
+	})
+	t.Run("unhappy: a zero sink holds the park, a negative sink does not panic, and a stopped show never panics", func(t *testing.T) {
+		zero := NewFireShow(nil)
+		zero.Cfg.SinkSeconds = 0
+		zero.Start()
+		_ = render(zero)
+		tick(zero, 2)
+		open := westHullTop(paint(zero))
+		if open < 0 {
+			t.Fatal("a zero sink must keep the hull on stage — not snap it off the bottom")
+		}
+		tick(zero, 3)
+		if got := westHullTop(paint(zero)); got < open-1 || got > open+1 {
+			t.Fatalf("zero sink hull top %d, want the park around %d", got, open)
+		}
+		zero.Stop()
+
+		odd := NewFireShow(nil)
+		odd.Cfg.SinkSeconds = -3
+		odd.Start()
+		odd.Update(1)
+		_ = render(odd)
+		odd.Stop()
+
+		ghost := NewFireShow(nil)
+		ghost.Cfg.SinkSeconds = 400
+		ghost.Start()
+		ghost.Update(1)
+		ghost.Stop()
 	})
 	t.Run("unhappy: nudges are verbatim — past zero and past one they stand", func(t *testing.T) {
 		c := DefaultFireConfig()
@@ -827,7 +927,11 @@ func TestFireShow(t *testing.T) {
 		}
 		c.Nudge(1, -100)
 		if want := 5 - 25.0; c.SlowOverSeconds != want {
-			t.Fatalf("a hundred window steps read %v, want %v — never clamped", c.SlowOverSeconds, want)
+			t.Fatalf("a hundred window steps down read %v, want %v — never clamped", c.SlowOverSeconds, want)
+		}
+		c.Nudge(2, -80)
+		if want := -20.0; c.SinkSeconds != want {
+			t.Fatalf("eighty sink steps read %v, want %v — never clamped", c.SinkSeconds, want)
 		}
 		before := c
 		c.Nudge(7, -1)

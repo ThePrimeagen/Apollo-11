@@ -3,10 +3,14 @@
 // plain n and p) scroll the scenes both ways and never end the show.
 // Browsing is the quiet face: the marquee, one hold row — how long
 // the scene lasts in play mode before the cut — trimmed directly with
-// h/l, and the help line. e opens the MAIN CONFIG panel for the scene
-// now playing: the hold first, then every one of the scene's own
-// knobs; j/k pick a row, h/l turn it, e or esc hands the quiet face
-// back. The panel wears the MAIN CONFIG name so it never reads like
+// h/l, and the help line. A scene may also pin a knob to that face
+// (the fire's fall duration) so the operator can read it without
+// hunting; other knobs still wait behind e. e opens the MAIN CONFIG
+// panel for the scene now playing: the hold first, then every one of
+// the scene's own knobs; j/k pick a row, h/l turn it, e or esc hands
+// the quiet face back. Hold and fall stay two numbers — a short hold
+// can cut mid-fall; that is the operator's choice, never clamped.
+// The panel wears the MAIN CONFIG name so it never reads like
 // the scene's standalone tuner — these numbers are the show's copy,
 // laid onto each scene instance, never the scene package's config or
 // its Active. No knob is ever clamped: a zero or negative hold is the
@@ -179,27 +183,48 @@ func (m *Model) replay() {
 	m.clock = 0
 }
 
-// nudge turns the selected knob. Browsing — and row zero of the panel
-// — is the hold, never clamped; the rows under it are the scene's own
-// knobs.
+// nudge turns the selected knob. Row zero — browsing or the panel —
+// is the hold, never clamped. Editing walks every scene knob; a
+// quiet-face front knob (the fire's fall) is the only scene number
+// h/l can turn without e.
 func (m *Model) nudge(dir int) {
-	if m.editing && m.cursor > 0 {
+	if m.cursor > 0 {
 		if k := m.currentKnobs(); k != nil {
-			k.nudge(m.cursor-1, dir)
+			idx := m.cursor - 1
+			if !m.editing {
+				if idx >= len(k.front) {
+					return
+				}
+				idx = k.front[idx]
+			}
+			k.nudge(idx, dir)
+			return
 		}
-		return
 	}
 	name := m.play.CurrentName()
 	m.cfg.SetHold(name, m.cfg.HoldFor(name)+HoldStepSeconds*float64(dir))
 }
 
-// moveCursor walks the panel, wrapping both ways. Browsing has no
-// cursor — h/l always mean the hold.
+// browseRows is the quiet face height: the hold plus any knobs pinned
+// to the browse face. Most scenes are hold alone.
+func (m Model) browseRows() int {
+	n := 1
+	if k := m.currentKnobs(); k != nil {
+		n += len(k.front)
+	}
+	return n
+}
+
+// moveCursor walks the panel, wrapping both ways. Browsing with only
+// the hold has no cursor — h/l always mean the hold. A scene that
+// pins a knob to the quiet face (fire's fall) lets j/k pick it.
 func (m *Model) moveCursor(delta int) {
-	if !m.editing {
+	n := m.browseRows()
+	if m.editing {
+		n = m.rows()
+	} else if n <= 1 {
 		return
 	}
-	n := m.rows()
 	m.cursor = ((m.cursor+delta)%n + n) % n
 }
 
@@ -289,14 +314,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tick()
 	case tea.KeyPressMsg:
 		m.note = ""
+		if dir := sceneCut(msg); dir != 0 {
+			m.cut(dir)
+			return m, nil
+		}
 		switch strings.ToLower(msg.String()) {
 		case "ctrl+c", "q":
 			m.play.Stop()
 			return m, tea.Quit
-		case "n", "ctrl+n":
-			m.cut(1)
-		case "p", "ctrl+p":
-			m.cut(-1)
 		case " ", "space":
 			if m.playing {
 				m.playing = false
@@ -337,6 +362,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// paintBrowseRow is one quiet-face knob line. The selected row wears
+// the gold pointer; the rest stay dim. Hold and fall stay two rows.
+func (m Model) paintBrowseRow(x, y, row int, label string, val float64) {
+	marker, ink := "  ", dimInk
+	if row == m.cursor {
+		marker, ink = "▸ ", goldInk
+	}
+	paintText(m.screen, x, y, fmt.Sprintf("%s%-14s %10.3f", marker, label, val), ink)
+}
+
 // paintText lays a line of ink onto the screen, clipped at the edges.
 func paintText(scr *screenplay.Screen, x, y int, text string, ink int) {
 	for i, ch := range []rune(text) {
@@ -345,8 +380,9 @@ func paintText(scr *screenplay.Screen, x, y int, text string, ink int) {
 }
 
 // paintChrome puts the marquee over the stage, then the quiet hold
-// row — or, editing, the MAIN CONFIG panel: the show's own copy of
-// the scene's every knob, dressed in its own name so it never reads
+// row and any knobs pinned to the browse face (the fire's fall) —
+// or, editing, the MAIN CONFIG panel: the show's own copy of the
+// scene's every knob, dressed in its own name so it never reads
 // like the scene's standalone tuner.
 func (m Model) paintChrome() {
 	w, h := m.screen.Size()
@@ -363,7 +399,12 @@ func (m Model) paintChrome() {
 	paintText(m.screen, len([]rune(marquee)), 0, mode, ink)
 
 	if !m.editing {
-		paintText(m.screen, 1, 2, fmt.Sprintf("▸ %-14s %10.3f", "hold", m.cfg.HoldFor(name)), goldInk)
+		m.paintBrowseRow(1, 2, 0, "hold", m.cfg.HoldFor(name))
+		if k := m.currentKnobs(); k != nil {
+			for i, ki := range k.front {
+				m.paintBrowseRow(1, 3+i, i+1, k.label(ki), k.value(ki))
+			}
+		}
 		return
 	}
 	paintText(m.screen, 1, 2, "MAIN CONFIG · "+name, goldInk)
@@ -373,12 +414,20 @@ func (m Model) paintChrome() {
 	if avail < 1 {
 		return
 	}
-	off := 0
-	if m.cursor >= avail {
-		off = m.cursor - avail + 1
+	cols := 1
+	if rows > avail {
+		cols = (rows + avail - 1) / avail
 	}
-	for r := 0; r < avail && off+r < rows; r++ {
-		i := off + r
+	colW := 30
+	if cols > 1 && w/cols > 0 {
+		colW = w / cols
+	}
+	for i := 0; i < rows; i++ {
+		col, row := 0, i
+		if cols > 1 {
+			col = i / avail
+			row = i % avail
+		}
 		label, val := "hold", m.cfg.HoldFor(name)
 		if i > 0 {
 			label, val = k.label(i-1), k.value(i-1)
@@ -387,8 +436,49 @@ func (m Model) paintChrome() {
 		if i == m.cursor {
 			marker, rowInk = "▸ ", goldInk
 		}
-		paintText(m.screen, 1, 3+r, fmt.Sprintf("%s%-14s %10.3f", marker, label, val), rowInk)
+		text := fmt.Sprintf("%s%-14s %10.3f", marker, label, val)
+		if rs := []rune(text); colW > 0 && len(rs) > colW {
+			text = fmt.Sprintf("%s%s %.3f", marker, label, val)
+		}
+		if rs := []rune(text); colW > 0 && len(rs) > colW {
+			text = string(rs[:colW])
+		}
+		x := 1
+		if cols > 1 {
+			x = col * colW
+		}
+		paintText(m.screen, x, 3+row, text, rowInk)
 	}
+}
+
+// sceneCut is +1 / -1 when the key walks the bill. Plain n/p and
+// C-n / C-p both cut — a real pty reports Mod+Code, not always the
+// "ctrl+n" string.
+func sceneCut(msg tea.KeyPressMsg) int {
+	if ctrlLetter(msg, 'n') {
+		return 1
+	}
+	if ctrlLetter(msg, 'p') {
+		return -1
+	}
+	switch strings.ToLower(msg.String()) {
+	case "n", "ctrl+n":
+		return 1
+	case "p", "ctrl+p":
+		return -1
+	}
+	return 0
+}
+
+func ctrlLetter(msg tea.KeyPressMsg, r rune) bool {
+	if msg.Mod&tea.ModCtrl == 0 {
+		return false
+	}
+	c := msg.Code
+	if c >= 'A' && c <= 'Z' {
+		c = c - 'A' + 'a'
+	}
+	return c == r
 }
 
 func (m Model) statusLine(w int) string {

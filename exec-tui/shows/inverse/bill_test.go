@@ -317,4 +317,35 @@ func TestInverseWalkthroughBill(t *testing.T) {
 			}
 		}
 	})
+	t.Run("unhappy: standalone inverse still lifts the full hull — MAIN white-only does not leak", func(t *testing.T) {
+		sc, ok := Bill()[0].Scene.(*liftoff.Show)
+		if !ok {
+			t.Fatal("the inverse opens on liftoff")
+		}
+		if sc.Cfg.WhiteOnly {
+			t.Fatal("inverse stock must keep the full-ship liftoff — whiteOnly is a MAIN knob")
+		}
+		if sc.Cfg.DustRun <= 0 {
+			t.Fatal("inverse stock must still schedule pad dust")
+		}
+		p, scr := openShow()
+		defer p.Stop()
+		p.Render(scr)
+		gold := 0
+		for y := 0; y < stageH; y++ {
+			for x := 0; x < stageW; x++ {
+				c := scr.Cell(x, y)
+				if c == nil {
+					continue
+				}
+				ic, ok := c.Style.Fg.(ansi.IndexedColor)
+				if ok && int(ic) == 178 {
+					gold++
+				}
+			}
+		}
+		if gold == 0 {
+			t.Fatal("inverse liftoff must still paint the gold descent — it is not MAIN's white cap")
+		}
+	})
 }

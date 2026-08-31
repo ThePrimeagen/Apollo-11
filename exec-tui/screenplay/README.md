@@ -88,10 +88,12 @@ one, the bare moon alone under a parked sky; scene two, a spaceship
 streaks in fast off the left wing, brakes onto its orbit, and circles
 the moon until the next cut (`go run ./cmd/moon` plays it; space past
 the last scene ends the show). `shows/lunarcloseup` is **02. Walkthrough**:
-five scenes — the pause (the drifting sky alone, held for as long as
+five scenes — the pause (the still sky alone, held for as long as
 the audience likes), then the zoomed-in lander slides in from the
-right the moment space is pressed, then the parked craft lights its
-booster while the stars slow by 60% over five seconds, then a
+right the moment space is pressed, the sky surging from rest to a
+1.25 peak then settling to cruise, then the parked craft lights its
+booster and eases downward while the stars slow by 60% over five
+seconds, then a
 north-facing fall from the top of the stage to the bottom, then a
 huge moon horizon (five rows high in the middle, one row at the
 edges) that the lander comes down onto

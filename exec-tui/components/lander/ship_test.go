@@ -261,6 +261,35 @@ func TestShipOnStage(t *testing.T) {
 			t.Fatalf("the clock must survive a restage, got %f", s.Clock())
 		}
 	})
+	t.Run("happy: AdvanceClock walks time without burning the fire", func(t *testing.T) {
+		held := NewShip(6).North().DropBeats([]DropBeat{{Drop: 0.2, Hold: 2}, {Drop: 0.2, Hold: 0}})
+		held.Start(screenW, screenH)
+		warmShip(held, 0.25)
+		if DropBeatHold(held.Clock(), []DropBeat{{Drop: 0.2, Hold: 2}, {Drop: 0.2, Hold: 0}}) != 0 {
+			t.Fatal("test premise: the craft must already be in the hold")
+		}
+		parked, _ := held.position()
+		before := 0
+		if held.Flame != nil && held.Flame.Eng != nil {
+			before = len(held.Flame.Eng.Particles)
+		}
+		beforeClk := held.Clock()
+		held.AdvanceClock(0.5)
+		row, _ := held.position()
+		if row != parked {
+			t.Fatalf("AdvanceClock moved the held hull %d → %d", parked, row)
+		}
+		if math.Abs(held.Clock()-(beforeClk+0.5)) > 1e-9 {
+			t.Fatalf("clock %v, want %v", held.Clock(), beforeClk+0.5)
+		}
+		after := 0
+		if held.Flame != nil && held.Flame.Eng != nil {
+			after = len(held.Flame.Eng.Particles)
+		}
+		if after != before {
+			t.Fatalf("AdvanceClock burned the fire %d → %d — freeze the plume", before, after)
+		}
+	})
 	t.Run("unhappy: dt<=0 holds the clock and the mark", func(t *testing.T) {
 		s := NewShip(6)
 		s.Start(screenW, screenH)
@@ -271,6 +300,16 @@ func TestShipOnStage(t *testing.T) {
 		}
 		if n := opaqueCells(s.Render()); n != 0 {
 			t.Fatalf("held ship lit %d cells, want 0 (still offstage)", n)
+		}
+		s.AdvanceClock(0)
+		s.AdvanceClock(-1)
+		if s.Clock() != 0 {
+			t.Fatalf("AdvanceClock dt<=0 moved the clock to %f", s.Clock())
+		}
+		var ghost *Ship
+		ghost.AdvanceClock(1)
+		if ghost.Clock() != 0 {
+			t.Fatal("AdvanceClock on nil must stay at 0")
 		}
 	})
 	t.Run("unhappy: a stage smaller than the craft clips instead of panicking", func(t *testing.T) {
@@ -569,6 +608,73 @@ func TestDropPath(t *testing.T) {
 		var ghost *Ship
 		if ghost.Drop(DropSeconds) != nil {
 			t.Fatal("Drop must return the nil receiver")
+		}
+	})
+}
+
+func TestSinkPath(t *testing.T) {
+	t.Run("happy: the sink opens on the park and eases in toward the bottom", func(t *testing.T) {
+		row, col := SinkPath(screenW, screenH, 0, SinkSeconds)
+		if row != centerRow || col != centerCol {
+			t.Fatalf("t=0 at (%d,%d), want the park (%d,%d)", row, col, centerRow, centerCol)
+		}
+		end, _ := SinkPath(screenW, screenH, SinkSeconds, SinkSeconds)
+		if end != screenH {
+			t.Fatalf("t=SinkSeconds row %d, want %d (fully off the bottom)", end, screenH)
+		}
+		half, _ := SinkPath(screenW, screenH, SinkSeconds/2, SinkSeconds)
+		mid := centerRow + (screenH-centerRow)/2
+		if half >= mid {
+			t.Fatalf("ease-in at halfway is row %d, want above the midpoint %d — a slow start", half, mid)
+		}
+		if half <= centerRow {
+			t.Fatal("halfway must have left the park — the booster is already on")
+		}
+	})
+	t.Run("happy: a Parked Sink ship rides the fall, west hull, booster lit", func(t *testing.T) {
+		s := NewShip(70).Parked().Sink(SinkSeconds)
+		s.Start(screenW, screenH)
+		if r, c := s.position(); r != centerRow || c != centerCol {
+			t.Fatalf("the first frame is (%d,%d), want the park (%d,%d)", r, c, centerRow, centerCol)
+		}
+		warmShip(s, SinkSeconds/2)
+		got, _ := s.position()
+		want, _ := SinkPath(screenW, screenH, SinkSeconds/2, SinkSeconds)
+		if got != want {
+			t.Fatalf("mid-sink row %d, want SinkPath %d", got, want)
+		}
+		stage := s.Render()
+		if opaqueCells(stage) == 0 {
+			t.Fatal("mid-sink the west hull must still be on stage")
+		}
+		west := false
+		for r := 0; r < stage.Height; r++ {
+			for c := 0; c < stage.Width; c++ {
+				if stage.At(r, c).Ch == '▌' {
+					west = true
+				}
+			}
+		}
+		if !west {
+			t.Fatal("mid-sink the west hull must still show")
+		}
+		if s.Flame == nil {
+			t.Fatal("the sinking craft must keep the booster lit")
+		}
+	})
+	t.Run("unhappy: negative time is the park, a zero window snaps off the bottom, and Sink on nil stays nil", func(t *testing.T) {
+		r0, c0 := SinkPath(screenW, screenH, 0, SinkSeconds)
+		row, col := SinkPath(screenW, screenH, -3, SinkSeconds)
+		if row != r0 || col != c0 {
+			t.Fatalf("t<0 at (%d,%d), want the park (%d,%d)", row, col, r0, c0)
+		}
+		snap, _ := SinkPath(screenW, screenH, 1, 0)
+		if snap != screenH {
+			t.Fatalf("seconds<=0 row %d, want %d — a zero sink is already gone", snap, screenH)
+		}
+		var ghost *Ship
+		if ghost.Sink(SinkSeconds) != nil {
+			t.Fatal("Sink must return the nil receiver")
 		}
 	})
 }
@@ -1560,5 +1666,83 @@ func TestShipFlyIn(t *testing.T) {
 		}
 		ghost.FlyIn(2).Start(4, 2)
 		ghost.Render()
+	})
+}
+
+func countInk(sp sprite.Sprite, fg int) int {
+	n := 0
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			if sp.At(r, c).FG == fg {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func firstInkRow(sp sprite.Sprite, fg int) int {
+	for r := 0; r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			if sp.At(r, c).FG == fg {
+				return r
+			}
+		}
+	}
+	return -1
+}
+
+func TestWhiteOnly(t *testing.T) {
+	const (
+		silver = 252
+		gold   = 178
+		engine = 245
+	)
+	t.Run("happy: WhiteOnly north is the silver cabin — it climbs, gold and the engine stay off the hull", func(t *testing.T) {
+		s := NewShip(80).North().WhiteOnly().Dark().Lift(0.2, 0.8)
+		s.Start(screenW, screenH)
+		if countInk(s.Body, silver) == 0 {
+			t.Fatal("the white-only hull must keep the silver ascent cabin")
+		}
+		if countInk(s.Body, gold) != 0 {
+			t.Fatalf("the white-only hull still holds %d gold cells — that is the descent stage", countInk(s.Body, gold))
+		}
+		if countInk(s.Body, engine) != 0 {
+			t.Fatalf("the white-only hull still holds %d engine cells — the brown bell stays on the pad", countInk(s.Body, engine))
+		}
+		open := firstInkRow(s.Render(), silver)
+		if open < 0 {
+			t.Fatal("at t=0 the white cabin must already sit on the pad")
+		}
+		warmShip(s, 0.7)
+		mid := firstInkRow(s.Render(), silver)
+		if mid < 0 {
+			t.Fatal("mid-climb the white cabin must still be on stage")
+		}
+		if mid >= open {
+			t.Fatalf("mid-climb the white cabin must have risen, row %d was %d", mid, open)
+		}
+		if countInk(s.Render(), gold) != 0 {
+			t.Fatal("gold must not rise with the cabin — the descent stage is not on this hull")
+		}
+	})
+	t.Run("unhappy: stock north still carries gold, WhiteOnly on nil stays nil, and a west WhiteOnly is still the full hull", func(t *testing.T) {
+		stock := NewShip(81).North().Dark().Lift(0.2, 0.8)
+		stock.Start(screenW, screenH)
+		if countInk(stock.Body, gold) == 0 {
+			t.Fatal("test premise: the stock north hull must still wear the gold descent")
+		}
+		if countInk(stock.Body, engine) == 0 {
+			t.Fatal("test premise: the stock north hull must still wear the engine bell")
+		}
+		var ghost *Ship
+		if ghost.WhiteOnly() != nil {
+			t.Fatal("WhiteOnly must return the nil receiver")
+		}
+		west := NewShip(82).WhiteOnly().Dark().Parked()
+		west.Start(screenW, screenH)
+		if countInk(west.Body, gold) == 0 {
+			t.Fatal("WhiteOnly without North must leave the west hull whole — it is a north-facing crop")
+		}
 	})
 }

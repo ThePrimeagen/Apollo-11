@@ -26,6 +26,9 @@ type Config struct {
 	DustStart   float64 `json:"dustStart"`
 	DustRun     float64 `json:"dustRun"`
 	DustLoss    float64 `json:"dustLoss"`
+	// WhiteOnly flies just the north-facing silver cabin. Stock
+	// (false) still lifts the full LM. MAIN sets this true.
+	WhiteOnly bool `json:"whiteOnly"`
 }
 
 // Knob is which timing the cursor is on.
@@ -252,11 +255,13 @@ func (c Config) Save(path string) error {
 		"  \"fireFull\": %.3f,\n"+
 		"  \"dustStart\": %.3f,\n"+
 		"  \"dustRun\": %.3f,\n"+
-		"  \"dustLoss\": %.3f\n"+
+		"  \"dustLoss\": %.3f,\n"+
+		"  \"whiteOnly\": %t\n"+
 		"}\n",
 		c.RiseSeconds, c.LiftAt,
 		c.Fire25, c.Fire50, c.Fire75, c.FireFull,
-		c.DustStart, c.DustRun, c.DustLoss))
+		c.DustStart, c.DustRun, c.DustLoss,
+		c.WhiteOnly))
 	return os.WriteFile(path, raw, 0o644)
 }
 

@@ -46,6 +46,10 @@ const (
 	// DropSeconds is how long the north-facing fall from off the top
 	// of the stage to off the bottom takes.
 	DropSeconds = 6.0
+	// SinkSeconds is how long the west-facing parked craft eases
+	// from center stage off the bottom once the booster is lit —
+	// a slow start, then a gathering fall.
+	SinkSeconds = 8.0
 	// LandSeconds is how long the north-facing drop from off the top
 	// onto the moon horizon pad takes.
 	LandSeconds = 5.0
@@ -60,6 +64,10 @@ const (
 	// booster stays full until then, then steps ¾, ½, ¼, and cuts
 	// off on the pad.
 	LandThrottleLead = 3 * ThrottleStageSeconds
+	// CabinRows is the north-facing white ascent: the top rows
+	// inferNS paints silver (rr <= h/5). Size-4 is three rows —
+	// cabin roof, hull, windows. Not the gold descent, not the bell.
+	CabinRows = BodyRows/5 + 1
 	// landSurfaceRows is the moon horizon's center thickness — the
 	// hull parks with its feet on that ridge.
 	landSurfaceRows = 5
@@ -114,11 +122,14 @@ type Ship struct {
 	bobCells    int
 	flySet      bool
 	flySec      float64
+	sinkSet     bool
+	sinkSec     float64
 	dustLoss    float64
 	dustLossSet bool
 	flameBase   particle.Config
 	padDust     *dust.Cloud
 	dustFading  bool
+	whiteOnly   bool
 }
 
 // NewShip binds the craft to its fire seed. Nothing is built until
@@ -140,6 +151,9 @@ func (s *Ship) Start(w, h int) {
 		heading = sprite.W
 	}
 	s.Body = stripPlume(DefaultAtlas().MustFrame(sprite.Size4, heading))
+	if s.whiteOnly && heading == sprite.N {
+		s.Body = ascentOnly(s.Body)
+	}
 	if s.dark {
 		s.Flame = nil
 		return
@@ -382,6 +396,16 @@ func (s *Ship) Clock() float64 {
 	return s.clock
 }
 
+// AdvanceClock walks scene time without burning the fire or kicking
+// dust — a freeze: the hull holds its DropBeat row, the plume holds
+// its specks. dt <= 0 is a no-op. Nil-safe.
+func (s *Ship) AdvanceClock(dt float64) {
+	if s == nil || dt <= 0 {
+		return
+	}
+	s.clock += dt
+}
+
 // Render composes dust first, fire second, hull last, into a
 // stage-sized sprite, so the hull always wins the overlap at the tail
 // and the plume appears from behind the bell. The dust clouds are
@@ -399,6 +423,11 @@ func (s *Ship) Render() sprite.Sprite {
 		fr, fc := FlameRow, FlameCol
 		if s.heading == sprite.N {
 			fr, fc = NorthFlameRow, NorthFlameCol
+			if s.whiteOnly {
+				// ascent engine hangs under the cabin, not the
+				// descent bell the cropped hull no longer has.
+				fr = CabinRows
+			}
 		}
 		sprite.Blit(stage, col+fc, row+fr, s.Flame.Sprite())
 	}
@@ -424,6 +453,18 @@ func (s *Ship) Hold(seconds float64) *Ship {
 		return nil
 	}
 	s.hold = seconds
+	return s
+}
+
+// WhiteOnly crops a north-facing hull to the silver ascent cabin —
+// the white top, windows included. Gold foil and the engine bell
+// are dropped. West and other headings stay the full frame; this
+// is a north crop. Call before Start. Nil-safe.
+func (s *Ship) WhiteOnly() *Ship {
+	if s == nil {
+		return nil
+	}
+	s.whiteOnly = true
 	return s
 }
 
@@ -621,6 +662,9 @@ func (s *Ship) position() (row, col int) {
 	if s.climbSec > 0 {
 		return ClimbPath(s.w, s.h, t, s.climbSec)
 	}
+	if s.sinkSet {
+		return SinkPath(s.w, s.h, t-s.flyInOrDefault(), s.sinkSec)
+	}
 	if s.bobSet {
 		return flightPathIn(s.w, s.h, t, s.flyInOrDefault(), s.bobPeriod, s.bobCells)
 	}
@@ -647,6 +691,20 @@ func (s *Ship) flyInOrDefault() float64 {
 		return s.flySec
 	}
 	return FlyInSeconds
+}
+
+// Sink eases the parked west craft from center stage off the bottom
+// over seconds — a slow start (ease-in cubic) once the booster is
+// already lit. The number is the caller's, verbatim; at zero the
+// hull opens already gone. Call before Start (and after Parked, so
+// the first frame is the park). Nil-safe.
+func (s *Ship) Sink(seconds float64) *Ship {
+	if s == nil {
+		return nil
+	}
+	s.sinkSet = true
+	s.sinkSec = seconds
+	return s
 }
 
 // Parked starts the clock at the fly-in park so the first frame is
@@ -730,6 +788,25 @@ func DropPath(stageW, stageH int, t, seconds float64) (row, col int) {
 	}
 	p := t / seconds
 	return start + int(math.Round(p*float64(end-start))), col
+}
+
+// SinkPath is the hull's top-left at t seconds of a seconds-long
+// sink on a stageW×stageH stage: the parked center at t=0, fully
+// off the bottom at t=seconds, centered horizontally. The fall
+// eases in — nearly still at first, then gathering speed. Time
+// before the park holds the park. seconds<=0 snaps off the bottom.
+func SinkPath(stageW, stageH int, t, seconds float64) (row, col int) {
+	col = (stageW - BodyCols) / 2
+	start := (stageH - BodyRows) / 2
+	if t <= 0 {
+		return start, col
+	}
+	if seconds <= 0 || t >= seconds {
+		return stageH, col
+	}
+	p := t / seconds
+	eased := p * p * p
+	return start + int(math.Round(eased*float64(stageH-start))), col
 }
 
 // ClimbPath is DropPath run the other way: fully off the bottom at
@@ -954,6 +1031,28 @@ func igniteAt(t, at25, at50, at75, full float64) float64 {
 		return 0.25
 	}
 	return 0
+}
+
+// ascentOnly keeps the north-facing white cabin: the top CabinRows
+// of the size-4 frame, minus any gold or engine cell that leaked
+// into that band. The canvas stays BodyCols×BodyRows so LiftPath
+// still parks the cabin where the full hull's roof sat.
+func ascentOnly(sp sprite.Sprite) sprite.Sprite {
+	out := sprite.New(sp.Width, sp.Height)
+	rows := CabinRows
+	if sp.Height > 0 {
+		rows = sp.Height/5 + 1
+	}
+	for r := 0; r < rows && r < sp.Height; r++ {
+		for c := 0; c < sp.Width; c++ {
+			cell := sp.At(r, c)
+			if cell.FG == 178 || cell.FG == 245 {
+				continue
+			}
+			out.Set(r, c, cell)
+		}
+	}
+	return out
 }
 
 // stripPlume drops the art's baked '~'/'≈' exhaust; the live particle

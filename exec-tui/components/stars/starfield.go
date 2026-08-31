@@ -32,6 +32,8 @@ type Starfield struct {
 	slideHold float64
 	slowBy    float64
 	slowSec   float64
+	surgePeak float64
+	surgeSec  float64
 	seed      *Continuity
 	base      Continuity
 	adopted   bool
@@ -138,6 +140,20 @@ func (f *Starfield) Slow(by, seconds float64) *Starfield {
 	return f
 }
 
+// Surge eases the sky's fly from rest up to `peak` times standard
+// over the first half of `seconds`, then back to standard over the
+// second half, and holds that cruise. peak=1.25 over 4s means the
+// stars start still, crest 25% fast at t=2, and settle to cruise
+// at t=4. A still sky stays still. Call before Start. Nil-safe.
+func (f *Starfield) Surge(peak, seconds float64) *Starfield {
+	if f == nil {
+		return nil
+	}
+	f.surgePeak = peak
+	f.surgeSec = seconds
+	return f
+}
+
 // BrakeClock is how many seconds of fly the sky has actually burned
 // after t seconds of a brake that cuts speed by `by` over `seconds`.
 // Speed goes from 1 to (1-by) linearly; after the window it holds
@@ -160,6 +176,31 @@ func BrakeClock(t, by, seconds float64) float64 {
 		return t - by*t*t/(2*seconds)
 	}
 	return seconds*(1-by/2) + (1-by)*(t-seconds)
+}
+
+// SurgeClock is how many seconds of fly the sky has actually burned
+// after t seconds of a surge that starts at rest, crests at `peak`
+// times standard at mid-window, and settles to standard at
+// `seconds`. After the window it holds standard speed. peak=1.25
+// over 4s → 1.25s of fly at the crest, 3.5s at the park, then
+// cruise. The peak is the operator's number, verbatim.
+func SurgeClock(t, peak, seconds float64) float64 {
+	if t < 0 {
+		t = 0
+	}
+	if seconds <= 0 {
+		return t
+	}
+	mid := seconds / 2
+	if t <= mid {
+		return peak * t * t / (2 * mid)
+	}
+	if t <= seconds {
+		u := t - mid
+		return peak*mid/2 + peak*u + (1-peak)*u*u/(2*mid)
+	}
+	flyEnd := peak*mid/2 + peak*mid + (1-peak)*mid/2
+	return flyEnd + (t - seconds)
 }
 
 // SlideOffset is how many columns left the sky has translated at time
@@ -265,7 +306,9 @@ func (f *Starfield) totals() (fly float64, shift int) {
 	fly = f.base.clock
 	if !f.still {
 		local := f.clock
-		if f.slowSec > 0 {
+		if f.surgeSec > 0 {
+			local = SurgeClock(f.clock, f.surgePeak, f.surgeSec)
+		} else if f.slowSec > 0 {
 			local = BrakeClock(f.clock, f.slowBy, f.slowSec)
 		}
 		fly += local

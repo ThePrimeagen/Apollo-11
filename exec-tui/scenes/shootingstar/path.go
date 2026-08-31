@@ -118,6 +118,19 @@ func OnceCrossing(w, h float64) Crossing {
 	return Crossing{Start: start, Ctrl: ctrl, End: end}
 }
 
+// WithStartY moves the start (and the bend) to frac of stage
+// height. frac 0 keeps the path as drawn — stock walkthrough and
+// the current fall. The operator's number is not clamped.
+func (c Crossing) WithStartY(frac, h float64) Crossing {
+	if frac == 0 || h <= 0 {
+		return c
+	}
+	dy := frac*h - c.Start.Y
+	c.Start.Y += dy
+	c.Ctrl.Y += dy
+	return c
+}
+
 // At samples the bezier at t in [0,1] and the heading along it.
 func (c Crossing) At(t float64) (pos, heading particle.Vec2) {
 	if t < 0 {

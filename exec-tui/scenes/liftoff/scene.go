@@ -40,6 +40,18 @@ func New(sky *stars.Continuity) *Show {
 	return s
 }
 
+func (s *Show) craft() *lander.Ship {
+	ship := lander.NewShip(11).North()
+	if s.Cfg.WhiteOnly {
+		ship = ship.WhiteOnly()
+	}
+	return ship.
+		Lift(s.Cfg.LiftAt, s.Cfg.RiseSeconds).
+		IgniteAt(s.Cfg.Fire25, s.Cfg.Fire50, s.Cfg.Fire75, s.Cfg.FireFull).
+		DustAt(s.Cfg.DustStart, s.Cfg.DustRun).
+		DustLoss(s.Cfg.DustLoss)
+}
+
 func (s *Show) assemble() []screenplay.Component {
 	field := stars.NewTunedStarfield()
 	if s.sky != nil {
@@ -48,11 +60,7 @@ func (s *Show) assemble() []screenplay.Component {
 	return []screenplay.Component{
 		field.Still(),
 		moon.NewHorizon(),
-		lander.NewShip(11).North().
-			Lift(s.Cfg.LiftAt, s.Cfg.RiseSeconds).
-			IgniteAt(s.Cfg.Fire25, s.Cfg.Fire50, s.Cfg.Fire75, s.Cfg.FireFull).
-			DustAt(s.Cfg.DustStart, s.Cfg.DustRun).
-			DustLoss(s.Cfg.DustLoss),
+		s.craft(),
 	}
 }
 

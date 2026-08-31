@@ -1,10 +1,14 @@
 // Package lunarcloseup is 02. Walkthrough, a composable five-scene
-// bill. Scene one, "pause": the drifting sky alone — a blank stage
+// bill. Scene one, "pause": the still sky alone — a blank stage
 // the audience sits on for as long as it likes; only the cut moves
 // the show along. Scene two, "Lunar Lander Close-Up": the zoomed-in
 // Apollo craft slides in from the right the moment the curtain rises,
-// hull only, cold engine. Scene three, "fire": the parked craft
+// hull only, cold engine, the sky surging from rest to a 1.25 peak
+// then settling to cruise so the hull holds center. Scene three,
+// "fire": the parked craft
 // lights the booster and the stars slow by 60% over five seconds.
+// MAIN's fire knobs may turn on a slow sink; stock walkthrough
+// stays parked.
 // Scene four, "fall": the north-facing lander, fire down, drops from
 // the top of the stage to the bottom. Scene five, "landing": a huge
 // moon horizon painted as a colored floor (five rows high in the
@@ -44,7 +48,7 @@ func Bill() screenplay.Bill {
 		screenplay.Entry{Name: "pause", Scene: &screenplay.Ensemble{
 			Assemble: func() []screenplay.Component {
 				return []screenplay.Component{
-					stars.NewTunedStarfield().Seed(sky),
+					stars.NewTunedStarfield().Seed(sky).Still(),
 				}
 			},
 		}},

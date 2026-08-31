@@ -198,6 +198,62 @@ func TestNewMeteorWith(t *testing.T) {
 			t.Fatal("at speed 4 the meteor must still be crossing")
 		}
 	})
+	t.Run("happy: NewMeteor leaves a persist trail — the star knobs are the dust", func(t *testing.T) {
+		cfg := MeteorConfig()
+		cfg.Dust = true
+		cfg.Count = 8
+		cfg.Period = 0.01
+		cfg.MinLife = 0.8
+		cfg.MaxLife = 1.2
+		cfg.Speed = 8
+		m := NewMeteorWith(cfg)
+		m.Start(stageW, stageH)
+		defer m.Stop()
+		if m.trail == nil {
+			t.Fatal("the landing meteor must arm a persist trail so count/period/life/nozzle/peak/taper can dust")
+		}
+		const dt = 1.0 / 30
+		for i := 0; i < 20; i++ {
+			m.Update(dt)
+		}
+		sp := m.Render()
+		specks := 0
+		for y := 0; y < sp.Height; y++ {
+			for x := 0; x < sp.Width; x++ {
+				ch := sp.At(y, x).Ch
+				if ch != 0 && ch != ' ' && ch != bigstar.CoreGlyph {
+					specks++
+				}
+			}
+		}
+		if specks < 3 {
+			t.Fatalf("the meteor must dust a wake, got %d trail cells", specks)
+		}
+	})
+	t.Run("unhappy: a zero-count meteor still flies the core and never panics", func(t *testing.T) {
+		cfg := MeteorConfig()
+		cfg.Count = 0
+		m := NewMeteorWith(cfg)
+		m.Start(stageW, stageH)
+		defer m.Stop()
+		m.Update(0.2)
+		if _, _, ok := coreOn(m.Render()); !ok {
+			t.Fatal("a zero-count meteor must still show the star")
+		}
+		specks := 0
+		sp := m.Render()
+		for y := 0; y < sp.Height; y++ {
+			for x := 0; x < sp.Width; x++ {
+				ch := sp.At(y, x).Ch
+				if ch != 0 && ch != ' ' && ch != bigstar.CoreGlyph {
+					specks++
+				}
+			}
+		}
+		if specks != 0 {
+			t.Fatalf("count 0 must leave no dust, got %d cells", specks)
+		}
+	})
 	t.Run("unhappy: a zero-value config parks the meteor without a panic, and a tuned active never leaks into NewMeteor", func(t *testing.T) {
 		z := NewMeteorWith(Config{})
 		z.Start(stageW, stageH)
@@ -213,5 +269,127 @@ func TestNewMeteorWith(t *testing.T) {
 		if m.show.Cfg != MeteorConfig() {
 			t.Fatalf("NewMeteor flies %+v, want the stock small meteor no matter what the tuner holds", m.show.Cfg)
 		}
+	})
+}
+
+func TestMeteorDelay(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Cleanup(startrail.Reset)
+	t.Run("happy: a delay keeps the meteor off stage until that time, then it flies", func(t *testing.T) {
+		cfg := MeteorConfig()
+		cfg.Delay = 0.4
+		m := NewMeteorWith(cfg)
+		m.Start(stageW, stageH)
+		defer m.Stop()
+		if _, _, ok := coreOn(m.Render()); ok {
+			t.Fatal("the meteor must stay absent before the delay")
+		}
+		m.Update(0.2)
+		if _, _, ok := coreOn(m.Render()); ok {
+			t.Fatal("at 0.2s of a 0.4s delay the meteor must still be waiting")
+		}
+		m.Update(0.25)
+		x0, y0, ok := coreOn(m.Render())
+		if !ok {
+			t.Fatal("past the delay the meteor must fly")
+		}
+		m.Update(0.3)
+		x1, y1, ok := coreOn(m.Render())
+		if !ok {
+			t.Fatal("once it flies the meteor must stay on the crossing")
+		}
+		if x1 == x0 && y1 == y0 {
+			t.Fatal("once it flies the meteor must move")
+		}
+	})
+	t.Run("unhappy: delay 0 is the current immediate start, and a negative delay does not panic", func(t *testing.T) {
+		m := NewMeteor()
+		if m.show.Cfg.Delay != 0 {
+			t.Fatalf("stock delay %v, want 0 — immediate start", m.show.Cfg.Delay)
+		}
+		m.Start(stageW, stageH)
+		defer m.Stop()
+		if _, _, ok := coreOn(m.Render()); !ok {
+			t.Fatal("delay 0 must paint at once — the current immediate start")
+		}
+		neg := MeteorConfig()
+		neg.Delay = -2
+		z := NewMeteorWith(neg)
+		z.Start(stageW, stageH)
+		z.Update(0.1)
+		if _, _, ok := coreOn(z.Render()); !ok {
+			t.Fatal("a negative delay is the operator's number — the meteor must still fly")
+		}
+		z.Stop()
+	})
+}
+
+func TestMeteorStartY(t *testing.T) {
+	t.Cleanup(Reset)
+	t.Cleanup(startrail.Reset)
+	t.Run("happy: a higher top-right start paints the meteor higher on the right just after spawn than stock", func(t *testing.T) {
+		stock := NewOnceWith(DefaultConfig())
+		stock.Start(stageW, stageH)
+		defer stock.Stop()
+		stock.Update(0.02)
+		sx, sy, ok := coreOn(stock.Render())
+		if !ok {
+			t.Fatal("the stock once-meteor must paint just after spawn")
+		}
+		if sx < stageW/2 {
+			t.Fatalf("stock must open on the right, col %d", sx)
+		}
+		high := DefaultConfig()
+		high.StartY = 0.02
+		raised := NewOnceWith(high)
+		raised.Start(stageW, stageH)
+		defer raised.Stop()
+		raised.Update(0.02)
+		hx, hy, ok := coreOn(raised.Render())
+		if !ok {
+			t.Fatal("a raised start must still paint the meteor")
+		}
+		if hx < stageW/2 {
+			t.Fatalf("a raised start must stay on the right, col %d", hx)
+		}
+		if hy >= sy {
+			t.Fatalf("startY 0.02 painted at row %d, stock at %d — want higher on the right (smaller row)", hy, sy)
+		}
+	})
+	t.Run("unhappy: stock origin matches the previous path, and a weird or zero origin does not panic", func(t *testing.T) {
+		m := NewMeteor()
+		m.Start(stageW, stageH)
+		defer m.Stop()
+		want := DiagonalCrossing(m.uw, m.uh)
+		if m.show.cross.Start != want.Start || m.show.cross.End != want.End {
+			t.Fatalf("stock meteor path %+v, want the previous diagonal %+v", m.show.cross, want)
+		}
+		once := NewOnceWith(DefaultConfig())
+		once.Start(stageW, stageH)
+		defer once.Stop()
+		wantOnce := OnceCrossing(once.uw, once.uh)
+		if once.show.cross.Start != wantOnce.Start || once.show.cross.End != wantOnce.End {
+			t.Fatalf("stock once path %+v, want the previous once-crossing %+v", once.show.cross, wantOnce)
+		}
+		zero := DefaultConfig()
+		zero.StartY = 0
+		z := NewOnceWith(zero)
+		z.Start(0, 0)
+		z.Update(1)
+		_ = z.Render()
+		z.Stop()
+		weird := DefaultConfig()
+		weird.StartY = -8
+		w := NewOnceWith(weird)
+		w.Start(stageW, stageH)
+		w.Update(0.05)
+		_ = w.Render()
+		w.Stop()
+		weird.StartY = 40
+		far := NewMeteorWith(weird)
+		far.Start(stageW, stageH)
+		far.Update(0.05)
+		_ = far.Render()
+		far.Stop()
 	})
 }

@@ -199,6 +199,22 @@ func TestBoardLifecycle(t *testing.T) {
 			t.Fatal("a restaged board must show its opening cue")
 		}
 	})
+	t.Run("happy: a blinking cue flashes on the right and then goes dark", func(t *testing.T) {
+		b := New(Cue{Text: "1202", At: 0, Hold: 2, Blink: 0.25})
+		b.Start(stageW, stageH)
+		b.Update(0.1)
+		if !hasCard(b.Render(), "1202") {
+			t.Fatal("the first quarter-second of a blink must show the card")
+		}
+		b.Update(0.25)
+		if hasCard(b.Render(), "1202") {
+			t.Fatal("the off half of the blink must clear the card")
+		}
+		b.Update(0.25)
+		if !hasCard(b.Render(), "1202") {
+			t.Fatal("the next on half must bring 1202 back")
+		}
+	})
 	t.Run("unhappy: rendering before the first start is empty, and dt<=0 holds", func(t *testing.T) {
 		b := New(Cue{Text: "1201", At: 0.5, Hold: 1})
 		if sp := b.Render(); sp.Width != 0 {
@@ -210,5 +226,15 @@ func TestBoardLifecycle(t *testing.T) {
 		if hasCard(b.Render(), "1201") {
 			t.Fatal("dt<=0 must not walk into the cue")
 		}
+		blank := New(Cue{Text: "1202", At: 0, Hold: 1, Blink: 0.25})
+		blank.Start(stageW, stageH)
+		blank.Update(0.3)
+		if hasCard(blank.Render(), "1202") {
+			t.Fatal("a blink off-half must stay blank — zero ink, not a panic")
+		}
+		var ghost *Board
+		ghost.Start(4, 2)
+		ghost.Update(0.3)
+		_ = ghost.Render()
 	})
 }

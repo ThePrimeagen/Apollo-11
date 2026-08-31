@@ -40,8 +40,14 @@ func TestConfig(t *testing.T) {
 		if err := c.Validate(); err != nil {
 			t.Fatalf("stock must validate: %v", err)
 		}
-		if KnobCount != 11 {
-			t.Fatalf("KnobCount %d, want 11 (path, size, random size, speed, count, period, min life, max life, nozzle, peak, taper)", KnobCount)
+		if c.Delay != 0 {
+			t.Fatalf("stock delay %v, want 0 — fly at once", c.Delay)
+		}
+		if c.StartY != 0 {
+			t.Fatalf("stock startY %v, want 0 — the current path start", c.StartY)
+		}
+		if KnobCount != 13 {
+			t.Fatalf("KnobCount %d, want 13 (path, size, random size, speed, count, period, min life, max life, nozzle, peak, taper, delay, start y)", KnobCount)
 		}
 		if DefaultConfigPath != "scenes/shootingstar/config.json" {
 			t.Fatalf("DefaultConfigPath %q, want scenes/shootingstar/config.json", DefaultConfigPath)
@@ -113,6 +119,20 @@ func TestConfig(t *testing.T) {
 		if got := c.Value(KnobPath); got != 2 {
 			t.Fatalf("square path reads %v, want 2", got)
 		}
+		c.Nudge(KnobDelay, 1)
+		if got, want := c.Delay, DefaultConfig().Delay+StepDelay; mathAbs(got-want) > 1e-9 {
+			t.Fatalf("delay after +1 is %v, want %v", got, want)
+		}
+		c.Nudge(KnobStartY, -1)
+		if got, want := c.StartY, DefaultConfig().StartY-StepStartY; mathAbs(got-want) > 1e-9 {
+			t.Fatalf("startY after -1 is %v, want %v", got, want)
+		}
+		if c.Value(KnobDelay) != c.Delay {
+			t.Fatalf("Value(delay) %v, want %v", c.Value(KnobDelay), c.Delay)
+		}
+		if c.Value(KnobStartY) != c.StartY {
+			t.Fatalf("Value(start y) %v, want %v", c.Value(KnobStartY), c.StartY)
+		}
 	})
 	t.Run("unhappy: Nudge never clamps — size past 5, speed past 80 and through zero, count through zero, and a bad cursor is a no-op", func(t *testing.T) {
 		c := DefaultConfig()
@@ -169,6 +189,16 @@ func TestConfig(t *testing.T) {
 		if c.Taper <= 1 {
 			t.Fatalf("taper %v, want past 1", c.Taper)
 		}
+		c.Delay = 0
+		c.Nudge(KnobDelay, -1)
+		if c.Delay >= 0 {
+			t.Fatalf("delay %v, want negative — no floor", c.Delay)
+		}
+		c.StartY = 0
+		c.Nudge(KnobStartY, -1)
+		if c.StartY >= 0 {
+			t.Fatalf("startY %v, want negative — no floor", c.StartY)
+		}
 		before := c
 		c.Nudge(-1, 1)
 		c.Nudge(99, 1)
@@ -189,6 +219,8 @@ func TestConfig(t *testing.T) {
 		c.Nozzle = 3
 		c.Peak = 4
 		c.Taper = 0.5
+		c.Delay = 1.5
+		c.StartY = 0.04
 		if err := c.Save(path); err != nil {
 			t.Fatalf("Save: %v", err)
 		}

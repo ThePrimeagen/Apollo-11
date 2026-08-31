@@ -89,6 +89,8 @@ const (
 	KnobStarNozzle
 	KnobStarPeak
 	KnobStarTaper
+	KnobStarDelay
+	KnobStarStartY
 	KnobCount
 )
 
@@ -97,7 +99,7 @@ const (
 // diagonal, so the tuner-only flight selector would be an inert knob
 // here.
 func (k Knob) star() (shootingstar.Knob, bool) {
-	if k < KnobStarSize || k > KnobStarTaper {
+	if k < KnobStarSize || k > KnobStarStartY {
 		return 0, false
 	}
 	return shootingstar.KnobSize + shootingstar.Knob(k-KnobStarSize), true
@@ -400,7 +402,9 @@ func (c Config) Save(path string) error {
 		"    \"maxLife\": %.2f,\n"+
 		"    \"nozzle\": %.2f,\n"+
 		"    \"peak\": %.1f,\n"+
-		"    \"taper\": %.2f\n"+
+		"    \"taper\": %.2f,\n"+
+		"    \"delay\": %.3f,\n"+
+		"    \"startY\": %.2f\n"+
 		"  }\n"+
 		"}\n",
 		c.LandSeconds, c.DustStart, c.DustRun,
@@ -408,7 +412,8 @@ func (c Config) Save(path string) error {
 		c.Code1At, c.Code1Hold, c.Code2At, c.Code2Hold,
 		c.LandCaptionAt, c.LandCaptionHold,
 		c.Star.Path, c.Star.Size, c.Star.RandomSize, c.Star.Speed, c.Star.Count,
-		c.Star.Period, c.Star.MinLife, c.Star.MaxLife, c.Star.Nozzle, c.Star.Peak, c.Star.Taper))
+		c.Star.Period, c.Star.MinLife, c.Star.MaxLife, c.Star.Nozzle, c.Star.Peak, c.Star.Taper,
+		c.Star.Delay, c.Star.StartY))
 	return os.WriteFile(path, raw, 0o644)
 }
 

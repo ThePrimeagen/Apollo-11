@@ -44,7 +44,7 @@ func TestShootingStarRunner(t *testing.T) {
 		m := newModel(0, false)
 		v := m.View().Content
 		for _, want := range []string{"shooting", "play", "tune", "save", "quit",
-			"path", "size", "speed", "count", "period", "life", "nozzle", "peak", "taper"} {
+			"path", "size", "speed", "count", "period", "life", "nozzle", "peak", "taper", "delay", "start y"} {
 			if !strings.Contains(strings.ToLower(v), want) {
 				t.Fatalf("opening view is missing %q", want)
 			}

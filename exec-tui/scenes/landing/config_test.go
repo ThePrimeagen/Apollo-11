@@ -45,8 +45,8 @@ func TestConfig(t *testing.T) {
 		if StepLoss != 0.005 {
 			t.Fatalf("loss step %v, want 0.005/ms", StepLoss)
 		}
-		if KnobCount != 24 {
-			t.Fatalf("KnobCount %d, want 24 (land, dust, loss, four fire stages, two 1202s, LAND, ten star knobs)", KnobCount)
+		if KnobCount != 26 {
+			t.Fatalf("KnobCount %d, want 26 (land, dust, loss, four fire stages, two 1202s, LAND, twelve star knobs)", KnobCount)
 		}
 		if Code1At < 0 || Code2At <= Code1At || LandCaptionAt < Code2At {
 			t.Fatalf("stock captions must run 1202, 1202, LAND — at %v then %v then %v", Code1At, Code2At, LandCaptionAt)
@@ -71,6 +71,8 @@ func TestConfig(t *testing.T) {
 			KnobStarNozzle:     {"star nozzle", c.Star.Nozzle},
 			KnobStarPeak:       {"star peak", c.Star.Peak},
 			KnobStarTaper:      {"star taper", c.Star.Taper},
+			KnobStarDelay:      {"star delay", c.Star.Delay},
+			KnobStarStartY:     {"star start y", c.Star.StartY},
 		}
 		for k, w := range want {
 			if KnobLabel(k) != w.label {
@@ -111,6 +113,14 @@ func TestConfig(t *testing.T) {
 		c.Nudge(KnobStarPeriod, -1)
 		if got, want := c.Star.Period, DefaultConfig().Star.Period-shootingstar.StepPeriod; math.Abs(got-want) > 1e-9 {
 			t.Fatalf("star period after -1 is %v, want %v", got, want)
+		}
+		c.Nudge(KnobStarDelay, 1)
+		if got, want := c.Star.Delay, DefaultConfig().Star.Delay+shootingstar.StepDelay; math.Abs(got-want) > 1e-9 {
+			t.Fatalf("star delay after +1 is %v, want %v", got, want)
+		}
+		c.Nudge(KnobStarStartY, -1)
+		if got, want := c.Star.StartY, DefaultConfig().Star.StartY-shootingstar.StepStartY; math.Abs(got-want) > 1e-9 {
+			t.Fatalf("star start y after -1 is %v, want %v", got, want)
 		}
 		if err := c.Validate(); err != nil {
 			t.Fatalf("nudged star knobs must validate: %v", err)
@@ -198,6 +208,8 @@ func TestConfig(t *testing.T) {
 		c.Star.Size = 2
 		c.Star.Speed = 44
 		c.Star.Taper = 0.5
+		c.Star.Delay = 1.5
+		c.Star.StartY = 0.04
 		if err := c.Save(path); err != nil {
 			t.Fatalf("Save: %v", err)
 		}

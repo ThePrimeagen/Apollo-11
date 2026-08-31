@@ -6,6 +6,7 @@
 package caption
 
 import (
+	"math"
 	"strings"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -26,11 +27,13 @@ const (
 )
 
 // Cue is one timed card: Text paints from At until At+Hold. A zero
-// hold never paints.
+// hold never paints. Blink > 0 is the on/off half-period in seconds
+// — the card flashes and the rest of the stage can freeze around it.
 type Cue struct {
-	Text string
-	At   float64
-	Hold float64
+	Text  string
+	At    float64
+	Hold  float64
+	Blink float64
 }
 
 // Board is the timed side banner as a scene component. The cues are
@@ -92,6 +95,9 @@ func (b *Board) Render() sprite.Sprite {
 			continue
 		}
 		if b.clock >= c.At && b.clock < c.At+c.Hold {
+			if c.Blink > 0 && blinkOff(b.clock-c.At, c.Blink) {
+				continue
+			}
 			idx = i
 		}
 	}
@@ -162,6 +168,17 @@ func Painted(scr *screenplay.Screen, text string) bool {
 		}
 	}
 	return true
+}
+
+func blinkOff(elapsed, period float64) bool {
+	if period <= 0 || math.IsNaN(period) || math.IsInf(period, 0) {
+		return false
+	}
+	phase := math.Mod(elapsed, period*2)
+	if phase < 0 {
+		phase += period * 2
+	}
+	return phase >= period
 }
 
 func captionInk(c *uv.Cell) bool {

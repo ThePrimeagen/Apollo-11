@@ -2,10 +2,12 @@ package main
 
 // Demo harness tests, written first: cmd/lunarcloseup runs 02.
 // Walkthrough — the composable five-scene bill from
-// shows/lunarcloseup. The house opens on "pause" (the drifting sky
+// shows/lunarcloseup. The house opens on "pause" (the still sky
 // alone, for as long as the audience likes). Space cuts to "Lunar
-// Lander Close-Up" (the craft flies in immediately, cold engine),
-// then "fire" (booster on, stars slow 60% over 5s), then "fall"
+// Lander Close-Up" (the craft flies in immediately, cold engine,
+// the sky surging from rest to a 1.25 peak then settling to cruise),
+// then "fire" (booster on, the hull eases downward, stars slow 60% over 5s),
+// then "fall"
 // (north-facing drop), then "landing" (huge moon horizon, lander
 // comes down onto it). Space on the last scene ends the show. q and
 // ctrl+c quit anywhere. The view is the rendered screen plus one

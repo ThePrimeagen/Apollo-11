@@ -35,6 +35,18 @@ type Config struct {
 	Nozzle     float64  `json:"nozzle"`
 	Peak       float64  `json:"peak"`
 	Taper      float64  `json:"taper"`
+	// Dust arms the persist wake on a one-shot meteor (the landing
+	// star). The looping scene already trails. MAIN turns this on;
+	// stock walkthrough stays a bare star so its sky tests hold.
+	Dust bool `json:"dust"`
+	// Delay is seconds the meteor waits before it flies. Stock 0
+	// is the current immediate start. Negative is the operator's
+	// number — it is not clamped.
+	Delay float64 `json:"delay"`
+	// StartY is the path start as a fraction of stage height.
+	// Stock 0 keeps the current path. A smaller fraction starts
+	// higher — the fall's top-right, the landing diagonal's top.
+	StartY float64 `json:"startY"`
 }
 
 type Knob int
@@ -51,6 +63,8 @@ const (
 	KnobNozzle
 	KnobPeak
 	KnobTaper
+	KnobDelay
+	KnobStartY
 	KnobCount
 )
 
@@ -61,6 +75,8 @@ const (
 	StepNozzle = 0.2
 	StepPeak   = 1.0
 	StepTaper  = 0.05
+	StepDelay  = 0.05
+	StepStartY = 0.01
 
 	DefaultConfigPath = "scenes/shootingstar/config.json"
 )
@@ -97,6 +113,10 @@ func KnobLabel(k Knob) string {
 		return "peak"
 	case KnobTaper:
 		return "taper"
+	case KnobDelay:
+		return "delay"
+	case KnobStartY:
+		return "start y"
 	default:
 		return ""
 	}
@@ -136,6 +156,10 @@ func (c Config) Value(k Knob) float64 {
 		return c.Peak
 	case KnobTaper:
 		return c.Taper
+	case KnobDelay:
+		return c.Delay
+	case KnobStartY:
+		return c.StartY
 	default:
 		return 0
 	}
@@ -246,9 +270,11 @@ func (c Config) Save(path string) error {
 		"  \"maxLife\": %.2f,\n"+
 		"  \"nozzle\": %.2f,\n"+
 		"  \"peak\": %.1f,\n"+
-		"  \"taper\": %.2f\n"+
+		"  \"taper\": %.2f,\n"+
+		"  \"delay\": %.3f,\n"+
+		"  \"startY\": %.2f\n"+
 		"}\n",
-		c.Path, c.Size, c.RandomSize, c.Speed, c.Count, c.Period, c.MinLife, c.MaxLife, c.Nozzle, c.Peak, c.Taper))
+		c.Path, c.Size, c.RandomSize, c.Speed, c.Count, c.Period, c.MinLife, c.MaxLife, c.Nozzle, c.Peak, c.Taper, c.Delay, c.StartY))
 	return os.WriteFile(path, raw, 0o644)
 }
 
@@ -314,5 +340,9 @@ func (c *Config) Nudge(k Knob, dir int) {
 		c.Peak = snap(c.Peak+StepPeak*float64(dir), StepPeak)
 	case KnobTaper:
 		c.Taper = snap(c.Taper+StepTaper*float64(dir), StepTaper)
+	case KnobDelay:
+		c.Delay = snap(c.Delay+StepDelay*float64(dir), StepDelay)
+	case KnobStartY:
+		c.StartY = snap(c.StartY+StepStartY*float64(dir), StepStartY)
 	}
 }

@@ -39,6 +39,9 @@ func TestConfig(t *testing.T) {
 		if KnobCount != 9 {
 			t.Fatalf("KnobCount %d, want 9 (rise, lift at, four ignition stages, three dust knobs)", KnobCount)
 		}
+		if c.WhiteOnly {
+			t.Fatal("stock liftoff is the full hull — WhiteOnly is a MAIN knob, default false")
+		}
 	})
 	t.Run("happy: the stock ignition is an ordered ramp that ends at liftoff", func(t *testing.T) {
 		c := DefaultConfig()
@@ -184,6 +187,47 @@ func TestConfig(t *testing.T) {
 		}
 		if got.DustStart != DustStart || got.DustRun != DustRun || got.DustLoss != DustLoss {
 			t.Fatalf("missing dust keys loaded %+v, want the stock dust", got)
+		}
+		if got.WhiteOnly {
+			t.Fatal("a file that does not name whiteOnly must keep stock false")
+		}
+	})
+	t.Run("happy: WhiteOnly loads from JSON and a missing key stays stock false", func(t *testing.T) {
+		on := filepath.Join(t.TempDir(), "white.json")
+		if err := os.WriteFile(on, []byte(`{"whiteOnly":true,"dustRun":0}`+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load(on)
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if !got.WhiteOnly {
+			t.Fatal("whiteOnly true must load")
+		}
+		if got.DustRun != 0 {
+			t.Fatalf("dustRun %v, want 0 — a dustless pad is the operator's", got.DustRun)
+		}
+		if got.RiseSeconds != RiseSeconds {
+			t.Fatalf("unnamed rise loaded %v, want stock", got.RiseSeconds)
+		}
+	})
+	t.Run("unhappy: WhiteOnly false is stock, and a dustless white-only file still Validates", func(t *testing.T) {
+		off := filepath.Join(t.TempDir(), "full.json")
+		if err := os.WriteFile(off, []byte(`{"whiteOnly":false}`+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load(off)
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if got.WhiteOnly {
+			t.Fatal("whiteOnly false must stay the full hull")
+		}
+		ok := DefaultConfig()
+		ok.WhiteOnly = true
+		ok.DustRun = 0
+		if err := ok.Validate(); err != nil {
+			t.Fatalf("white-only with no dust must be playable: %v", err)
 		}
 	})
 	t.Run("happy: LoadOrDefault is stock when the file is missing, and Use is what Active hands out", func(t *testing.T) {
