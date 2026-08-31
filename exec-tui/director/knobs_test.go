@@ -39,7 +39,7 @@ func TestKnobsFor(t *testing.T) {
 			{bobble.New(nil), "bobble", int(bobble.KnobCount), false},
 			{moonwalk.New(moonwalk.BeatRun), "moonwalk", int(moonwalk.KnobCount), true},
 			{moonshow.NewOrbitShow(), "orbit", 2, false},
-			{lunarcloseup.NewCloseupShow(nil), "closeup", 1, false},
+			{lunarcloseup.NewCloseupShow(nil), "closeup", 2, false},
 			{lunarcloseup.NewFireShow(nil), "fire", 2, false},
 		}
 		for _, tc := range cases {

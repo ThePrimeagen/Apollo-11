@@ -1,17 +1,19 @@
 package lunarcloseup
 
 // Tests written FIRST: 02. Walkthrough is a composable five-scene
-// bill. Scene one, "pause": the drifting sky alone — a blank stage
+// bill. Scene one, "pause": the still sky alone — a blank stage
 // the audience can sit on for as long as it likes; only the cut moves
 // the show along. Scene two, "Lunar Lander Close-Up": the zoomed-in
 // Apollo craft slides in from the right the moment the curtain rises
-// — no baked-in wait — hull only, cold engine. Scene three, "fire":
-// the parked craft lights the booster and the stars slow by 60% over
-// five seconds. Scene four, "fall": the north-facing lander, fire
-// down, drops from the top of the stage to the bottom. Scene five,
-// "landing": a huge moon horizon (five rows high in the middle, one
-// row at the edges) and the north-facing lander coming down onto it.
-// After the last scene there is nothing left.
+// — no baked-in wait — hull only, cold engine, the sky surging from
+// rest to a 1.25 peak then settling to cruise so the hull holds
+// center. Scene three, "fire": the parked craft lights the booster
+// and the stars slow by 60% over five seconds. Scene four, "fall":
+// the north-facing lander, fire down, drops from the top of the
+// stage to the bottom. Scene five, "landing": a huge moon horizon
+// (five rows high in the middle, one row at the edges) and the
+// north-facing lander coming down onto it. After the last scene
+// there is nothing left.
 //
 // One stars.Continuity seeds every scene's sky, so a cut never jumps
 // or skips a single star: each new starfield opens on the exact frame
@@ -207,7 +209,7 @@ func TestLunarCloseUpBill(t *testing.T) {
 			}
 		}
 	})
-	t.Run("happy: the pause is a blank stage under drifting stars", func(t *testing.T) {
+	t.Run("happy: the pause is a blank stage under still stars", func(t *testing.T) {
 		sc := Bill()[0].Scene
 		sc.Start()
 		defer sc.Stop()
@@ -217,8 +219,8 @@ func TestLunarCloseUpBill(t *testing.T) {
 		}
 		tick(sc, 2.0)
 		after := paint(sc)
-		if before.Render() == after.Render() {
-			t.Fatal("the pause sky must keep drifting — a blank stage, not a freeze frame")
+		if before.Render() != after.Render() {
+			t.Fatal("the pause sky must hold still — a freeze frame, not a drift")
 		}
 	})
 	t.Run("unhappy: the pause never admits the craft or the fire, however long it sits", func(t *testing.T) {
@@ -679,14 +681,16 @@ func hullLeftCol(t *testing.T, v string) int {
 	return best
 }
 
-// Tests written FIRST: the close-up entry grows its editable face — a
-// tunable show whose one knob, the fly-in, paces both the sliding sky
-// and the hull's westbound glide. The fire entry grows two: how far
-// the stars brake and how long the brake takes. Stock knobs fly the
-// stock show; the numbers are the operator's, verbatim — a nudge
-// below zero stands — and no two bills share knobs.
+// Tests written FIRST: the close-up entry grows its editable face —
+// two knobs: the fly-in, which paces both the sliding sky and the
+// hull's westbound glide, and the rush, the peak fly speed the sky
+// surges to from rest before it settles back to cruise. The fire
+// entry grows two: how far the stars brake and how long the brake
+// takes. Stock knobs fly the stock show; the numbers are the
+// operator's, verbatim — a nudge below zero stands — and no two
+// bills share knobs.
 func TestCloseupShow(t *testing.T) {
-	t.Run("happy: the close-up entry is the tunable show at the stock fly-in", func(t *testing.T) {
+	t.Run("happy: the close-up entry is the tunable show at the stock fly-in and rush", func(t *testing.T) {
 		sc, ok := Bill()[1].Scene.(*CloseupShow)
 		if !ok {
 			t.Fatalf("the close-up entry is %T, want the close-up show", Bill()[1].Scene)
@@ -697,18 +701,36 @@ func TestCloseupShow(t *testing.T) {
 		if DefaultCloseupConfig().FlyInSeconds != lander.FlyInSeconds {
 			t.Fatalf("stock fly-in is %v, want the lander const %v", DefaultCloseupConfig().FlyInSeconds, lander.FlyInSeconds)
 		}
+		if DefaultCloseupConfig().RushPeak != 1.25 {
+			t.Fatalf("stock rush is %v, want 1.25", DefaultCloseupConfig().RushPeak)
+		}
 	})
-	t.Run("happy: the knob face is the fly-in alone", func(t *testing.T) {
+	t.Run("happy: the knob face is fly-in then rush", func(t *testing.T) {
 		c := DefaultCloseupConfig()
-		if c.KnobCount() != 1 || c.KnobLabel(0) != "fly-in" {
-			t.Fatalf("the close-up carries %d knobs labeled %q, want one fly-in", c.KnobCount(), c.KnobLabel(0))
+		if c.KnobCount() != 2 || c.KnobLabel(0) != "fly-in" || c.KnobLabel(1) != "rush" {
+			t.Fatalf("the close-up carries %d knobs labeled %q/%q, want fly-in then rush", c.KnobCount(), c.KnobLabel(0), c.KnobLabel(1))
 		}
 		if c.Value(0) != c.FlyInSeconds {
-			t.Fatalf("the knob reads %v, want the config", c.Value(0))
+			t.Fatalf("the fly-in knob reads %v, want the config", c.Value(0))
+		}
+		if c.Value(1) != c.RushPeak {
+			t.Fatalf("the rush knob reads %v, want the config", c.Value(1))
 		}
 		c.Nudge(0, -2)
 		if want := lander.FlyInSeconds - 0.5; c.FlyInSeconds != want {
-			t.Fatalf("two steps down read %v, want %v", c.FlyInSeconds, want)
+			t.Fatalf("two fly-in steps down read %v, want %v", c.FlyInSeconds, want)
+		}
+		c.Nudge(1, 1)
+		if want := 1.25 + 0.05; c.RushPeak != want {
+			t.Fatalf("one rush step reads %v, want %v", c.RushPeak, want)
+		}
+	})
+	t.Run("happy: the close-up sky surges from rest to 1.25 then cruises", func(t *testing.T) {
+		if stars.SurgeClock(lander.FlyInSeconds, 1.25, lander.FlyInSeconds) != 3.5 {
+			t.Fatalf("the close-up surge must burn 3.5s of fly over a 4s fly-in (fly clock %g)", stars.SurgeClock(lander.FlyInSeconds, 1.25, lander.FlyInSeconds))
+		}
+		if stars.SurgeClock(lander.FlyInSeconds+2, 1.25, lander.FlyInSeconds) != 5.5 {
+			t.Fatal("past the fly-in the close-up sky must cruise at standard speed")
 		}
 	})
 	t.Run("happy: the knob reaches the stage — a one-second fly-in parks in one second", func(t *testing.T) {
@@ -738,7 +760,11 @@ func TestCloseupShow(t *testing.T) {
 		c := DefaultCloseupConfig()
 		c.Nudge(0, -100)
 		if want := lander.FlyInSeconds - 25.0; c.FlyInSeconds != want {
-			t.Fatalf("a hundred steps down reads %v, want %v — never clamped", c.FlyInSeconds, want)
+			t.Fatalf("a hundred fly-in steps down reads %v, want %v — never clamped", c.FlyInSeconds, want)
+		}
+		c.Nudge(1, 8000)
+		if want := 1.25 + 400.0; c.RushPeak != want {
+			t.Fatalf("eight thousand rush steps read %v, want %v — never clamped", c.RushPeak, want)
 		}
 		before := c
 		c.Nudge(5, 1)

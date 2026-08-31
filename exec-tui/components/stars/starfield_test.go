@@ -598,6 +598,41 @@ func TestStarfieldSeed(t *testing.T) {
 			t.Fatal("a 60% brake over 5s must seed exactly 3.5s of fly")
 		}
 	})
+	t.Run("happy: a surged sky hands the successor its rushed fly clock", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c).Surge(1.25, 4)
+		a.Start(stageW, stageH)
+		a.Update(4.0)
+		last := spriteSnapshot(a.Render())
+		a.Stop()
+		b := NewStarfield(Drift).Seed(c)
+		b.Start(stageW, stageH)
+		if !snapshotsEqual(last, spriteSnapshot(b.Render())) {
+			t.Fatal("the successor must open on the surged sky's last frame")
+		}
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(3.5)
+		if !snapshotsEqual(spriteSnapshot(plain.Render()), spriteSnapshot(b.Render())) {
+			t.Fatal("a 1.25 surge over 4s must seed exactly 3.5s of fly")
+		}
+	})
+	t.Run("unhappy: the surge itself never crosses the cut — the successor flies full speed", func(t *testing.T) {
+		c := NewContinuity()
+		a := NewStarfield(Drift).Seed(c).Surge(1.25, 4)
+		a.Start(stageW, stageH)
+		a.Update(4.0)
+		a.Stop()
+		b := NewStarfield(Drift).Seed(c)
+		b.Start(stageW, stageH)
+		b.Update(1.0)
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(4.5)
+		if !snapshotsEqual(spriteSnapshot(plain.Render()), spriteSnapshot(b.Render())) {
+			t.Fatal("one second after the cut the successor must have burned one full second of fly")
+		}
+	})
 	t.Run("unhappy: the brake itself never crosses the cut — the successor flies full speed", func(t *testing.T) {
 		c := NewContinuity()
 		a := NewStarfield(Drift).Seed(c).Slow(0.6, 5)
@@ -704,6 +739,78 @@ func TestBrakeClock(t *testing.T) {
 		}
 		if got := BrakeClock(3, 0.6, 0); got != 3 {
 			t.Fatalf("seconds<=0 fly clock %g, want wall time (no brake)", got)
+		}
+	})
+}
+
+func TestSurgeClock(t *testing.T) {
+	t.Run("happy: a 1.25 peak over 4s burns 1.25s of fly at the crest, 3.5s at the park, then cruises", func(t *testing.T) {
+		if got := SurgeClock(0, 1.25, 4); got != 0 {
+			t.Fatalf("t=0 fly clock %g, want 0", got)
+		}
+		// Midpoint: triangle 0→1.25 over 2s, average 0.625 → 1.25s of fly.
+		if got := SurgeClock(2, 1.25, 4); got != 1.25 {
+			t.Fatalf("t=2 fly clock %g, want 1.25", got)
+		}
+		// Second half: 1.25→1 over 2s, average 1.125 → +2.25; total 3.5.
+		if got := SurgeClock(4, 1.25, 4); got != 3.5 {
+			t.Fatalf("t=4 fly clock %g, want 3.5", got)
+		}
+		if got := SurgeClock(6, 1.25, 4); got != 5.5 {
+			t.Fatalf("t=6 fly clock %g, want 3.5+2 = 5.5 — standard speed after the park", got)
+		}
+	})
+	t.Run("unhappy: a zero window is wall time; t<0 is rest; a wild peak stands", func(t *testing.T) {
+		if got := SurgeClock(4, 1.25, 0); got != 4 {
+			t.Fatalf("seconds<=0 fly clock %g, want wall time 4", got)
+		}
+		if got := SurgeClock(-2, 1.25, 4); got != 0 {
+			t.Fatalf("t<0 fly clock %g, want 0", got)
+		}
+		if got := SurgeClock(2, 400, 4); got != 400 {
+			t.Fatalf("peak=400 at the crest fly clock %g, want 400 — never clamped", got)
+		}
+	})
+}
+
+func TestStarfieldSurge(t *testing.T) {
+	t.Run("happy: after 4s a 1.25 surge matches 3.5s of the same un-surged sky", func(t *testing.T) {
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(3.5)
+		want := spriteSnapshot(plain.Render())
+		rushed := NewStarfield(Drift).Surge(1.25, 4)
+		rushed.Start(stageW, stageH)
+		rushed.Update(4)
+		if !snapshotsEqual(want, spriteSnapshot(rushed.Render())) {
+			t.Fatal("a 1.25 surge over 4s must leave the sky where 3.5s of cruise would")
+		}
+	})
+	t.Run("happy: past the window the sky cruises at standard speed", func(t *testing.T) {
+		plain := NewStarfield(Drift)
+		plain.Start(stageW, stageH)
+		plain.Update(5.5)
+		want := spriteSnapshot(plain.Render())
+		rushed := NewStarfield(Drift).Surge(1.25, 4)
+		rushed.Start(stageW, stageH)
+		rushed.Update(6)
+		if !snapshotsEqual(want, spriteSnapshot(rushed.Render())) {
+			t.Fatal("after the 4s window the surged sky must fly at standard speed")
+		}
+	})
+	t.Run("unhappy: Surge on a nil sky is still nil", func(t *testing.T) {
+		var ghost *Starfield
+		if ghost.Surge(1.25, 4) != nil {
+			t.Fatal("Surge must return the nil receiver")
+		}
+	})
+	t.Run("unhappy: a still sky does not start moving just because it was asked to surge", func(t *testing.T) {
+		f := NewStarfield(Still).Surge(1.25, 4)
+		f.Start(stageW, stageH)
+		before := spriteSnapshot(f.Render())
+		f.Update(4)
+		if !snapshotsEqual(before, spriteSnapshot(f.Render())) {
+			t.Fatal("Surge must not un-park a still sky")
 		}
 	})
 }
